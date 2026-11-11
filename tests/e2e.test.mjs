@@ -394,4 +394,86 @@ test('сквозной сценарий игры', { timeout: 180000 }, async (t
     assert.ok(!/"(ward|santa|pairs)"/.test(JSON.stringify(st)), 'роли не открывают пары');
     assert.deepEqual(st.users.filter((u) => u.is_owner).map((u) => u.id), [oleg.id], 'владелец ровно один');
   });
+  await t.test('004: перенос участия на новый аккаунт — пары остальных не меняются', async () => {
+    const [masha, , , oleg, katya] = people;
+    const owner = oleg; // после сценария ролей владелец — Олег
+    await api(owner, 'admin.draw');
+    const drawIds = (await api(owner, 'admin.state')).users.filter((u) => u.in_draw).map((u) => u.id);
+    const nameOf = Object.fromEntries((await api(owner, 'admin.state')).users.map((u) => [u.name, u.id]));
+    const snapshot = async (ids) => {
+      const m = new Map();
+      for (const id of ids) {
+        const d = await api({ id, name: 'x', username: '' }, 'ward.get');
+        if (d.state === 'ok') m.set(id, nameOf[d.ward.name]);
+      }
+      return m;
+    };
+    const before = await snapshot(drawIds);
+    const katyaSanta = [...before].find(([, w]) => w === katya.id)[0];
+    await api({ id: katyaSanta, name: 'x', username: '' }, 'message.send', { to: 'ward', text: 'Привет, Катя! Что ты любишь?' });
+    const katyaLetter = (await api(katya, 'me')).me.wishlist;
+
+    // Катя потеряла аккаунт и зарегистрировалась с нового
+    const katya2 = { id: 205, name: 'Катя Новая', username: 'katya_new' };
+    await api(owner, 'admin.registration', { open: true });
+    await say(katya2, '/start ' + inviteCode);
+    await say(katya2, katya2.name);
+
+    // права: владельца не переносим; админа переносит только владелец; цель не должна быть в жеребьёвке
+    assert.equal((await api(owner, 'admin.transfer', { from: owner.id, to: katya2.id }, true)).status, 400);
+    assert.equal((await api(admin, 'admin.transfer', { from: masha.id, to: katya2.id }, true)).status, 403);
+    assert.equal((await api(owner, 'admin.transfer', { from: katya.id, to: masha.id }, true)).status, 400);
+
+    const othersMsgsBefore = mock.calls.length;
+    await api(masha, 'admin.transfer', { from: katya.id, to: katya2.id });
+    await waitFor(() => texts(katya2).some((x) => /перенёс на этот аккаунт/.test(x)), 'сообщение новому аккаунту');
+
+    nameOf[katya2.name] = katya2.id;
+    const afterIds = drawIds.map((id) => (id === katya.id ? katya2.id : id));
+    const after = await snapshot(afterIds);
+    for (const [s0, w0] of before) {
+      const s1 = s0 === katya.id ? katya2.id : s0;
+      const w1 = w0 === katya.id ? katya2.id : w0;
+      assert.equal(after.get(s1), w1, 'пара не изменилась');
+    }
+    const chat = await api(katya2, 'chat.get', { with: 'santa' });
+    assert.ok(chat.messages.some((m) => /Привет, Катя/.test(m.text)), 'переписка перенесена');
+    assert.equal((await api(katya2, 'me')).me.wishlist, katyaLetter, 'письмо перенесено');
+    assert.equal((await api(katya, 'me')).registered, false, 'старая запись удалена');
+    const extra = mock.calls.slice(othersMsgsBefore).filter((c) => c.method === 'sendMessage' && c.params.chat_id !== katya2.id && /подопечн/.test(c.params.text || ''));
+    assert.equal(extra.length, 0, 'другим уведомлений о смене подопечного нет');
+  });
+
+  await t.test('004: полный сброс — только владелец, слово СБРОС, остаётся только владелец', async () => {
+    const [masha, , , oleg] = people;
+    const owner = oleg;
+    const stBefore = await api(owner, 'admin.state');
+    const oldInvite = /start=(inv_[a-z0-9]+)/.exec(stBefore.settings.invite_link)[1];
+    assert.equal((await api(masha, 'admin.reset.full', { confirm: 'СБРОС' }, true)).status, 403, 'админ не может');
+    assert.equal((await api(owner, 'admin.reset.full', { confirm: 'сбро' }, true)).status, 400, 'неверное слово');
+
+    const r = await api(owner, 'admin.reset.full', { confirm: 'сброс' });
+    assert.equal(r.removed, stBefore.users.length - 1);
+    assert.ok(r.invite_link && !r.invite_link.includes(oldInvite), 'новая пригласительная ссылка');
+
+    const st = await api(owner, 'admin.state');
+    assert.deepEqual(st.users.map((u) => u.id), [owner.id], 'остался только владелец');
+    assert.equal(st.users[0].is_owner, true);
+    assert.equal(st.exclusions.length, 0);
+    assert.equal(st.settings.draw_done, false);
+    assert.equal(st.settings.registration_open, true);
+    assert.equal(st.settings.budget, '');
+    assert.equal(st.settings.has_history, false);
+    assert.equal((await api(owner, 'me')).me.wishlist, '');
+    assert.equal((await api(owner, 'ward.get')).state, 'no_draw');
+
+    assert.equal((await api(masha, 'me')).registered, false, 'участник удалён');
+    await waitFor(() => texts(masha).some((x) => /начал игру «Тайный Санта» заново/.test(x)), 'сообщение удалённым');
+    const fresh = { id: 301, name: 'Новенький', username: 'fresh' };
+    await say(fresh, '/start ' + oldInvite);
+    assert.match(lastText(fresh), /устарела/, 'старая ссылка не работает');
+    const newInvite = /start=(inv_[a-z0-9]+)/.exec(r.invite_link)[1];
+    await say(fresh, '/start ' + newInvite);
+    assert.match(lastText(fresh), /Как тебя зовут/, 'новая ссылка работает');
+  });
 });

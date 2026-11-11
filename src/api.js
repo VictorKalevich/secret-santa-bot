@@ -9,6 +9,7 @@ import {
   MAX_CHARS, isDrawDone, isRegistrationOpen, inviteLink, randomCode,
   checkDraw, runDraw, removeUser, insertUser, revealAll, newGame, remindUnfilled, remindSantas,
   flushOutbox, resolveOwner, grantAdmin, revokeAdmin, transferOwnership, chatPair, unreadCounts,
+  fullReset, transferAccount,
 } from './game.js';
 import { sendAnonymous } from './bot.js';
 
@@ -253,6 +254,25 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       if (target?.is_admin && !isOwner) return fail('Удалить администратора может только владелец игры.', 403);
       const r = await removeUser(env, id);
       return r.ok ? {} : fail(r.error);
+    }
+
+    case 'admin.transfer': {
+      const from = Number(body.from);
+      const to = Number(body.to);
+      if (from === ownerId) {
+        return fail('Запись владельца не переносится: владелец восстанавливает доступ по ссылке владельца со страницы /setup.');
+      }
+      const fromUser = await getUser(db, from);
+      if (fromUser?.is_admin && !isOwner) return fail('Перенести администратора может только владелец игры.', 403);
+      const r = await transferAccount(env, from, to);
+      return r.ok ? {} : fail(r.error);
+    }
+
+    case 'admin.reset.full': {
+      if (!isOwner) return fail('Полный сброс может сделать только владелец игры.', 403);
+      if (String(body.confirm || '').trim().toUpperCase() !== 'СБРОС') return fail('Для полного сброса введи слово СБРОС.');
+      const r = await fullReset(env, me.tg_id);
+      return { removed: r.removed, invite_link: inviteLink({ ...settings, invite_code: r.inviteCode }) };
     }
 
     case 'admin.role.grant': {

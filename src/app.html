@@ -457,6 +457,71 @@
     }
     nodes.push(ui.section('Приглашение'), regCard);
 
+    // --- меню участника (004)
+    const canRemove = (u) => u.id !== me.id && !u.is_owner && (!u.is_admin || me.is_owner);
+    const canTransfer = (u) => !u.is_owner && (!u.is_admin || me.is_owner);
+    const transferTargets = (u) => users.filter((x) => x.id !== u.id && x.registered && !x.in_draw);
+    function openParticipantMenu(u, chips) {
+      const items = [];
+      if (u.registered && u.is_participant) {
+        const b = ui.btn('👁 Открыть письмо', 'secondary', 'ds-btn--block');
+        b.addEventListener('click', async () => {
+          if (!(await confirmBox(`Открыть письмо участника «${u.name}»? Ты увидишь его содержимое.`))) return;
+          busy(b, async () => {
+            const w = await api('admin.wishlist', { id: u.id });
+            openSheet('Письмо: ' + w.name, w.wishlist ? h('div', { class: 'ds-card ds-letter' }, w.wishlist) : h('div', { class: 'ds-card ds-text-muted' }, 'Письмо пустое.'));
+          });
+        });
+        items.push(b);
+      }
+      if (u.registered) {
+        const b = ui.btn('✏️ Переименовать', 'secondary', 'ds-btn--block');
+        b.addEventListener('click', () => {
+          const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
+          const ok = ui.btn('Сохранить', '', 'ds-btn--block');
+          ok.addEventListener('click', () => busy(ok, async () => { await api('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
+          openSheet('Имя участника', ui.card(inp, ok));
+        });
+        items.push(b);
+      }
+      if (canTransfer(u) && transferTargets(u).length) {
+        const b = ui.btn('🔁 Перенести на новый аккаунт', 'secondary', 'ds-btn--block');
+        b.addEventListener('click', () => openTransfer(u));
+        items.push(b);
+      }
+      if (canRemove(u)) {
+        const b = ui.btn('🗑 Удалить из игры', 'danger', 'ds-btn--block');
+        b.addEventListener('click', async () => {
+          const extra = s.draw_done && u.in_draw ? ' Жеребьёвка будет аккуратно поправлена: новый подопечный появится только у его Санты.' : '';
+          if (!(await confirmBox(`Удалить участника «${u.name || 'без имени'}» из игры?${extra}`))) return;
+          busy(b, async () => { await api('admin.remove', { id: u.id }); closeSheet(); toast('Участник удалён'); await renderAdmin(); });
+        });
+        items.push(b);
+      }
+      if (u.is_owner) items.push(ui.hint('Владельца нельзя удалить или перенести: он может только передать права (раздел «Администраторы»).'));
+      else if (u.is_admin && !me.is_owner) items.push(ui.hint('Удалять и переносить администраторов может только владелец.'));
+      openSheet(u.name || 'без имени', [
+        h('div', {}, u.username ? ui.hint('@' + u.username) : null, h('div', { class: 'ds-chips' }, chips)),
+        ...(items.length ? items : [ui.hint('Для этой записи действий нет.')]),
+      ]);
+    }
+    function openTransfer(u) {
+      const targets = transferTargets(u);
+      const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Новый аккаунт…'),
+        ...targets.map((x) => h('option', { value: x.id }, x.name + (x.username ? ' (@' + x.username + ')' : ''))));
+      const go = ui.btn('🔁 Перенести', '', 'ds-btn--block');
+      go.addEventListener('click', async () => {
+        const t = targets.find((x) => String(x.id) === sel.value);
+        if (!t) return toast('Выбери новый аккаунт');
+        if (!(await confirmBox(`Перенести участие «${u.name}» на «${t.name}»? Письмо, подопечный, Санта и переписка перейдут на новый аккаунт, старая запись будет удалена.`))) return;
+        busy(go, async () => { await api('admin.transfer', { from: u.id, to: t.id }); closeSheet(); toast('🔁 Участие перенесено'); await refresh(); });
+      });
+      openSheet('Перенести на новый аккаунт', [
+        ui.hint(`Если «${u.name || 'участник'}» потерял доступ к Telegram и зарегистрировался заново, выбери его новую запись. ` +
+          'Новый аккаунт получит место старого: письмо, подопечного и Санту, переписку, исключения. Пары остальных не изменятся.'),
+        sel, go]);
+    }
+
     // --- участники
     const filled = players.filter((u) => u.has_wishlist).length;
     const list = h('div', { class: 'ds-card ds-card--flush' });
@@ -474,32 +539,9 @@
       }
       if (u.is_owner) chips.push(ui.chip('👑 владелец'));
       else if (u.is_admin) chips.push(ui.chip('🛠 админ'));
-      const actions = h('div', { class: 'ds-row ds-row--tight' });
-      if (u.registered && u.is_participant) {
-        actions.append(h('button', { class: 'ds-icon-btn', title: 'Посмотреть письмо', onclick: async () => {
-          if (!(await confirmBox(`Открыть письмо участника «${u.name}»? Ты увидишь его содержимое.`))) return;
-          busy(null, async () => {
-            const w = await api('admin.wishlist', { id: u.id });
-            openSheet('Письмо: ' + w.name, w.wishlist ? h('div', { class: 'ds-card ds-letter' }, w.wishlist) : h('div', { class: 'ds-card ds-text-muted' }, 'Письмо пустое.'));
-          });
-        } }, '👁'));
-      }
-      if (u.registered) {
-        actions.append(h('button', { class: 'ds-icon-btn', title: 'Переименовать', onclick: () => {
-          const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
-          const ok = ui.btn('Сохранить', '', 'ds-btn--block');
-          ok.addEventListener('click', () => busy(ok, async () => { await api('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
-          openSheet('Имя участника', ui.card(inp, ok));
-        } }, '✏️'));
-      }
-      // Владельца удалить нельзя; админов удаляет только владелец (002, FR-106)
-      if (u.id !== me.id && !u.is_owner && (!u.is_admin || me.is_owner)) {
-        actions.append(h('button', { class: 'ds-icon-btn', title: 'Удалить', onclick: async () => {
-          const extra = s.draw_done && u.in_draw ? ' Жеребьёвка будет аккуратно поправлена: новый подопечный появится только у его Санты.' : '';
-          if (!(await confirmBox(`Удалить участника «${u.name || 'без имени'}» из игры?${extra}`))) return;
-          busy(null, async () => { await api('admin.remove', { id: u.id }); toast('Участник удалён'); await renderAdmin(); });
-        } }, '🗑'));
-      }
+      // Все действия над участником — в одном меню «⋯» (004, FR-409)
+      const actions = h('div', { class: 'ds-row ds-row--tight' },
+        h('button', { class: 'ds-icon-btn', title: 'Действия с участником', onclick: () => openParticipantMenu(u, chips.map((c) => c.cloneNode(true))) }, '⋯'));
       list.append(h('div', { class: 'ds-list-item' },
         h('div', { class: 'ds-grow' },
           h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null),
@@ -521,7 +563,7 @@
     }));
     nodes.push(
       ui.section(`Участники · ${players.length}`),
-      ui.hint(`Письма написали ${filled} из ${players.length}. Содержимое писем открывается только по кнопке 👁.`, 'ds-hint--inset'),
+      ui.hint(`Письма написали ${filled} из ${players.length}. Письмо участника открывается только через «⋯» → «Открыть письмо».`, 'ds-hint--inset'),
       list,
       players.length > filled ? remindBtn : null);
 
@@ -691,6 +733,38 @@
         field('Заметки для всех', f.notes),
         ui.hint('Бот сам напомнит: за 2 дня до срока — тем, у кого нет письма; за 2 дня и в день вручения — Сантам без отметки «подарок готов».'),
         saveGame));
+
+    // --- опасная зона (004): только владелец
+    if (me.is_owner) {
+      const resetBtn = ui.btn('🧨 Полный сброс игры', 'danger', 'ds-btn--block');
+      resetBtn.addEventListener('click', () => {
+        const word = h('input', { class: 'ds-input', type: 'text', placeholder: 'Введи слово СБРОС', autocomplete: 'off' });
+        const go = ui.btn('🧨 Сбросить всё', 'danger', 'ds-btn--block');
+        go.disabled = true;
+        word.addEventListener('input', () => { go.disabled = word.value.trim().toUpperCase() !== 'СБРОС'; });
+        go.addEventListener('click', async () => {
+          if (!(await confirmBox('Точно сбросить игру? Все участники, кроме тебя, и все данные игры будут удалены без возможности восстановления.'))) return;
+          busy(go, async () => {
+            const r = await api('admin.reset.full', { confirm: 'СБРОС' });
+            closeSheet();
+            toast(`Игра сброшена. Удалено записей: ${r.removed}. Новая пригласительная ссылка готова.`);
+            await refresh();
+          });
+        });
+        openSheet('Полный сброс игры', [
+          h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Будет удалено без возможности восстановления:'),
+            h('ul', { class: 'ds-bullets' },
+              h('li', {}, 'все участники и администраторы, кроме тебя;'),
+              h('li', {}, 'письма Санте (и твоё тоже), пары, исключения, отметки «подарок готов»;'),
+              h('li', {}, 'вся переписка и история прошлых пар;'),
+              h('li', {}, 'бюджет, даты, место и заметки.'))),
+          ui.hint('Останешься ты как владелец. Будет создана новая пригласительная ссылка — старая перестанет работать. Удалённые получат сообщение, что игра начата заново.'),
+          word, go]);
+      });
+      nodes.push(
+        ui.section('Опасная зона'),
+        ui.card(ui.hint('«Начать новую игру» (в разделе «Жеребьёвка») сохраняет участников и письма. Полный сброс удаляет всех, кроме тебя, и все данные — как будто игры не было.'), resetBtn));
+    }
 
     main.replaceChildren(...nodes);
   }

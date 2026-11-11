@@ -407,6 +407,78 @@ export async function unreadCounts(db, userId) {
   return { from_ward: r?.from_ward || 0, from_santa: r?.from_santa || 0 };
 }
 
+// ---------- полный сброс и перенос участия (004) ----------
+
+// Полный сброс события: остаётся только владелец; данные игры и параметры очищаются, приглашение перевыпускается.
+export async function fullReset(env, ownerId) {
+  const db = env.DB;
+  const users = await allUsers(db);
+  const removed = users.filter((u) => u.tg_id !== ownerId);
+  const inviteCode = randomCode();
+  const clear = ['budget', 'event_date', 'place', 'deadline', 'notes', 'last_daily', 'draw_at'];
+  await db.batch([
+    db.prepare('DELETE FROM outbox'),
+    ...removed.map((u) => enqueueStmt(db, u.tg_id, msg(
+      '🎄 Организатор начал игру «Тайный Санта» заново. Прежние данные удалены. Чтобы участвовать, попроси у организатора новую пригласительную ссылку.'
+    ))),
+    db.prepare('DELETE FROM users WHERE tg_id != ?').bind(ownerId),
+    db.prepare("UPDATE users SET wishlist = '', wishlist_updated_at = 0, pending = '', is_admin = 1 WHERE tg_id = ?").bind(ownerId),
+    db.prepare('DELETE FROM pairs'),
+    db.prepare('DELETE FROM exclusions'),
+    db.prepare('DELETE FROM history'),
+    db.prepare('DELETE FROM messages'),
+    setSettingStmt(db, 'draw_done', '0'),
+    setSettingStmt(db, 'revealed', '0'),
+    setSettingStmt(db, 'registration_open', '1'),
+    setSettingStmt(db, 'avoid_previous', '1'),
+    setSettingStmt(db, 'invite_code', inviteCode),
+    setSettingStmt(db, 'owner_id', String(ownerId)),
+    ...clear.map((k) => setSettingStmt(db, k, '')),
+  ]);
+  return { removed: removed.length, inviteCode };
+}
+
+// Перенести участие со старой записи на новую (человек потерял доступ к аккаунту): пары остальных не меняются.
+export async function transferAccount(env, fromId, toId) {
+  const db = env.DB;
+  if (!fromId || !toId || fromId === toId) return { ok: false, error: 'Выбери две разные записи.' };
+  const users = await allUsers(db);
+  const from = users.find((u) => u.tg_id === fromId);
+  const to = users.find((u) => u.tg_id === toId);
+  if (!from) return { ok: false, error: 'Старая запись не найдена.' };
+  if (!to || !to.registered) return { ok: false, error: 'Новый аккаунт должен завершить регистрацию (написать боту имя).' };
+  const pairs = await getPairs(db);
+  if (pairs.some((p) => p.santa === toId || p.ward === toId)) {
+    return { ok: false, error: 'Новый аккаунт уже участвует в жеребьёвке — выбери другую запись.' };
+  }
+  const settings = await getSettings(db);
+  const keepNewLetter = !!to.wishlist.trim();
+  await db.batch([
+    db.prepare('UPDATE pairs SET santa = ? WHERE santa = ?').bind(toId, fromId),
+    db.prepare('UPDATE pairs SET ward = ? WHERE ward = ?').bind(toId, fromId),
+    db.prepare('UPDATE messages SET santa = ? WHERE santa = ?').bind(toId, fromId),
+    db.prepare('UPDATE messages SET ward = ? WHERE ward = ?').bind(toId, fromId),
+    db.prepare('UPDATE history SET santa = ? WHERE santa = ?').bind(toId, fromId),
+    db.prepare('UPDATE history SET ward = ? WHERE ward = ?').bind(toId, fromId),
+    db.prepare('UPDATE OR IGNORE exclusions SET giver = ? WHERE giver = ?').bind(toId, fromId),
+    db.prepare('UPDATE OR IGNORE exclusions SET receiver = ? WHERE receiver = ?').bind(toId, fromId),
+    db.prepare('DELETE FROM exclusions WHERE giver = ? OR receiver = ? OR giver = receiver').bind(fromId, fromId),
+    db.prepare('UPDATE users SET is_participant = ?, is_admin = ?, wishlist = ?, wishlist_updated_at = ? WHERE tg_id = ?').bind(
+      from.is_participant ? 1 : to.is_participant,
+      from.is_admin || to.is_admin ? 1 : 0,
+      keepNewLetter ? to.wishlist : from.wishlist,
+      keepNewLetter ? to.wishlist_updated_at : from.wishlist_updated_at,
+      toId
+    ),
+    db.prepare('DELETE FROM users WHERE tg_id = ?').bind(fromId),
+    enqueueStmt(db, toId, msg(
+      '🔁 Организатор перенёс на этот аккаунт твоё участие в игре «Тайный Санта»: письмо, подопечный и переписка сохранены.',
+      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть')]] } }
+    )),
+  ]);
+  return { ok: true };
+}
+
 // ---------- роли: владелец и администраторы (002) ----------
 
 // Владелец игры: settings.owner_id; если не задан или недействителен — самый ранний админ (FR-109).

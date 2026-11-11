@@ -127,6 +127,11 @@ try {
   await shot(people[0], '06-info', { tab: 'Инфо' });
   await shot(admin, '07-admin-after-draw', { tab: 'Админ' });
   await shot(people[0], '08-admin-as-regular-admin', { tab: 'Админ' });
+  await shot(admin, '11-participant-menu', { fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
+  await shot(admin, '12-danger-zone', { fullPage: false, tab: 'Админ', before: async (p) => {
+    await p.locator('.ds-btn', { hasText: 'Полный сброс игры' }).click();
+    await p.locator('.ds-sheet .ds-input').fill('СБРОС');
+  } });
   await shot(people[0], '02-my-letter', { dark: true });
   await shot(people[2], '05-ward-hidden', { tab: 'Подопечный', dark: true });
   await shot(admin, '07-admin-after-draw', { tab: 'Админ', dark: true });
