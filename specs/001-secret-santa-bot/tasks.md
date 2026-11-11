@@ -88,11 +88,11 @@ description: "Задачи реализации: Telegram-бот «Тайный 
 
 ## Phase 11: Polish & Cross-Cutting Concerns
 
-- [ ] T033 Имитация Telegram Bot API `tests/mock-telegram.mjs` и сквозной тест `tests/e2e.test.mjs` (US1–US8, проверки тайны и безопасности)
-- [ ] T034 [P] Скриншоты мини-приложения `tests/screenshots.py` (Playwright) и визуальная проверка
-- [ ] T035 [P] Пошаговая инструкция выката для Windows в `README.md`
-- [ ] T036 [P] Контекст агента и правила работы в `CLAUDE.md`
-- [ ] T037 Прогон `quickstart.md` (все тесты зелёные)
+- [X] T033 Имитация Telegram Bot API `tests/mock-telegram.mjs`, обвязка `tests/harness.mjs` и сквозной тест `tests/e2e.test.mjs` (US1–US8, проверки тайны и безопасности)
+- [X] T034 [P] Скриншоты мини-приложения `tests/screenshots.mjs` (playwright-core + Chrome) и визуальная проверка; по итогам — вкладки «иконка + подпись» в дизайн-системе
+- [X] T035 [P] Пошаговая инструкция выката для Windows в `README.md`
+- [X] T036 [P] Контекст агента и правила работы в `CLAUDE.md`
+- [X] T037 Прогон `quickstart.md` (все тесты зелёные)
 
 ## Dependencies & Execution Order
 

@@ -5,7 +5,7 @@
 ## Предварительно
 
 - Node.js 20+ (`node -v`), зависимости: `npm install`
-- Для скриншотов: Python 3 + `pip install playwright` + `python -m playwright install chromium`
+- Для скриншотов: установленный Google Chrome (или путь к Chromium в переменной `CHROME_PATH`)
 
 ## 1. Автотесты
 
@@ -27,8 +27,7 @@ npm run test:e2e    # локальный Worker + имитация Telegram: п�
 ## 2. Визуальная проверка мини-приложения
 
 ```powershell
-npm run dev                  # в одном окне: локальный Worker на http://127.0.0.1:8787
-python tests/screenshots.py  # в другом: скриншоты всех вкладок в test-results/
+npm run screenshots   # поднимает локальный Worker, создаёт тестовую игру, снимает все вкладки в test-results/
 ```
 
 Открыть `design-system/preview.html` в браузере — витрина всех компонентов дизайн-системы в светлой и тёмной теме.

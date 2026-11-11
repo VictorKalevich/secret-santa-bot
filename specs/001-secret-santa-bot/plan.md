@@ -24,7 +24,7 @@
 
 **Testing**: `node:test` — юнит-тесты алгоритма жеребьёвки и проверка дизайн-системы; сквозной тест —
 `wrangler dev` + имитация Telegram Bot API на Node + сценарий игры через webhook и API мини-приложения;
-визуальная проверка мини-приложения — Playwright (скриншоты)
+визуальная проверка мини-приложения — `playwright-core` + установленный Chrome (скриншоты)
 
 **Target Platform**: Cloudflare Workers (бесплатный тариф); клиенты — Telegram на iOS, Android, Windows/macOS/Linux
 
@@ -48,7 +48,7 @@
 | III. Спецификация до кода | spec → plan → tasks в `specs/001-secret-santa-bot/`, ветка `001-secret-santa-bot` | ✅ |
 | IV. Только дизайн-система | `design-system/tokens.css` + `components.css`; страница использует только классы `ds-*`; тест `tests/design-system.test.mjs` | ✅ |
 | V. Бесплатно и без сервера | Workers Free + D1; очередь `outbox` пачками ≤ 35; сравнение текстов на клиенте | ✅ |
-| VI. Проверено до выката | `tests/draw.test.mjs`, `tests/e2e.test.mjs`, скриншоты Playwright | ✅ |
+| VI. Проверено до выката | `tests/draw.test.mjs`, `tests/e2e.test.mjs`, `tests/screenshots.mjs` | ✅ |
 
 Повторная проверка после Phase 1: нарушений нет, Complexity Tracking пуст.
 
@@ -95,8 +95,9 @@ tests/
 ├── draw.test.mjs           # юнит-тесты жеребьёвки
 ├── design-system.test.mjs  # запрет «сырых» цветов/px в приложении, покрытие классов
 ├── e2e.test.mjs            # сквозной сценарий игры
+├── harness.mjs             # общая обвязка: имитация Telegram + wrangler dev + помощники
 ├── mock-telegram.mjs       # имитация Telegram Bot API
-└── screenshots.py          # скриншоты мини-приложения (Playwright)
+└── screenshots.mjs         # скриншоты мини-приложения (playwright-core + Chrome)
 ```
 
 **Structure Decision**: один проект (single project): Worker без сборщика + отдельная папка дизайн-системы,
