@@ -6,9 +6,9 @@ import {
 } from './db.js';
 import { validateInitData } from './telegram.js';
 import {
-  countWords, MAX_WORDS, MAX_CHARS, isDrawDone, isRegistrationOpen, inviteLink, randomCode,
+  MAX_CHARS, isDrawDone, isRegistrationOpen, inviteLink, randomCode,
   checkDraw, runDraw, removeUser, insertUser, revealAll, newGame, remindUnfilled, remindSantas,
-  flushOutbox, resolveOwner, grantAdmin, revokeAdmin, transferOwnership,
+  flushOutbox, resolveOwner, grantAdmin, revokeAdmin, transferOwnership, chatPair, unreadCounts,
 } from './game.js';
 import { sendAnonymous } from './bot.js';
 
@@ -43,6 +43,7 @@ export async function handleApi(request, env, ctx, action) {
     const [pair, wardPair, users] = await Promise.all([pairOfSanta(db, me.tg_id), pairOfWard(db, me.tg_id), allUsers(db)]);
     const participants = users.filter((u) => u.registered && u.is_participant).length;
     const ownerId = me.is_admin ? await resolveOwner(db, settings, users) : null;
+    const unread = pair || wardPair ? await unreadCounts(db, me.tg_id) : { from_ward: 0, from_santa: 0 };
     return json({
       ok: true,
       registered: true,
@@ -57,9 +58,10 @@ export async function handleApi(request, env, ctx, action) {
         wishlist_updated_at: me.wishlist_updated_at,
         has_ward: !!pair,
         has_santa: !!wardPair,
+        unread,
       },
       game: { ...publicGame(settings), participants },
-      limits: { words: MAX_WORDS, chars: MAX_CHARS },
+      limits: { chars: MAX_CHARS },
     });
   }
 
@@ -69,8 +71,9 @@ export async function handleApi(request, env, ctx, action) {
   switch (action) {
     case 'wishlist.save': {
       const text = String(body.text ?? '').replace(/\r\n/g, '\n');
-      if (countWords(text) > MAX_WORDS) return fail(`Слишком длинно: максимум ${MAX_WORDS} слов.`);
-      if (text.length > MAX_CHARS) return fail(`Слишком длинно: максимум ${MAX_CHARS} символов.`);
+      if (text.length > MAX_CHARS) {
+        return fail(`Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).`);
+      }
       if (text === me.wishlist) return json({ ok: true, updated_at: me.wishlist_updated_at });
       const now = Date.now();
       await updateUser(db, me.tg_id, { wishlist: text, wishlist_updated_at: now });
@@ -106,7 +109,32 @@ export async function handleApi(request, env, ctx, action) {
     case 'message.send': {
       const to = body.to === 'santa' ? 'santa' : 'ward';
       const r = await sendAnonymous(env, me.tg_id, to, body.text, ctx);
-      return r.ok ? json({ ok: true }) : fail(r.error);
+      return r.ok ? json({ ok: true, message: r.message }) : fail(r.error);
+    }
+
+    case 'chat.get': {
+      const withWhom = body.with === 'santa' ? 'santa' : 'ward';
+      const pair = await chatPair(db, me.tg_id, withWhom);
+      if (!pair) return json({ ok: true, state: 'no_pair' });
+      const after = Number(body.after) || 0;
+      const q = after
+        ? db.prepare('SELECT id, sender, text, created_at FROM messages WHERE santa = ? AND ward = ? AND id > ? ORDER BY id LIMIT 300')
+            .bind(pair.santa, pair.ward, after)
+        : db.prepare('SELECT id, sender, text, created_at FROM messages WHERE santa = ? AND ward = ? ORDER BY id DESC LIMIT 300')
+            .bind(pair.santa, pair.ward);
+      const { results } = await q.all();
+      if (!after) results.reverse();
+      if (results.some((m) => m.sender !== pair.me)) {
+        await db.prepare('UPDATE messages SET read_at = ? WHERE santa = ? AND ward = ? AND sender != ? AND read_at = 0')
+          .bind(Date.now(), pair.santa, pair.ward, pair.me).run();
+      }
+      // Только текст и «моё/не моё» — без ID и имён собеседника (Конституция, принцип I)
+      return json({
+        ok: true,
+        state: 'ok',
+        counterpart: withWhom,
+        messages: results.map((m) => ({ id: m.id, mine: m.sender === pair.me, text: m.text, created_at: m.created_at })),
+      });
     }
 
     case 'notify.set': {

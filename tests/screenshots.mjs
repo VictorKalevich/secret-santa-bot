@@ -84,7 +84,7 @@ try {
   const launch = process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' };
   browser = await chromium.launch(launch);
 
-  async function shot(user, name, { tab, dark = false, before } = {}) {
+  async function shot(user, name, { tab, dark = false, before, fullPage = true } = {}) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
     await page.route('https://telegram.org/**', (r) => r.abort());
     if (dark) {
@@ -100,7 +100,7 @@ try {
     await page.waitForTimeout(400);
     await checkColors(page, name + (dark ? ' (тёмная)' : ''));
     if (before) { await before(page); await page.waitForTimeout(500); }
-    await page.screenshot({ path: fileURLToPath(new URL(`${name}${dark ? '-dark' : ''}.png`, OUT)), fullPage: true });
+    await page.screenshot({ path: fileURLToPath(new URL(`${name}${dark ? '-dark' : ''}.png`, OUT)), fullPage });
     await page.close();
     console.log('✔', name + (dark ? ' (тёмная)' : ''));
   }
@@ -116,7 +116,13 @@ try {
   const ward = [admin, ...people].find((p) => p.name === wardName);
   await w.api(ward, 'wishlist.save', { text: LETTER(ward.name).replace('тёплом шарфе', 'тёплых варежках').replace('Чего точно не надо', 'И ещё настольную игру.\n\nЧего точно не надо') });
 
+  // Переписка (003): Санта спросил, подопечный ответил — у Санты непрочитанное
+  await w.api(admin, 'message.send', { to: 'ward', text: 'Привет! Какой у тебя размер перчаток? И какие цвета любишь?' });
+  await w.api(ward, 'message.send', { to: 'santa', text: 'Привет, Санта! Размер M 🙂\nЛюблю зелёный и синий.' });
   await shot(admin, '04-ward', { tab: 'Подопечный', before: (p) => p.getByRole('button', { name: '👀 Показать имя' }).click() });
+  await shot(admin, '09-chat-santa-view', { fullPage: false, tab: 'Подопечный', before: (p) => p.locator('.ds-btn', { hasText: 'Написать подопечному' }).click() });
+  await shot(ward, '10-chat-ward-view', { fullPage: false, tab: 'Письмо', before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
+  await shot(ward, '10-chat-ward-view', { fullPage: false, tab: 'Письмо', dark: true, before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
   await shot(people[1], '05-ward-hidden', { tab: 'Подопечный' });
   await shot(people[0], '06-info', { tab: 'Инфо' });
   await shot(admin, '07-admin-after-draw', { tab: 'Админ' });

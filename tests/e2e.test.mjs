@@ -106,14 +106,16 @@ test('сквозной сценарий игры', { timeout: 180000 }, async (t
     assert.equal(me.me.is_participant, true);
   });
 
-  await t.test('US1: письмо — сохранение, лимит слов, только своё', async () => {
+  await t.test('US1: письмо — сохранение, лимит 4000 символов, только своё', async () => {
     for (const p of [admin, ...people.slice(0, 5)]) {
       await api(p, 'wishlist.save', { text: `Письмо от ${p.name}: хочу носки и книгу. СЕКРЕТ-${p.id}` });
     }
-    const tooLong = Array.from({ length: 1001 }, () => 'слово').join(' ');
-    const r = await api(people[0], 'wishlist.save', { text: tooLong }, true);
+    // 003, FR-309: лимит 4000 символов (одно сообщение Telegram — 4096)
+    const r = await api(people[0], 'wishlist.save', { text: 'я'.repeat(4001) }, true);
     assert.equal(r.status, 400);
-    assert.match(r.data.error, /1000 слов/);
+    assert.match(r.data.error, /максимум 4000/);
+    await api(people[0], 'wishlist.save', { text: 'я'.repeat(4000) });
+    assert.equal((await api(people[0], 'me')).limits.chars, 4000);
     await api(people[0], 'wishlist.save', { text: 'Подмена', id: 102, tg_id: 102 });
     const petya = await api(people[1], 'me');
     assert.match(petya.me.wishlist, /СЕКРЕТ-102/, 'чужое письмо не изменилось');
@@ -217,24 +219,59 @@ test('сквозной сценарий игры', { timeout: 180000 }, async (t
     await api(santaX, 'notify.set', { mode: 'silent' });
   });
 
-  await t.test('US6: анонимные сообщения Санта ⇄ подопечный', async () => {
+  await t.test('US6 + 003: переписка Санты и подопечного, уведомления, непрочитанные', async () => {
     const santa = people[0];
     const ward = byId[pairs.get(santa.id)];
-    await api(santa, 'message.send', { to: 'ward', text: 'Какой у тебя размер перчаток?' });
-    await waitFor(() => texts(ward).some((x) => /Какой у тебя размер перчаток/.test(x)), 'вопрос подопечному');
+    const sent = await api(santa, 'message.send', { to: 'ward', text: 'Какой у тебя размер перчаток?' });
+    assert.equal(sent.message.mine, true);
+    await waitFor(() => texts(ward).some((x) => /Какой у тебя размер перчаток/.test(x)), 'сообщение подопечному');
     const q = mock.messagesTo(ward.id).find((c) => /размер перчаток/.test(c.params.text));
-    assert.match(q.params.text, /Тайного Санты/);
+    assert.match(q.params.text, /Твой Тайный Санта пишет/);
     assert.ok(!q.params.text.includes(santa.name), 'отправитель не раскрыт');
+    const kb = q.params.reply_markup.inline_keyboard.flat();
+    assert.ok(kb.some((b) => b.callback_data === 'msg:santa'), 'кнопка «Ответить»');
+    assert.ok(kb.some((b) => b.web_app && /\/app\?chat=santa$/.test(b.web_app.url)), 'кнопка «Вся переписка»');
+
+    assert.equal((await api(ward, 'me')).me.unread.from_santa, 1, 'непрочитанное у подопечного');
+    const wc = await api(ward, 'chat.get', { with: 'santa' });
+    assert.equal(wc.messages.length, 1);
+    assert.equal(wc.messages[0].mine, false);
+    assert.ok(!JSON.stringify(wc).includes(santa.name) && !JSON.stringify(wc).includes(String(santa.id)), 'в ответе нет имени и ID Санты');
+    assert.equal((await api(ward, 'me')).me.unread.from_santa, 0, 'прочитано после открытия');
+
+    // ответ через бота попадает в ту же переписку
     await press(ward, 'msg:santa');
     await say(ward, 'Размер M, спасибо!');
     await waitFor(() => texts(santa).some((x) => /Размер M, спасибо/.test(x)), 'ответ Санте');
-    assert.match(lastText(ward), /Отправлено/);
+    assert.match(lastText(ward), /Отправлено твоему Санте/);
+    assert.equal((await api(santa, 'me')).me.unread.from_ward, 1);
+    const sc = await api(santa, 'chat.get', { with: 'ward' });
+    assert.deepEqual(sc.messages.map((m) => [m.mine, m.text]), [[true, 'Какой у тебя размер перчаток?'], [false, 'Размер M, спасибо!']]);
+    const more = await api(santa, 'chat.get', { with: 'ward', after: sc.messages[1].id });
+    assert.equal(more.messages.length, 0, 'догрузка после последнего — пусто');
+
+    // чужую переписку не видно: у подопечного Санты своя пара
+    const other = people[1];
+    const oc = await api(other, 'chat.get', { with: 'santa' });
+    assert.ok(!oc.messages?.some((m) => /перчаток/.test(m.text)), 'чужая переписка недоступна');
+
+    // лимиты
+    assert.equal((await api(santa, 'message.send', { to: 'ward', text: 'x'.repeat(4001) }, true)).status, 400);
+    assert.equal((await api(santa, 'message.send', { to: 'ward', text: '   ' }, true)).status, 400);
+    await press(santa, 'msg:ward');
+    await say(santa, 'y'.repeat(4001));
+    assert.match(lastText(santa), /максимум 4000/);
+    await say(santa, '/cancel');
   });
 
   await t.test('US7: удаление и вписывание после жеребьёвки — минимум изменений', async () => {
     const victim = people[5]; // Иван
     const before = pairs;
+    const victimSanta = [...pairs].find(([, w]) => w === victim.id)[0];
+    await api(byId[victimSanta], 'message.send', { to: 'ward', text: 'Секретный вопрос Ивану' });
     await api(admin, 'admin.remove', { id: victim.id });
+    const vs = await api(byId[victimSanta], 'chat.get', { with: 'ward' });
+    assert.ok(!vs.messages.some((m) => /Ивану/.test(m.text)), 'переписка с удалённым не переходит к новому подопечному');
     const rest = everyone.filter((u) => u.id !== victim.id);
     const after = await pairsSnapshot(rest);
     assertPermutation(after, rest.map((u) => u.id), exclusions);

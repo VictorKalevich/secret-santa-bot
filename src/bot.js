@@ -2,7 +2,9 @@
 
 import { getSettings, getUser, createUser, updateUser, pairOfSanta, pairOfWard, enqueueStmt, allUsers } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
-import { menuMessage, isRegistrationOpen, escapeHtml, msg, flushOutbox, resolveOwner, setOwner } from './game.js';
+import {
+  menuMessage, isRegistrationOpen, escapeHtml, msg, flushOutbox, resolveOwner, setOwner, sendChatMessage, MAX_CHARS,
+} from './game.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидит твой Санта и организатор.';
@@ -128,37 +130,24 @@ export async function handleUpdate(update, env, ctx) {
       return sendMenu(user);
     }
     const toWard = user.pending === 'msg_ward';
+    if (text.length > MAX_CHARS) {
+      return reply(`❌ Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS}. Отправь покороче или /cancel.`);
+    }
     const res = await sendAnonymous(env, from.id, toWard ? 'ward' : 'santa', text, ctx);
     await updateUser(db, from.id, { pending: '' });
-    return reply(res.ok ? '✅ Отправлено анонимно.' : '❌ ' + res.error);
+    return reply(res.ok
+      ? (toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.')
+      : '❌ ' + res.error);
   }
 
   return sendMenu(user);
 }
 
+// Сообщение в переписку Санты и подопечного (из чата с ботом или из мини-приложения)
 export async function sendAnonymous(env, fromId, to, text, ctx) {
-  const db = env.DB;
-  text = String(text || '').trim().slice(0, 3500);
-  if (!text) return { ok: false, error: 'Пустое сообщение.' };
-  if (to === 'ward') {
-    const p = await pairOfSanta(db, fromId);
-    if (!p) return { ok: false, error: 'У тебя пока нет подопечного.' };
-    await enqueueStmt(db, p.ward, {
-      text: '🎅 <b>Сообщение от твоего Тайного Санты:</b>\n\n' + escapeHtml(text),
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: [[{ text: '↩️ Ответить Санте', callback_data: 'msg:santa' }]] },
-    }).run();
-  } else {
-    const p = await pairOfWard(db, fromId);
-    if (!p) return { ok: false, error: 'Жеребьёвка для тебя ещё не проведена.' };
-    await enqueueStmt(db, p.santa, {
-      text: '🎁 <b>Тебе пишет твой подопечный:</b>\n\n' + escapeHtml(text),
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: [[{ text: '↩️ Ответить подопечному', callback_data: 'msg:ward' }]] },
-    }).run();
-  }
-  ctx.waitUntil(flushOutbox(env));
-  return { ok: true };
+  const r = await sendChatMessage(env, fromId, to, text);
+  if (r.ok) ctx.waitUntil(flushOutbox(env));
+  return r;
 }
 
 const NOTIFY_LABELS = {
@@ -193,9 +182,10 @@ async function handleCallback(cq, env, ctx, call) {
     await updateUser(db, from.id, { pending: toWard ? 'msg_ward' : 'msg_santa' });
     await answer();
     return send(msg(
-      toWard
-        ? '✍️ Напиши сообщение подопечному — я передам его <b>анонимно</b>, от имени «Тайного Санты».\n\n/cancel — отмена'
-        : '✍️ Напиши сообщение своему Санте — я передам его. Санта знает, кто ты, а ты его — нет.\n\n/cancel — отмена'
+      (toWard
+        ? '✍️ Напиши сообщение подопечному — я передам его <b>анонимно</b>, от имени «Тайного Санты».'
+        : '✍️ Напиши сообщение своему Санте — я передам его. Санта знает, кто ты, а ты его — нет.') +
+      `\nДо ${MAX_CHARS} символов. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`
     ));
   }
 

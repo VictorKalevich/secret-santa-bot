@@ -34,6 +34,16 @@ const SCHEMA = [
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    santa INTEGER NOT NULL,
+    ward INTEGER NOT NULL,
+    sender TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    read_at INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS messages_pair ON messages (santa, ward, id)`,
   `CREATE TABLE IF NOT EXISTS outbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id INTEGER NOT NULL,

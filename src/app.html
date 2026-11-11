@@ -106,7 +106,6 @@
     catch (e) { haptic('error'); toast('⚠️ ' + e.message); }
     finally { if (btn) btn.disabled = false; }
   }
-  const words = (t) => ((t || '').trim().match(/\S+/g) || []).length;
   const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   function fmtDate(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
@@ -206,6 +205,23 @@
     return t;
   }
 
+  // Точка на вкладке: несохранённое письмо или непрочитанные сообщения переписки (003)
+  function tabHasDot(id) {
+    const u = (state.me && state.me.unread) || {};
+    if (id === 'my') return state.dirty || u.from_santa > 0;
+    if (id === 'ward') return u.from_ward > 0;
+    return false;
+  }
+
+  // Кнопка «💬 Написать …» с числом непрочитанных
+  function chatButton(withWhom) {
+    const n = ((state.me && state.me.unread) || {})[withWhom === 'ward' ? 'from_ward' : 'from_santa'] || 0;
+    const btn = ui.btn(withWhom === 'ward' ? '💬 Написать подопечному' : '💬 Написать Санте', 'secondary', 'ds-btn--block');
+    if (n) btn.append(h('span', { class: 'ds-badge' }, String(n)));
+    btn.addEventListener('click', () => openChat(withWhom));
+    return btn;
+  }
+
   function renderTabs() {
     const nav = document.getElementById('tabs');
     nav.hidden = false;
@@ -220,7 +236,7 @@
           render();
         },
       }, h('span', { class: 'ds-tab__icon' }, icon), h('span', { class: 'ds-tab__label' }, label),
-        id === 'my' && state.dirty ? h('span', { class: 'ds-tab__dot' }) : null)
+        tabHasDot(id) ? h('span', { class: 'ds-tab__dot' }) : null)
     ));
   }
 
@@ -249,7 +265,7 @@
   // ---------- вкладка «Моё письмо» ----------
   function renderMy() {
     const me = state.me;
-    const max = state.limits.words;
+    const max = state.limits.chars;
     const ta = ui.textarea({
       class: 'ds-input ds-input--letter',
       placeholder: 'Дорогой Санта! В этом году я мечтаю о…\n\nНапиши, что хочешь получить, что любишь, размеры одежды, любимые цвета — и чего точно не надо.',
@@ -259,8 +275,8 @@
     const saveBtn = ui.btn('Сохранить', '', 'ds-btn--block');
     const status = h('span', { class: 'ds-hint' });
     const update = () => {
-      const n = words(ta.value);
-      counter.textContent = `${n} / ${max} слов`;
+      const n = ta.value.length;
+      counter.textContent = `${n} / ${max} символов`;
       counter.classList.toggle('ds-counter--over', n > max);
       const changed = ta.value !== me.wishlist;
       saveBtn.disabled = !changed || n > max;
@@ -281,24 +297,15 @@
     const nodes = [
       ui.section('Письмо Тайному Санте'),
       ui.card(
-        ui.hint('Его увидит только твой Санта. Менять можно в любой момент — даже после жеребьёвки.'),
+        ui.hint(`Его увидит только твой Санта. Менять можно в любой момент — даже после жеребьёвки. До ${max} символов — столько помещается в одно сообщение Telegram.`),
         ta,
         h('div', { class: 'ds-row ds-row--between' }, counter, status),
         saveBtn),
     ];
     if (me.has_santa) {
-      const msgTa = ui.textarea({ placeholder: 'Например: «Санта, я передумал насчёт шарфа — лучше варежки 🙂»', rows: 2 });
-      const sendBtn = ui.btn('Отправить Санте', 'secondary', 'ds-btn--block');
-      sendBtn.addEventListener('click', () => busy(sendBtn, async () => {
-        if (!msgTa.value.trim()) return toast('Напиши сообщение');
-        await api('message.send', { to: 'santa', text: msgTa.value });
-        msgTa.value = '';
-        haptic('success');
-        toast('✅ Отправлено твоему Санте');
-      }));
       nodes.push(
-        ui.section('Написать своему Санте'),
-        ui.card(ui.hint('Ты не знаешь, кто твой Санта, а он знает тебя. Сообщение придёт ему в чат с ботом.'), msgTa, sendBtn));
+        ui.section('Переписка с Сантой'),
+        ui.card(ui.hint('Хочешь что-то уточнить или ответить на вопрос? Напиши своему Тайному Санте. Ты не знаешь, кто он, а он знает тебя.'), chatButton('santa')));
     }
     main.replaceChildren(...nodes);
     update();
@@ -327,7 +334,7 @@
     const text = d.ward.wishlist || '';
     let letter;
     if (!text.trim()) {
-      letter = h('div', { class: 'ds-text-muted' }, 'Подопечный пока ничего не написал. Можно задать ему вопрос анонимно — форма ниже 👇');
+      letter = h('div', { class: 'ds-text-muted' }, 'Подопечный пока ничего не написал. Можно спросить его в переписке — кнопка ниже 👇');
     } else if (d.previous !== null && d.previous !== undefined) {
       letter = h('div', { class: 'ds-stack' },
         h('div', { class: 'ds-notice ds-text-sm' }, '✨ Письмо изменилось с твоего прошлого просмотра: новое ',
@@ -344,23 +351,13 @@
       toast(gift.checked ? '🎉 Отлично! Подарок отмечен как готовый' : 'Отметка снята');
     }));
 
-    const qTa = ui.textarea({ placeholder: 'Например: «Какой у тебя размер перчаток?»', rows: 2 });
-    const qBtn = ui.btn('🤫 Отправить анонимно', 'secondary', 'ds-btn--block');
-    qBtn.addEventListener('click', () => busy(qBtn, async () => {
-      if (!qTa.value.trim()) return toast('Напиши вопрос');
-      await api('message.send', { to: 'ward', text: qTa.value });
-      qTa.value = '';
-      haptic('success');
-      toast('✅ Отправлено от имени «Тайного Санты»');
-    }));
-
     main.replaceChildren(
       h('div', { class: 'ds-ward-card' }, h('div', { class: 'ds-ward-card__label' }, 'Ты — Тайный Санта для'), nameEl, toggle),
       ui.section('Письмо подопечного'),
       ui.card(letter, d.ward.updated_at && text.trim() ? ui.hint('Обновлено ' + fmtTime(d.ward.updated_at)) : null),
       h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Подарок готов', 'Видно только организатору — для статистики', gift)),
-      ui.section('Анонимный вопрос подопечному'),
-      ui.card(ui.hint('Подопечный получит сообщение от «Тайного Санты» и сможет ответить — ответ придёт тебе в чат с ботом.'), qTa, qBtn));
+      ui.section('Переписка с подопечным'),
+      ui.card(ui.hint('Есть вопрос? Напиши подопечному — для него ты «Тайный Санта», имя не раскрывается.'), chatButton('ward')));
   }
 
   // ---------- вкладка «Инфо» ----------
@@ -700,18 +697,83 @@
 
   // ---------- шторка ----------
   let sheetEl = null;
-  function openSheet(title, content) {
+  let sheetOnClose = null;
+  function openSheet(title, content, { full = false, onClose = null } = {}) {
     closeSheet();
+    const header = h('div', { class: 'ds-row ds-row--between' }, h('h2', { class: 'ds-sheet__title' }, title),
+      h('button', { class: 'ds-icon-btn', title: 'Закрыть', onclick: closeSheet }, '✕'));
     sheetEl = h('div', { class: 'ds-sheet-backdrop', onclick: (e) => { if (e.target === sheetEl) closeSheet(); } },
-      h('div', { class: 'ds-sheet ds-stack' },
-        h('div', { class: 'ds-row ds-row--between' }, h('h2', { class: 'ds-sheet__title' }, title), h('button', { class: 'ds-icon-btn', title: 'Закрыть', onclick: closeSheet }, '✕')),
-        content));
+      h('div', { class: full ? 'ds-sheet ds-sheet--full' : 'ds-sheet ds-stack' }, header, ...[].concat(content)));
+    sheetOnClose = onClose;
     document.body.append(sheetEl);
     try { if (tg && ver('6.1')) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); } } catch (e) {}
   }
   function closeSheet() {
     if (sheetEl) { sheetEl.remove(); sheetEl = null; }
     try { if (tg && ver('6.1')) { tg.BackButton.hide(); tg.BackButton.offClick(closeSheet); } } catch (e) {}
+    const cb = sheetOnClose;
+    sheetOnClose = null;
+    if (cb) cb();
+  }
+
+  // ---------- переписка Санты и подопечного (003) ----------
+  function openChat(withWhom) {
+    const max = state.limits.chars;
+    const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
+    const ta = ui.textarea({ class: 'ds-input ds-composer__input', rows: 1, placeholder: 'Сообщение…' });
+    const send = ui.btn('Отправить', '', 'ds-composer__send');
+    const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
+    let lastId = 0;
+    let timer = null;
+    const shown = new Set();
+
+    const bubble = (m) => h('div', { class: 'ds-chat__msg ' + (m.mine ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
+      m.text, h('div', { class: 'ds-chat__meta' }, fmtTime(m.created_at)));
+    const add = (msgs) => {
+      const fresh = msgs.filter((m) => !shown.has(m.id));
+      if (!fresh.length) return;
+      if (!shown.size) list.replaceChildren();
+      for (const m of fresh) { shown.add(m.id); list.append(bubble(m)); lastId = Math.max(lastId, m.id); }
+      list.scrollTop = list.scrollHeight;
+    };
+    const load = async () => {
+      const d = await api('chat.get', { with: withWhom, after: lastId });
+      if (d.state !== 'ok') { list.replaceChildren(h('div', { class: 'ds-chat__empty' }, 'Переписка недоступна: жеребьёвка ещё не проведена.')); return; }
+      if (!lastId && !d.messages.length) {
+        list.replaceChildren(h('div', { class: 'ds-chat__empty' }, withWhom === 'ward'
+          ? 'Здесь пока пусто. Напиши подопечному — он увидит сообщение от «Тайного Санты» и сможет ответить.'
+          : 'Здесь пока пусто. Напиши своему Санте — он ответит здесь же.'));
+      }
+      add(d.messages);
+    };
+    const update = () => {
+      const n = ta.value.length;
+      counter.hidden = n < max - 500;
+      counter.textContent = `${n} / ${max}`;
+      counter.classList.toggle('ds-counter--over', n > max);
+      send.disabled = !ta.value.trim() || n > max;
+    };
+    ta.addEventListener('input', update);
+    send.addEventListener('click', () => busy(send, async () => {
+      const r = await api('message.send', { to: withWhom, text: ta.value });
+      ta.value = '';
+      ta.style.height = 'auto';
+      update();
+      add([r.message]);
+      haptic('success');
+    }));
+    update();
+
+    openSheet(withWhom === 'ward' ? 'Переписка с подопечным' : 'Твой Тайный Санта',
+      [ui.hint(withWhom === 'ward' ? 'Для подопечного ты — «Тайный Санта», имя не раскрывается.' : 'Санта знает, кто ты, а ты его — нет.'),
+        list, h('div', { class: 'ds-composer' }, ta, send), counter],
+      { full: true, onClose: async () => {
+        clearInterval(timer);
+        await reloadMe().catch(() => {});
+        if (!state.dirty) render(); else renderTabs();
+      } });
+    load().catch((e) => toast('⚠️ ' + e.message));
+    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
   }
 
   // ---------- старт ----------
@@ -735,6 +797,10 @@
         state.tab = state.me.is_admin ? 'admin' : 'info';
       }
       render();
+      // Открыть переписку сразу, если пришли из уведомления (кнопка «💬 Вся переписка»)
+      const chat = new URLSearchParams(location.search).get('chat');
+      if (chat === 'santa' && state.me.has_santa) openChat('santa');
+      if (chat === 'ward' && state.me.has_ward) openChat('ward');
     } catch (e) {
       showError(e);
       sub.textContent = '';

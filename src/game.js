@@ -2,18 +2,15 @@
 
 import {
   getSettings, setSettings, setSettingStmt, allUsers, getExclusions, getHistory, getPairs,
-  enqueueStmt, updateUserStmt,
+  enqueueStmt, updateUserStmt, pairOfSanta, pairOfWard,
 } from './db.js';
 import { findAssignment, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { tgApi } from './telegram.js';
 
-export const MAX_WORDS = 1000;
-export const MAX_CHARS = 15000;
-
-export function countWords(text) {
-  const m = String(text || '').trim().match(/\S+/g);
-  return m ? m.length : 0;
-}
+// Лимит письма и сообщения переписки: одно сообщение Telegram вмещает 4096 символов (UTF-16, как String.length),
+// 96 оставляем под заголовок уведомления (003, FR-309).
+export const TELEGRAM_MESSAGE_LIMIT = 4096;
+export const MAX_CHARS = 4000;
 
 export function appUrl(settings) {
   return (settings.base_url || '') + '/app';
@@ -63,8 +60,8 @@ export function menuMessage(user, settings, pair, wardPair) {
 
   const kb = [[openAppButton(settings)]];
   const row = [];
-  if (pair) row.push({ text: '✉️ Подопечному', callback_data: 'msg:ward' });
-  if (wardPair) row.push({ text: '✉️ Своему Санте', callback_data: 'msg:santa' });
+  if (pair) row.push({ text: '💬 Написать подопечному', callback_data: 'msg:ward' });
+  if (wardPair) row.push({ text: '💬 Написать Санте', callback_data: 'msg:santa' });
   if (row.length) kb.push(row);
   if (user.is_participant) kb.push([{ text: '🔔 Уведомления', callback_data: 'notify' }]);
   return { text: lines.join('\n'), parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } };
@@ -212,6 +209,10 @@ async function applyPairsChange(env, oldRows, newMap, changed, users) {
   for (const santa of oldMap.keys()) {
     if (!newMap.has(santa)) stmts.push(db.prepare('DELETE FROM pairs WHERE santa = ?').bind(santa));
   }
+  // Переписка исчезнувших пар удаляется: новая пара начинает разговор с чистого листа (003, FR-308)
+  for (const [santa, ward] of oldMap) {
+    if (newMap.get(santa) !== ward) stmts.push(db.prepare('DELETE FROM messages WHERE santa = ? AND ward = ?').bind(santa, ward));
+  }
   // Сначала удаляем изменившиеся пары (иначе сработает UNIQUE на ward), затем вставляем заново
   for (const [santa, ward] of newMap) {
     if (oldMap.get(santa) !== ward && oldMap.has(santa)) stmts.push(db.prepare('DELETE FROM pairs WHERE santa = ?').bind(santa));
@@ -254,6 +255,7 @@ export async function removeUser(env, id) {
     }
   }
   stmts.push(db.prepare('DELETE FROM exclusions WHERE giver = ? OR receiver = ?').bind(id, id));
+  stmts.push(db.prepare('DELETE FROM messages WHERE santa = ? OR ward = ?').bind(id, id));
   stmts.push(db.prepare('DELETE FROM users WHERE tg_id = ?').bind(id));
   stmts.push(enqueueStmt(db, id, msg('Организатор удалил тебя из игры «Тайный Санта». Если это ошибка — напиши ему.')));
   await db.batch(stmts);
@@ -298,6 +300,7 @@ export async function newGame(env) {
     for (const p of rows) stmts.push(db.prepare('INSERT INTO history (santa, ward) VALUES (?, ?)').bind(p.santa, p.ward));
   }
   stmts.push(db.prepare('DELETE FROM pairs'));
+  stmts.push(db.prepare('DELETE FROM messages'));
   stmts.push(setSettingStmt(db, 'draw_done', '0'));
   stmts.push(setSettingStmt(db, 'revealed', '0'));
   stmts.push(setSettingStmt(db, 'registration_open', '1'));
@@ -341,6 +344,67 @@ export function formatDate(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
   if (!m) return iso || '';
   return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`;
+}
+
+// ---------- переписка Санты и подопечного (003) ----------
+
+// Найти переписку пользователя: with = 'ward' (он Санта) или 'santa' (он подопечный).
+export async function chatPair(db, userId, withWhom) {
+  if (withWhom === 'ward') {
+    const p = await pairOfSanta(db, userId);
+    return p ? { santa: userId, ward: p.ward, me: 'santa', other: p.ward } : null;
+  }
+  const p = await pairOfWard(db, userId);
+  return p ? { santa: p.santa, ward: userId, me: 'ward', other: p.santa } : null;
+}
+
+export function chatButtons(settings, recipientSide) {
+  // recipientSide — кто получает: 'ward' отвечает Санте, 'santa' отвечает подопечному
+  const replyTo = recipientSide === 'ward' ? 'santa' : 'ward';
+  return {
+    inline_keyboard: [[
+      { text: '↩️ Ответить', callback_data: 'msg:' + replyTo },
+      { text: '💬 Вся переписка', web_app: { url: appUrl(settings) + '?chat=' + replyTo } },
+    ]],
+  };
+}
+
+// Сохранить сообщение в переписке и поставить уведомление получателю в очередь.
+export async function sendChatMessage(env, fromId, to, rawText) {
+  const db = env.DB;
+  const text = String(rawText ?? '').replace(/\r\n/g, '\n').trim();
+  if (!text) return { ok: false, error: 'Пустое сообщение.' };
+  if (text.length > MAX_CHARS) {
+    return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).` };
+  }
+  const pair = await chatPair(db, fromId, to);
+  if (!pair) return { ok: false, error: to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.' };
+  const settings = await getSettings(db);
+  const now = Date.now();
+  const header = pair.me === 'santa' ? '💬 <b>Твой Тайный Санта пишет:</b>' : '💬 <b>Тебе пишет твой подопечный:</b>';
+  const [inserted] = await db.batch([
+    db.prepare('INSERT INTO messages (santa, ward, sender, text, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id, created_at')
+      .bind(pair.santa, pair.ward, pair.me, text, now),
+    // Отвечая, человек видел сообщения собеседника — помечаем их прочитанными
+    db.prepare('UPDATE messages SET read_at = ? WHERE santa = ? AND ward = ? AND sender != ? AND read_at = 0')
+      .bind(now, pair.santa, pair.ward, pair.me),
+    enqueueStmt(db, pair.other, msg(header + '\n\n' + escapeHtml(text), {
+      reply_markup: chatButtons(settings, pair.me === 'santa' ? 'ward' : 'santa'),
+    })),
+  ]);
+  const row = inserted.results[0];
+  return { ok: true, message: { id: row.id, mine: true, text, created_at: row.created_at } };
+}
+
+export async function unreadCounts(db, userId) {
+  const r = await db.prepare(
+    `SELECT
+       SUM(CASE WHEN m.santa = ?1 AND m.sender = 'ward' THEN 1 ELSE 0 END) AS from_ward,
+       SUM(CASE WHEN m.ward = ?1 AND m.sender = 'santa' THEN 1 ELSE 0 END) AS from_santa
+     FROM messages m JOIN pairs p ON p.santa = m.santa AND p.ward = m.ward
+     WHERE m.read_at = 0 AND (m.santa = ?1 OR m.ward = ?1)`
+  ).bind(userId).first();
+  return { from_ward: r?.from_ward || 0, from_santa: r?.from_santa || 0 };
 }
 
 // ---------- роли: владелец и администраторы (002) ----------
