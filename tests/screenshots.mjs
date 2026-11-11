@@ -64,6 +64,7 @@ async function checkColors(page, label) {
     ];
   });
   for (const [what, actual, expected] of r) {
+    if (actual === null) continue; // на главном экране вкладок нет
     if (actual !== expected) colorProblems.push(`${label}: ${what} — ${actual}, ожидалось ${expected}`);
   }
 }
@@ -74,17 +75,25 @@ try {
   const s = await w.setup();
   await w.say(admin, '/start ' + s.adminCode);
   await w.say(admin, admin.name);
-  await w.press(admin, 'adm_part:1');
-  for (const p of people) { await w.say(p, '/start ' + s.inviteCode); await w.say(p, p.name); }
-  for (const p of [admin, ...people.slice(0, 4)]) await w.api(p, 'wishlist.save', { text: LETTER(p.name) });
-  await w.api(admin, 'admin.game', { budget: 'до 50 BYN', event_date: '2026-12-27', place: 'У Маши дома', deadline: '2026-12-20', notes: 'Подарок упаковать и подписать только именем получателя 🎁' });
-  await w.api(admin, 'admin.exclusion.add', { giver: 101, receiver: 102, mutual: true });
+  const A = (await w.api(admin, 'admin.events.create', { title: 'Новый год 2026 — семья' })).event.id;
+  const B = (await w.api(admin, 'admin.events.create', { title: 'Офис' })).event.id;
+  const inv = async (eid) => /start=(inv_[a-z0-9]+)/.exec((await w.api(admin, 'admin.state', { event: eid })).settings.invite_link)[1];
+  await w.api(admin, 'admin.participate', { event: A, on: true });
+  const codeA = await inv(A);
+  for (const p of people) { await w.say(p, '/start ' + codeA); await w.say(p, p.name); }
+  const codeB = await inv(B);
+  for (const p of [people[0], people[1], people[2]]) await w.say(p, '/start ' + codeB);
+  for (const p of [admin, ...people.slice(0, 4)]) await w.api(p, 'wishlist.save', { event: A, text: LETTER(p.name) });
+  await w.api(admin, 'admin.game', { event: A, title: 'Новый год 2026 — семья', budget: 'до 50 BYN', event_date: '2026-12-27', place: 'У Маши дома', deadline: '2026-12-20', notes: 'Подарок упаковать и подписать только именем получателя 🎁' });
+  await w.api(admin, 'admin.game', { event: B, title: 'Офис', budget: 'до 30 BYN', event_date: '2026-12-24', place: 'Переговорка', deadline: '', notes: '' });
+  await w.api(admin, 'admin.exclusion.add', { event: A, giver: 101, receiver: 102, mutual: true });
   await w.api(admin, 'admin.role.grant', { id: people[0].id });
 
   const launch = process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' };
   browser = await chromium.launch(launch);
 
-  async function shot(user, name, { tab, dark = false, before, fullPage = true } = {}) {
+  // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
+  async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
     await page.route('https://telegram.org/**', (r) => r.abort());
     if (dark) {
@@ -94,8 +103,9 @@ try {
         });
       }, DARK);
     }
-    await page.goto(`${w.base}/app#tgWebAppData=${encodeURIComponent(initData(user))}`);
-    await page.waitForSelector('.ds-tabs:not([hidden])');
+    const q = event ? `?event=${event}` : '';
+    await page.goto(`${w.base}/app${q}#tgWebAppData=${encodeURIComponent(initData(user))}`);
+    await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : '.ds-list-item--link, .ds-tabs:not([hidden])');
     if (tab) { await page.locator('.ds-tab', { hasText: tab }).click(); }
     await page.waitForTimeout(400);
     await checkColors(page, name + (dark ? ' (тёмная)' : ''));
@@ -105,36 +115,50 @@ try {
     console.log('✔', name + (dark ? ' (тёмная)' : ''));
   }
 
+  // Главный экран (005): мои эвенты, другие эвенты, создание эвента, администраторы
+  await shot(admin, '00-home');
+  await shot(admin, '00-home', { dark: true });
+  await shot(admin, '13-new-event', { fullPage: false, before: (p) => p.locator('.ds-btn', { hasText: 'Новый эвент' }).click() });
+  await shot(people[1], '16-home-participant');
+
   // До жеребьёвки
   await shot(people[4], '01-my-letter-empty');
-  await shot(people[0], '02-my-letter');
-  await shot(admin, '03-admin-before-draw', { tab: 'Админ' });
+  await shot(people[0], '02-my-letter', { event: A });
+  await shot(admin, '03-admin-before-draw', { event: A, tab: 'Админ' });
 
   // Жеребьёвка и правка письма подопечного (для подсветки изменений)
-  await w.api(admin, 'admin.draw');
-  const wardName = (await w.api(admin, 'ward.get')).ward.name;
+  await w.api(admin, 'admin.draw', { event: A });
+  const wardName = (await w.api(admin, 'ward.get', { event: A })).ward.name;
   const ward = [admin, ...people].find((p) => p.name === wardName);
-  await w.api(ward, 'wishlist.save', { text: LETTER(ward.name).replace('тёплом шарфе', 'тёплых варежках').replace('Чего точно не надо', 'И ещё настольную игру.\n\nЧего точно не надо') });
+  await w.api(ward, 'wishlist.save', { event: A, text: LETTER(ward.name).replace('тёплом шарфе', 'тёплых варежках').replace('Чего точно не надо', 'И ещё настольную игру.\n\nЧего точно не надо') });
 
   // Переписка (003): Санта спросил, подопечный ответил — у Санты непрочитанное
-  await w.api(admin, 'message.send', { to: 'ward', text: 'Привет! Какой у тебя размер перчаток? И какие цвета любишь?' });
-  await w.api(ward, 'message.send', { to: 'santa', text: 'Привет, Санта! Размер M 🙂\nЛюблю зелёный и синий.' });
-  await shot(admin, '04-ward', { tab: 'Подопечный', before: (p) => p.getByRole('button', { name: '👀 Показать имя' }).click() });
-  await shot(admin, '09-chat-santa-view', { fullPage: false, tab: 'Подопечный', before: (p) => p.locator('.ds-btn', { hasText: 'Написать подопечному' }).click() });
-  await shot(ward, '10-chat-ward-view', { fullPage: false, tab: 'Письмо', before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
-  await shot(ward, '10-chat-ward-view', { fullPage: false, tab: 'Письмо', dark: true, before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
-  await shot(people[1], '05-ward-hidden', { tab: 'Подопечный' });
-  await shot(people[0], '06-info', { tab: 'Инфо' });
-  await shot(admin, '07-admin-after-draw', { tab: 'Админ' });
-  await shot(people[0], '08-admin-as-regular-admin', { tab: 'Админ' });
-  await shot(admin, '11-participant-menu', { fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
-  await shot(admin, '12-danger-zone', { fullPage: false, tab: 'Админ', before: async (p) => {
-    await p.locator('.ds-btn', { hasText: 'Полный сброс игры' }).click();
+  await w.api(admin, 'message.send', { event: A, to: 'ward', text: 'Привет! Какой у тебя размер перчаток? И какие цвета любишь?' });
+  await w.api(ward, 'message.send', { event: A, to: 'santa', text: 'Привет, Санта! Размер M 🙂\nЛюблю зелёный и синий.' });
+  await shot(admin, '04-ward', { event: A, tab: 'Подопечный', before: (p) => p.getByRole('button', { name: '👀 Показать имя' }).click() });
+  await shot(admin, '09-chat-santa-view', { event: A, fullPage: false, tab: 'Подопечный', before: (p) => p.locator('.ds-btn', { hasText: 'Написать подопечному' }).click() });
+  await shot(ward, '10-chat-ward-view', { event: A, fullPage: false, tab: 'Письмо', before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
+  await shot(ward, '10-chat-ward-view', { event: A, fullPage: false, tab: 'Письмо', dark: true, before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
+  await shot(people[1], '05-ward-hidden', { event: A, tab: 'Подопечный' });
+  await shot(people[0], '06-info', { event: A, tab: 'Инфо' });
+  await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ' });
+  await shot(people[0], '08-admin-as-regular-admin', { event: A, tab: 'Админ' });
+  await shot(admin, '08b-admin-not-member', { event: B, tab: 'Админ' });
+  await shot(admin, '11-participant-menu', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
+  await shot(admin, '12-danger-zone', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
+    await p.locator('.ds-btn', { hasText: 'Полный сброс эвента' }).click();
     await p.locator('.ds-sheet .ds-input').fill('СБРОС');
   } });
-  await shot(people[0], '02-my-letter', { dark: true });
-  await shot(people[2], '05-ward-hidden', { tab: 'Подопечный', dark: true });
-  await shot(admin, '07-admin-after-draw', { tab: 'Админ', dark: true });
+  await shot(people[0], '02-my-letter', { event: A, dark: true });
+  await shot(people[2], '05-ward-hidden', { event: A, tab: 'Подопечный', dark: true });
+  await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ', dark: true });
+
+  // Завершённый эвент (005): письмо только для чтения, переписка ещё неделю
+  await w.api(admin, 'admin.reveal', { event: A });
+  await w.api(admin, 'admin.event.finish', { event: A });
+  await shot(people[0], '14-finished-letter', { event: A });
+  await shot(admin, '15-finished-ward', { event: A, tab: 'Подопечный' });
+  await shot(people[1], '16-home-participant', { dark: true });
   console.log('Скриншоты сохранены в test-results/');
   if (colorProblems.length) {
     console.error('✘ Цвета не соответствуют дизайн-системе:\n' + colorProblems.join('\n'));

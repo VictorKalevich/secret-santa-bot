@@ -91,6 +91,13 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0 } = {}) {
     base,
     mock,
     stop,
+    // Прямой SQL к локальной базе (для «перемотки времени» в тестах)
+    sql(command) {
+      const r = spawnSync('npx', ['wrangler', 'd1', 'execute', 'DB', '--local', '--persist-to', persistDir, '--command', command], {
+        cwd: fileURLToPath(new URL('..', import.meta.url)), env: localEnv(), shell: isWin, encoding: 'utf8',
+      });
+      if (r.status !== 0) throw new Error('d1 execute: ' + r.stderr + r.stdout);
+    },
     async api(user, action, body = {}, raw = false) {
       const res = await fetch(`${base}/api/${action}`, {
         method: 'POST',
