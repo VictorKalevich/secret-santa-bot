@@ -1,50 +1,94 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+- Version change: (template) → 1.0.0
+- Added principles: I. Тайна по умолчанию; II. Проще некуда для участника; III. Спецификация до кода;
+  IV. Только дизайн-система; V. Бесплатно и без своего сервера; VI. Проверено до выката
+- Added sections: Безопасность и данные; Процесс разработки; Governance
+- Templates requiring updates: ✅ plan-template.md (Constitution Check заполняется по этим принципам),
+  ✅ spec-template.md (без изменений), ✅ tasks-template.md (без изменений)
+- Follow-up TODOs: нет
+-->
+
+# Secret Santa Bot Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Тайна по умолчанию (NON-NEGOTIABLE)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+- Кто кому дарит, знает только Санта — и только про своего подопечного. Подопечный не знает своего Санту
+  до «раскрытия». Администратор не видит пар ни в интерфейсе, ни в ответах API.
+- Ни один ответ API, кроме ответа самому Санте о его подопечном, не содержит пар «Санта → подопечный».
+- Администратор видит только статусы (зарегистрирован, письмо заполнено/пусто, подарок готов).
+  Содержимое чужого письма открывается лишь отдельным действием с явным подтверждением.
+- Push-уведомления не содержат имени подопечного и текста письма: превью видно на экране блокировки.
+- Аварийного «просмотра всех пар» нет. Добавление такой функции — изменение этой конституции (MAJOR).
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Проще некуда для участника
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+- Вход без паролей: личность = аккаунт Telegram. Регистрация только по пригласительной ссылке.
+- Работает на iOS, Android и компьютерах через Telegram без установки чего-либо ещё.
+- Весь интерфейс — на русском языке, понятен человеку без технического опыта.
+- Длинные тексты (письмо до 1000 слов) редактируются в мини-приложении, а не сообщениями в чате.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Спецификация до кода
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+- Любое изменение поведения начинается с обновления спецификации в `specs/` по процессу Spec Kit:
+  `/speckit-specify` → (`/speckit-clarify`) → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement`.
+- Спецификация — источник истины. Если код и спецификация расходятся, правится то, что неверно,
+  и расхождение фиксируется в той же ветке.
+- Каждая фича живёт в своей ветке `NNN-короткое-имя` и своей папке `specs/NNN-короткое-имя/`.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Только дизайн-система
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+- Любой интерфейс строится из токенов и компонентов `design-system/` (цвета, типографика, отступы,
+  радиусы, тени, компоненты).
+- В разметке и коде страниц запрещены «сырые» цвета, размеры в px и отступы вне шкалы токенов;
+  это проверяет автотест `tests/design-system.test.mjs`.
+- Нужен новый элемент — сначала он добавляется в дизайн-систему (токены → компонент → превью
+  в `design-system/preview.html` → описание в `design-system/README.md`), потом используется.
+- Цвета опираются на тему Telegram (`--tg-theme-*`), чтобы светлая и тёмная темы работали автоматически.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. Бесплатно и без своего сервера
+
+- Проект работает на бесплатном тарифе Cloudflare Workers + D1 без банковской карты.
+- Код укладывается в лимиты бесплатного тарифа: ≤ 10 мс CPU на вызов, ≤ 50 внешних запросов
+  (включая запросы к D1) на вызов, ≤ 100 000 запросов в сутки.
+- Массовые рассылки идут через очередь `outbox` пачками, а не в одном вызове.
+- Никаких платных сервисов и внешних зависимостей во время работы, кроме Telegram Bot API.
+
+### VI. Проверено до выката
+
+- Алгоритм жеребьёвки покрыт юнит-тестами (исключения, невозможные случаи, замены после жеребьёвки).
+- Перед выкатом проходит сквозной тест: локальный Worker + имитация Telegram API, полный сценарий игры
+  и проверки тайны (админ не видит пар, уведомления без имён, чужие запросы отклоняются).
+
+## Безопасность и данные
+
+- Каждый запрос мини-приложения проверяется по подписи Telegram `initData` (HMAC-SHA-256 с токеном бота).
+- Webhook принимает запросы только с секретным заголовком `X-Telegram-Bot-Api-Secret-Token`.
+- Секреты (`BOT_TOKEN`, `ADMIN_SECRET`) хранятся только в секретах Cloudflare и никогда не попадают
+  в репозиторий; `.dev.vars` и `.env*` в `.gitignore`.
+- Пользовательский текст никогда не вставляется в HTML как разметка (только `textContent`
+  в мини-приложении, экранирование в сообщениях бота).
+- Храним минимум данных: Telegram ID, имя, ник, письмо, настройки уведомлений. Удалённый участник
+  удаляется из базы полностью.
+- Ограничение «тайна» — организационное, не криптографическое: владелец аккаунта Cloudflare технически
+  может открыть базу. Это явно сказано в README.
+
+## Процесс разработки
+
+- Платформа разработчика — Windows; скрипты Spec Kit — PowerShell (`.specify/scripts/powershell/`).
+- Проект живёт в `C:\ClaudeProjects\secret-santa-bot\`; в самой `C:\ClaudeProjects\` файлы не создаются.
+- Сообщения коммитов — по-русски или по-английски, кратко и по сути; одна логическая единица на коммит.
+- Перед коммитом: `npm test` (юнит-тесты + проверка дизайн-системы); перед выкатом: `npm run test:e2e`.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- Конституция главнее остальных договорённостей. Каждый план (`plan.md`) содержит раздел
+  Constitution Check с проверкой всех принципов.
+- Поправки: правка этого файла + Sync Impact Report вверху + версия по SemVer
+  (MAJOR — снятие/переопределение принципа, MINOR — новый принцип или раздел, PATCH — уточнения).
+- Нарушение принципа допускается только с записью в Complexity Tracking плана и обоснованием.
+- Рабочие подсказки для агента — в `CLAUDE.md`.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-11
