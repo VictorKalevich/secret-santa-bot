@@ -1,0 +1,18 @@
+# Зависимости и локальные артефакты
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+*.log
+test-results/
+
+# Секреты никогда не коммитим
+.env
+.env.*
+
+# Локальные настройки агента (может содержать личные данные)
+.claude/settings.local.json
+
+# ОС
+.DS_Store
+Thumbs.db
