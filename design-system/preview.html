@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дизайн-система «Тайный Санта» — витрина</title>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./components.css">
+<style>
+  /* Стили только для витрины (не часть дизайн-системы). */
+  body { margin: 0; }
+  .pv-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+  .pv-col { padding-top: var(--ds-space-2); }
+  .pv-dark {
+    --tg-theme-bg-color: #1c1c1e;
+    --tg-theme-secondary-bg-color: #0f0f10;
+    --tg-theme-section-bg-color: #1c1c1e;
+    --tg-theme-text-color: #ffffff;
+    --tg-theme-hint-color: #8d8e93;
+    --tg-theme-link-color: #64b5ef;
+    --tg-theme-button-color: #3e88f7;
+    --tg-theme-button-text-color: #ffffff;
+    --tg-theme-destructive-text-color: #eb5545;
+    --tg-theme-section-header-text-color: #8d8e93;
+  }
+  .pv-heading { padding: var(--ds-space-4) var(--ds-space-4) 0; font-size: var(--ds-text-sm); color: var(--ds-color-text-muted); }
+  .pv-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--ds-space-2); }
+  .pv-swatch { border-radius: var(--ds-radius-md); height: 44px; border: var(--ds-border-thin) solid var(--ds-color-separator); }
+  .pv-swatch + div { font-size: var(--ds-text-xs); color: var(--ds-color-text-muted); margin-top: var(--ds-space-1); word-break: break-all; }
+  .pv-space { background: var(--ds-color-accent); height: 12px; border-radius: var(--ds-radius-xs); }
+  .pv-static { position: static !important; transform: none !important; opacity: 1 !important; }
+  .pv-sheet-wrap { position: relative; border-radius: var(--ds-radius-lg); overflow: hidden; }
+  .pv-sheet-wrap .ds-sheet-backdrop { position: absolute; padding-top: var(--ds-space-10); }
+  .pv-sheet-wrap { height: 240px; }
+</style>
+</head>
+<body class="ds-root">
+<div class="pv-cols">
+  <section class="pv-col ds-root" id="light"></section>
+  <section class="pv-col ds-root pv-dark" id="dark"></section>
+</div>
+
+<template id="gallery">
+  <div class="pv-heading">ТЕМА: <b class="pv-theme-name"></b></div>
+
+  <!-- Шапка и вкладки -->
+  <header class="ds-hero">
+    <div class="ds-hero__badge">🎅</div>
+    <div><h1 class="ds-hero__title">Тайный Санта</h1><div class="ds-hero__subtitle">🎁 27 декабря · 💰 до 50 BYN</div></div>
+  </header>
+  <nav class="ds-tabs">
+    <button class="ds-tab ds-tab--active">✉️ Моё письмо</button>
+    <button class="ds-tab">🎁 Подопечный<span class="ds-tab__dot"></span></button>
+    <button class="ds-tab">ℹ️ Инфо</button>
+    <button class="ds-tab">🛠 Админ</button>
+  </nav>
+
+  <main class="ds-page">
+    <!-- Цвета -->
+    <div class="ds-section-title">Цвета</div>
+    <div class="ds-card">
+      <div class="pv-swatches">
+        <div><div class="pv-swatch" style="background:var(--ds-color-bg)"></div><div>--ds-color-bg</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-surface)"></div><div>--ds-color-surface</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-text)"></div><div>--ds-color-text</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-text-muted)"></div><div>--ds-color-text-muted</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-accent)"></div><div>--ds-color-accent</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-link)"></div><div>--ds-color-link</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-danger)"></div><div>--ds-color-danger</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-fill)"></div><div>--ds-color-fill</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-gradient-festive)"></div><div>--ds-gradient-festive</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-gradient-ward)"></div><div>--ds-gradient-ward</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-success)"></div><div>--ds-color-success</div></div>
+        <div><div class="pv-swatch" style="background:var(--ds-color-warning)"></div><div>--ds-color-warning</div></div>
+      </div>
+    </div>
+
+    <!-- Отступы и типографика -->
+    <div class="ds-section-title">Отступы (шкала 4 px)</div>
+    <div class="ds-card ds-stack--sm">
+      <div class="ds-row"><span class="ds-hint">space-1 · 4</span><div class="pv-space" style="width:var(--ds-space-1)"></div></div>
+      <div class="ds-row"><span class="ds-hint">space-2 · 8</span><div class="pv-space" style="width:var(--ds-space-2)"></div></div>
+      <div class="ds-row"><span class="ds-hint">space-3 · 12</span><div class="pv-space" style="width:var(--ds-space-3)"></div></div>
+      <div class="ds-row"><span class="ds-hint">space-4 · 16</span><div class="pv-space" style="width:var(--ds-space-4)"></div></div>
+      <div class="ds-row"><span class="ds-hint">space-5 · 20</span><div class="pv-space" style="width:var(--ds-space-5)"></div></div>
+      <div class="ds-row"><span class="ds-hint">space-6 · 24</span><div class="pv-space" style="width:var(--ds-space-6)"></div></div>
+      <div class="ds-row"><span class="ds-hint">space-8 · 32</span><div class="pv-space" style="width:var(--ds-space-8)"></div></div>
+    </div>
+    <div class="ds-section-title">Текст</div>
+    <div class="ds-card ds-stack--sm">
+      <div class="ds-hero__title">Заголовок экрана · text-xl</div>
+      <div class="ds-empty__title">Заголовок блока · text-lg</div>
+      <div>Основной текст · text-base</div>
+      <div class="ds-text-strong">Акцентный текст · ds-text-strong</div>
+      <div class="ds-text-muted">Второстепенный текст · ds-text-muted</div>
+      <div class="ds-hint">Подсказка · ds-hint</div>
+      <div class="ds-text-sm">Мелкий текст · ds-text-sm <span class="ds-text-regular">(ds-text-regular)</span></div>
+      <div class="ds-text-pre">Сохранение
+переносов · ds-text-pre</div>
+      <ul class="ds-bullets"><li>Список · ds-bullets</li><li>Второй пункт</li></ul>
+    </div>
+
+    <!-- Кнопки -->
+    <div class="ds-section-title">Кнопки</div>
+    <div class="ds-card ds-stack">
+      <button class="ds-btn ds-btn--block">Основная</button>
+      <button class="ds-btn ds-btn--festive ds-btn--block">🎲 Праздничная</button>
+      <button class="ds-btn ds-btn--secondary ds-btn--block">Вторичная</button>
+      <button class="ds-btn ds-btn--danger ds-btn--block">Опасное действие</button>
+      <button class="ds-btn ds-btn--block" disabled>Недоступна</button>
+      <div class="ds-row ds-row--wrap">
+        <button class="ds-btn ds-btn--sm">Маленькая</button>
+        <button class="ds-btn ds-btn--secondary ds-btn--sm">📋 Копировать</button>
+        <button class="ds-icon-btn">👁</button><button class="ds-icon-btn">✏️</button><button class="ds-icon-btn">🗑</button>
+      </div>
+    </div>
+
+    <!-- Поля -->
+    <div class="ds-section-title">Поля ввода</div>
+    <div class="ds-card ds-stack">
+      <label class="ds-field"><span class="ds-field__label">Бюджет подарка</span><input class="ds-input" type="text" placeholder="например, до 50 BYN"></label>
+      <select class="ds-input"><option>Кто дарит…</option></select>
+      <textarea class="ds-input ds-input--letter" placeholder="Дорогой Санта!…"></textarea>
+      <div class="ds-row ds-row--between"><span class="ds-counter">120 / 1000 слов</span><span class="ds-counter ds-counter--over">1012 / 1000 слов</span></div>
+      <label class="ds-check"><input type="checkbox" checked> и наоборот (в обе стороны)</label>
+    </div>
+
+    <!-- Переключатель, сегменты -->
+    <div class="ds-section-title">Переключатели</div>
+    <div class="ds-card ds-stack">
+      <div class="ds-row ds-row--between">
+        <div><div class="ds-text-strong">🎁 Подарок готов</div><div class="ds-hint">Видно только организатору</div></div>
+        <label class="ds-switch"><input type="checkbox" checked><span class="ds-switch__track"></span></label>
+      </div>
+      <div class="ds-row ds-row--between ds-divided">
+        <div class="ds-text-strong">Регистрация открыта</div>
+        <label class="ds-switch"><input type="checkbox"><span class="ds-switch__track"></span></label>
+      </div>
+      <div class="ds-segmented">
+        <button class="ds-segmented__item ds-segmented__item--on">🔔 Со звуком</button>
+        <button class="ds-segmented__item">🔕 Тихо</button>
+        <button class="ds-segmented__item">🚫 Выкл</button>
+      </div>
+    </div>
+
+    <!-- Список и метки -->
+    <div class="ds-section-title">Список и метки</div>
+    <div class="ds-hint ds-hint--inset">Письма написали 2 из 3.</div>
+    <div class="ds-card ds-card--flush">
+      <div class="ds-list-item">
+        <div class="ds-grow"><div class="ds-list-item__title">Маша <span class="ds-hint ds-text-regular">@masha</span></div>
+          <div class="ds-chips"><span class="ds-chip ds-chip--success">✉️ письмо есть</span><span class="ds-chip">🎁 не готов</span><span class="ds-chip">админ</span></div></div>
+        <div class="ds-row ds-row--tight"><button class="ds-icon-btn">👁</button><button class="ds-icon-btn">🗑</button></div>
+      </div>
+      <div class="ds-list-item">
+        <div class="ds-grow"><div class="ds-list-item__title">Олег</div>
+          <div class="ds-chips"><span class="ds-chip ds-chip--warning">не в жеребьёвке</span></div></div>
+      </div>
+      <div class="ds-list-item ds-list-item--sub"><button class="ds-btn ds-btn--sm">Вписать в жеребьёвку</button></div>
+    </div>
+
+    <!-- Подопечный и письмо -->
+    <div class="ds-section-title">Подопечный</div>
+    <div class="ds-ward-card">
+      <div class="ds-ward-card__label">Ты — Тайный Санта для</div>
+      <div class="ds-ward-card__name ds-ward-card__name--hidden">Анна Иванова</div>
+      <button class="ds-btn ds-btn--sm ds-btn--on-festive">👀 Показать имя</button>
+    </div>
+    <div class="ds-card ds-stack">
+      <div class="ds-notice ds-text-sm">✨ Письмо изменилось: новое <mark class="ds-diff-add">выделено</mark>, удалённое <del class="ds-diff-del">зачёркнуто</del>.</div>
+      <div class="ds-letter">Дорогой Санта! Мечтаю о <del class="ds-diff-del">шарфе</del><mark class="ds-diff-add">тёплых варежках</mark> и хорошей книге.
+Размер M.</div>
+    </div>
+
+    <!-- Сведения, плашки -->
+    <div class="ds-section-title">Сведения и плашки</div>
+    <div class="ds-card"><dl class="ds-info-grid"><dt>Бюджет</dt><dd>до 50 BYN</dd><dt>Вручение</dt><dd>27 декабря</dd></dl></div>
+    <div class="ds-card ds-stack">
+      <div class="ds-notice">🎁 Подарки готовы: 3 из 7</div>
+      <div class="ds-notice ds-notice--error"><b>Жеребьёвка невозможна:</b><ul class="ds-bullets"><li>Олег не может дарить никому — проверь исключения.</li></ul></div>
+    </div>
+
+    <!-- Пустое состояние, загрузка -->
+    <div class="ds-section-title">Состояния</div>
+    <div class="ds-card ds-empty"><div class="ds-empty__icon">🎲</div><h3 class="ds-empty__title">Жеребьёвка ещё не проведена</h3>
+      <div class="ds-text-muted">Здесь появится подопечный.</div><button class="ds-btn ds-btn--secondary ds-empty__action">Попробовать снова</button></div>
+    <div class="ds-card"><div class="ds-loader"><div class="ds-spinner"></div>Загрузка…</div></div>
+
+    <!-- Всплывающие -->
+    <div class="ds-section-title">Всплывающие элементы</div>
+    <div class="ds-card ds-stack">
+      <div class="ds-toast ds-toast--visible pv-static">✅ Письмо сохранено</div>
+      <div class="pv-sheet-wrap">
+        <div class="ds-sheet-backdrop">
+          <div class="ds-sheet ds-stack">
+            <div class="ds-row ds-row--between"><h2 class="ds-sheet__title">Письмо: Маша</h2><button class="ds-icon-btn">✕</button></div>
+            <div class="ds-card ds-letter">Хочу настольную игру.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</template>
+
+<script>
+  for (const [id, name] of [['light', 'светлая'], ['dark', 'тёмная']]) {
+    const node = document.getElementById('gallery').content.cloneNode(true);
+    node.querySelector('.pv-theme-name').textContent = name;
+    document.getElementById(id).append(node);
+  }
+</script>
+</body>
+</html>
