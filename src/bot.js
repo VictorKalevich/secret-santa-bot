@@ -2,7 +2,7 @@
 
 import { getSettings, getUser, createUser, updateUser, pairOfSanta, pairOfWard, enqueueStmt, allUsers } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
-import { menuMessage, isRegistrationOpen, escapeHtml, msg, flushOutbox } from './game.js';
+import { menuMessage, isRegistrationOpen, escapeHtml, msg, flushOutbox, resolveOwner, setOwner } from './game.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидит твой Санта и организатор.';
@@ -31,17 +31,25 @@ export async function handleUpdate(update, env, ctx) {
     const payload = text.split(/\s+/)[1] || '';
     const adminCode = 'adm_' + (await derivedSecret(env, 'admin:' + (env.ADMIN_SECRET || ''), 24));
 
+    // Ссылка со страницы /setup делает владельцем игры (002, FR-102)
     if (payload === adminCode) {
+      const prevOwnerId = await resolveOwner(db, settings);
       if (!user) {
         await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
-      } else {
-        await updateUser(db, from.id, { is_admin: 1 });
       }
+      await setOwner(env, from.id, {
+        via: 'link',
+        prevOwnerId,
+        newOwnerLabel: user?.name || from.first_name || (from.username ? '@' + from.username : ''),
+      });
+      if (prevOwnerId && prevOwnerId !== from.id) ctx.waitUntil(flushOutbox(env));
+      settings.owner_id = String(from.id);
       user = await getUser(db, from.id);
       if (!user.registered) {
         await updateUser(db, from.id, { pending: 'name' });
-        return reply('🛠 Ты назначен администратором Тайного Санты.\n\n' + NAME_PROMPT);
+        return reply('👑 Ты — владелец игры «Тайный Санта»: ведёшь игру и назначаешь администраторов.\n\n' + NAME_PROMPT);
       }
+      await reply('👑 Теперь ты владелец игры: назначать и снимать администраторов можно во вкладке «Админ».');
       return sendMenu(user);
     }
 

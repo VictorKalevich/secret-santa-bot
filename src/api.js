@@ -8,7 +8,7 @@ import { validateInitData } from './telegram.js';
 import {
   countWords, MAX_WORDS, MAX_CHARS, isDrawDone, isRegistrationOpen, inviteLink, randomCode,
   checkDraw, runDraw, removeUser, insertUser, revealAll, newGame, remindUnfilled, remindSantas,
-  flushOutbox,
+  flushOutbox, resolveOwner, grantAdmin, revokeAdmin, transferOwnership,
 } from './game.js';
 import { sendAnonymous } from './bot.js';
 
@@ -42,6 +42,7 @@ export async function handleApi(request, env, ctx, action) {
     if (!me || !me.registered) return json({ ok: true, registered: false });
     const [pair, wardPair, users] = await Promise.all([pairOfSanta(db, me.tg_id), pairOfWard(db, me.tg_id), allUsers(db)]);
     const participants = users.filter((u) => u.registered && u.is_participant).length;
+    const ownerId = me.is_admin ? await resolveOwner(db, settings, users) : null;
     return json({
       ok: true,
       registered: true,
@@ -49,6 +50,7 @@ export async function handleApi(request, env, ctx, action) {
         id: me.tg_id,
         name: me.name,
         is_admin: !!me.is_admin,
+        is_owner: !!me.is_admin && ownerId === me.tg_id,
         is_participant: !!me.is_participant,
         notify_mode: me.notify_mode,
         wishlist: me.wishlist,
@@ -127,6 +129,9 @@ export async function handleApi(request, env, ctx, action) {
 async function handleAdmin(action, body, env, ctx, me, settings) {
   const db = env.DB;
   const drawDone = isDrawDone(settings);
+  const ownerId = await resolveOwner(db, settings);
+  const isOwner = ownerId === me.tg_id;
+  const ownerOnly = () => fail('Назначать и снимать администраторов может только владелец игры.', 403);
 
   switch (action) {
     case 'admin.state': {
@@ -145,6 +150,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
           username: u.username,
           registered: !!u.registered,
           is_admin: !!u.is_admin,
+          is_owner: u.tg_id === ownerId,
           is_participant: !!u.is_participant,
           has_wishlist: !!u.wishlist.trim(),
           in_draw: santas.has(u.tg_id),
@@ -158,6 +164,8 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
           has_history: history.length > 0,
           invite_link: inviteLink(settings),
           draw_at: Number(settings.draw_at || 0),
+          owner_id: ownerId,
+          owner_name: users.find((u) => u.tg_id === ownerId)?.name || '',
         },
       };
     }
@@ -212,7 +220,28 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
     case 'admin.remove': {
       const id = Number(body.id);
       if (id === me.tg_id) return fail('Нельзя удалить самого себя.');
+      if (id === ownerId) return fail('Владельца нельзя удалить из игры. Сначала он должен передать права владельца.');
+      const target = await getUser(db, id);
+      if (target?.is_admin && !isOwner) return fail('Удалить администратора может только владелец игры.', 403);
       const r = await removeUser(env, id);
+      return r.ok ? {} : fail(r.error);
+    }
+
+    case 'admin.role.grant': {
+      if (!isOwner) return ownerOnly();
+      const r = await grantAdmin(env, Number(body.id));
+      return r.ok ? {} : fail(r.error);
+    }
+
+    case 'admin.role.revoke': {
+      if (!isOwner) return ownerOnly();
+      const r = await revokeAdmin(env, Number(body.id));
+      return r.ok ? {} : fail(r.error);
+    }
+
+    case 'admin.owner.transfer': {
+      if (!isOwner) return ownerOnly();
+      const r = await transferOwnership(env, me.tg_id, Number(body.id));
       return r.ok ? {} : fail(r.error);
     }
 

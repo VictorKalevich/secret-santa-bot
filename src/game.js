@@ -54,7 +54,12 @@ export function menuMessage(user, settings, pair, wardPair) {
   } else {
     lines.push('Ты организатор и не участвуешь в обмене подарками.');
   }
-  if (user.is_admin) lines.push('', '🛠 Ты администратор — панель управления во вкладке «Админ».');
+  if (user.is_admin) {
+    const owner = Number(settings.owner_id || 0) === user.tg_id;
+    lines.push('', owner
+      ? '👑 Ты владелец игры — панель управления и назначение админов во вкладке «Админ».'
+      : '🛠 Ты администратор — панель управления во вкладке «Админ».');
+  }
 
   const kb = [[openAppButton(settings)]];
   const row = [];
@@ -336,6 +341,104 @@ export function formatDate(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
   if (!m) return iso || '';
   return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`;
+}
+
+// ---------- роли: владелец и администраторы (002) ----------
+
+// Владелец игры: settings.owner_id; если не задан или недействителен — самый ранний админ (FR-109).
+export async function resolveOwner(db, settings, users) {
+  users = users || (await allUsers(db));
+  const current = Number(settings.owner_id || 0);
+  if (users.some((u) => u.tg_id === current && u.is_admin)) return current;
+  const fallback = users.filter((u) => u.is_admin).sort((a, b) => a.created_at - b.created_at)[0];
+  const id = fallback ? fallback.tg_id : 0;
+  if (id !== current) await setSettings(db, { owner_id: String(id || '') });
+  settings.owner_id = String(id || '');
+  return id || null;
+}
+
+function displayName(u) {
+  return u?.name || (u?.username ? '@' + u.username : 'Кто-то');
+}
+
+function otherAdminsNotice(db, users, exclude, text) {
+  return users
+    .filter((u) => u.is_admin && u.registered && !exclude.includes(u.tg_id))
+    .map((u) => enqueueStmt(db, u.tg_id, msg(text, { disable_notification: true })));
+}
+
+// Сделать пользователя владельцем. via: 'link' (ссылка /setup) или 'transfer' (передал прежний владелец).
+export async function setOwner(env, newOwnerId, { via, prevOwnerId, newOwnerLabel } = {}) {
+  const db = env.DB;
+  const settings = await getSettings(db);
+  const users = await allUsers(db);
+  const target = users.find((u) => u.tg_id === newOwnerId);
+  const label = escapeHtml(newOwnerLabel || displayName(target));
+  const stmts = [
+    db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ?').bind(newOwnerId),
+    setSettingStmt(db, 'owner_id', String(newOwnerId)),
+  ];
+  if (prevOwnerId && prevOwnerId !== newOwnerId) {
+    if (via === 'link') {
+      stmts.push(enqueueStmt(db, prevOwnerId, msg(
+        `⚠️ Права владельца игры перешли к <b>${label}</b> по ссылке со страницы настройки. Ты остаёшься администратором.\n\n` +
+        'Если это не ты и не по договорённости — открой страницу настройки и перейди по ссылке владельца снова, а потом смени ADMIN_SECRET.'
+      )));
+    }
+    if (via === 'transfer') {
+      stmts.push(enqueueStmt(db, newOwnerId, msg(
+        '👑 <b>Тебе переданы права владельца игры.</b> Теперь ты назначаешь и снимаешь администраторов — раздел «Администраторы» во вкладке «Админ».',
+        { reply_markup: { inline_keyboard: [[openAppButton(settings, '🛠 Открыть')]] } }
+      )));
+    }
+    stmts.push(...otherAdminsNotice(db, users, [newOwnerId, prevOwnerId], `ℹ️ <b>${label}</b> теперь владелец игры.`));
+  }
+  await db.batch(stmts);
+}
+
+export async function grantAdmin(env, id) {
+  const db = env.DB;
+  const settings = await getSettings(db);
+  const users = await allUsers(db);
+  const u = users.find((x) => x.tg_id === id);
+  if (!u || !u.registered) return { ok: false, error: 'Назначить можно только зарегистрированного участника.' };
+  if (u.is_admin) return { ok: false, error: 'Он(а) уже администратор.' };
+  const ownerId = await resolveOwner(db, settings, users);
+  await db.batch([
+    db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ?').bind(id),
+    enqueueStmt(db, id, msg(
+      '🛠 <b>Владелец назначил тебя администратором игры.</b>\n\nВо вкладке «Админ» можно управлять приглашениями, исключениями, жеребьёвкой и напоминаниями. Кто кому дарит, админы не видят.',
+      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🛠 Открыть')]] } }
+    )),
+    ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`),
+  ]);
+  return { ok: true };
+}
+
+export async function revokeAdmin(env, id) {
+  const db = env.DB;
+  const settings = await getSettings(db);
+  const users = await allUsers(db);
+  const u = users.find((x) => x.tg_id === id);
+  const ownerId = await resolveOwner(db, settings, users);
+  if (!u || !u.is_admin) return { ok: false, error: 'Он(а) не администратор.' };
+  if (id === ownerId) return { ok: false, error: 'Нельзя снять права владельца. Сначала передай владение другому.' };
+  await db.batch([
+    db.prepare('UPDATE users SET is_admin = 0 WHERE tg_id = ?').bind(id),
+    enqueueStmt(db, id, msg('Владелец снял с тебя права администратора игры. Как участник ты продолжаешь играть как обычно.')),
+    ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> больше не администратор.`),
+  ]);
+  return { ok: true };
+}
+
+export async function transferOwnership(env, fromId, toId) {
+  const db = env.DB;
+  const users = await allUsers(db);
+  const u = users.find((x) => x.tg_id === toId);
+  if (!u || !u.registered) return { ok: false, error: 'Передать владение можно только зарегистрированному участнику.' };
+  if (toId === fromId) return { ok: false, error: 'Ты и так владелец.' };
+  await setOwner(env, toId, { via: 'transfer', prevOwnerId: fromId });
+  return { ok: true };
 }
 
 export { setSettings, updateUserStmt };

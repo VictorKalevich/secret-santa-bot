@@ -475,7 +475,8 @@
           else chips.push(ui.chip('не в жеребьёвке', 'warning'));
         }
       }
-      if (u.is_admin) chips.push(ui.chip('админ'));
+      if (u.is_owner) chips.push(ui.chip('👑 владелец'));
+      else if (u.is_admin) chips.push(ui.chip('🛠 админ'));
       const actions = h('div', { class: 'ds-row ds-row--tight' });
       if (u.registered && u.is_participant) {
         actions.append(h('button', { class: 'ds-icon-btn', title: 'Посмотреть письмо', onclick: async () => {
@@ -494,7 +495,8 @@
           openSheet('Имя участника', ui.card(inp, ok));
         } }, '✏️'));
       }
-      if (u.id !== me.id) {
+      // Владельца удалить нельзя; админов удаляет только владелец (002, FR-106)
+      if (u.id !== me.id && !u.is_owner && (!u.is_admin || me.is_owner)) {
         actions.append(h('button', { class: 'ds-icon-btn', title: 'Удалить', onclick: async () => {
           const extra = s.draw_done && u.in_draw ? ' Жеребьёвка будет аккуратно поправлена: новый подопечный появится только у его Санты.' : '';
           if (!(await confirmBox(`Удалить участника «${u.name || 'без имени'}» из игры?${extra}`))) return;
@@ -525,6 +527,48 @@
       ui.hint(`Письма написали ${filled} из ${players.length}. Содержимое писем открывается только по кнопке 👁.`, 'ds-hint--inset'),
       list,
       players.length > filled ? remindBtn : null);
+
+    // --- администраторы (002)
+    const admins = users.filter((u) => u.is_admin).sort((a, b) => (b.is_owner ? 1 : 0) - (a.is_owner ? 1 : 0));
+    const adminList = h('div', { class: 'ds-card ds-card--flush' });
+    for (const u of admins) {
+      const actions = h('div', { class: 'ds-row ds-row--tight' });
+      if (me.is_owner && !u.is_owner) {
+        actions.append(
+          h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: async () => {
+            if (!(await confirmBox(`Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать админов сможет только новый владелец.`))) return;
+            busy(null, async () => { await api('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await refresh(); });
+          } }, '👑'),
+          h('button', { class: 'ds-icon-btn', title: 'Снять права администратора', onclick: async () => {
+            if (!(await confirmBox(`Снять права администратора с «${u.name}»? Участником игры он(а) останется.`))) return;
+            busy(null, async () => { await api('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await renderAdmin(); });
+          } }, '✕'));
+      }
+      adminList.append(h('div', { class: 'ds-list-item' },
+        h('div', { class: 'ds-grow' },
+          h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)') : null),
+          h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip('👑 владелец') : ui.chip('🛠 админ'))),
+        actions));
+    }
+    nodes.push(ui.section('Администраторы'), adminList);
+    if (me.is_owner) {
+      const candidates = users.filter((u) => u.registered && !u.is_admin);
+      if (candidates.length) {
+        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Кого назначить…'), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
+        const grant = ui.btn('🛠 Назначить админом', 'secondary', 'ds-btn--block');
+        grant.addEventListener('click', async () => {
+          const u = candidates.find((x) => String(x.id) === sel.value);
+          if (!u) return toast('Выбери участника');
+          if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет вести игру: приглашения, исключения, жеребьёвку. Кто кому дарит, админы не видят.`))) return;
+          busy(grant, async () => { await api('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await renderAdmin(); });
+        });
+        nodes.push(ui.card(ui.hint('Админы ведут игру вместе с тобой. Назначать, снимать админов и передавать права владельца (👑) можешь только ты.'), sel, grant));
+      } else {
+        nodes.push(ui.hint('Все зарегистрированные участники уже администраторы.', 'ds-hint--inset'));
+      }
+    } else {
+      nodes.push(ui.hint(`Назначать и снимать администраторов может только владелец${s.owner_name ? ' — ' + s.owner_name : ''}.`, 'ds-hint--inset'));
+    }
 
     // --- исключения
     const exList = h('div', { class: 'ds-card ds-card--flush' });

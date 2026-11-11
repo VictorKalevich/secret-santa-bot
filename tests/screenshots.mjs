@@ -79,6 +79,7 @@ try {
   for (const p of [admin, ...people.slice(0, 4)]) await w.api(p, 'wishlist.save', { text: LETTER(p.name) });
   await w.api(admin, 'admin.game', { budget: 'до 50 BYN', event_date: '2026-12-27', place: 'У Маши дома', deadline: '2026-12-20', notes: 'Подарок упаковать и подписать только именем получателя 🎁' });
   await w.api(admin, 'admin.exclusion.add', { giver: 101, receiver: 102, mutual: true });
+  await w.api(admin, 'admin.role.grant', { id: people[0].id });
 
   const launch = process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' };
   browser = await chromium.launch(launch);
@@ -119,6 +120,7 @@ try {
   await shot(people[1], '05-ward-hidden', { tab: 'Подопечный' });
   await shot(people[0], '06-info', { tab: 'Инфо' });
   await shot(admin, '07-admin-after-draw', { tab: 'Админ' });
+  await shot(people[0], '08-admin-as-regular-admin', { tab: 'Админ' });
   await shot(people[0], '02-my-letter', { dark: true });
   await shot(people[2], '05-ward-hidden', { tab: 'Подопечный', dark: true });
   await shot(admin, '07-admin-after-draw', { tab: 'Админ', dark: true });

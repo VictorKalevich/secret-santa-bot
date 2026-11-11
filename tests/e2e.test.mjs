@@ -87,7 +87,7 @@ test('сквозной сценарий игры', { timeout: 180000 }, async (t
     assert.equal(w.status, 403);
 
     await say(admin, '/start ' + adminCode);
-    assert.match(lastText(admin), /администратором/);
+    assert.match(lastText(admin), /владелец игры/);
     await say(admin, admin.name);
     assert.match(lastText(admin), /участвуешь/);
     await press(admin, 'adm_part:1');
@@ -178,7 +178,7 @@ test('сквозной сценарий игры', { timeout: 180000 }, async (t
     const st = await api(admin, 'admin.state');
     const raw = JSON.stringify(st);
     assert.ok(!/"(ward|santa|pairs)"/.test(raw), 'в admin.state нет пар');
-    for (const u of st.users) assert.deepEqual(Object.keys(u).sort(), ['gift_ready', 'has_wishlist', 'id', 'in_draw', 'is_admin', 'is_participant', 'name', 'registered', 'username']);
+    for (const u of st.users) assert.deepEqual(Object.keys(u).sort(), ['gift_ready', 'has_wishlist', 'id', 'in_draw', 'is_admin', 'is_owner', 'is_participant', 'name', 'registered', 'username']);
     const drawMsgs = mock.calls.filter((c) => /Жеребьёвка проведена/.test(c.params.text || ''));
     for (const c of drawMsgs) for (const u of everyone) assert.ok(!c.params.text.includes(u.name), 'в уведомлении нет имён');
   });
@@ -298,5 +298,63 @@ test('сквозной сценарий игры', { timeout: 180000 }, async (t
     await cron();
     const tries = mock.messagesTo(BLOCKED_CHAT).filter((c) => /пустое/.test(c.params.text)).length;
     assert.equal(tries, 1, 'после 403 повторов нет');
+  });
+  await t.test('002: роли — владелец назначает и снимает админов, защита, передача, ссылка владельца', async () => {
+    const [masha, petya, , oleg] = people;
+    let me = await api(admin, 'me');
+    assert.equal(me.me.is_owner, true, 'перешедший по ссылке /setup — владелец');
+    let st = await api(admin, 'admin.state');
+    assert.equal(st.users.find((u) => u.id === admin.id).is_owner, true);
+    assert.equal(st.settings.owner_name, admin.name);
+    assert.equal((await api(masha, 'admin.state', {}, true)).status, 403);
+
+    await api(admin, 'admin.role.grant', { id: masha.id });
+    await waitFor(() => texts(masha).some((x) => /назначил тебя администратором/.test(x)), 'сообщение назначенному');
+    me = await api(masha, 'me');
+    assert.equal(me.me.is_admin, true);
+    assert.equal(me.me.is_owner, false);
+    await api(masha, 'admin.state');
+
+    // обычный админ не управляет ролями и не удаляет владельца/админов
+    assert.equal((await api(masha, 'admin.role.grant', { id: petya.id }, true)).status, 403);
+    assert.equal((await api(masha, 'admin.owner.transfer', { id: masha.id }, true)).status, 403);
+    const delOwner = await api(masha, 'admin.remove', { id: admin.id }, true);
+    assert.equal(delOwner.status, 400);
+    assert.match(delOwner.data.error, /Владельца нельзя удалить/);
+
+    await api(admin, 'admin.role.grant', { id: petya.id });
+    await waitFor(() => mock.messagesTo(masha.id).some((c) => /Петя<\/b> теперь администратор/.test(c.params.text) && c.params.disable_notification), 'тихое уведомление другим админам');
+    assert.equal((await api(masha, 'admin.remove', { id: petya.id }, true)).status, 403, 'админа удаляет только владелец');
+    assert.equal((await api(admin, 'admin.role.revoke', { id: admin.id }, true)).status, 400, 'владелец не снимает права сам с себя');
+    assert.equal((await api(admin, 'admin.remove', { id: admin.id }, true)).status, 400);
+
+    await api(admin, 'admin.role.revoke', { id: petya.id });
+    await waitFor(() => texts(petya).some((x) => /снял с тебя права администратора/.test(x)), 'сообщение снятому');
+    assert.equal((await api(petya, 'admin.state', {}, true)).status, 403);
+
+    // передача владения
+    await api(admin, 'admin.owner.transfer', { id: masha.id });
+    await waitFor(() => texts(masha).some((x) => /переданы права владельца/.test(x)), 'сообщение новому владельцу');
+    assert.equal((await api(masha, 'me')).me.is_owner, true);
+    me = await api(admin, 'me');
+    assert.equal(me.me.is_owner, false);
+    assert.equal(me.me.is_admin, true, 'прежний владелец остаётся админом');
+    assert.equal((await api(admin, 'admin.role.grant', { id: petya.id }, true)).status, 403);
+
+    // ссылка владельца с /setup забирает права и предупреждает прежнего владельца
+    const { adminCode: ownerCode } = await w.setup();
+    await say(oleg, '/start ' + ownerCode);
+    assert.match(lastText(oleg), /владелец игры/);
+    await waitFor(() => texts(masha).some((x) => /Права владельца игры перешли к <b>Олег<\/b>/.test(x)), 'предупреждение прежнему владельцу');
+    assert.equal((await api(oleg, 'me')).me.is_owner, true);
+    const m = (await api(masha, 'me')).me;
+    assert.equal(m.is_owner, false);
+    assert.equal(m.is_admin, true);
+    await say(oleg, '/start');
+    assert.match(lastText(oleg), /Ты владелец игры/);
+
+    st = await api(oleg, 'admin.state');
+    assert.ok(!/"(ward|santa|pairs)"/.test(JSON.stringify(st)), 'роли не открывают пары');
+    assert.deepEqual(st.users.filter((u) => u.is_owner).map((u) => u.id), [oleg.id], 'владелец ровно один');
   });
 });
