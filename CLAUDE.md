@@ -19,6 +19,7 @@ Telegram-бот «Тайный Санта» для небольшой групп
 |---|---|---|
 | `001-secret-santa-bot` | `specs/001-secret-santa-bot/` | реализовано (v1) |
 | `002-admin-roles` | `specs/002-admin-roles/` | реализовано: владелец/админы, исправление цветов кнопок |
+| `003-santa-ward-chat` | `specs/003-santa-ward-chat/` | реализовано: переписка, лимит 4000 символов |
 
 ## Технологии
 
@@ -40,7 +41,7 @@ npm run deploy       # выкат в Cloudflare
 ## Структура
 
 - `src/index.js` — маршруты: `/tg`, `/app`, `/api/*`, `/setup`, `scheduled`.
-- `src/bot.js` — чат: `/start` (`inv_`/`adm_`), регистрация, меню, анонимные сообщения.
+- `src/bot.js` — чат: `/start` (`inv_`/`adm_`), регистрация, меню, ответы в переписку (`msg:*`).
 - `src/api.js` — API мини-приложения (контракт: `specs/001-secret-santa-bot/contracts/mini-app-api.md`).
 - `src/game.js` — игровая логика, очередь `outbox`, жеребьёвка/замены, напоминания.
 - `src/draw.js` — чистые функции жеребьёвки (тестируются в Node).
@@ -59,11 +60,12 @@ npm run deploy       # выкат в Cloudflare
    элементов в `components.css` — только через `:where()`. Новый элемент:
    токен → компонент в `components.css` → показ в `preview.html` → строка в `design-system/README.md`. Тест
    `tests/design-system.test.mjs` это проверяет.
-3. **Бесплатный тариф.** ≤ 10 мс CPU и ≤ 50 внешних запросов (вкл. D1) на вызов. Сообщения другим людям — только
+3. **Лимит текста** — `MAX_CHARS = 4000` (`src/game.js`): письмо и сообщения переписки помещаются в одно сообщение Telegram (4096).
+4. **Бесплатный тариф.** ≤ 10 мс CPU и ≤ 50 внешних запросов (вкл. D1) на вызов. Сообщения другим людям — только
    через `outbox` (`enqueueStmt` + `flushOutbox`), тяжёлые вычисления — на клиенте.
-4. **Секреты** (`BOT_TOKEN`, `ADMIN_SECRET`) — только `wrangler secret put`; `.dev.vars`, `.env*` не коммитить.
-5. **Файлы.** Проект живёт в `C:\ClaudeProjects\secret-santa-bot\`. В самой `C:\ClaudeProjects\` ничего не создавать.
-6. **README.** Фича меняет установку, настройку, секреты, команды, роли или использование → правь `README.md` в той же
+5. **Секреты** (`BOT_TOKEN`, `ADMIN_SECRET`) — только `wrangler secret put`; `.dev.vars`, `.env*` не коммитить.
+6. **Файлы.** Проект живёт в `C:\ClaudeProjects\secret-santa-bot\`. В самой `C:\ClaudeProjects\` ничего не создавать.
+7. **README.** Фича меняет установку, настройку, секреты, команды, роли или использование → правь `README.md` в той же
    ветке (отдельная задача в `tasks.md`). Владелец проекта ещё не выкатывал бота — README должен вести от нуля до работы.
 
 ## Git

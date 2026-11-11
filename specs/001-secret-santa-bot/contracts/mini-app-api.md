@@ -15,10 +15,10 @@
 | Action | Тело | Ответ | Требования |
 |---|---|---|---|
 | `me` | — | `registered`; если `true`: `me{id,name,is_admin,is_participant,notify_mode,wishlist,wishlist_updated_at,has_ward,has_santa}`, `game{budget,event_date,place,deadline,notes,draw_done,revealed,participants}`, `limits{words,chars}` | FR-001, FR-025 |
-| `wishlist.save` | `{text}` | `{updated_at}` | FR-006–FR-008 (≤1000 слов, ≤15000 символов; меняет только своё) |
+| `wishlist.save` | `{text}` | `{updated_at}` | FR-006–FR-008 (меняет только своё). **Изменено в 003:** ≤ 4000 символов — см. [003/contracts/chat.md](../../003-santa-ward-chat/contracts/chat.md) |
 | `ward.get` | — | `state: no_draw \| waiting \| ok`; при `ok`: `ward{name,wishlist,updated_at}`, `previous` (текст прошлого просмотра или `null`), `first_view`, `gift_ready`. Запоминает просмотр. | FR-014, FR-017 |
 | `ward.gift` | `{ready: bool}` | — | FR-028 |
-| `message.send` | `{to: "ward"\|"santa", text}` | — | FR-027 (≤3500 символов, анонимно для подопечного) |
+| `message.send` | `{to: "ward"\|"santa", text}` | — | FR-027. **Изменено в 003:** сохраняется в переписке, ≤ 4000 символов, есть `chat.get` — см. [003/contracts/chat.md](../../003-santa-ward-chat/contracts/chat.md) |
 | `notify.set` | `{mode: "sound"\|"silent"\|"off"}` | — | FR-020 |
 
 ## Администратор (`is_admin = 1`)
