@@ -23,6 +23,9 @@
 
 ## Администратор (`is_admin = 1`)
 
+> **Изменено в 002:** роли владелец/админ, новые действия `admin.role.*`, `admin.owner.transfer` и ограничения
+> `admin.remove` — см. [002/contracts/roles.md](../../002-admin-roles/contracts/roles.md).
+
 | Action | Тело | Ответ / эффект | Требования |
 |---|---|---|---|
 | `admin.state` | — | `users[{id,name,username,registered,is_admin,is_participant,has_wishlist,in_draw,gift_ready}]`, `exclusions[{giver,receiver}]`, `settings{…, registration_open, avoid_previous, has_history, invite_link, draw_at}`. **Без пар и без текстов писем.** | FR-015, FR-016 |
