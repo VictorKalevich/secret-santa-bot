@@ -63,6 +63,8 @@ npm run deploy       # выкат в Cloudflare
    через `outbox` (`enqueueStmt` + `flushOutbox`), тяжёлые вычисления — на клиенте.
 4. **Секреты** (`BOT_TOKEN`, `ADMIN_SECRET`) — только `wrangler secret put`; `.dev.vars`, `.env*` не коммитить.
 5. **Файлы.** Проект живёт в `C:\ClaudeProjects\secret-santa-bot\`. В самой `C:\ClaudeProjects\` ничего не создавать.
+6. **README.** Фича меняет установку, настройку, секреты, команды, роли или использование → правь `README.md` в той же
+   ветке (отдельная задача в `tasks.md`). Владелец проекта ещё не выкатывал бота — README должен вести от нуля до работы.
 
 ## Git
 
