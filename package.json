@@ -9,9 +9,11 @@
     "deploy": "wrangler deploy",
     "test": "node --test tests/draw.test.mjs tests/design-system.test.mjs",
     "test:e2e": "node --test tests/e2e.test.mjs",
-    "test:all": "npm test && npm run test:e2e"
+    "test:all": "npm test && npm run test:e2e",
+    "screenshots": "node tests/screenshots.mjs"
   },
   "devDependencies": {
+    "playwright-core": "^1.65.0",
     "wrangler": "^4.160.1"
   },
   "engines": {
