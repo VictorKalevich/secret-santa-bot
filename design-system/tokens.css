@@ -1,5 +1,5 @@
 /*
- * Secret Santa Design System — токены v1.1.0
+ * Secret Santa Design System — токены v1.2.0
  * Единственное место, где разрешены «сырые» значения цветов и размеров.
  * Компоненты (components.css) и страницы используют только var(--ds-*).
  * Цвета интерфейса берутся из темы Telegram (--tg-theme-*), с запасными значениями для браузера.
@@ -90,6 +90,7 @@
   --ds-radius-badge: 13px;
   --ds-radius-lg: 14px;
   --ds-radius-xl: 18px;
+  --ds-radius-bubble: 16px;
   --ds-radius-pill: 999px;
   --ds-radius-round: 50%;
 
@@ -111,6 +112,10 @@
   --ds-border-strike: 1.5px;
   --ds-border-spinner: 3px;
   --ds-blur-hidden: 11px;
+  --ds-size-badge-min: 20px;
+  --ds-bubble-max-w: 82%;
+  --ds-composer-max-h: 160px;
+  --ds-sheet-full-h: var(--tg-viewport-stable-height, 100vh);
 
   /* ---------- Тени ---------- */
   --ds-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
@@ -124,6 +129,7 @@
   --ds-toast-offset: 20px;
   --ds-opacity-disabled: 0.45;
   --ds-opacity-decor: 0.1;
+  --ds-opacity-meta: 0.7;
 
   /* ---------- Слои ---------- */
   --ds-z-sticky: 5;

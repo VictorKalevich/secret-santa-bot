@@ -32,6 +32,8 @@
   .pv-sheet-wrap { position: relative; border-radius: var(--ds-radius-lg); overflow: hidden; }
   .pv-sheet-wrap .ds-sheet-backdrop { position: absolute; padding-top: var(--ds-space-10); }
   .pv-sheet-wrap { height: 240px; }
+  .pv-chat-wrap { position: relative; height: 420px; border-radius: var(--ds-radius-lg); overflow: hidden; }
+  .pv-chat-wrap .ds-sheet--full { height: 100%; }
 </style>
 </head>
 <body class="ds-root">
@@ -178,6 +180,27 @@
     <div class="ds-card ds-stack">
       <div class="ds-notice">🎁 Подарки готовы: 3 из 7</div>
       <div class="ds-notice ds-notice--error"><b>Жеребьёвка невозможна:</b><ul class="ds-bullets"><li>Олег не может дарить никому — проверь исключения.</li></ul></div>
+    </div>
+
+    <!-- Переписка -->
+    <div class="ds-section-title">Переписка</div>
+    <div class="ds-card ds-stack">
+      <button class="ds-btn ds-btn--secondary ds-btn--block">💬 Написать подопечному <span class="ds-badge">2</span></button>
+      <div class="pv-chat-wrap">
+        <div class="ds-sheet ds-sheet--full">
+          <div class="ds-row ds-row--between"><h2 class="ds-sheet__title">Переписка с подопечным</h2><button class="ds-icon-btn">✕</button></div>
+          <div class="ds-chat">
+            <div class="ds-chat__msg ds-chat__msg--mine">Привет! Какой у тебя размер перчаток?<div class="ds-chat__meta">сегодня в 14:02</div></div>
+            <div class="ds-chat__msg ds-chat__msg--theirs">Привет, Санта! M, и лучше без пальцев 🙂<div class="ds-chat__meta">сегодня в 14:10</div></div>
+          </div>
+          <div class="ds-composer">
+            <textarea class="ds-input ds-composer__input" rows="1" placeholder="Сообщение…"></textarea>
+            <button class="ds-btn ds-composer__send">Отправить</button>
+          </div>
+          <div class="ds-counter ds-composer__counter">3620 / 4000</div>
+        </div>
+      </div>
+      <div class="ds-card ds-chat__empty">Здесь пока пусто — напиши первым.</div>
     </div>
 
     <!-- Пустое состояние, загрузка -->
