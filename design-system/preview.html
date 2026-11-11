@@ -47,6 +47,7 @@
 
   <!-- Шапка и вкладки -->
   <header class="ds-hero">
+    <button class="ds-hero__back" title="Все эвенты">‹</button>
     <div class="ds-hero__badge">🎅</div>
     <div><h1 class="ds-hero__title">Тайный Санта</h1><div class="ds-hero__subtitle">🎁 27 декабря · 💰 до 50 BYN</div></div>
   </header>
@@ -138,10 +139,29 @@
         <div class="ds-text-strong">Регистрация открыта</div>
         <label class="ds-switch"><input type="checkbox"><span class="ds-switch__track"></span></label>
       </div>
+      <div class="ds-row ds-row--between ds-divided">
+        <div><div class="ds-text-strong">Недоступно</div><div class="ds-hint">Эвент завершён — только чтение</div></div>
+        <label class="ds-switch"><input type="checkbox" checked disabled><span class="ds-switch__track"></span></label>
+      </div>
       <div class="ds-segmented">
         <button class="ds-segmented__item ds-segmented__item--on">🔔 Звук</button>
         <button class="ds-segmented__item">🔕 Тихо</button>
         <button class="ds-segmented__item">🚫 Выкл</button>
+      </div>
+    </div>
+
+    <!-- Список эвентов -->
+    <div class="ds-section-title">Мои эвенты</div>
+    <div class="ds-card ds-card--flush">
+      <div class="ds-list-item ds-list-item--link">
+        <div class="ds-grow"><div class="ds-list-item__title">Новый год 2026 — семья</div>
+          <div class="ds-chips"><span class="ds-chip ds-chip--success">идёт</span><span class="ds-chip">27 декабря</span></div></div>
+        <span class="ds-badge">1</span><span class="ds-list-item__chevron">›</span>
+      </div>
+      <div class="ds-list-item ds-list-item--link">
+        <div class="ds-grow"><div class="ds-list-item__title">Новый год 2025</div>
+          <div class="ds-chips"><span class="ds-chip">завершён</span></div></div>
+        <span class="ds-list-item__chevron">›</span>
       </div>
     </div>
 

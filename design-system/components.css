@@ -1,5 +1,5 @@
 /*
- * Secret Santa Design System — компоненты v1.2.0
+ * Secret Santa Design System — компоненты v1.3.0
  * Только var(--ds-*) из tokens.css: здесь нет «сырых» цветов и px (проверяет tests/design-system.test.mjs).
  * Именование: .ds-<блок>, .ds-<блок>__<элемент>, .ds-<блок>--<модификатор>.
  */
@@ -54,6 +54,13 @@
 }
 .ds-hero__title { margin: 0; font-size: var(--ds-text-xl); line-height: var(--ds-leading-tight); letter-spacing: var(--ds-tracking-tight); }
 .ds-hero__subtitle { margin-top: var(--ds-space-0-5); color: var(--ds-color-text-muted); font-size: var(--ds-text-sm); }
+.ds-hero__back {
+  flex: none; display: grid; place-items: center; cursor: pointer;
+  width: var(--ds-size-control-sm); height: var(--ds-size-control-sm);
+  border: 0; border-radius: var(--ds-radius-pill);
+  background: var(--ds-color-surface); color: var(--ds-color-link);
+  font-size: var(--ds-text-xl); line-height: 1;
+}
 
 /* ========== Вкладки ==========
  * Равные по ширине вкладки «иконка + подпись»: 2–4 штуки всегда помещаются на экране телефона. */
@@ -132,6 +139,9 @@
 .ds-list-item--sub { padding-top: 0; }
 .ds-list-item + .ds-list-item--sub { border-top: 0; }
 .ds-list-item__title { font-weight: var(--ds-weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-list-item--link { cursor: pointer; }
+.ds-list-item--link:active { background: var(--ds-color-fill); }
+.ds-list-item__chevron { flex: none; color: var(--ds-color-text-muted); font-size: var(--ds-text-xl); line-height: 1; }
 
 /* ========== Метки ========== */
 .ds-chips { display: flex; flex-wrap: wrap; gap: var(--ds-space-1); margin-top: var(--ds-space-1); }
@@ -161,6 +171,7 @@
 .ds-switch input:checked + .ds-switch__track { background: var(--ds-color-success); }
 .ds-switch input:checked + .ds-switch__track::before { transform: translateX(var(--ds-switch-travel)); }
 .ds-switch input:focus-visible + .ds-switch__track { box-shadow: 0 0 0 var(--ds-border-focus) var(--ds-color-accent); }
+.ds-switch input:disabled + .ds-switch__track { opacity: var(--ds-opacity-disabled); cursor: default; }
 
 /* ========== Сегменты ========== */
 .ds-segmented { display: flex; gap: var(--ds-space-1); padding: var(--ds-space-1); border-radius: var(--ds-radius-md); background: var(--ds-color-fill); }

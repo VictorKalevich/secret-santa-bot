@@ -1,6 +1,6 @@
 # Дизайн-система «Тайный Санта»
 
-Версия 1.2.0. Единый источник цветов, текста, отступов и компонентов для всего интерфейса проекта
+Версия 1.3.0. Единый источник цветов, текста, отступов и компонентов для всего интерфейса проекта
 (сейчас — мини-приложение Telegram `src/app.html`). Правило из Конституции (принцип IV): **интерфейс
 собирается только из этой дизайн-системы**.
 
@@ -46,14 +46,14 @@
 | Область темы | `ds-theme` | блок с собственными `--tg-theme-*` (например, тёмная колонка витрины) — токены пересчитываются внутри |
 | Раскладка | `ds-page`, `ds-stack` (12), `ds-stack--sm` (8), `ds-row` (+`--between`, `--wrap`, `--tight`), `ds-grow`, `ds-divided` | вертикальные/горизонтальные группы с отступами из шкалы |
 | Текст | `ds-text-muted`, `ds-text-sm`, `ds-text-strong`, `ds-text-regular`, `ds-text-pre`, `ds-hint` (+`--inset`), `ds-bullets` | подсказки, акценты, списки |
-| Шапка | `ds-hero`, `__badge`, `__title`, `__subtitle` | верх экрана |
+| Шапка | `ds-hero`, `__badge`, `__title`, `__subtitle`, `__back` | верх экрана; `__back` — «‹» к списку эвентов |
 | Вкладки | `ds-tabs`, `ds-tab` (+`--active`), `ds-tab__icon`, `ds-tab__label`, `ds-tab__dot` | 2–4 равные вкладки «иконка + короткая подпись»; точка — несохранённые изменения |
 | Секция и карточка | `ds-section-title`, `ds-card` (+`--flush`) | группировка содержимого |
 | Кнопки | `ds-btn` (+`--block`, `--secondary`, `--danger`, `--festive`, `--on-festive`, `--sm`), `ds-icon-btn` | одно основное действие на карточку; `festive` — только жеребьёвка |
 | Поля | `ds-input` (+`--letter`), `ds-field`, `ds-field__label`, `ds-check`, `ds-counter` (+`--over`) | ввод текста, выбор, флажки, счётчик слов |
-| Список | `ds-list-item` (+`--sub`), `ds-list-item__title` | участники, исключения (внутри `ds-card--flush`) |
+| Список | `ds-list-item` (+`--sub`, `--link`), `ds-list-item__title`, `ds-list-item__chevron` | участники, исключения, эвенты (внутри `ds-card--flush`); `--link` + `›` — строка открывает экран |
 | Метки | `ds-chips`, `ds-chip` (+`--success`, `--warning`) | статусы участников |
-| Переключатель | `ds-switch` + `input` + `ds-switch__track` | вкл/выкл настройки |
+| Переключатель | `ds-switch` + `input` + `ds-switch__track` | вкл/выкл настройки; `input:disabled` — бледный, только чтение |
 | Сегменты | `ds-segmented`, `ds-segmented__item` (+`--on`) | выбор одного из 2–4 вариантов |
 | Подопечный | `ds-ward-card`, `__label`, `__name` (+`--hidden`) | главный экран Санты |
 | Письмо | `ds-letter`, `ds-diff-add`, `ds-diff-del` | текст письма и подсветка изменений |
