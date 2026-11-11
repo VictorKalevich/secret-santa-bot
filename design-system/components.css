@@ -1,5 +1,5 @@
 /*
- * Secret Santa Design System — компоненты v1.0.0
+ * Secret Santa Design System — компоненты v1.1.0
  * Только var(--ds-*) из tokens.css: здесь нет «сырых» цветов и px (проверяет tests/design-system.test.mjs).
  * Именование: .ds-<блок>, .ds-<блок>__<элемент>, .ds-<блок>--<модификатор>.
  */
@@ -16,7 +16,9 @@
   line-height: var(--ds-leading-base);
   padding-bottom: calc(var(--ds-space-8) + var(--ds-safe-bottom));
 }
-.ds-root button, .ds-root input, .ds-root textarea, .ds-root select { font: inherit; color: inherit; }
+/* Базовые стили элементов — только через :where() (нулевая специфичность), чтобы не перебивать цвета
+ * и размеры компонентов (.ds-btn--*, .ds-tab--active и т.д.). Проверяет tests/design-system.test.mjs. */
+:where(.ds-root) :where(button, input, textarea, select) { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
 /* ========== Раскладка ========== */
@@ -66,7 +68,7 @@
   display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-0-5);
   border: 0; border-radius: var(--ds-radius-lg);
   padding: var(--ds-space-2) var(--ds-space-1);
-  font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+  font-size: var(--ds-text-sm); font-weight: var(--ds-weight-semibold);
   background: var(--ds-color-surface); color: var(--ds-color-text);
 }
 .ds-tab--active { background: var(--ds-color-accent); color: var(--ds-color-on-accent); }

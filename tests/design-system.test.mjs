@@ -22,6 +22,14 @@ test('компоненты используют только токены: не�
   });
 });
 
+test('базовые стили элементов не перебивают компоненты (только через :where)', () => {
+  const css = stripComments(components);
+  // Запрещено: «.ds-root button {…}» и т.п. — такой селектор сильнее «.ds-btn--secondary» и ломает цвета (002, US4)
+  const bad = css.match(/(^|[,}])\s*\.ds-root\s+(button|input|textarea|select|a|label|span|div)\b[^{]*\{/gm);
+  assert.equal(bad, null, `базовый селектор без :where(): ${bad && bad[0].trim()}`);
+  assert.match(css, /:where\(\.ds-root\)\s*:where\(button, input, textarea, select\)/);
+});
+
 test('все var(--ds-*) в компонентах определены в токенах', () => {
   const defined = new Set([...tokens.matchAll(/(--ds-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
   const used = new Set([...components.matchAll(/var\((--ds-[a-z0-9-]+)/g)].map((m) => m[1]));

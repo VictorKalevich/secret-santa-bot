@@ -32,6 +32,42 @@ const people = [
 const LETTER = (name) => `Дорогой Санта!\n\nВ этом году я мечтаю о тёплом шарфе и хорошей книге — люблю фантастику и детективы. ` +
   `Размер одежды M, любимый цвет — зелёный.\n\nЧего точно не надо: сладкого и свечей.\n\nС любовью, ${name}`;
 
+// Проверка вычисленных цветов: текст вкладок и кнопок должен быть цветом их варианта (002, US4).
+const colorProblems = [];
+async function checkColors(page, label) {
+  const r = await page.evaluate(() => {
+    const token = (name) => {
+      const d = document.createElement('div');
+      d.style.color = `var(${name})`;
+      document.body.append(d);
+      const c = getComputedStyle(d).color;
+      d.remove();
+      return c;
+    };
+    const probe = (cls) => {
+      const b = document.createElement('button');
+      b.className = cls;
+      b.textContent = 'x';
+      document.body.append(b);
+      const c = getComputedStyle(b).color;
+      b.remove();
+      return c;
+    };
+    const active = document.querySelector('.ds-tab--active');
+    return [
+      ['выбранная вкладка', active ? getComputedStyle(active).color : null, token('--ds-color-on-accent')],
+      ['основная кнопка', probe('ds-btn'), token('--ds-color-on-accent')],
+      ['вторичная кнопка', probe('ds-btn ds-btn--secondary'), token('--ds-color-link')],
+      ['опасная кнопка', probe('ds-btn ds-btn--danger'), token('--ds-color-danger')],
+      ['праздничная кнопка', probe('ds-btn ds-btn--festive'), token('--ds-color-on-festive')],
+      ['невыбранная вкладка', probe('ds-tab'), token('--ds-color-text')],
+    ];
+  });
+  for (const [what, actual, expected] of r) {
+    if (actual !== expected) colorProblems.push(`${label}: ${what} — ${actual}, ожидалось ${expected}`);
+  }
+}
+
 const w = await startWorld();
 let browser;
 try {
@@ -61,6 +97,7 @@ try {
     await page.waitForSelector('.ds-tabs:not([hidden])');
     if (tab) { await page.locator('.ds-tab', { hasText: tab }).click(); }
     await page.waitForTimeout(400);
+    await checkColors(page, name + (dark ? ' (тёмная)' : ''));
     if (before) { await before(page); await page.waitForTimeout(500); }
     await page.screenshot({ path: fileURLToPath(new URL(`${name}${dark ? '-dark' : ''}.png`, OUT)), fullPage: true });
     await page.close();
@@ -86,6 +123,12 @@ try {
   await shot(people[2], '05-ward-hidden', { tab: 'Подопечный', dark: true });
   await shot(admin, '07-admin-after-draw', { tab: 'Админ', dark: true });
   console.log('Скриншоты сохранены в test-results/');
+  if (colorProblems.length) {
+    console.error('✘ Цвета не соответствуют дизайн-системе:\n' + colorProblems.join('\n'));
+    process.exitCode = 1;
+  } else {
+    console.log('✔ цвета вкладок и кнопок соответствуют дизайн-системе');
+  }
 } finally {
   await browser?.close();
   await w.stop();
