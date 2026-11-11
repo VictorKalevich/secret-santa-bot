@@ -1,5 +1,9 @@
 # Contract: сброс и перенос
 
+> **С фичи 005** действия привязаны к эвенту (поле `event`), см. [`specs/005-events-history/contracts/events.md`](../../005-events-history/contracts/events.md).
+> Этот контракт описывает поведение внутри одного эвента.
+
+
 | Action | Кто | Тело | Ответ | Ошибки |
 |---|---|---|---|---|
 | `admin.reset.full` | владелец | `{confirm: "СБРОС"}` | `{invite_link, removed}` | 403 не владелец; 400 неверное слово |

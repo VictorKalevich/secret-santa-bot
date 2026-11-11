@@ -1,5 +1,9 @@
 # Contract: роли — изменения API, чата и сообщений
 
+> **С фичи 005** действия привязаны к эвенту (поле `event`), см. [`specs/005-events-history/contracts/events.md`](../../005-events-history/contracts/events.md).
+> Этот контракт описывает поведение внутри одного эвента.
+
+
 Дополняет контракты [001](../../001-secret-santa-bot/contracts/).
 
 ## API мини-приложения

@@ -1,5 +1,9 @@
 # Contract: чат с ботом
 
+> **С фичи 005** действия привязаны к эвенту (поле `event`), см. [`specs/005-events-history/contracts/events.md`](../../005-events-history/contracts/events.md).
+> Этот контракт описывает поведение внутри одного эвента.
+
+
 Бот работает только в личных чатах. Обрабатываются `message` и `callback_query`.
 
 ## Deep-link

@@ -1,5 +1,9 @@
 # Contract: JSON API мини-приложения
 
+> **С фичи 005** действия привязаны к эвенту (поле `event`), см. [`specs/005-events-history/contracts/events.md`](../../005-events-history/contracts/events.md).
+> Этот контракт описывает поведение внутри одного эвента.
+
+
 Все запросы: `POST /api/<action>`, тело — JSON, заголовок `X-Init-Data: <Telegram.WebApp.initData>`.
 Ответ: `{ "ok": true, ... }` или `{ "ok": false, "error": "текст для человека" }`.
 

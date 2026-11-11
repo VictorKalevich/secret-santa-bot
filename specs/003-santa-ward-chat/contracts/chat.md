@@ -1,5 +1,9 @@
 # Contract: переписка
 
+> **С фичи 005** действия привязаны к эвенту (поле `event`), см. [`specs/005-events-history/contracts/events.md`](../../005-events-history/contracts/events.md).
+> Этот контракт описывает поведение внутри одного эвента.
+
+
 ## API мини-приложения
 
 | Action | Тело | Ответ | Ошибки |
