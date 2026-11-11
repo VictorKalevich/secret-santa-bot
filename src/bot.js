@@ -1,13 +1,44 @@
 // Обработка сообщений в чате с ботом (webhook от Telegram).
 
-import { getSettings, getUser, createUser, updateUser, pairOfSanta, pairOfWard, enqueueStmt, allUsers } from './db.js';
+import {
+  getSettings, getUser, createUser, updateUser, pairOfSanta, pairOfWard, enqueueStmt, allUsers,
+  getEvent, getEventByInvite, getMember, addMemberStmt,
+} from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
 import {
-  menuMessage, isRegistrationOpen, escapeHtml, msg, flushOutbox, resolveOwner, setOwner, sendChatMessage, MAX_CHARS,
+  menuMessage, escapeHtml, msg, q, flushOutbox, resolveOwner, setOwner, sendChatMessage, chatWritable, isFinished,
+  MAX_CHARS, openAppButton,
 } from './game.js';
 
 const NAME_PROMPT =
-  'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидит твой Санта и организатор.';
+  'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта и организатор.';
+const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси у организатора пригласительную ссылку эвента.';
+
+// Меню: идущие эвенты человека с кнопками переписки
+export async function buildMenu(db, user, settings) {
+  const { results } = await db
+    .prepare(
+      `SELECT e.*, m.wishlist FROM members m JOIN events e ON e.id = m.event_id
+        WHERE m.user_id = ? ORDER BY e.created_at DESC`
+    )
+    .bind(user.tg_id)
+    .all();
+  const active = results.filter((e) => e.status === 'active').slice(0, 5);
+  const items = [];
+  for (const ev of active) {
+    const [pair, wardPair] = await Promise.all([pairOfSanta(db, ev.id, user.tg_id), pairOfWard(db, ev.id, user.tg_id)]);
+    items.push({ ev, member: { wishlist: ev.wishlist }, pair, wardPair });
+  }
+  return menuMessage(user, settings, items, results.length - results.filter((e) => e.status === 'active').length);
+}
+
+async function notifyAdminsJoined(env, ctx, name, ev, exceptId) {
+  const db = env.DB;
+  const admins = (await allUsers(db)).filter((u) => u.is_admin && u.registered && u.tg_id !== exceptId);
+  if (!admins.length) return;
+  await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(`👋 <b>${escapeHtml(name)}</b> присоединяется к эвенту ${q(ev)}`, { disable_notification: true }))));
+  ctx.waitUntil(flushOutbox(env));
+}
 
 export async function handleUpdate(update, env, ctx) {
   const db = env.DB;
@@ -23,22 +54,17 @@ export async function handleUpdate(update, env, ctx) {
   let user = await getUser(db, from.id);
 
   const reply = (payload) => call('sendMessage', { chat_id: from.id, ...(typeof payload === 'string' ? msg(payload) : payload) });
-  const sendMenu = async (u) => {
-    const [pair, wardPair] = await Promise.all([pairOfSanta(db, u.tg_id), pairOfWard(db, u.tg_id)]);
-    return reply(menuMessage(u, settings, pair, wardPair));
-  };
+  const sendMenu = async (u) => reply(await buildMenu(db, u, settings));
 
   // ---------- /start ----------
   if (text.startsWith('/start')) {
     const payload = text.split(/\s+/)[1] || '';
     const adminCode = 'adm_' + (await derivedSecret(env, 'admin:' + (env.ADMIN_SECRET || ''), 24));
 
-    // Ссылка со страницы /setup делает владельцем игры (002, FR-102)
+    // Ссылка со страницы /setup делает владельцем бота (002, FR-102)
     if (payload === adminCode) {
       const prevOwnerId = await resolveOwner(db, settings);
-      if (!user) {
-        await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
-      }
+      if (!user) await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
       await setOwner(env, from.id, {
         via: 'link',
         prevOwnerId,
@@ -49,92 +75,89 @@ export async function handleUpdate(update, env, ctx) {
       user = await getUser(db, from.id);
       if (!user.registered) {
         await updateUser(db, from.id, { pending: 'name' });
-        return reply('👑 Ты — владелец игры «Тайный Санта»: ведёшь игру и назначаешь администраторов.\n\n' + NAME_PROMPT);
+        return reply('👑 Ты — владелец бота «Тайный Санта»: создаёшь эвенты и назначаешь администраторов.\n\n' + NAME_PROMPT);
       }
-      await reply('👑 Теперь ты владелец игры: назначать и снимать администраторов можно во вкладке «Админ».');
+      await reply('👑 Теперь ты владелец бота: эвенты и администраторы — в приложении.');
       return sendMenu(user);
     }
 
-    if (user?.registered) return sendMenu(user);
-
+    // Пригласительная ссылка эвента (005)
     if (payload.startsWith('inv_')) {
-      if (!settings.invite_code || payload !== 'inv_' + settings.invite_code) {
-        return reply('Эта пригласительная ссылка устарела. Попроси у организатора новую.');
+      const ev = await getEventByInvite(db, payload.slice(4));
+      if (!ev) return reply('Эта пригласительная ссылка устарела. Попроси у организатора новую.');
+      if (isFinished(ev) || !ev.registration_open) {
+        return reply(`Регистрация в эвент ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`);
       }
-      if (!isRegistrationOpen(settings)) {
-        return reply('Регистрация сейчас закрыта. Напиши организатору — он может открыть её снова.');
+      const already = user ? await getMember(db, ev.id, from.id) : null;
+      if (user?.registered) {
+        if (!already) {
+          await addMemberStmt(db, ev.id, from.id).run();
+          await notifyAdminsJoined(env, ctx, user.name, ev, from.id);
+        }
+        await reply({
+          ...msg(`🎄 Ты в эвенте ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`),
+          reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] },
+        });
+        return sendMenu(user);
       }
-      if (!user) await createUser(db, from.id, from.username, { pending: 'name' });
-      else await updateUser(db, from.id, { pending: 'name' });
-      return reply('🎄 Привет! Это бот для игры в Тайного Санту.\n\n' + NAME_PROMPT);
+      if (!user) await createUser(db, from.id, from.username, { pending: 'name:' + ev.id });
+      else await updateUser(db, from.id, { pending: 'name:' + ev.id });
+      await addMemberStmt(db, ev.id, from.id).run();
+      return reply(`🎄 Привет! Это бот для игры в Тайного Санту, эвент ${q(ev)}.\n\n` + NAME_PROMPT);
     }
 
-    if (user && user.pending === 'name') return reply(NAME_PROMPT);
-    return reply('🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси у организатора пригласительную ссылку.');
+    if (user?.registered) return sendMenu(user);
+    if (user && user.pending.startsWith('name')) return reply(NAME_PROMPT);
+    return reply(CLOSED_BOT);
   }
 
-  if (!user) {
-    return reply('🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси у организатора пригласительную ссылку.');
-  }
+  if (!user) return reply(CLOSED_BOT);
 
   if (text === '/cancel') {
-    await updateUser(db, from.id, { pending: '' });
     if (!user.registered) return reply(NAME_PROMPT);
+    await updateUser(db, from.id, { pending: '' });
     return reply('Отменено.');
   }
 
   // ---------- ввод имени при регистрации ----------
-  if (user.pending === 'name') {
+  if (user.pending.startsWith('name')) {
     const name = text.replace(/\s+/g, ' ').trim();
     if (!name || name.startsWith('/') || name.length > 40) {
       return reply('Напиши, пожалуйста, имя обычным текстом (до 40 символов).');
     }
-    const wasRegistered = user.registered;
-    await updateUser(db, from.id, {
-      name,
-      username: from.username || '',
-      registered: 1,
-      pending: '',
-      ...(user.is_admin && !wasRegistered ? {} : { is_participant: 1 }),
-    });
+    const eventId = Number(user.pending.split(':')[1] || 0);
+    await updateUser(db, from.id, { name, username: from.username || '', registered: 1, pending: '' });
     user = await getUser(db, from.id);
-    if (user.is_admin && !wasRegistered) {
-      return reply({
-        ...msg(`Приятно познакомиться, ${escapeHtml(name)}! Ты сам(а) участвуешь в обмене подарками или только организуешь?`),
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '🎁 Участвую', callback_data: 'adm_part:1' },
-            { text: '🛠 Только организую', callback_data: 'adm_part:0' },
-          ]],
-        },
+    const ev = eventId ? await getEvent(db, eventId) : null;
+    if (ev) {
+      await notifyAdminsJoined(env, ctx, name, ev, from.id);
+      await reply({
+        ...msg(`Приятно познакомиться, ${escapeHtml(name)}! 🎉\n\nТеперь открой приложение и напиши письмо своему Тайному Санте в эвенте ${q(ev)}: что хочешь получить, что любишь, размеры, чего точно не надо.`),
+        reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] },
       });
-    }
-    if (!wasRegistered) {
-      // Сообщаем администраторам о новом участнике (без звука)
-      const admins = (await allUsers(db)).filter((u) => u.is_admin && u.registered && u.tg_id !== from.id);
-      if (admins.length) {
-        await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(`👋 Новый участник: <b>${escapeHtml(name)}</b>`, { disable_notification: true }))));
-        ctx.waitUntil(flushOutbox(env));
-      }
-      await reply(`Приятно познакомиться, ${escapeHtml(name)}! 🎉\n\nТеперь открой приложение и напиши письмо своему Тайному Санте: что хочешь получить, что любишь, размеры, чего точно не надо.`);
+    } else {
+      await reply(`Приятно познакомиться, ${escapeHtml(name)}! 🎉` + (user.is_admin ? '\n\nСоздай первый эвент в приложении — там появится пригласительная ссылка.' : ''));
     }
     return sendMenu(user);
   }
 
   if (!user.registered) return reply(NAME_PROMPT);
 
-  // ---------- анонимные сообщения ----------
-  if (user.pending === 'msg_ward' || user.pending === 'msg_santa') {
+  // ---------- ответ в переписку (003/005) ----------
+  if (user.pending.startsWith('msg_ward:') || user.pending.startsWith('msg_santa:')) {
     if (!text || text.startsWith('/')) {
       await updateUser(db, from.id, { pending: '' });
       return sendMenu(user);
     }
-    const toWard = user.pending === 'msg_ward';
+    const [kind, eid] = user.pending.split(':');
+    const toWard = kind === 'msg_ward';
     if (text.length > MAX_CHARS) {
       return reply(`❌ Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS}. Отправь покороче или /cancel.`);
     }
-    const res = await sendAnonymous(env, from.id, toWard ? 'ward' : 'santa', text, ctx);
+    const ev = await getEvent(db, eid);
     await updateUser(db, from.id, { pending: '' });
+    if (!ev) return reply('❌ Эвент не найден.');
+    const res = await sendAnonymous(env, ev, from.id, toWard ? 'ward' : 'santa', text, ctx);
     return reply(res.ok
       ? (toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.')
       : '❌ ' + res.error);
@@ -144,8 +167,8 @@ export async function handleUpdate(update, env, ctx) {
 }
 
 // Сообщение в переписку Санты и подопечного (из чата с ботом или из мини-приложения)
-export async function sendAnonymous(env, fromId, to, text, ctx) {
-  const r = await sendChatMessage(env, fromId, to, text);
+export async function sendAnonymous(env, ev, fromId, to, text, ctx) {
+  const r = await sendChatMessage(env, ev, fromId, to, text);
   if (r.ok) ctx.waitUntil(flushOutbox(env));
   return r;
 }
@@ -163,28 +186,22 @@ async function handleCallback(cq, env, ctx, call) {
   const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const user = await getUser(db, from.id);
   if (!user || !user.registered) return answer('Сначала зарегистрируйся по пригласительной ссылке.');
-  const settings = await getSettings(db);
   const send = (payload) => call('sendMessage', { chat_id: from.id, ...payload });
 
-  if (data.startsWith('adm_part:') && user.is_admin) {
-    const on = data.endsWith(':1') ? 1 : 0;
-    await updateUser(db, from.id, { is_participant: on });
-    await answer(on ? 'Отлично, ты участвуешь!' : 'Хорошо, ты только организатор.');
-    const u = await getUser(db, from.id);
-    const [pair, wardPair] = await Promise.all([pairOfSanta(db, u.tg_id), pairOfWard(db, u.tg_id)]);
-    return send(menuMessage(u, settings, pair, wardPair));
-  }
-
-  if (data === 'msg:ward' || data === 'msg:santa') {
-    const toWard = data === 'msg:ward';
-    const p = toWard ? await pairOfSanta(db, from.id) : await pairOfWard(db, from.id);
+  const mm = /^msg:(ward|santa):(\d+)$/.exec(data);
+  if (mm) {
+    const toWard = mm[1] === 'ward';
+    const ev = await getEvent(db, mm[2]);
+    if (!ev) return answer('Эвент не найден.');
+    const p = toWard ? await pairOfSanta(db, ev.id, from.id) : await pairOfWard(db, ev.id, from.id);
     if (!p) return answer(toWard ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.');
-    await updateUser(db, from.id, { pending: toWard ? 'msg_ward' : 'msg_santa' });
+    if (!chatWritable(ev)) return answer('Эвент завершён больше недели назад — переписка только для чтения.');
+    await updateUser(db, from.id, { pending: (toWard ? 'msg_ward:' : 'msg_santa:') + ev.id });
     await answer();
     return send(msg(
       (toWard
-        ? '✍️ Напиши сообщение подопечному — я передам его <b>анонимно</b>, от имени «Тайного Санты».'
-        : '✍️ Напиши сообщение своему Санте — я передам его. Санта знает, кто ты, а ты его — нет.') +
+        ? `✍️ Напиши сообщение подопечному (эвент ${q(ev)}) — я передам его <b>анонимно</b>, от имени «Тайного Санты».`
+        : `✍️ Напиши сообщение своему Санте (эвент ${q(ev)}) — я передам его. Санта знает, кто ты, а ты его — нет.`) +
       `\nДо ${MAX_CHARS} символов. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`
     ));
   }
@@ -192,7 +209,7 @@ async function handleCallback(cq, env, ctx, call) {
   if (data === 'notify') {
     await answer();
     return send(msg(
-      `Уведомления о том, что подопечный изменил письмо.\nСейчас: <b>${NOTIFY_LABELS[user.notify_mode] || NOTIFY_LABELS.sound}</b>`,
+      `Уведомления о том, что подопечный изменил письмо (во всех эвентах).\nСейчас: <b>${NOTIFY_LABELS[user.notify_mode] || NOTIFY_LABELS.sound}</b>`,
       { reply_markup: { inline_keyboard: [Object.entries(NOTIFY_LABELS).map(([k, v]) => ({ text: v, callback_data: 'nm:' + k }))] } }
     ));
   }

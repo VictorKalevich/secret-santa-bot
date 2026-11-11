@@ -3,12 +3,12 @@
 import APP_HTML from './app.html';
 import TOKENS_CSS from '../design-system/tokens.css';
 import COMPONENTS_CSS from '../design-system/components.css';
-import { ensureSchema, getSettings, setSettings } from './db.js';
+import { ensureSchema, setSettings } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
 import { handleUpdate } from './bot.js';
 import { handleApi } from './api.js';
 import { runScheduled } from './cron.js';
-import { randomCode, inviteLink, escapeHtml } from './game.js';
+import { escapeHtml } from './game.js';
 
 // Страница мини-приложения со встроенной дизайн-системой (без сборщика).
 const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS);
@@ -99,7 +99,7 @@ h1{font-size:24px}code,.link{background:#f4f4f6;border-radius:8px;padding:2px 6p
 
   const cmds = await call('setMyCommands', {
     commands: [
-      { command: 'start', description: 'Главное меню' },
+      { command: 'start', description: 'Главное меню и мои эвенты' },
       { command: 'cancel', description: 'Отменить ввод' },
     ],
   });
@@ -115,11 +115,7 @@ h1{font-size:24px}code,.link{background:#f4f4f6;border-radius:8px;padding:2px 6p
   });
   await call('setMyShortDescription', { short_description: '🎄 Тайный Санта для своей компании' });
 
-  const settings = await getSettings(env.DB);
-  const updates = { base_url: origin, bot_username: me.result.username };
-  if (!settings.invite_code) updates.invite_code = randomCode();
-  await setSettings(env.DB, updates);
-  const s = { ...settings, ...updates };
+  await setSettings(env.DB, { base_url: origin, bot_username: me.result.username });
 
   const adminLink = `https://t.me/${me.result.username}?start=adm_${await derivedSecret(env, 'admin:' + env.ADMIN_SECRET, 24)}`;
   const allOk = steps.every((x) => x[1]);
@@ -127,15 +123,15 @@ h1{font-size:24px}code,.link{background:#f4f4f6;border-radius:8px;padding:2px 6p
     'Настройка',
     `<h1>${allOk ? '✅ Бот настроен' : '⚠️ Есть проблемы'}</h1>${renderSteps(steps)}
 <h2>1. Ссылка владельца</h2>
-<p>Открой её в Telegram — бот сделает тебя <b>владельцем игры</b>. Владелец ведёт игру и сам назначает и снимает
-администраторов в приложении (вкладка «Админ» → «Администраторы»).</p>
+<p>Открой её в Telegram — бот сделает тебя <b>владельцем бота</b>. Владелец создаёт эвенты и сам назначает и снимает
+администраторов в приложении (главный экран → «Администраторы»).</p>
 <a class="link" href="${adminLink}">${adminLink}</a>
 <p class="warn">⚠️ Никому не пересылай эту ссылку: тот, кто по ней перейдёт, станет владельцем (прежний владелец получит
 предупреждение). Чтобы сделать кого-то админом, назначь его в приложении. Если ссылка утекла — перейди по ней сам и смени
 ADMIN_SECRET.</p>
-<h2>2. Пригласительная ссылка для участников</h2>
-<a class="link" href="${escapeHtml(inviteLink(s))}">${escapeHtml(inviteLink(s))}</a>
-<p>Её же можно скопировать позже во вкладке «Админ» в приложении бота.</p>`
+<h2>2. Создай эвент</h2>
+<p>В чате с ботом нажми «🎁 Санта» → «＋ Новый эвент». У каждого эвента своя пригласительная ссылка — её можно
+скопировать или отправить в чат прямо из приложения (вкладка «Админ» эвента).</p>`
   );
 }
 

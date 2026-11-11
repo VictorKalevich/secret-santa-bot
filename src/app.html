@@ -10,9 +10,10 @@
 </head>
 <body class="ds-root">
 <header class="ds-hero">
+  <button class="ds-hero__back" id="heroBack" title="Все эвенты" hidden>‹</button>
   <div class="ds-hero__badge">🎅</div>
-  <div>
-    <h1 class="ds-hero__title">Тайный Санта</h1>
+  <div class="ds-grow">
+    <h1 class="ds-hero__title" id="heroTitle">Тайный Санта</h1>
     <div class="ds-hero__subtitle" id="heroSub">Загрузка…</div>
   </div>
 </header>
@@ -179,47 +180,218 @@
   }
 
   // ---------- состояние ----------
-  const state = { me: null, game: null, tab: 'my', dirty: false, wardNameShown: false };
+  // view: 'home' (список эвентов) или 'event' (вкладки одного эвента)
+  const state = {
+    me: null, events: [], limits: { chars: 4000 }, view: 'home',
+    evId: null, ev: null, member: null, can: {}, tab: 'my', dirty: false, wardNameShown: false,
+  };
   const main = document.getElementById('main');
+  const heroTitle = document.getElementById('heroTitle');
+  const heroSub = document.getElementById('heroSub');
+  const heroBack = document.getElementById('heroBack');
+  heroBack.addEventListener('click', async () => {
+    if (state.dirty && !(await confirmBox('Письмо не сохранено. Уйти без сохранения?'))) return;
+    setDirty(false);
+    await goHome();
+  });
+
+  // Запросы в пределах открытого эвента
+  const eapi = (action, body) => api(action, { ...(body || {}), event: state.evId });
+  const finished = () => state.ev && state.ev.status === 'finished';
 
   function setDirty(v) {
     state.dirty = v;
     try { if (tg && ver('6.2')) v ? tg.enableClosingConfirmation() : tg.disableClosingConfirmation(); } catch (e) {}
+    if (state.view === 'event') renderTabs();
+  }
+
+  async function reloadMe() {
+    const d = await api('me');
+    if (!d.registered) return d;
+    state.me = d.me;
+    state.events = d.events;
+    state.limits = d.limits;
+    return d;
+  }
+
+  async function reloadEvent() {
+    const d = await eapi('event.get');
+    state.ev = d.event;
+    state.member = d.member;
+    state.can = d.can;
+    return d;
+  }
+
+  function showLoader() { main.replaceChildren(h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…')); }
+  function showError(e) {
+    main.replaceChildren(ui.empty('⚠️', 'Не получилось загрузить', e.message,
+      h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => render() }, 'Попробовать снова')));
+  }
+
+  function render() {
+    window.scrollTo(0, 0);
+    if (state.view === 'home') return renderHome();
+    renderHero();
     renderTabs();
+    ({ my: renderMy, ward: renderWard, info: renderInfo, admin: renderAdmin }[state.tab] || renderInfo)();
   }
 
+  // ---------- главный экран: список эвентов (005) ----------
+  async function goHome() {
+    state.view = 'home';
+    state.evId = null;
+    state.ev = null;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    showLoader();
+    try { await reloadMe(); } catch (e) { return showError(e); }
+    render();
+  }
+
+  async function openEvent(id, tab, chat) {
+    state.view = 'event';
+    state.evId = id;
+    state.wardNameShown = false;
+    showLoader();
+    try { await reloadEvent(); } catch (e) { return showError(e); }
+    const m = state.member;
+    state.tab = tab || (m ? (state.ev.draw_done && m.has_ward && m.wishlist.trim() ? 'ward' : 'my') : (state.me.is_admin ? 'admin' : 'info'));
+    render();
+    if (chat === 'santa' && m && m.has_santa) openChat('santa');
+    if (chat === 'ward' && m && m.has_ward) openChat('ward');
+  }
+
+  function eventRow(e) {
+    const chips = [e.status === 'finished' ? ui.chip('завершён') : ui.chip('идёт', 'success')];
+    if (e.event_date) chips.push(ui.chip('🎁 ' + fmtDate(e.event_date)));
+    if (!e.member) chips.push(ui.chip('ты не участвуешь'));
+    return h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openEvent(e.id) },
+      h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, e.title), h('div', { class: 'ds-chips' }, chips)),
+      e.unread ? h('span', { class: 'ds-badge' }, String(e.unread)) : null,
+      h('span', { class: 'ds-list-item__chevron' }, '›'));
+  }
+
+  function renderHome() {
+    const me = state.me;
+    heroBack.hidden = true;
+    heroTitle.textContent = 'Тайный Санта';
+    heroSub.textContent = 'Привет, ' + me.name + '!';
+    document.getElementById('tabs').hidden = true;
+    const mine = state.events.filter((e) => e.member);
+    const others = state.events.filter((e) => !e.member);
+    const nodes = [];
+    nodes.push(ui.section('Мои эвенты'));
+    if (mine.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, mine.map(eventRow)));
+    else nodes.push(ui.hint(me.is_admin
+      ? 'Ты пока не участвуешь ни в одном эвенте. Создай эвент или вступи в существующий («Админ» → «Я участвую»).'
+      : 'Ты пока не участвуешь ни в одном эвенте. Попроси у организатора пригласительную ссылку.', 'ds-hint--inset'));
+
+    if (me.is_admin) {
+      if (others.length) nodes.push(ui.section('Другие эвенты'), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
+      const create = ui.btn('＋ Новый эвент', 'festive', 'ds-btn--block');
+      create.addEventListener('click', () => {
+        const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: 'Например: Новый год 2026 — семья' });
+        const ok = ui.btn('Создать', '', 'ds-btn--block');
+        ok.addEventListener('click', () => busy(ok, async () => {
+          if (!title.value.trim()) return toast('Напиши название');
+          const r = await api('admin.events.create', { title: title.value });
+          closeSheet();
+          toast('🎄 Эвент создан');
+          await reloadMe();
+          await openEvent(r.event.id, 'admin');
+        }));
+        openSheet('Новый эвент', [ui.hint('У эвента будут свои участники, пригласительная ссылка, письма и жеребьёвка. Можно вести несколько эвентов одновременно.'), title, ok]);
+      });
+      nodes.push(h('div', { class: 'ds-card' }, create));
+      nodes.push(...renderAdminsSection());
+    }
+
+    // Уведомления — общие для всех эвентов
+    const modes = [['sound', '🔔 Звук'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
+    const seg = h('div', { class: 'ds-segmented' });
+    const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
+      class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
+      onclick: () => busy(null, async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast('Сохранено'); }),
+    }, label)));
+    draw();
+    nodes.push(ui.section('Уведомления'),
+      ui.card(ui.hint('Когда подопечный меняет письмо (в любом эвенте), бот сообщит об этом — без имени и подробностей.'), seg));
+    main.replaceChildren(...nodes);
+  }
+
+  // Раздел «Администраторы» (002): общий для бота, показывается на главном экране
+  function renderAdminsSection() {
+    const box = h('div', {}, ui.section('Администраторы'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
+    api('admin.users').then((d) => {
+      const me = state.me;
+      const admins = d.users.filter((u) => u.is_admin).sort((a, b) => (b.is_owner ? 1 : 0) - (a.is_owner ? 1 : 0));
+      const list = h('div', { class: 'ds-card ds-card--flush' });
+      for (const u of admins) {
+        const actions = h('div', { class: 'ds-row ds-row--tight' });
+        if (me.is_owner && !u.is_owner) {
+          actions.append(
+            h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: async () => {
+              if (!(await confirmBox(`Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать админов сможет только новый владелец.`))) return;
+              busy(null, async () => { await api('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await goHome(); });
+            } }, '👑'),
+            h('button', { class: 'ds-icon-btn', title: 'Снять права администратора', onclick: async () => {
+              if (!(await confirmBox(`Снять права администратора с «${u.name}»?`))) return;
+              busy(null, async () => { await api('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await goHome(); });
+            } }, '✕'));
+        }
+        list.append(h('div', { class: 'ds-list-item' },
+          h('div', { class: 'ds-grow' },
+            h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)') : null),
+            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip('👑 владелец') : ui.chip('🛠 админ'))),
+          actions));
+      }
+      const parts = [ui.section('Администраторы'), list];
+      if (me.is_owner) {
+        const candidates = d.users.filter((u) => !u.is_admin);
+        if (candidates.length) {
+          const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Кого назначить…'), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
+          const grant = ui.btn('🛠 Назначить админом', 'secondary', 'ds-btn--block');
+          grant.addEventListener('click', async () => {
+            const u = candidates.find((x) => String(x.id) === sel.value);
+            if (!u) return toast('Выбери человека');
+            if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет создавать и вести эвенты. Кто кому дарит, админы не видят.`))) return;
+            busy(grant, async () => { await api('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await goHome(); });
+          });
+          parts.push(ui.card(ui.hint('Админы создают и ведут эвенты. Назначать, снимать админов и передавать права владельца (👑) можешь только ты.'), sel, grant));
+        }
+      } else {
+        parts.push(ui.hint(`Назначать и снимать администраторов может только владелец${d.owner_name ? ' — ' + d.owner_name : ''}.`, 'ds-hint--inset'));
+      }
+      box.replaceChildren(...parts);
+    }).catch((e) => box.replaceChildren(ui.section('Администраторы'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
+    return [box];
+  }
+
+  // ---------- экран эвента ----------
   function renderHero() {
-    const g = state.game || {};
+    const e = state.ev;
+    heroBack.hidden = !(state.events.length > 1 || state.me.is_admin);
+    heroTitle.textContent = e.title;
     const parts = [];
-    if (g.event_date) parts.push('🎁 ' + fmtDate(g.event_date));
-    if (g.budget) parts.push('💰 ' + g.budget);
-    if (!parts.length && state.me) parts.push('Привет, ' + state.me.name + '!');
-    document.getElementById('heroSub').textContent = parts.join(' · ');
+    if (e.status === 'finished') parts.push('🏁 завершён');
+    if (e.event_date) parts.push('🎁 ' + fmtDate(e.event_date));
+    if (e.budget) parts.push('💰 ' + e.budget);
+    // неразрывные пробелы внутри частей: «до 50 BYN» не разрывается на две строки
+    heroSub.textContent = parts.map((p) => p.replace(/ /g, '\u00a0')).join(' · ') || 'Тайный Санта';
   }
 
-  function tabsList() {
-    const t = [];
-    if (state.me.is_participant) t.push(['my', '✉️', 'Письмо'], ['ward', '🎁', 'Подопечный']);
-    t.push(['info', 'ℹ️', 'Инфо']);
-    if (state.me.is_admin) t.push(['admin', '🛠', 'Админ']);
-    return t;
-  }
-
-  // Точка на вкладке: несохранённое письмо или непрочитанные сообщения переписки (003)
   function tabHasDot(id) {
-    const u = (state.me && state.me.unread) || {};
+    const u = (state.member && state.member.unread) || {};
     if (id === 'my') return state.dirty || u.from_santa > 0;
     if (id === 'ward') return u.from_ward > 0;
     return false;
   }
 
-  // Кнопка «💬 Написать …» с числом непрочитанных
-  function chatButton(withWhom) {
-    const n = ((state.me && state.me.unread) || {})[withWhom === 'ward' ? 'from_ward' : 'from_santa'] || 0;
-    const btn = ui.btn(withWhom === 'ward' ? '💬 Написать подопечному' : '💬 Написать Санте', 'secondary', 'ds-btn--block');
-    if (n) btn.append(h('span', { class: 'ds-badge' }, String(n)));
-    btn.addEventListener('click', () => openChat(withWhom));
-    return btn;
+  function tabsList() {
+    const t = [];
+    if (state.member) t.push(['my', '✉️', 'Письмо'], ['ward', '🎁', 'Подопечный']);
+    t.push(['info', 'ℹ️', 'Инфо']);
+    if (state.me.is_admin) t.push(['admin', '🛠', 'Админ']);
+    return t;
   }
 
   function renderTabs() {
@@ -240,87 +412,88 @@
     ));
   }
 
-  async function reloadMe() {
-    const d = await api('me');
-    if (!d.registered) return d;
-    state.me = d.me;
-    state.game = d.game;
-    state.limits = d.limits;
-    return d;
+  // Плашка завершённого эвента
+  function finishedNotice() {
+    if (!finished()) return null;
+    const e = state.ev;
+    const until = new Date(e.chat_until);
+    const chat = state.can.chat_write
+      ? `Переписка открыта до ${until.getDate()} ${MONTHS[until.getMonth()]}, потом — только чтение.`
+      : 'Переписка — только для чтения.';
+    return h('div', { class: 'ds-notice ds-text-sm' }, `🏁 Эвент завершён ${fmtTime(e.finished_at)}. Письмо и отметки — только для чтения. ${chat}`);
   }
 
-  function render() {
-    renderHero();
-    renderTabs();
-    window.scrollTo(0, 0);
-    ({ my: renderMy, ward: renderWard, info: renderInfo, admin: renderAdmin }[state.tab] || renderInfo)();
+  // Кнопка «💬 Написать …» с числом непрочитанных
+  function chatButton(withWhom) {
+    const n = ((state.member && state.member.unread) || {})[withWhom === 'ward' ? 'from_ward' : 'from_santa'] || 0;
+    const label = state.can.chat_write
+      ? (withWhom === 'ward' ? '💬 Написать подопечному' : '💬 Написать Санте')
+      : (withWhom === 'ward' ? '💬 Переписка с подопечным' : '💬 Переписка с Сантой');
+    const btn = ui.btn(label, 'secondary', 'ds-btn--block');
+    if (n) btn.append(h('span', { class: 'ds-badge' }, String(n)));
+    btn.addEventListener('click', () => openChat(withWhom));
+    return btn;
   }
 
-  function showLoader() { main.replaceChildren(h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…')); }
-  function showError(e) {
-    main.replaceChildren(ui.empty('⚠️', 'Не получилось загрузить', e.message,
-      h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => render() }, 'Попробовать снова')));
-  }
-
-  // ---------- вкладка «Моё письмо» ----------
+  // ---------- вкладка «Письмо» ----------
   function renderMy() {
-    const me = state.me;
+    const m = state.member;
     const max = state.limits.chars;
-    const ta = ui.textarea({
-      class: 'ds-input ds-input--letter',
-      placeholder: 'Дорогой Санта! В этом году я мечтаю о…\n\nНапиши, что хочешь получить, что любишь, размеры одежды, любимые цвета — и чего точно не надо.',
-      value: me.wishlist,
-    });
-    const counter = h('span', { class: 'ds-counter' });
-    const saveBtn = ui.btn('Сохранить', '', 'ds-btn--block');
-    const status = h('span', { class: 'ds-hint' });
-    const update = () => {
-      const n = ta.value.length;
-      counter.textContent = `${n} / ${max} символов`;
-      counter.classList.toggle('ds-counter--over', n > max);
-      const changed = ta.value !== me.wishlist;
-      saveBtn.disabled = !changed || n > max;
-      if (changed !== state.dirty) setDirty(changed);
-      status.textContent = changed ? 'Есть несохранённые изменения' : me.wishlist_updated_at ? 'Сохранено ' + fmtTime(me.wishlist_updated_at) : '';
-    };
-    ta.addEventListener('input', update);
-    saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
-      const r = await api('wishlist.save', { text: ta.value });
-      me.wishlist = ta.value;
-      me.wishlist_updated_at = r.updated_at;
-      setDirty(false);
-      update();
-      haptic('success');
-      toast(me.has_santa ? '✅ Сохранено. Санта получит уведомление' : '✅ Письмо сохранено');
-    }));
-
-    const nodes = [
-      ui.section('Письмо Тайному Санте'),
-      ui.card(
-        ui.hint(`Его увидит только твой Санта. Менять можно в любой момент — даже после жеребьёвки. До ${max} символов — столько помещается в одно сообщение Telegram.`),
-        ta,
-        h('div', { class: 'ds-row ds-row--between' }, counter, status),
-        saveBtn),
-    ];
-    if (me.has_santa) {
-      nodes.push(
-        ui.section('Переписка с Сантой'),
+    const nodes = [finishedNotice(), ui.section('Письмо Тайному Санте')];
+    if (!state.can.edit_letter) {
+      nodes.push(ui.card(
+        m.wishlist.trim() ? h('div', { class: 'ds-letter' }, m.wishlist) : h('div', { class: 'ds-text-muted' }, 'Письмо осталось пустым.'),
+        m.wishlist_updated_at ? ui.hint('Последнее изменение ' + fmtTime(m.wishlist_updated_at)) : null));
+    } else {
+      const ta = ui.textarea({
+        class: 'ds-input ds-input--letter',
+        placeholder: 'Дорогой Санта! В этом году я мечтаю о…\n\nНапиши, что хочешь получить, что любишь, размеры одежды, любимые цвета — и чего точно не надо.',
+        value: m.wishlist,
+      });
+      const counter = h('span', { class: 'ds-counter' });
+      const saveBtn = ui.btn('Сохранить', '', 'ds-btn--block');
+      const status = h('span', { class: 'ds-hint' });
+      const update = () => {
+        const n = ta.value.length;
+        counter.textContent = `${n} / ${max} символов`;
+        counter.classList.toggle('ds-counter--over', n > max);
+        const changed = ta.value !== m.wishlist;
+        saveBtn.disabled = !changed || n > max;
+        if (changed !== state.dirty) setDirty(changed);
+        status.textContent = changed ? 'Есть несохранённые изменения' : m.wishlist_updated_at ? 'Сохранено ' + fmtTime(m.wishlist_updated_at) : '';
+      };
+      ta.addEventListener('input', update);
+      saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
+        const r = await eapi('wishlist.save', { text: ta.value });
+        m.wishlist = ta.value;
+        m.wishlist_updated_at = r.updated_at;
+        setDirty(false);
+        update();
+        haptic('success');
+        toast(m.has_santa ? '✅ Сохранено. Санта получит уведомление' : '✅ Письмо сохранено');
+      }));
+      nodes.push(ui.card(
+        ui.hint(`Его увидит только твой Санта в этом эвенте. Менять можно, пока эвент идёт. До ${max} символов — столько помещается в одно сообщение Telegram.`),
+        ta, h('div', { class: 'ds-row ds-row--between' }, counter, status), saveBtn));
+      requestAnimationFrame(update);
+    }
+    if (m.has_santa) {
+      nodes.push(ui.section('Переписка с Сантой'),
         ui.card(ui.hint('Хочешь что-то уточнить или ответить на вопрос? Напиши своему Тайному Санте. Ты не знаешь, кто он, а он знает тебя.'), chatButton('santa')));
     }
-    main.replaceChildren(...nodes);
-    update();
+    main.replaceChildren(...nodes.filter(Boolean));
   }
 
   // ---------- вкладка «Подопечный» ----------
   async function renderWard() {
     showLoader();
     let d;
-    try { d = await api('ward.get'); } catch (e) { return showError(e); }
+    try { d = await eapi('ward.get'); } catch (e) { return showError(e); }
     if (state.tab !== 'ward') return;
     if (d.state !== 'ok') {
-      main.replaceChildren(d.state === 'no_draw'
+      main.replaceChildren(...[finishedNotice(), d.state === 'no_draw'
         ? ui.empty('🎲', 'Жеребьёвка ещё не проведена', 'Как только организатор её проведёт, здесь появится имя и письмо твоего подопечного. Бот пришлёт уведомление.')
-        : ui.empty('⏳', 'Скоро тебя добавят', 'Ты присоединился после жеребьёвки. Организатор впишет тебя — и бот пришлёт уведомление.'));
+        : ui.empty('⏳', 'Скоро тебя добавят', 'Ты присоединился после жеребьёвки. Организатор впишет тебя — и бот пришлёт уведомление.')].filter(Boolean));
       return;
     }
     const nameEl = h('div', { class: 'ds-ward-card__name' + (state.wardNameShown ? '' : ' ds-ward-card__name--hidden') }, d.ward.name);
@@ -334,7 +507,7 @@
     const text = d.ward.wishlist || '';
     let letter;
     if (!text.trim()) {
-      letter = h('div', { class: 'ds-text-muted' }, 'Подопечный пока ничего не написал. Можно спросить его в переписке — кнопка ниже 👇');
+      letter = h('div', { class: 'ds-text-muted' }, finished() ? 'Подопечный так и не написал письмо.' : 'Подопечный пока ничего не написал. Можно спросить его в переписке — кнопка ниже 👇');
     } else if (d.previous !== null && d.previous !== undefined) {
       letter = h('div', { class: 'ds-stack' },
         h('div', { class: 'ds-notice ds-text-sm' }, '✨ Письмо изменилось с твоего прошлого просмотра: новое ',
@@ -344,145 +517,149 @@
       letter = h('div', { class: 'ds-letter' }, text);
     }
 
-    const gift = h('input', { type: 'checkbox', checked: d.gift_ready });
+    const gift = h('input', { type: 'checkbox', checked: d.gift_ready, disabled: finished() });
     gift.addEventListener('change', () => busy(null, async () => {
-      await api('ward.gift', { ready: gift.checked });
+      await eapi('ward.gift', { ready: gift.checked });
       haptic('success');
       toast(gift.checked ? '🎉 Отлично! Подарок отмечен как готовый' : 'Отметка снята');
     }));
 
-    main.replaceChildren(
-      h('div', { class: 'ds-ward-card' }, h('div', { class: 'ds-ward-card__label' }, 'Ты — Тайный Санта для'), nameEl, toggle),
+    main.replaceChildren(...[
+      finishedNotice(),
+      h('div', { class: 'ds-ward-card' }, h('div', { class: 'ds-ward-card__label' }, finished() ? 'Ты был(а) Тайным Сантой для' : 'Ты — Тайный Санта для'), nameEl, toggle),
       ui.section('Письмо подопечного'),
       ui.card(letter, d.ward.updated_at && text.trim() ? ui.hint('Обновлено ' + fmtTime(d.ward.updated_at)) : null),
       h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Подарок готов', 'Видно только организатору — для статистики', gift)),
       ui.section('Переписка с подопечным'),
-      ui.card(ui.hint('Есть вопрос? Напиши подопечному — для него ты «Тайный Санта», имя не раскрывается.'), chatButton('ward')));
+      ui.card(ui.hint('Есть вопрос? Напиши подопечному — для него ты «Тайный Санта», имя не раскрывается.'), chatButton('ward')),
+    ].filter(Boolean));
   }
 
   // ---------- вкладка «Инфо» ----------
   function renderInfo() {
-    const g = state.game;
-    const me = state.me;
+    const g = state.ev;
     const rows = [];
+    rows.push(['Статус', g.status === 'finished' ? 'завершён 🏁' : 'идёт']);
     if (g.budget) rows.push(['Бюджет', g.budget]);
     if (g.event_date) rows.push(['Вручение', fmtDate(g.event_date)]);
     if (g.place) rows.push(['Где', g.place]);
     if (g.deadline) rows.push(['Письмо до', fmtDate(g.deadline)]);
     rows.push(['Участников', String(g.participants)]);
     rows.push(['Жеребьёвка', g.draw_done ? 'проведена ✅' : 'ещё не проведена']);
-
+    rows.push(['Кольцевая', g.ring ? 'да — взаимных пар нет' : 'нет — взаимные пары возможны']);
     const nodes = [
-      ui.section('Об игре'),
+      finishedNotice(),
+      ui.section('Об эвенте'),
       h('div', { class: 'ds-card' }, h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
     ];
     if (g.notes) nodes.push(h('div', { class: 'ds-card ds-letter' }, g.notes));
-
-    if (me.is_participant) {
-      const modes = [['sound', '🔔 Звук'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
-      const seg = h('div', { class: 'ds-segmented' });
-      const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
-        class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
-        onclick: () => busy(null, async () => {
-          await api('notify.set', { mode: k });
-          me.notify_mode = k;
-          draw();
-          toast('Сохранено');
-        }),
-      }, label)));
-      draw();
-      nodes.push(
-        ui.section('Уведомления'),
-        ui.card(ui.hint('Когда подопечный меняет письмо, бот сообщит об этом — без имени и подробностей, чтобы никто не подсмотрел на экране блокировки.'), seg));
-    }
-
+    if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом эвенте — тебе доступна только информация и панель организатора.', 'ds-hint--inset'));
     nodes.push(
       ui.section('Как это работает'),
       h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
         h('li', {}, 'Напиши письмо Санте — его увидит только тот, кто будет дарить тебе подарок.'),
         h('li', {}, 'После жеребьёвки во вкладке «Подопечный» появится, кому даришь ты.'),
         h('li', {}, 'Никто, даже организатор, не видит, кто кому дарит.'),
-        h('li', {}, 'Через бота можно анонимно задать вопрос подопечному или написать своему Санте.'))));
-    main.replaceChildren(...nodes);
+        h('li', {}, 'После завершения эвента письмо остаётся для чтения, переписка открыта ещё 7 дней. Эвент сохранится в истории.'))));
+    main.replaceChildren(...nodes.filter(Boolean));
   }
 
   // ---------- вкладка «Админ» ----------
   async function renderAdmin() {
     showLoader();
     let d;
-    try { d = await api('admin.state'); } catch (e) { return showError(e); }
+    try { d = await eapi('admin.state'); } catch (e) { return showError(e); }
     if (state.tab !== 'admin') return;
     const s = d.settings;
     const users = d.users;
     const byId = Object.fromEntries(users.map((u) => [u.id, u]));
-    const players = users.filter((u) => u.registered && u.is_participant);
+    const players = users.filter((u) => u.registered);
     const me = state.me;
-    const refresh = async () => { await reloadMe().catch(() => {}); renderHero(); renderTabs(); await renderAdmin(); };
-    const nodes = [];
+    const done = s.status === 'finished';
+    const refresh = async () => {
+      await reloadMe().catch(() => {});
+      await reloadEvent().catch(() => {});
+      renderHero();
+      if (!state.member && (state.tab === 'my' || state.tab === 'ward')) state.tab = 'admin';
+      renderTabs();
+      await renderAdmin();
+    };
+    const nodes = [finishedNotice()];
 
-    // --- приглашение
-    const regToggle = h('input', { type: 'checkbox', checked: s.registration_open });
-    regToggle.addEventListener('change', () => busy(null, async () => {
-      await api('admin.registration', { open: regToggle.checked });
-      toast(regToggle.checked ? 'Регистрация открыта' : 'Регистрация закрыта');
-    }));
-    const linkInput = h('input', { class: 'ds-input', type: 'text', value: s.invite_link || 'Сначала открой /setup (см. инструкцию)', readonly: true });
-    const copyBtn = ui.btn('📋 Копировать', 'secondary', 'ds-btn--sm');
-    copyBtn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(s.invite_link); toast('Ссылка скопирована'); }
-      catch (e) { linkInput.select(); toast('Выдели и скопируй ссылку'); }
-    });
-    const shareBtn = ui.btn('📤 Отправить в чат', 'secondary', 'ds-btn--sm');
-    shareBtn.addEventListener('click', () => {
-      const url = 'https://t.me/share/url?url=' + encodeURIComponent(s.invite_link) + '&text=' + encodeURIComponent('🎄 Играем в Тайного Санту! Заходи по ссылке:');
-      if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
-    });
-    const regenBtn = ui.btn('🔄 Новая ссылка', 'danger', 'ds-btn--sm');
-    regenBtn.addEventListener('click', async () => {
-      if (!(await confirmBox('Создать новую ссылку? Старая перестанет работать (уже зарегистрированных это не затронет).'))) return;
-      busy(regenBtn, async () => { await api('admin.invite.regen'); toast('Ссылка обновлена'); await renderAdmin(); });
-    });
-    const regCard = ui.card(
-      ui.toggleRow('Регистрация открыта', 'Закрывается автоматически после жеребьёвки', regToggle),
-      linkInput,
-      h('div', { class: 'ds-row ds-row--wrap' }, copyBtn, shareBtn, regenBtn));
-    if (!s.draw_done) {
-      const partToggle = h('input', { type: 'checkbox', checked: me.is_participant });
-      partToggle.addEventListener('change', () => busy(null, async () => {
-        await api('admin.participate', { on: partToggle.checked });
-        toast(partToggle.checked ? 'Ты участвуешь' : 'Ты только организатор');
-        await refresh();
+    // --- приглашение (только для идущего эвента)
+    if (!done) {
+      const regToggle = h('input', { type: 'checkbox', checked: s.registration_open });
+      regToggle.addEventListener('change', () => busy(null, async () => {
+        await eapi('admin.registration', { open: regToggle.checked });
+        toast(regToggle.checked ? 'Регистрация открыта' : 'Регистрация закрыта');
       }));
-      regCard.append(ui.toggleRow('Я тоже участвую', 'Выключи, если ты только организатор', partToggle, 'ds-divided'));
+      const linkInput = h('input', { class: 'ds-input', type: 'text', value: s.invite_link || 'Сначала открой /setup (см. инструкцию)', readonly: true });
+      const copyBtn = ui.btn('📋 Копировать', 'secondary', 'ds-btn--sm');
+      copyBtn.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(s.invite_link); toast('Ссылка скопирована'); }
+        catch (e) { linkInput.select(); toast('Выдели и скопируй ссылку'); }
+      });
+      const shareBtn = ui.btn('📤 Отправить в чат', 'secondary', 'ds-btn--sm');
+      shareBtn.addEventListener('click', () => {
+        const url = 'https://t.me/share/url?url=' + encodeURIComponent(s.invite_link) + '&text=' + encodeURIComponent(`🎄 Играем в Тайного Санту — «${s.title}»! Заходи по ссылке:`);
+        if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
+      });
+      const regenBtn = ui.btn('🔄 Новая ссылка', 'danger', 'ds-btn--sm');
+      regenBtn.addEventListener('click', async () => {
+        if (!(await confirmBox('Создать новую ссылку? Старая перестанет работать (уже вступивших это не затронет).'))) return;
+        busy(regenBtn, async () => { await eapi('admin.invite.regen'); toast('Ссылка обновлена'); await renderAdmin(); });
+      });
+      const regCard = ui.card(
+        ui.toggleRow('Регистрация открыта', 'Закрывается автоматически после жеребьёвки', regToggle),
+        linkInput,
+        h('div', { class: 'ds-row ds-row--wrap' }, copyBtn, shareBtn, regenBtn));
+      if (!s.draw_done) {
+        const partToggle = h('input', { type: 'checkbox', checked: d.me_member });
+        partToggle.addEventListener('change', () => busy(null, async () => {
+          if (!partToggle.checked && !(await confirmBox('Выйти из эвента? Твоё письмо в этом эвенте будет удалено.'))) { partToggle.checked = true; return; }
+          await eapi('admin.participate', { on: partToggle.checked });
+          toast(partToggle.checked ? 'Ты участвуешь' : 'Ты только организатор этого эвента');
+          await refresh();
+        }));
+        regCard.append(ui.toggleRow('Я участвую', 'Выключи, если ты только организатор этого эвента', partToggle, 'ds-divided'));
+      }
+      nodes.push(ui.section('Приглашение'), regCard);
+      if (d.other_events.length) {
+        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Из какого эвента…'), ...d.other_events.map((e) => h('option', { value: e.id }, e.title + (e.status === 'finished' ? ' (завершён)' : ''))));
+        const inv = ui.btn('📨 Пригласить участников', 'secondary', 'ds-btn--block');
+        inv.addEventListener('click', async () => {
+          if (!sel.value) return toast('Выбери эвент');
+          if (!(await confirmBox('Бот пришлёт участникам выбранного эвента (кого ещё нет здесь) сообщение с кнопкой вступления. Отправить?'))) return;
+          busy(inv, async () => { const r = await eapi('admin.event.invite_from', { from: +sel.value }); toast(r.count ? `Приглашения отправлены: ${r.count}` : 'Все уже здесь 👍'); });
+        });
+        nodes.push(ui.card(ui.hint('Пригласить участников прошлого эвента — например, ту же компанию на следующий год.'), sel, inv));
+      }
     }
-    nodes.push(ui.section('Приглашение'), regCard);
 
     // --- меню участника (004)
-    const canRemove = (u) => u.id !== me.id && !u.is_owner && (!u.is_admin || me.is_owner);
-    const canTransfer = (u) => !u.is_owner && (!u.is_admin || me.is_owner);
+    const canRemove = (u) => !done && u.id !== me.id && !u.is_owner && (!u.is_admin || me.is_owner);
+    const canTransfer = (u) => u.registered && !u.is_owner && (!u.is_admin || me.is_owner);
     const transferTargets = (u) => users.filter((x) => x.id !== u.id && x.registered && !x.in_draw);
     function openParticipantMenu(u, chips) {
       const items = [];
-      if (u.registered && u.is_participant) {
+      if (u.registered) {
         const b = ui.btn('👁 Открыть письмо', 'secondary', 'ds-btn--block');
         b.addEventListener('click', async () => {
           if (!(await confirmBox(`Открыть письмо участника «${u.name}»? Ты увидишь его содержимое.`))) return;
           busy(b, async () => {
-            const w = await api('admin.wishlist', { id: u.id });
+            const w = await eapi('admin.wishlist', { id: u.id });
             openSheet('Письмо: ' + w.name, w.wishlist ? h('div', { class: 'ds-card ds-letter' }, w.wishlist) : h('div', { class: 'ds-card ds-text-muted' }, 'Письмо пустое.'));
           });
         });
         items.push(b);
-      }
-      if (u.registered) {
-        const b = ui.btn('✏️ Переименовать', 'secondary', 'ds-btn--block');
-        b.addEventListener('click', () => {
+        const r = ui.btn('✏️ Переименовать', 'secondary', 'ds-btn--block');
+        r.addEventListener('click', () => {
           const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
           const ok = ui.btn('Сохранить', '', 'ds-btn--block');
           ok.addEventListener('click', () => busy(ok, async () => { await api('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
-          openSheet('Имя участника', ui.card(inp, ok));
+          openSheet('Имя участника', [ui.hint('Имя одно на все эвенты.'), inp, ok]);
         });
-        items.push(b);
+        items.push(r);
       }
       if (canTransfer(u) && transferTargets(u).length) {
         const b = ui.btn('🔁 Перенести на новый аккаунт', 'secondary', 'ds-btn--block');
@@ -490,15 +667,15 @@
         items.push(b);
       }
       if (canRemove(u)) {
-        const b = ui.btn('🗑 Удалить из игры', 'danger', 'ds-btn--block');
+        const b = ui.btn('🗑 Удалить из эвента', 'danger', 'ds-btn--block');
         b.addEventListener('click', async () => {
           const extra = s.draw_done && u.in_draw ? ' Жеребьёвка будет аккуратно поправлена: новый подопечный появится только у его Санты.' : '';
-          if (!(await confirmBox(`Удалить участника «${u.name || 'без имени'}» из игры?${extra}`))) return;
-          busy(b, async () => { await api('admin.remove', { id: u.id }); closeSheet(); toast('Участник удалён'); await renderAdmin(); });
+          if (!(await confirmBox(`Удалить «${u.name || 'без имени'}» из эвента «${s.title}»?${extra}`))) return;
+          busy(b, async () => { await eapi('admin.remove', { id: u.id }); closeSheet(); toast('Участник удалён'); await renderAdmin(); });
         });
         items.push(b);
       }
-      if (u.is_owner) items.push(ui.hint('Владельца нельзя удалить или перенести: он может только передать права (раздел «Администраторы»).'));
+      if (u.is_owner) items.push(ui.hint('Владельца нельзя удалить или перенести: он может только передать права (главный экран → «Администраторы»).'));
       else if (u.is_admin && !me.is_owner) items.push(ui.hint('Удалять и переносить администраторов может только владелец.'));
       openSheet(u.name || 'без имени', [
         h('div', {}, u.username ? ui.hint('@' + u.username) : null, h('div', { class: 'ds-chips' }, chips)),
@@ -513,12 +690,12 @@
       go.addEventListener('click', async () => {
         const t = targets.find((x) => String(x.id) === sel.value);
         if (!t) return toast('Выбери новый аккаунт');
-        if (!(await confirmBox(`Перенести участие «${u.name}» на «${t.name}»? Письмо, подопечный, Санта и переписка перейдут на новый аккаунт, старая запись будет удалена.`))) return;
+        if (!(await confirmBox(`Перенести участие «${u.name}» на «${t.name}»? Письма, подопечные, Санты и переписка во всех эвентах перейдут на новый аккаунт, старая запись будет удалена.`))) return;
         busy(go, async () => { await api('admin.transfer', { from: u.id, to: t.id }); closeSheet(); toast('🔁 Участие перенесено'); await refresh(); });
       });
       openSheet('Перенести на новый аккаунт', [
-        ui.hint(`Если «${u.name || 'участник'}» потерял доступ к Telegram и зарегистрировался заново, выбери его новую запись. ` +
-          'Новый аккаунт получит место старого: письмо, подопечного и Санту, переписку, исключения. Пары остальных не изменятся.'),
+        ui.hint(`Если «${u.name || 'участник'}» потерял доступ к Telegram и вступил в эвент заново с нового аккаунта, выбери его новую запись. ` +
+          'Новый аккаунт получит место старого во всех эвентах: письма, подопечных и Сант, переписку, исключения. Пары остальных не изменятся.'),
         sel, go]);
     }
 
@@ -529,7 +706,6 @@
     for (const u of users) {
       const chips = [];
       if (!u.registered) chips.push(ui.chip('регистрируется…'));
-      else if (!u.is_participant) chips.push(ui.chip('только организатор'));
       else {
         chips.push(u.has_wishlist ? ui.chip('✉️ письмо есть', 'success') : ui.chip('✉️ письма нет', 'warning'));
         if (s.draw_done) {
@@ -539,7 +715,6 @@
       }
       if (u.is_owner) chips.push(ui.chip('👑 владелец'));
       else if (u.is_admin) chips.push(ui.chip('🛠 админ'));
-      // Все действия над участником — в одном меню «⋯» (004, FR-409)
       const actions = h('div', { class: 'ds-row ds-row--tight' },
         h('button', { class: 'ds-icon-btn', title: 'Действия с участником', onclick: () => openParticipantMenu(u, chips.map((c) => c.cloneNode(true))) }, '⋯'));
       list.append(h('div', { class: 'ds-list-item' },
@@ -547,226 +722,208 @@
           h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null),
           h('div', { class: 'ds-chips' }, chips)),
         actions));
-      if (s.draw_done && u.registered && u.is_participant && !u.in_draw) {
+      if (!done && s.draw_done && u.registered && !u.in_draw) {
         const ins = ui.btn('Вписать в жеребьёвку', '', 'ds-btn--sm');
         ins.addEventListener('click', async () => {
           if (!(await confirmBox(`Вписать «${u.name}» в жеребьёвку? У одного из участников сменится подопечный — бот его предупредит.`))) return;
-          busy(ins, async () => { await api('admin.insert', { id: u.id }); toast('Готово'); await renderAdmin(); });
+          busy(ins, async () => { await eapi('admin.insert', { id: u.id }); toast('Готово'); await renderAdmin(); });
         });
         list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ins));
       }
     }
-    const remindBtn = ui.btn('⏰ Напомнить тем, у кого нет письма', 'secondary', 'ds-btn--block');
-    remindBtn.addEventListener('click', () => busy(remindBtn, async () => {
-      const r = await api('admin.remind.unfilled');
-      toast(r.count ? `Напоминание отправлено: ${r.count}` : 'Все уже написали письма 👍');
-    }));
     nodes.push(
       ui.section(`Участники · ${players.length}`),
       ui.hint(`Письма написали ${filled} из ${players.length}. Письмо участника открывается только через «⋯» → «Открыть письмо».`, 'ds-hint--inset'),
-      list,
-      players.length > filled ? remindBtn : null);
-
-    // --- администраторы (002)
-    const admins = users.filter((u) => u.is_admin).sort((a, b) => (b.is_owner ? 1 : 0) - (a.is_owner ? 1 : 0));
-    const adminList = h('div', { class: 'ds-card ds-card--flush' });
-    for (const u of admins) {
-      const actions = h('div', { class: 'ds-row ds-row--tight' });
-      if (me.is_owner && !u.is_owner) {
-        actions.append(
-          h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: async () => {
-            if (!(await confirmBox(`Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать админов сможет только новый владелец.`))) return;
-            busy(null, async () => { await api('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await refresh(); });
-          } }, '👑'),
-          h('button', { class: 'ds-icon-btn', title: 'Снять права администратора', onclick: async () => {
-            if (!(await confirmBox(`Снять права администратора с «${u.name}»? Участником игры он(а) останется.`))) return;
-            busy(null, async () => { await api('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await renderAdmin(); });
-          } }, '✕'));
-      }
-      adminList.append(h('div', { class: 'ds-list-item' },
-        h('div', { class: 'ds-grow' },
-          h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)') : null),
-          h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip('👑 владелец') : ui.chip('🛠 админ'))),
-        actions));
-    }
-    nodes.push(ui.section('Администраторы'), adminList);
-    if (me.is_owner) {
-      const candidates = users.filter((u) => u.registered && !u.is_admin);
-      if (candidates.length) {
-        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Кого назначить…'), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
-        const grant = ui.btn('🛠 Назначить админом', 'secondary', 'ds-btn--block');
-        grant.addEventListener('click', async () => {
-          const u = candidates.find((x) => String(x.id) === sel.value);
-          if (!u) return toast('Выбери участника');
-          if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет вести игру: приглашения, исключения, жеребьёвку. Кто кому дарит, админы не видят.`))) return;
-          busy(grant, async () => { await api('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await renderAdmin(); });
-        });
-        nodes.push(ui.card(ui.hint('Админы ведут игру вместе с тобой. Назначать, снимать админов и передавать права владельца (👑) можешь только ты.'), sel, grant));
-      } else {
-        nodes.push(ui.hint('Все зарегистрированные участники уже администраторы.', 'ds-hint--inset'));
-      }
-    } else {
-      nodes.push(ui.hint(`Назначать и снимать администраторов может только владелец${s.owner_name ? ' — ' + s.owner_name : ''}.`, 'ds-hint--inset'));
+      list);
+    if (!done && players.length > filled) {
+      const remindBtn = ui.btn('⏰ Напомнить тем, у кого нет письма', 'secondary', 'ds-btn--block');
+      remindBtn.addEventListener('click', () => busy(remindBtn, async () => {
+        const r = await eapi('admin.remind.unfilled');
+        toast(r.count ? `Напоминание отправлено: ${r.count}` : 'Все уже написали письма 👍');
+      }));
+      nodes.push(remindBtn);
     }
 
     // --- исключения
-    const exList = h('div', { class: 'ds-card ds-card--flush' });
-    const seen = new Set();
-    const exPairs = [];
-    for (const e of d.exclusions) {
-      const key = e.giver + ':' + e.receiver;
-      if (seen.has(key)) continue;
-      const mutual = d.exclusions.some((x) => x.giver === e.receiver && x.receiver === e.giver);
-      seen.add(key);
-      if (mutual) seen.add(e.receiver + ':' + e.giver);
-      exPairs.push({ ...e, mutual });
+    if (!done) {
+      const exList = h('div', { class: 'ds-card ds-card--flush' });
+      const seen = new Set();
+      const exPairs = [];
+      for (const e of d.exclusions) {
+        const key = e.giver + ':' + e.receiver;
+        if (seen.has(key)) continue;
+        const mutual = d.exclusions.some((x) => x.giver === e.receiver && x.receiver === e.giver);
+        seen.add(key);
+        if (mutual) seen.add(e.receiver + ':' + e.giver);
+        exPairs.push({ ...e, mutual });
+      }
+      if (!exPairs.length) exList.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Исключений нет — подарить может кто угодно кому угодно.'));
+      for (const e of exPairs) {
+        const a = byId[e.giver]?.name || '?', b = byId[e.receiver]?.name || '?';
+        exList.append(h('div', { class: 'ds-list-item' },
+          h('div', { class: 'ds-grow' }, e.mutual
+            ? [h('b', {}, a), ' и ', h('b', {}, b), ' не дарят друг другу']
+            : [h('b', {}, a), ' не дарит ', h('b', {}, b)]),
+          h('button', { class: 'ds-icon-btn', title: 'Удалить исключение', onclick: () => busy(null, async () => { await eapi('admin.exclusion.del', e); await renderAdmin(); }) }, '✕')));
+      }
+      const opts = (ph) => [h('option', { value: '' }, ph), ...players.map((u) => h('option', { value: u.id }, u.name))];
+      const selA = h('select', { class: 'ds-input' }, opts('Кто дарит…'));
+      const selB = h('select', { class: 'ds-input' }, opts('…кому НЕ может дарить'));
+      const mutual = h('input', { type: 'checkbox', checked: true });
+      const addEx = ui.btn('＋ Добавить исключение', 'secondary', 'ds-btn--block');
+      addEx.addEventListener('click', () => busy(addEx, async () => {
+        if (!selA.value || !selB.value) return toast('Выбери двух людей');
+        if (selA.value === selB.value) return toast('Нужны два разных человека');
+        await eapi('admin.exclusion.add', { giver: +selA.value, receiver: +selB.value, mutual: mutual.checked });
+        toast('Исключение добавлено');
+        await renderAdmin();
+      }));
+      nodes.push(
+        ui.section('Исключения'),
+        exList,
+        ui.card(
+          ui.hint('Например, пары или члены одной семьи. Бот не даст жеребьёвке нарушить эти правила.'),
+          selA, selB,
+          h('label', { class: 'ds-check' }, mutual, 'и наоборот (в обе стороны)'),
+          addEx));
     }
-    if (!exPairs.length) exList.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Исключений нет — подарить может кто угодно кому угодно.'));
-    for (const e of exPairs) {
-      const a = byId[e.giver]?.name || '?', b = byId[e.receiver]?.name || '?';
-      exList.append(h('div', { class: 'ds-list-item' },
-        h('div', { class: 'ds-grow' }, e.mutual
-          ? [h('b', {}, a), ' и ', h('b', {}, b), ' не дарят друг другу']
-          : [h('b', {}, a), ' не дарит ', h('b', {}, b)]),
-        h('button', { class: 'ds-icon-btn', title: 'Удалить исключение', onclick: () => busy(null, async () => { await api('admin.exclusion.del', e); await renderAdmin(); }) }, '✕')));
-    }
-    const opts = (ph) => [h('option', { value: '' }, ph), ...players.map((u) => h('option', { value: u.id }, u.name))];
-    const selA = h('select', { class: 'ds-input' }, opts('Кто дарит…'));
-    const selB = h('select', { class: 'ds-input' }, opts('…кому НЕ может дарить'));
-    const mutual = h('input', { type: 'checkbox', checked: true });
-    const addEx = ui.btn('＋ Добавить исключение', 'secondary', 'ds-btn--block');
-    addEx.addEventListener('click', () => busy(addEx, async () => {
-      if (!selA.value || !selB.value) return toast('Выбери двух людей');
-      if (selA.value === selB.value) return toast('Нужны два разных человека');
-      await api('admin.exclusion.add', { giver: +selA.value, receiver: +selB.value, mutual: mutual.checked });
-      toast('Исключение добавлено');
-      await renderAdmin();
-    }));
-    nodes.push(
-      ui.section('Исключения'),
-      exList,
-      ui.card(
-        ui.hint('Например, пары или члены одной семьи. Бот не даст жеребьёвке нарушить эти правила.'),
-        selA, selB,
-        h('label', { class: 'ds-check' }, mutual, 'и наоборот (в обе стороны)'),
-        addEx));
 
     // --- жеребьёвка
     const drawCard = ui.card();
     if (!s.draw_done) {
-      if (s.has_history) {
+      const ring = h('input', { type: 'checkbox', checked: s.ring });
+      ring.addEventListener('change', () => busy(null, async () => {
+        await eapi('admin.ring', { on: ring.checked });
+        toast(ring.checked ? 'Кольцевая жеребьёвка включена' : 'Кольцевая жеребьёвка выключена');
+        await reloadEvent().catch(() => {});
+      }));
+      drawCard.append(ui.toggleRow('🔁 Кольцевая жеребьёвка',
+        'Если А дарит Б, то Б не дарит А. Нужно минимум 3 участника. После жеребьёвки не меняется.', ring));
+      if (d.other_events.length) {
         const av = h('input', { type: 'checkbox', checked: s.avoid_previous });
-        av.addEventListener('change', () => busy(null, () => api('admin.avoid_previous', { on: av.checked })));
-        drawCard.append(h('label', { class: 'ds-check' }, av, 'Не повторять пары прошлой игры (если получится)'));
+        av.addEventListener('change', () => busy(null, () => eapi('admin.avoid_previous', { on: av.checked })));
+        drawCard.append(h('label', { class: 'ds-check' }, av, 'Не повторять пары прошлого эвента с этими людьми (если получится)'));
       }
       const drawBtn = ui.btn('🎲 Провести жеребьёвку', 'festive', 'ds-btn--block');
       const result = h('div');
       drawBtn.addEventListener('click', () => busy(drawBtn, async () => {
-        const c = await api('admin.draw.check');
+        const c = await eapi('admin.draw.check');
         result.replaceChildren();
         if (!c.possible) {
           haptic('error');
           result.append(h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Жеребьёвка невозможна:'), h('ul', { class: 'ds-bullets' }, c.problems.map((p) => h('li', {}, p)))));
           return;
         }
-        let text = `Провести жеребьёвку для ${c.count} ${plural(c.count, 'участника', 'участников', 'участников')}? Отменить её будет нельзя.`;
+        let text = `Провести жеребьёвку для ${c.count} ${plural(c.count, 'участника', 'участников', 'участников')}${c.ring ? ' (кольцевая)' : ''}? Отменить её будет нельзя.`;
         if (c.empty_wishlists.length) text += `\n\nПисьма ещё нет у: ${c.empty_wishlists.join(', ')} (его можно написать и позже).`;
         if (c.history_ignored) text += '\n\nНе повторять прошлые пары не получится — их учитывать не будем.';
         if (!(await confirmBox(text))) return;
-        const r = await api('admin.draw');
+        const r = await eapi('admin.draw');
         haptic('success');
         toast(`🎉 Жеребьёвка проведена! Участников: ${r.count}`);
         await refresh();
       }));
       drawCard.append(
-        ui.hint('Когда все зарегистрируются — жми. Бот проверит, что исключения можно соблюсти, и разошлёт уведомления. Кто кому дарит, не увидит никто, включая тебя.'),
+        ui.hint('Когда все вступят — жми. Бот проверит, что правила можно соблюсти, и разошлёт уведомления. Кто кому дарит, не увидит никто, включая тебя.'),
         drawBtn, result);
     } else {
       const inDraw = players.filter((u) => u.in_draw);
       const ready = inDraw.filter((u) => u.gift_ready).length;
-      const remindS = ui.btn('🎁 Напомнить Сантам о подарках', 'secondary', 'ds-btn--block');
-      remindS.addEventListener('click', () => busy(remindS, async () => {
-        const r = await api('admin.remind.santas');
-        toast(r.count ? `Напоминание отправлено: ${r.count}` : 'Все подарки готовы 👍');
-      }));
+      drawCard.append(
+        h('div', {}, h('div', { class: 'ds-text-strong' }, '✅ Жеребьёвка проведена' + (s.ring ? ' (кольцевая)' : '')), s.draw_at ? ui.hint(fmtTime(s.draw_at)) : null),
+        h('div', { class: 'ds-notice' }, `🎁 Подарки готовы: ${ready} из ${inDraw.length}`));
+      if (!done) {
+        const remindS = ui.btn('🎁 Напомнить Сантам о подарках', 'secondary', 'ds-btn--block');
+        remindS.addEventListener('click', () => busy(remindS, async () => {
+          const r = await eapi('admin.remind.santas');
+          toast(r.count ? `Напоминание отправлено: ${r.count}` : 'Все подарки готовы 👍');
+        }));
+        drawCard.append(remindS);
+      }
       const reveal = ui.btn(s.revealed ? '🎅 Тайна уже раскрыта' : '🎅 Раскрыть Сант (после праздника)', 'secondary', 'ds-btn--block');
       reveal.addEventListener('click', async () => {
         if (!(await confirmBox('Каждый участник получит сообщение, кто был его Сантой. Делай это после вручения подарков. Раскрыть?'))) return;
-        busy(reveal, async () => { const r = await api('admin.reveal'); toast(`Отправлено: ${r.count}`); await renderAdmin(); });
+        busy(reveal, async () => { const r = await eapi('admin.reveal'); toast(`Отправлено: ${r.count}`); await renderAdmin(); });
       });
-      const ng = ui.btn('♻️ Начать новую игру', 'danger', 'ds-btn--block');
-      ng.addEventListener('click', async () => {
-        if (!(await confirmBox('Начать новую игру? Текущие пары будут удалены (их запомним, чтобы не повторять), регистрация откроется. Участники и письма сохранятся.'))) return;
-        busy(ng, async () => { await api('admin.newgame'); toast('Новая игра начата'); await refresh(); });
+      drawCard.append(reveal);
+    }
+    if (!done) {
+      const fin = ui.btn('🏁 Завершить эвент', 'danger', 'ds-btn--block');
+      fin.addEventListener('click', async () => {
+        if (!(await confirmBox('Завершить эвент? Письма и отметки станут только для чтения, регистрация закроется, переписка останется открытой ещё 7 дней. Вернуть эвент в «идёт» нельзя.'))) return;
+        busy(fin, async () => { await eapi('admin.event.finish'); toast('🏁 Эвент завершён'); await refresh(); });
       });
-      drawCard.append(
-        h('div', {}, h('div', { class: 'ds-text-strong' }, '✅ Жеребьёвка проведена'), s.draw_at ? ui.hint(fmtTime(s.draw_at)) : null),
-        h('div', { class: 'ds-notice' }, `🎁 Подарки готовы: ${ready} из ${inDraw.length}`),
-        remindS, reveal, ng);
+      drawCard.append(ui.hint('Когда подарки вручены — заверши эвент: он останется в истории у всех участников.'), fin);
     }
     nodes.push(ui.section('Жеребьёвка'), drawCard);
 
-    // --- параметры игры
-    const f = {
-      budget: h('input', { class: 'ds-input', type: 'text', value: s.budget, placeholder: 'например, до 50 BYN', maxlength: 100 }),
-      event_date: h('input', { class: 'ds-input', type: 'date', value: s.event_date }),
-      place: h('input', { class: 'ds-input', type: 'text', value: s.place, placeholder: 'например, у Маши дома', maxlength: 200 }),
-      deadline: h('input', { class: 'ds-input', type: 'date', value: s.deadline }),
-      notes: ui.textarea({ value: s.notes, placeholder: 'Любые правила и детали для всех', rows: 2, maxlength: 2000 }),
-    };
-    const saveGame = ui.btn('Сохранить', '', 'ds-btn--block');
-    saveGame.addEventListener('click', () => busy(saveGame, async () => {
-      await api('admin.game', Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])));
-      await reloadMe().catch(() => {});
-      renderHero();
-      haptic('success');
-      toast('Сохранено');
-    }));
-    const field = (label, el) => h('label', { class: 'ds-field' }, h('span', { class: 'ds-field__label' }, label), el);
-    nodes.push(
-      ui.section('Параметры игры'),
-      ui.card(
-        field('Бюджет подарка', f.budget),
-        field('Дата вручения', f.event_date),
-        field('Место', f.place),
-        field('Написать письмо до', f.deadline),
-        field('Заметки для всех', f.notes),
-        ui.hint('Бот сам напомнит: за 2 дня до срока — тем, у кого нет письма; за 2 дня и в день вручения — Сантам без отметки «подарок готов».'),
-        saveGame));
-
-    // --- опасная зона (004): только владелец
-    if (me.is_owner) {
-      const resetBtn = ui.btn('🧨 Полный сброс игры', 'danger', 'ds-btn--block');
-      resetBtn.addEventListener('click', () => {
-        const word = h('input', { class: 'ds-input', type: 'text', placeholder: 'Введи слово СБРОС', autocomplete: 'off' });
-        const go = ui.btn('🧨 Сбросить всё', 'danger', 'ds-btn--block');
-        go.disabled = true;
-        word.addEventListener('input', () => { go.disabled = word.value.trim().toUpperCase() !== 'СБРОС'; });
-        go.addEventListener('click', async () => {
-          if (!(await confirmBox('Точно сбросить игру? Все участники, кроме тебя, и все данные игры будут удалены без возможности восстановления.'))) return;
-          busy(go, async () => {
-            const r = await api('admin.reset.full', { confirm: 'СБРОС' });
-            closeSheet();
-            toast(`Игра сброшена. Удалено записей: ${r.removed}. Новая пригласительная ссылка готова.`);
-            await refresh();
-          });
-        });
-        openSheet('Полный сброс игры', [
-          h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Будет удалено без возможности восстановления:'),
-            h('ul', { class: 'ds-bullets' },
-              h('li', {}, 'все участники и администраторы, кроме тебя;'),
-              h('li', {}, 'письма Санте (и твоё тоже), пары, исключения, отметки «подарок готов»;'),
-              h('li', {}, 'вся переписка и история прошлых пар;'),
-              h('li', {}, 'бюджет, даты, место и заметки.'))),
-          ui.hint('Останешься ты как владелец. Будет создана новая пригласительная ссылка — старая перестанет работать. Удалённые получат сообщение, что игра начата заново.'),
-          word, go]);
-      });
+    // --- параметры эвента
+    if (!done) {
+      const f = {
+        title: h('input', { class: 'ds-input', type: 'text', value: s.title, maxlength: 80 }),
+        budget: h('input', { class: 'ds-input', type: 'text', value: s.budget, placeholder: 'например, до 50 BYN', maxlength: 100 }),
+        event_date: h('input', { class: 'ds-input', type: 'date', value: s.event_date }),
+        place: h('input', { class: 'ds-input', type: 'text', value: s.place, placeholder: 'например, у Маши дома', maxlength: 200 }),
+        deadline: h('input', { class: 'ds-input', type: 'date', value: s.deadline }),
+        notes: ui.textarea({ value: s.notes, placeholder: 'Любые правила и детали для всех', rows: 2, maxlength: 2000 }),
+      };
+      const saveGame = ui.btn('Сохранить', '', 'ds-btn--block');
+      saveGame.addEventListener('click', () => busy(saveGame, async () => {
+        await eapi('admin.game', Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])));
+        await reloadEvent().catch(() => {});
+        await reloadMe().catch(() => {});
+        renderHero();
+        haptic('success');
+        toast('Сохранено');
+      }));
+      const field = (label, el) => h('label', { class: 'ds-field' }, h('span', { class: 'ds-field__label' }, label), el);
       nodes.push(
-        ui.section('Опасная зона'),
-        ui.card(ui.hint('«Начать новую игру» (в разделе «Жеребьёвка») сохраняет участников и письма. Полный сброс удаляет всех, кроме тебя, и все данные — как будто игры не было.'), resetBtn));
+        ui.section('Параметры эвента'),
+        ui.card(
+          field('Название', f.title),
+          field('Бюджет подарка', f.budget),
+          field('Дата вручения', f.event_date),
+          field('Место', f.place),
+          field('Написать письмо до', f.deadline),
+          field('Заметки для всех', f.notes),
+          ui.hint('Бот сам напомнит: за 2 дня до срока — тем, у кого нет письма; за 2 дня и в день вручения — Сантам без отметки «подарок готов».'),
+          saveGame));
     }
 
-    main.replaceChildren(...nodes);
+    // --- опасная зона (004/005): только владелец
+    if (me.is_owner) {
+      const typed = (title, lines, word, label, action, after) => () => {
+        const inp = h('input', { class: 'ds-input', type: 'text', placeholder: `Введи слово ${word}`, autocomplete: 'off' });
+        const go = ui.btn(label, 'danger', 'ds-btn--block');
+        go.disabled = true;
+        inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== word; });
+        go.addEventListener('click', async () => {
+          if (!(await confirmBox(`${title}: точно? Это нельзя отменить.`))) return;
+          busy(go, async () => { const r = await eapi(action, { confirm: word }); closeSheet(); await after(r); });
+        });
+        openSheet(title, [
+          h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Будет удалено без возможности восстановления:'), h('ul', { class: 'ds-bullets' }, lines.map((l) => h('li', {}, l)))),
+          inp, go]);
+      };
+      const resetBtn = ui.btn('🧨 Полный сброс эвента', 'danger', 'ds-btn--block');
+      resetBtn.addEventListener('click', typed('Полный сброс эвента', [
+        'все участники этого эвента, кроме тебя;',
+        'письма, пары, исключения, отметки «подарок готов», переписка;',
+        'параметры эвента; пригласительная ссылка станет новой.',
+      ], 'СБРОС', '🧨 Сбросить эвент', 'admin.reset.full', async (r) => { toast(`Эвент сброшен. Удалено: ${r.removed}`); await refresh(); }));
+      const delBtn = ui.btn('🗑 Удалить эвент', 'danger', 'ds-btn--block');
+      delBtn.addEventListener('click', typed('Удалить эвент', [
+        `эвент «${s.title}» целиком — он пропадёт из истории у всех;`,
+        'письма, пары, исключения и переписка этого эвента.',
+      ], 'УДАЛИТЬ', '🗑 Удалить навсегда', 'admin.event.delete', async () => { toast('Эвент удалён'); await goHome(); }));
+      nodes.push(
+        ui.section('Опасная зона'),
+        finished()
+          ? ui.card(ui.hint('Завершённый эвент нельзя сбросить — только удалить целиком. Другие эвенты это не затронет.'), delBtn)
+          : ui.card(ui.hint('Другие эвенты это не затронет. Для тестового прогона удобно потом удалить эвент целиком.'), resetBtn, delBtn));
+    }
+
+    main.replaceChildren(...nodes.filter(Boolean));
   }
 
   // ---------- шторка ----------
@@ -797,6 +954,8 @@
     const ta = ui.textarea({ class: 'ds-input ds-composer__input', rows: 1, placeholder: 'Сообщение…' });
     const send = ui.btn('Отправить', '', 'ds-composer__send');
     const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
+    const composer = h('div', { class: 'ds-composer' }, ta, send);
+    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Эвент завершён больше недели назад — переписка только для чтения.');
     let lastId = 0;
     let timer = null;
     const shown = new Set();
@@ -810,11 +969,13 @@
       for (const m of fresh) { shown.add(m.id); list.append(bubble(m)); lastId = Math.max(lastId, m.id); }
       list.scrollTop = list.scrollHeight;
     };
+    const setWritable = (w) => { composer.hidden = !w; closedNote.hidden = w; if (!w) counter.hidden = true; };
     const load = async () => {
-      const d = await api('chat.get', { with: withWhom, after: lastId });
+      const d = await eapi('chat.get', { with: withWhom, after: lastId });
       if (d.state !== 'ok') { list.replaceChildren(h('div', { class: 'ds-chat__empty' }, 'Переписка недоступна: жеребьёвка ещё не проведена.')); return; }
+      setWritable(d.writable);
       if (!lastId && !d.messages.length) {
-        list.replaceChildren(h('div', { class: 'ds-chat__empty' }, withWhom === 'ward'
+        list.replaceChildren(h('div', { class: 'ds-chat__empty' }, !d.writable ? 'Сообщений не было.' : withWhom === 'ward'
           ? 'Здесь пока пусто. Напиши подопечному — он увидит сообщение от «Тайного Санты» и сможет ответить.'
           : 'Здесь пока пусто. Напиши своему Санте — он ответит здесь же.'));
       }
@@ -829,7 +990,7 @@
     };
     ta.addEventListener('input', update);
     send.addEventListener('click', () => busy(send, async () => {
-      const r = await api('message.send', { to: withWhom, text: ta.value });
+      const r = await eapi('message.send', { to: withWhom, text: ta.value });
       ta.value = '';
       ta.style.height = 'auto';
       update();
@@ -837,13 +998,14 @@
       haptic('success');
     }));
     update();
+    setWritable(state.can.chat_write);
 
     openSheet(withWhom === 'ward' ? 'Переписка с подопечным' : 'Твой Тайный Санта',
       [ui.hint(withWhom === 'ward' ? 'Для подопечного ты — «Тайный Санта», имя не раскрывается.' : 'Санта знает, кто ты, а ты его — нет.'),
-        list, h('div', { class: 'ds-composer' }, ta, send), counter],
+        list, composer, counter, closedNote],
       { full: true, onClose: async () => {
         clearInterval(timer);
-        await reloadMe().catch(() => {});
+        await reloadEvent().catch(() => {});
         if (!state.dirty) render(); else renderTabs();
       } });
     load().catch((e) => toast('⚠️ ' + e.message));
@@ -852,32 +1014,30 @@
 
   // ---------- старт ----------
   async function start() {
-    const sub = document.getElementById('heroSub');
     if (!initData) {
-      sub.textContent = '';
+      heroSub.textContent = '';
       main.replaceChildren(ui.empty('📱', 'Открой через Telegram', 'Это приложение работает внутри Telegram. Открой чат с ботом и нажми кнопку «🎁 Санта».'));
       return;
     }
     try {
       const d = await reloadMe();
       if (!d.registered) {
-        sub.textContent = '';
-        main.replaceChildren(ui.empty('🔒', 'Сначала регистрация', 'Перейди по пригласительной ссылке от организатора и напиши боту своё имя. После этого возвращайся сюда.'));
+        heroSub.textContent = '';
+        main.replaceChildren(ui.empty('🔒', 'Сначала регистрация', 'Перейди по пригласительной ссылке эвента от организатора и напиши боту своё имя. После этого возвращайся сюда.'));
         return;
       }
-      if (state.me.is_participant) {
-        state.tab = state.game.draw_done && state.me.has_ward && state.me.wishlist.trim() ? 'ward' : 'my';
-      } else {
-        state.tab = state.me.is_admin ? 'admin' : 'info';
-      }
+      // ?event=…&chat=… — из кнопок бота; иначе единственный эвент открывается сразу
+      const params = new URLSearchParams(location.search);
+      const want = Number(params.get('event'));
+      const target = state.events.find((e) => e.id === want);
+      if (target) return openEvent(target.id, null, params.get('chat'));
+      const mine = state.events.filter((e) => e.member);
+      if (!state.me.is_admin && state.events.length === 1 && mine.length === 1) return openEvent(mine[0].id);
+      state.view = 'home';
       render();
-      // Открыть переписку сразу, если пришли из уведомления (кнопка «💬 Вся переписка»)
-      const chat = new URLSearchParams(location.search).get('chat');
-      if (chat === 'santa' && state.me.has_santa) openChat('santa');
-      if (chat === 'ward' && state.me.has_ward) openChat('ward');
     } catch (e) {
       showError(e);
-      sub.textContent = '';
+      heroSub.textContent = '';
     }
   }
   start();
