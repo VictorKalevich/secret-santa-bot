@@ -1,0 +1,29 @@
+# Cloudflare Worker «Тайный Санта»
+name = "secret-santa-bot"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+
+# Раз в минуту: уведомления об изменении писем, напоминания, отправка очереди сообщений
+[triggers]
+crons = ["* * * * *"]
+
+# База данных. После `npx wrangler d1 create secret-santa-db` впишите сюда database_id из ответа.
+[[d1_databases]]
+binding = "DB"
+database_name = "secret-santa-db"
+database_id = "REPLACE_WITH_DATABASE_ID"
+
+# Настройки (не секретные)
+[vars]
+TIMEZONE_OFFSET_HOURS = "3"   # Минск, UTC+3
+REMINDER_HOUR = "10"          # во сколько по местному времени слать ежедневные напоминания
+NOTIFY_DELAY_MINUTES = "10"   # пауза после последней правки письма перед уведомлением Санте
+
+# HTML и CSS подключаются как текст (мини-приложение + дизайн-система)
+[[rules]]
+type = "Text"
+globs = ["**/*.html", "**/*.css"]
+fallthrough = true
+
+[observability]
+enabled = true
