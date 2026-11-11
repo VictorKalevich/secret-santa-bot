@@ -53,22 +53,25 @@
 .ds-hero__title { margin: 0; font-size: var(--ds-text-xl); line-height: var(--ds-leading-tight); letter-spacing: var(--ds-tracking-tight); }
 .ds-hero__subtitle { margin-top: var(--ds-space-0-5); color: var(--ds-color-text-muted); font-size: var(--ds-text-sm); }
 
-/* ========== Вкладки ========== */
+/* ========== Вкладки ==========
+ * Равные по ширине вкладки «иконка + подпись»: 2–4 штуки всегда помещаются на экране телефона. */
 .ds-tabs {
   position: sticky; top: 0; z-index: var(--ds-z-sticky);
-  display: flex; gap: var(--ds-space-1-5); overflow-x: auto; scrollbar-width: none;
+  display: flex; gap: var(--ds-space-1-5);
   padding: var(--ds-space-1-5) var(--ds-space-3) var(--ds-space-3);
   background: var(--ds-color-bg);
 }
-.ds-tabs::-webkit-scrollbar { display: none; }
 .ds-tab {
-  position: relative; flex: 1 0 auto; white-space: nowrap; cursor: pointer;
-  border: 0; border-radius: var(--ds-radius-pill);
-  padding: var(--ds-space-2) var(--ds-space-4);
-  font-size: var(--ds-text-md); font-weight: var(--ds-weight-semibold);
+  position: relative; flex: 1 1 auto; min-width: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-0-5);
+  border: 0; border-radius: var(--ds-radius-lg);
+  padding: var(--ds-space-2) var(--ds-space-1);
+  font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
   background: var(--ds-color-surface); color: var(--ds-color-text);
 }
 .ds-tab--active { background: var(--ds-color-accent); color: var(--ds-color-on-accent); }
+.ds-tab__icon { font-size: var(--ds-text-lg); line-height: 1; }
+.ds-tab__label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-tab__dot {
   position: absolute; top: var(--ds-space-1-5); right: var(--ds-space-2);
   width: var(--ds-size-dot); height: var(--ds-size-dot); border-radius: var(--ds-radius-round);
@@ -160,7 +163,7 @@
 /* ========== Сегменты ========== */
 .ds-segmented { display: flex; gap: var(--ds-space-1); padding: var(--ds-space-1); border-radius: var(--ds-radius-md); background: var(--ds-color-fill); }
 .ds-segmented__item {
-  flex: 1; border: 0; cursor: pointer; background: transparent;
+  flex: 1; border: 0; cursor: pointer; background: transparent; white-space: nowrap;
   border-radius: var(--ds-radius-sm); padding: var(--ds-space-2) var(--ds-space-1); font-size: var(--ds-text-md);
 }
 .ds-segmented__item--on { background: var(--ds-color-surface); font-weight: var(--ds-weight-semibold); box-shadow: var(--ds-shadow-sm); }

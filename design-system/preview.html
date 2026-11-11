@@ -36,8 +36,8 @@
 </head>
 <body class="ds-root">
 <div class="pv-cols">
-  <section class="pv-col ds-root" id="light"></section>
-  <section class="pv-col ds-root pv-dark" id="dark"></section>
+  <section class="pv-col ds-root ds-theme" id="light"></section>
+  <section class="pv-col ds-root ds-theme pv-dark" id="dark"></section>
 </div>
 
 <template id="gallery">
@@ -49,10 +49,10 @@
     <div><h1 class="ds-hero__title">Тайный Санта</h1><div class="ds-hero__subtitle">🎁 27 декабря · 💰 до 50 BYN</div></div>
   </header>
   <nav class="ds-tabs">
-    <button class="ds-tab ds-tab--active">✉️ Моё письмо</button>
-    <button class="ds-tab">🎁 Подопечный<span class="ds-tab__dot"></span></button>
-    <button class="ds-tab">ℹ️ Инфо</button>
-    <button class="ds-tab">🛠 Админ</button>
+    <button class="ds-tab ds-tab--active"><span class="ds-tab__icon">✉️</span><span class="ds-tab__label">Письмо</span><span class="ds-tab__dot"></span></button>
+    <button class="ds-tab"><span class="ds-tab__icon">🎁</span><span class="ds-tab__label">Подопечный</span></button>
+    <button class="ds-tab"><span class="ds-tab__icon">ℹ️</span><span class="ds-tab__label">Инфо</span></button>
+    <button class="ds-tab"><span class="ds-tab__icon">🛠</span><span class="ds-tab__label">Админ</span></button>
   </nav>
 
   <main class="ds-page">
@@ -137,7 +137,7 @@
         <label class="ds-switch"><input type="checkbox"><span class="ds-switch__track"></span></label>
       </div>
       <div class="ds-segmented">
-        <button class="ds-segmented__item ds-segmented__item--on">🔔 Со звуком</button>
+        <button class="ds-segmented__item ds-segmented__item--on">🔔 Звук</button>
         <button class="ds-segmented__item">🔕 Тихо</button>
         <button class="ds-segmented__item">🚫 Выкл</button>
       </div>

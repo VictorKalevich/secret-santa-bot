@@ -43,10 +43,11 @@
 | Компонент | Классы | Когда использовать |
 |---|---|---|
 | Корень страницы | `ds-root` | на `<body>`: фон, шрифт, отступ под «домашнюю» полосу |
+| Область темы | `ds-theme` | блок с собственными `--tg-theme-*` (например, тёмная колонка витрины) — токены пересчитываются внутри |
 | Раскладка | `ds-page`, `ds-stack` (12), `ds-stack--sm` (8), `ds-row` (+`--between`, `--wrap`, `--tight`), `ds-grow`, `ds-divided` | вертикальные/горизонтальные группы с отступами из шкалы |
 | Текст | `ds-text-muted`, `ds-text-sm`, `ds-text-strong`, `ds-text-regular`, `ds-text-pre`, `ds-hint` (+`--inset`), `ds-bullets` | подсказки, акценты, списки |
 | Шапка | `ds-hero`, `__badge`, `__title`, `__subtitle` | верх экрана |
-| Вкладки | `ds-tabs`, `ds-tab` (+`--active`), `ds-tab__dot` | переключение разделов; точка — несохранённые изменения |
+| Вкладки | `ds-tabs`, `ds-tab` (+`--active`), `ds-tab__icon`, `ds-tab__label`, `ds-tab__dot` | 2–4 равные вкладки «иконка + короткая подпись»; точка — несохранённые изменения |
 | Секция и карточка | `ds-section-title`, `ds-card` (+`--flush`) | группировка содержимого |
 | Кнопки | `ds-btn` (+`--block`, `--secondary`, `--danger`, `--festive`, `--on-festive`, `--sm`), `ds-icon-btn` | одно основное действие на карточку; `festive` — только жеребьёвка |
 | Поля | `ds-input` (+`--letter`), `ds-field`, `ds-field__label`, `ds-check`, `ds-counter` (+`--over`) | ввод текста, выбор, флажки, счётчик слов |

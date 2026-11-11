@@ -169,9 +169,12 @@
     const box = h('div', { class: 'ds-letter' });
     if (!ops) { box.textContent = newText; return box; }
     for (const op of ops) {
-      if (op.t === '=') box.append(op.s);
-      else if (!op.s.trim()) { if (op.t === '+') box.append(op.s); }
-      else box.append(h(op.t === '+' ? 'mark' : 'del', { class: op.t === '+' ? 'ds-diff-add' : 'ds-diff-del' }, op.s));
+      if (op.t === '=') { box.append(op.s); continue; }
+      // Пробелы и переносы по краям — вне подсветки; удалённые пробелы не показываем
+      const [, lead, core, trail] = /^(\s*)([\s\S]*?)(\s*)$/.exec(op.s);
+      if (op.t === '+') box.append(lead);
+      if (core) box.append(h(op.t === '+' ? 'mark' : 'del', { class: op.t === '+' ? 'ds-diff-add' : 'ds-diff-del' }, core));
+      if (op.t === '+') box.append(trail);
     }
     return box;
   }
@@ -197,16 +200,16 @@
 
   function tabsList() {
     const t = [];
-    if (state.me.is_participant) t.push(['my', '✉️ Моё письмо'], ['ward', '🎁 Подопечный']);
-    t.push(['info', 'ℹ️ Инфо']);
-    if (state.me.is_admin) t.push(['admin', '🛠 Админ']);
+    if (state.me.is_participant) t.push(['my', '✉️', 'Письмо'], ['ward', '🎁', 'Подопечный']);
+    t.push(['info', 'ℹ️', 'Инфо']);
+    if (state.me.is_admin) t.push(['admin', '🛠', 'Админ']);
     return t;
   }
 
   function renderTabs() {
     const nav = document.getElementById('tabs');
     nav.hidden = false;
-    nav.replaceChildren(...tabsList().map(([id, label]) =>
+    nav.replaceChildren(...tabsList().map(([id, icon, label]) =>
       h('button', {
         class: 'ds-tab' + (state.tab === id ? ' ds-tab--active' : ''),
         onclick: async () => {
@@ -216,7 +219,8 @@
           state.tab = id;
           render();
         },
-      }, label, id === 'my' && state.dirty ? h('span', { class: 'ds-tab__dot' }) : null)
+      }, h('span', { class: 'ds-tab__icon' }, icon), h('span', { class: 'ds-tab__label' }, label),
+        id === 'my' && state.dirty ? h('span', { class: 'ds-tab__dot' }) : null)
     ));
   }
 
@@ -378,7 +382,7 @@
     if (g.notes) nodes.push(h('div', { class: 'ds-card ds-letter' }, g.notes));
 
     if (me.is_participant) {
-      const modes = [['sound', '🔔 Со звуком'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
+      const modes = [['sound', '🔔 Звук'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
       const seg = h('div', { class: 'ds-segmented' });
       const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
         class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
