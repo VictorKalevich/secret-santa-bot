@@ -577,10 +577,11 @@ async function handleAdmin(action, body, env, me, settings) {
       if (!ev.draw_done) return fail('Жеребьёвка ещё не проведена.');
       return { count: (await remindSantas(env, ev, me.tg_id)).count };
 
-    case 'admin.reveal':
-      if (!ev.draw_done) return fail('Жеребьёвка ещё не проведена.');
-      if (ev.revealed) return fail('Тайна уже раскрыта.'); // повторно имена не рассылаем (006, FR-610)
-      return { count: (await revealAll(env, ev, me.tg_id)).count };
+    case 'admin.reveal': {
+      // Повторно имена не рассылаются (006, FR-610), в том числе при одновременных вызовах (009)
+      const r = await revealAll(env, ev, me.tg_id);
+      return r.ok ? { count: r.count } : fail(r.error);
+    }
 
     case 'admin.event.finish': {
       const r = await finishEvent(env, ev, me.tg_id);

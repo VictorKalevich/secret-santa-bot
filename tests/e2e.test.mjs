@@ -1073,6 +1073,46 @@ test('009: исправления перед выкатом', { timeout: 400000 
       assert.ok(buttons.every((b) => b.text.isWellFormed()), 'без разорванных эмодзи');
       assert.ok(!/Telegram API error sendMessage 400/.test(z.log()), 'Telegram не отверг ни одного сообщения');
     });
+
+    await t.test('атомарность: одновременные удаления, раскрытия и завершения', async () => {
+      const E9 = await newEvent('Гонка', crew);
+      await zapi(boss, 'admin.draw', { event: E9 });
+
+      // два удаления сразу: каждое либо проходит, либо просит повторить — пары не затирают друг друга
+      let left = [liza, misha];
+      for (let round = 0; left.length && round < 5; round++) {
+        const rs = await Promise.all(left.map((u) => zapi(boss, 'admin.remove', { event: E9, id: u.id }, true)));
+        rs.forEach((r) => r.status === 200 || assert.match(r.data.error, /Пары изменились одновременно/));
+        left = left.filter((u, i) => rs[i].status !== 200);
+      }
+      assert.equal(left.length, 0, 'оба удалены (с повтором)');
+      const rest = [zhenya, zoya, igor];
+      assertPermutation(await pairsSql(E9), rest.map((u) => u.id));
+
+      // два раскрытия и два завершения сразу: успешно одно, второе — ошибка; каждому по одному сообщению
+      const reveals = await Promise.all([1, 2].map(() => zapi(boss, 'admin.reveal', { event: E9 }, true)));
+      assert.deepEqual(reveals.map((r) => r.status).sort(), [200, 400]);
+      assert.match(reveals.find((r) => r.status === 400).data.error, /Тайна уже раскрыта/);
+      const finishes = await Promise.all([1, 2].map(() => zapi(boss, 'admin.event.finish', { event: E9 }, true)));
+      assert.deepEqual(finishes.map((r) => r.status).sort(), [200, 400]);
+      assert.match(finishes.find((r) => r.status === 400).data.error, /завершён/);
+
+      const count = (u, re) => ztexts(u).filter((x) => x.includes('«Гонка»') && re.test(x)).length;
+      await waitFor(
+        () => rest.every((u) => count(u, /Тайна раскрыта/) && count(u, /завершён/)) && [liza, misha].every((u) => count(u, /удалил тебя/)),
+        'раскрытие, завершение и удаление дошли', 20000
+      );
+      await z.cron();
+      await sleep(300);
+      for (const u of rest) {
+        assert.equal(count(u, /Тайна раскрыта/), 1, `${u.name}: одно раскрытие`);
+        assert.equal(count(u, /завершён/), 1, `${u.name}: одно завершение`);
+      }
+      for (const u of [liza, misha]) assert.equal(count(u, /удалил тебя/), 1, `${u.name}: одно уведомление об удалении`);
+      const audit = await z.query(`SELECT action, COUNT(*) AS n FROM audit WHERE event_id = ${E9} GROUP BY action`);
+      const n = Object.fromEntries(audit.map((r) => [r.action, r.n]));
+      assert.deepEqual([n.reveal, n.finish, n['member.remove']], [1, 1, 2], 'в журнале по одной записи на действие');
+    });
   } finally {
     const log = z.log();
     await z.stop();

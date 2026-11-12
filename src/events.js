@@ -1,7 +1,8 @@
 // Жизненный цикл эвента: создание, завершение, удаление, сброс, приглашения, раскрытие тайны, напоминания, объявления.
 
 import {
-  getSettings, eventMembers, drawParticipants, getPairs, allUsers, enqueueStmt, updateEventStmt, auditStmt,
+  getSettings, getEvent, eventMembers, drawParticipants, getPairs, allUsers, enqueueStmt, enqueueIfStmt, updateEventStmt,
+  auditStmt, auditIfStmt,
 } from './db.js';
 import { msg, q, escapeHtml, formatDate, formatMs, openAppButton, inviteLink, randomCode, oneLine, cleanText } from './format.js';
 
@@ -55,14 +56,20 @@ export async function finishEvent(env, ev, actor = 0) {
   const now = Date.now();
   const members = await drawParticipants(db, ev.id);
   const until = formatMs(now + CHAT_GRACE_MS, Number(env.TIMEZONE_OFFSET_HOURS ?? 3));
-  await db.batch([
-    updateEventStmt(db, ev.id, { status: 'finished', finished_at: now, registration_open: 0 }),
-    auditStmt(db, ev.id, actor, 'finish'),
-    ...members.map((m) => enqueueStmt(db, m.user_id, msg(
+  // Атомарно (009, FR-920): завершает только первый из одновременных вызовов (админ и cron) — остальные ничего не рассылают
+  // Часы Workers у одновременных запросов могут совпасть до миллисекунды, поэтому «наш» захват узнаём ещё и по
+  // отсутствию записи журнала 'finish': завершение необратимо, такая запись у эвента одна и пишется последней.
+  const guard = `EXISTS (SELECT 1 FROM events WHERE id = ? AND status = 'finished' AND finished_at = ?)
+    AND NOT EXISTS (SELECT 1 FROM audit WHERE event_id = ? AND action = 'finish')`;
+  const [claim] = await db.batch([
+    db.prepare("UPDATE events SET status = 'finished', finished_at = ?, registration_open = 0 WHERE id = ? AND status = 'active'").bind(now, ev.id),
+    ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(
       `🏁 <b>Эвент ${q(ev)} завершён.</b> Спасибо за игру!\n\nПисьмо Санте теперь только для чтения. Переписка открыта ещё 7 дней (до ${until}), потом останется для чтения. История эвента сохранится в приложении.`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '📚 Открыть', { event: ev.id })]] } }
-    ))),
+    ), guard, ev.id, now, ev.id)),
+    auditIfStmt(db, ev.id, actor, 'finish', '', guard, ev.id, now, ev.id),
   ]);
+  if (!claim.meta.changes) return { ok: false, error: 'Эвент уже завершён.' };
   return { ok: true };
 }
 
@@ -129,17 +136,31 @@ export async function inviteFromEvent(env, ev, fromEv, actor = 0) {
   return { ok: true, count: people.length };
 }
 
+// Раскрыть тайну: каждому подопечному — имя его Санты. Атомарно (009, FR-919): рассылает только первый из одновременных
+// вызовов (админ и cron), и только если пары не поменялись после чтения (версия пар — draw_token).
 export async function revealAll(env, ev, actor = 0) {
   const db = env.DB;
-  const rows = await getPairs(db, ev.id);
-  const users = await allUsers(db);
+  const cur = await getEvent(db, ev.id);
+  if (!cur?.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
+  if (cur.revealed) return { ok: false, error: 'Тайна уже раскрыта.' };
+  const [rows, users] = await Promise.all([getPairs(db, ev.id), allUsers(db)]);
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
-  const stmts = rows.map((p) =>
-    enqueueStmt(db, p.ward, msg(`🎅 <b>Тайна раскрыта!</b>\n\nВ эвенте ${q(ev)} твой Тайный Санта — <b>${escapeHtml(byId[p.santa]?.name || '?')}</b>. С праздником! 🎄`))
-  );
-  stmts.push(updateEventStmt(db, ev.id, { revealed: 1 }));
-  stmts.push(auditStmt(db, ev.id, actor, 'reveal', `пар: ${rows.length}`));
-  await db.batch(stmts);
+  // revealed хранит уникальную отметку этого раскрытия (для условий ниже); везде читается как «да/нет».
+  // Случайная, а не время: часы Workers у одновременных запросов могут совпасть.
+  const mark = 1 + Math.floor(Math.random() * 2 ** 52);
+  const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND revealed = ?)';
+  const [claim] = await db.batch([
+    db.prepare('UPDATE events SET revealed = ? WHERE id = ? AND revealed = 0 AND draw_done = 1 AND draw_token = ?')
+      .bind(mark, ev.id, cur.draw_token),
+    ...rows.map((p) => enqueueIfStmt(db, p.ward, msg(
+      `🎅 <b>Тайна раскрыта!</b>\n\nВ эвенте ${q(ev)} твой Тайный Санта — <b>${escapeHtml(byId[p.santa]?.name || '?')}</b>. С праздником! 🎄`
+    ), guard, ev.id, mark)),
+    auditIfStmt(db, ev.id, actor, 'reveal', `пар: ${rows.length}`, guard, ev.id, mark),
+  ]);
+  if (!claim.meta.changes) {
+    const now = await getEvent(db, ev.id);
+    return { ok: false, error: now?.revealed ? 'Тайна уже раскрыта.' : 'Пары изменились одновременно с этим действием — попробуй ещё раз.' };
+  }
   return { ok: true, count: rows.length };
 }
 

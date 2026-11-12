@@ -109,15 +109,15 @@ description: "Задачи: исправление багов и рефакто�
 
 ## Phase 7: US5 — Одно действие — один результат (P2)
 
-- [ ] T937 [US5] `src/events.js`: `revealAll` — захват `UPDATE … SET revealed = <now> WHERE revealed = 0 AND draw_done = 1`,
+- [X] T937 [US5] `src/events.js`: `revealAll` — захват `UPDATE … SET revealed = <now> WHERE revealed = 0 AND draw_done = 1`,
   рассылка и журнал по условию; повтор → `{ ok:false, error:'Тайна уже раскрыта.' }`; `src/api.js` возвращает ошибку
-- [ ] T938 [US5] `src/events.js`: `finishEvent` — захват `WHERE status = 'active'`, условие `finished_at = <now>`;
+- [X] T938 [US5] `src/events.js`: `finishEvent` — захват `WHERE status = 'active'`, условие `finished_at = <now>`;
   повтор → «Эвент уже завершён.»
-- [ ] T939 [US5] `src/pairs.js`: `removeMember`/`insertMember` после жеребьёвки — новый `draw_token` по условию прежнего,
+- [X] T939 [US5] `src/pairs.js`: `removeMember`/`insertMember` после жеребьёвки — новый `draw_token` по условию прежнего,
   все операторы (включая `applyPairsChange`) — по условию нового; иначе «Пары изменились одновременно…»
-- [ ] T940 [US5] `src/pairs.js`: `runDraw` — условие захвата: число и сумма id зарегистрированных участников, число
+- [X] T940 [US5] `src/pairs.js`: `runDraw` — условие захвата: число и сумма id зарегистрированных участников, число
   исключений, `ring`, `families_on` как при расчёте; иначе «Состав эвента изменился во время жеребьёвки — попробуй ещё раз.»
-- [ ] T941 [US5] `tests/e2e.test.mjs` блок «009 / атомарность»: параллельные раскрытия и завершения → одно сообщение
+- [X] T941 [US5] `tests/e2e.test.mjs` блок «009 / атомарность»: параллельные раскрытия и завершения → одно сообщение
   каждому; параллельные удаления после жеребьёвки → корректная перестановка у оставшихся
 
 ## Phase 8: US6 — Жеребьёвка в лимите CPU (P2)
