@@ -131,6 +131,20 @@
   padding: var(--ds-space-3);
 }
 .ds-input:focus { box-shadow: 0 0 0 var(--ds-border-focus) var(--ds-color-accent) inset; }
+/* Выпадающий список (011): своя «галочка» вместо системной — та прижата к краю и не слушает padding.
+ * Отступ «галочки» справа = отступу текста слева (--ds-space-3); цвет — цвет текста поля. */
+select.ds-input {
+  appearance: none; cursor: pointer;
+  padding-right: calc(var(--ds-space-3) + 2 * var(--ds-select-arrow) + var(--ds-space-2));
+  background-image:
+    linear-gradient(45deg, transparent calc(50% - var(--ds-select-arrow-stroke)), currentColor calc(50% - var(--ds-select-arrow-stroke)),
+      currentColor calc(50% + var(--ds-select-arrow-stroke)), transparent calc(50% + var(--ds-select-arrow-stroke))),
+    linear-gradient(135deg, transparent calc(50% - var(--ds-select-arrow-stroke)), currentColor calc(50% - var(--ds-select-arrow-stroke)),
+      currentColor calc(50% + var(--ds-select-arrow-stroke)), transparent calc(50% + var(--ds-select-arrow-stroke)));
+  background-size: var(--ds-select-arrow) var(--ds-select-arrow);
+  background-position: right calc(var(--ds-space-3) + var(--ds-select-arrow)) center, right var(--ds-space-3) center;
+  background-repeat: no-repeat;
+}
 .ds-input--letter { min-height: var(--ds-size-letter-min); line-height: var(--ds-leading-relaxed); }
 .ds-field { display: block; }
 .ds-field__label { display: block; margin: 0 0 var(--ds-space-1) var(--ds-space-0-5); font-size: var(--ds-text-sm); color: var(--ds-color-text-muted); }

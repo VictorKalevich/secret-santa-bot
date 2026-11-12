@@ -90,3 +90,13 @@ test('открытая шторка блокирует прокрутку стр
   assert.match(close, /document\.body\.classList\.remove\('ds-root--locked'\)/);
   assert.equal((app.match(/ds-root--locked/g) || []).length, 2, 'блокировка ставится и снимается только в openSheet/closeSheet');
 });
+
+test('стрелка выпадающего списка с отступом справа как у текста слева (011)', () => {
+  const css = stripComments(components);
+  const block = css.match(/select\.ds-input\s*\{([^}]*)\}/);
+  assert.ok(block, 'нет правила select.ds-input');
+  assert.match(block[1], /appearance:\s*none/);
+  assert.match(block[1], /background-position:[^;]*right var\(--ds-space-3\) center/);
+  assert.match(block[1], /padding-right:\s*calc\(var\(--ds-space-3\)/);
+  assert.match(css, /\.ds-input\s*\{[^}]*padding:\s*var\(--ds-space-3\)/, 'отступ текста слева — --ds-space-3');
+});

@@ -52,7 +52,7 @@
 | Вкладки | `ds-tabs`, `ds-tab` (+`--active`), `ds-tab__icon`, `ds-tab__label`, `ds-tab__dot` | 2–4 равные вкладки «иконка + короткая подпись»; точка — несохранённые изменения |
 | Секция и карточка | `ds-section-title`, `ds-card` (+`--flush`) | группировка содержимого |
 | Кнопки | `ds-btn` (+`--block`, `--secondary`, `--danger`, `--festive`, `--on-festive`, `--sm`), `ds-icon-btn` | одно основное действие на карточку; `festive` — только жеребьёвка |
-| Поля | `ds-input` (+`--letter`), `ds-field`, `ds-field__label`, `ds-check`, `ds-counter` (+`--over`) | ввод текста, выбор, флажки, счётчик слов |
+| Поля | `ds-input` (+`--letter`), `ds-field`, `ds-field__label`, `ds-check`, `ds-counter` (+`--over`) | ввод текста, выбор, флажки, счётчик слов; `<select class="ds-input">` сам получает «галочку» с отступом справа как у текста слева |
 | Список | `ds-list-item` (+`--sub`, `--link`), `ds-list-item__title`, `ds-list-item__chevron` | участники, исключения, эвенты (внутри `ds-card--flush`); `--link` + `›` — строка открывает экран |
 | Метки | `ds-chips`, `ds-chip` (+`--success`, `--warning`) | статусы участников |
 | Переключатель | `ds-switch` + `input` + `ds-switch__track` | вкл/выкл настройки; `input:disabled` — бледный, только чтение |
@@ -80,6 +80,8 @@
 - Каждый компонент показан в `preview.html`.
 - Системные элементы — в схеме темы: `color-scheme: var(--ds-color-scheme)` на корне и в `.ds-theme`, пункты
   `<option>` — цвета `surface`/`text`. (Ошибка до 1.4: в тёмной теме раскрытый список был белым с белым текстом.)
+- Выпадающий список (`select.ds-input`) — своя «галочка» (`--ds-select-arrow`): системная прижата к краю и не
+  слушает `padding`.
 - Шторка блокирует прокрутку страницы (`ds-root--locked`), `.ds-sheet` и `.ds-chat` — `overscroll-behavior: contain`.
 
 ## Как добавить новый элемент

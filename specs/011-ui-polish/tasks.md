@@ -74,6 +74,14 @@ description: "Задачи 011: «Как это работает», тёмная
 - [X] T013 [P] `CLAUDE.md`: строка про честное раскрытие — «в README»; таблица фич — `011-ui-polish`
 - [X] T014 `npm test`, `npm run screenshots` (визуально), `npm run test:e2e` перед выкатом
 
+## Phase 7: User Story 4 — отступ у стрелки выпадающего списка (P2, добавлено 2026-11-13)
+
+- [X] T015 [US4] `design-system/tokens.css`: `--ds-select-arrow` (половина «галочки», 5px), `--ds-select-arrow-stroke`
+  (половина толщины линии)
+- [X] T016 [US4] `design-system/components.css`: `select.ds-input` — `appearance: none`, «галочка» из двух градиентов
+  цвета `currentColor`, позиция `right var(--ds-space-3)` (= отступ текста слева), `padding-right` под «галочку»
+- [X] T017 [US4] `tests/design-system.test.mjs` и `design-system/README.md`: проверка и описание правила
+
 ## Dependencies & Execution Order
 
 - T001 — первым (конституция до кода).
