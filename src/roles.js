@@ -127,11 +127,20 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
   for (const m of fromMembers) {
     const t = toByEvent.get(m.event_id);
     if (t) {
-      // Новый аккаунт уже вступил в этот эвент: оставляем одно участие; письмо — нового, если оно не пустое
+      // Новый аккаунт уже вступил в этот эвент: оставляем одно участие; письмо — нового, если оно не пустое;
+      // адрес доставки — по тому же правилу (009, FR-938), каждый со своим временем изменения
       const keepNew = !!t.wishlist.trim();
+      const keepNewAddr = !!(t.delivery || '').trim();
       stmts.push(db.prepare('DELETE FROM members WHERE event_id = ? AND user_id = ?').bind(m.event_id, toId));
-      stmts.push(db.prepare('UPDATE members SET user_id = ?, wishlist = ?, wishlist_updated_at = ? WHERE event_id = ? AND user_id = ?')
-        .bind(toId, keepNew ? t.wishlist : m.wishlist, keepNew ? t.wishlist_updated_at : m.wishlist_updated_at, m.event_id, fromId));
+      stmts.push(db.prepare(
+        `UPDATE members SET user_id = ?, wishlist = ?, wishlist_updated_at = ?, delivery = ?, delivery_updated_at = ?
+          WHERE event_id = ? AND user_id = ?`
+      ).bind(
+        toId,
+        keepNew ? t.wishlist : m.wishlist, keepNew ? t.wishlist_updated_at : m.wishlist_updated_at,
+        keepNewAddr ? t.delivery : m.delivery, keepNewAddr ? t.delivery_updated_at : m.delivery_updated_at,
+        m.event_id, fromId
+      ));
     } else {
       stmts.push(db.prepare('UPDATE members SET user_id = ? WHERE event_id = ? AND user_id = ?').bind(toId, m.event_id, fromId));
     }

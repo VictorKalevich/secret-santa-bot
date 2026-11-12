@@ -1113,6 +1113,20 @@ test('009: исправления перед выкатом', { timeout: 400000 
       const n = Object.fromEntries(audit.map((r) => [r.action, r.n]));
       assert.deepEqual([n.reveal, n.finish, n['member.remove']], [1, 1, 2], 'в журнале по одной записи на действие');
     });
+
+    await t.test('перенос: адрес нового аккаунта сохраняется, пустой — заменяется старым', async () => {
+      const EA = await newEvent('Почта А', [igor], { delivery_on: true });
+      const EB = await newEvent('Почта Б', [igor], { delivery_on: true });
+      await zapi(igor, 'delivery.save', { event: EA, text: 'Старый адрес А' });
+      await zapi(igor, 'delivery.save', { event: EB, text: 'Старый адрес Б' });
+      const igor2 = { id: 706, name: 'Игорь', username: 'igor2' };
+      await join(igor2, await zInvite(EB)); // в Б — без адреса
+      await join(igor2, await zInvite(EA));
+      await zapi(igor2, 'delivery.save', { event: EA, text: 'Новый адрес' });
+      await zapi(boss, 'admin.transfer', { from: igor.id, to: igor2.id });
+      assert.equal((await zapi(igor2, 'event.get', { event: EA })).member.delivery, 'Новый адрес');
+      assert.equal((await zapi(igor2, 'event.get', { event: EB })).member.delivery, 'Старый адрес Б');
+    });
   } finally {
     const log = z.log();
     await z.stop();
