@@ -23,9 +23,10 @@ Telegram-бот «Тайный Санта» для небольшой групп
 | `004-event-reset` | `specs/004-event-reset/` | реализовано: полный сброс (владелец), меню участника, перенос на новый аккаунт |
 | `005-events-history` | `specs/005-events-history/` | реализовано: эвенты (параллельно), история, завершение, кольцевая жеребьёвка |
 | `006-fixes` | `specs/006-fixes/` | реализовано: исправления ревью (тайна при переносе, лимит CPU жеребьёвки, очередь, отметка блокировки), миграции D1 |
+| `007-admin-tools` | `specs/007-admin-tools/` | реализовано: объявления, расписание (автодействия cron), «получил»/«не открыл», эвент по образцу, отмена жеребьёвки, журнал |
 
 С 005 почти все действия привязаны к эвенту (`event_id`); актуальный контракт API — `specs/005-events-history/contracts/events.md`
-(контракты 001–004 описывают поведение внутри одного эвента); изменения 006 — `specs/006-fixes/contracts/api-changes.md`.
+(контракты 001–004 описывают поведение внутри одного эвента); изменения 006 — `specs/006-fixes/contracts/api-changes.md`; 007 — `specs/007-admin-tools/contracts/api.md`.
 
 ## Технологии
 
@@ -49,13 +50,16 @@ npm run deploy       # выкат в Cloudflare
 - `src/index.js` — маршруты: `/tg`, `/app`, `/api/*`, `/setup`, `scheduled`.
 - `src/bot.js` — чат: `/start` (`inv_<код эвента>`/`adm_`), регистрация, меню со списком эвентов, ответы в переписку (`msg:<сторона>:<eid>`).
 - `src/api.js` — API мини-приложения: почти все действия с полем `event` (контракт: `specs/005-events-history/contracts/events.md`).
-- `src/game.js` — игровая логика по эвентам, очередь `outbox`, жеребьёвка/замены, завершение, сброс, перенос, напоминания.
+- `src/game.js` — игровая логика по эвентам, очередь `outbox`, жеребьёвка/замены/отмена, завершение, сброс, перенос,
+  напоминания, объявления, автодействия расписания (`dueAutoAction`/`runAutoAction`).
 - `src/draw.js` — чистые функции жеребьёвки (тестируются в Node); поиск ограничен бюджетом шагов (`DEFAULT_BUDGET`, лимит CPU).
-- `src/cron.js` — уведомления об изменениях писем, ежедневные напоминания.
-- `migrations/` — схема D1 (сейчас 6): `0001_initial.sql` (схема 005), `0002_fixes.sql` (`users.blocked_at`,
-  `outbox.locked_until`, `events.draw_token`). Код таблицы не создаёт и не удаляет: `checkSchema` требует `REQUIRED_SCHEMA`.
+- `src/cron.js` — уведомления об изменениях писем, автодействия (≤ 1 эвент за вызов), ежедневные напоминания.
+- `migrations/` — схема D1 (сейчас 7): `0001_initial.sql` (схема 005), `0002_fixes.sql` (`users.blocked_at`,
+  `outbox.locked_until`, `events.draw_token`), `0003_admin_tools.sql` (`announcements`, `audit`, поля расписания
+  эвента, `pairs.gift_received`). Код таблицы не создаёт и не удаляет: `checkSchema` требует `REQUIRED_SCHEMA`.
   Новая схема → новый файл миграции + `REQUIRED_SCHEMA` в `src/db.js`.
-- `src/db.js` — проверка схемы и запросы.
+- `src/db.js` — проверка схемы и запросы; `auditStmt`/`auditIfStmt` — запись журнала в том же batch, что и действие
+  (каждое действие админа и бота пишет журнал; без пар, писем и текстов объявлений).
 - `src/app.html` — мини-приложение; стили только из дизайн-системы.
 - `design-system/` — `tokens.css`, `components.css`, `preview.html`, `README.md`.
 
