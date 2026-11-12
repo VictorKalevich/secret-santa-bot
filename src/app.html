@@ -219,6 +219,7 @@
     state.ev = d.event;
     state.member = d.member;
     state.can = d.can;
+    state.announcements = d.announcements || [];
     return d;
   }
 
@@ -290,16 +291,26 @@
       const create = ui.btn('＋ Новый эвент', 'festive', 'ds-btn--block');
       create.addEventListener('click', () => {
         const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: 'Например: Новый год 2026 — семья' });
+        // Образец (007): параметры и исключения прошлого эвента, по желанию — приглашение его участников
+        const from = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Без образца — с чистого листа'),
+          ...state.events.map((e) => h('option', { value: e.id }, 'По образцу: ' + e.title)));
+        const invite = h('input', { type: 'checkbox', checked: true, disabled: true });
+        const inviteRow = h('label', { class: 'ds-check' }, invite, 'Пригласить участников образца');
+        from.addEventListener('change', () => { invite.disabled = !from.value; });
         const ok = ui.btn('Создать', '', 'ds-btn--block');
         ok.addEventListener('click', () => busy(ok, async () => {
           if (!title.value.trim()) return toast('Напиши название');
-          const r = await api('admin.events.create', { title: title.value });
+          const r = await api('admin.events.create', { title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked });
           closeSheet();
-          toast('🎄 Эвент создан');
+          toast(r.invited ? `🎄 Эвент создан, приглашения: ${r.invited}` : r.invite_error ? '🎄 Эвент создан. ' + r.invite_error : '🎄 Эвент создан');
           await reloadMe();
           await openEvent(r.event.id, 'admin');
         }));
-        openSheet('Новый эвент', [ui.hint('У эвента будут свои участники, пригласительная ссылка, письма и жеребьёвка. Можно вести несколько эвентов одновременно.'), title, ok]);
+        const sheet = [ui.hint('У эвента будут свои участники, пригласительная ссылка, письма и жеребьёвка. Можно вести несколько эвентов одновременно.'), title];
+        if (state.events.length) {
+          sheet.push(from, inviteRow, ui.hint('Из образца копируются бюджет, место, заметки, правила жеребьёвки и исключения. Даты — нет.'));
+        }
+        openSheet('Новый эвент', [...sheet, ok]);
       });
       nodes.push(h('div', { class: 'ds-card' }, create));
       nodes.push(...renderAdminsSection());
@@ -361,6 +372,9 @@
       } else {
         parts.push(ui.hint(`Назначать и снимать администраторов может только владелец${d.owner_name ? ' — ' + d.owner_name : ''}.`, 'ds-hint--inset'));
       }
+      const log = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
+      log.addEventListener('click', () => openAudit(null));
+      parts.push(ui.card(ui.hint('Роли, перенос участия, удалённые эвенты — кто и когда.'), log));
       box.replaceChildren(...parts);
     }).catch((e) => box.replaceChildren(ui.section('Администраторы'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
     return [box];
@@ -478,6 +492,15 @@
       requestAnimationFrame(update);
     }
     if (m.has_santa) {
+      // 007: подопечный отмечает «получил подарок»; Санта узнает об этом (без имени)
+      const got = h('input', { type: 'checkbox', checked: m.gift_received, disabled: !state.can.edit_letter });
+      got.addEventListener('change', () => busy(null, async () => {
+        await eapi('ward.received', { received: got.checked });
+        m.gift_received = got.checked;
+        haptic('success');
+        toast(got.checked ? '🎉 Спасибо! Санта узнает, что подарок дошёл' : 'Отметка снята');
+      }));
+      nodes.push(h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Я получил(а) подарок', 'Твой Санта узнает, что подарок дошёл', got)));
       nodes.push(ui.section('Переписка с Сантой'),
         ui.card(ui.hint('Хочешь что-то уточнить или ответить на вопрос? Напиши своему Тайному Санте. Ты не знаешь, кто он, а он знает тебя.'), chatButton('santa')));
     }
@@ -553,6 +576,11 @@
       h('div', { class: 'ds-card' }, h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
     ];
     if (g.notes) nodes.push(h('div', { class: 'ds-card ds-letter' }, g.notes));
+    if (state.announcements.length) {
+      nodes.push(ui.section('Объявления'), ...state.announcements.map((a) => ui.card(
+        h('div', { class: 'ds-letter' }, a.text),
+        ui.hint(`📣 ${a.author_name} · ${fmtTime(a.created_at)}`))));
+    }
     if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом эвенте — тебе доступна только информация и панель организатора.', 'ds-hint--inset'));
     nodes.push(
       ui.section('Как это работает'),
@@ -634,6 +662,21 @@
         });
         nodes.push(ui.card(ui.hint('Пригласить участников прошлого эвента — например, ту же компанию на следующий год.'), sel, inv));
       }
+      // --- объявление (007)
+      const annText = ui.textarea({ placeholder: 'Например: собираемся 28 декабря в 18:00, бюджет до 50 BYN', rows: 2, maxlength: 2000 });
+      const annBtn = ui.btn('📣 Отправить всем', 'secondary', 'ds-btn--block');
+      annBtn.addEventListener('click', async () => {
+        if (!annText.value.trim()) return toast('Напиши текст объявления');
+        if (!(await confirmBox('Бот отправит это объявление всем участникам эвента. Отправить?'))) return;
+        busy(annBtn, async () => {
+          const r = await eapi('admin.announce', { text: annText.value });
+          annText.value = '';
+          await reloadEvent().catch(() => {});
+          toast(`📣 Объявление отправлено: ${r.count}`);
+        });
+      });
+      nodes.push(ui.section('Объявление'),
+        ui.card(ui.hint('Сообщение всем участникам от бота. Оно останется во вкладке «Инфо».'), annText, annBtn));
     }
 
     // --- меню участника (004)
@@ -714,6 +757,8 @@
         if (s.draw_done) {
           if (u.in_draw) chips.push(u.gift_ready ? ui.chip('🎁 готов', 'success') : ui.chip('🎁 не готов'));
           else chips.push(ui.chip('не в жеребьёвке', 'warning'));
+          if (u.ward_seen === false) chips.push(ui.chip('👀 не открыл подопечного', 'warning'));
+          if (u.gift_received) chips.push(ui.chip('📦 получил', 'success'));
         }
       }
       if (u.blocked) chips.push(ui.chip('🚫 не получает сообщения', 'warning'));
@@ -835,7 +880,16 @@
       const ready = inDraw.filter((u) => u.gift_ready).length;
       drawCard.append(
         h('div', {}, h('div', { class: 'ds-text-strong' }, '✅ Жеребьёвка проведена' + (s.ring ? ' (кольцевая)' : '')), s.draw_at ? ui.hint(fmtTime(s.draw_at)) : null),
-        h('div', { class: 'ds-notice' }, `🎁 Подарки готовы: ${ready} из ${inDraw.length}`));
+        h('div', { class: 'ds-notice' }, `🎁 Подарки готовы: ${ready} из ${inDraw.length} · 📦 получено: ${inDraw.filter((u) => u.gift_received).length} из ${inDraw.length}`));
+      if (s.draw_cancelable) {
+        // 007: отменить можно, пока никто не открыл подопечного и переписки нет
+        const cancel = ui.btn('↩️ Отменить жеребьёвку', 'secondary', 'ds-btn--block');
+        cancel.addEventListener('click', async () => {
+          if (!(await confirmBox('Отменить жеребьёвку? Пары удалятся, письма останутся, регистрация снова откроется. Участники получат уведомление.'))) return;
+          busy(cancel, async () => { await eapi('admin.draw.cancel'); toast('↩️ Жеребьёвка отменена'); await refresh(); });
+        });
+        drawCard.append(ui.hint('Никто ещё не открыл подопечного — жеребьёвку можно отменить, например, чтобы добавить людей.'), cancel);
+      }
       if (!done) {
         const remindS = ui.btn('🎁 Напомнить Сантам о подарках', 'secondary', 'ds-btn--block');
         remindS.addEventListener('click', () => busy(remindS, async () => {
@@ -872,9 +926,17 @@
         deadline: h('input', { class: 'ds-input', type: 'date', value: s.deadline }),
         notes: ui.textarea({ value: s.notes, placeholder: 'Любые правила и детали для всех', rows: 2, maxlength: 2000 }),
       };
+      // Расписание (007): автожеребьёвка (до жеребьёвки), авто-раскрытие и автозавершение
+      if (!s.draw_done) f.draw_auto_date = h('input', { class: 'ds-input', type: 'date', value: s.draw_auto_date });
+      const revealAuto = h('input', { type: 'checkbox', checked: s.reveal_auto });
+      const finishAuto = h('input', { type: 'checkbox', checked: s.finish_auto });
       const saveGame = ui.btn('Сохранить', '', 'ds-btn--block');
       saveGame.addEventListener('click', () => busy(saveGame, async () => {
-        await eapi('admin.game', Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])));
+        await eapi('admin.game', {
+          ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])),
+          reveal_auto: revealAuto.checked,
+          finish_auto: finishAuto.checked,
+        });
         await reloadEvent().catch(() => {});
         await reloadMe().catch(() => {});
         renderHero();
@@ -892,8 +954,17 @@
           field('Написать письмо до', f.deadline),
           field('Заметки для всех', f.notes),
           ui.hint('Бот сам напомнит: за 2 дня до срока — тем, у кого нет письма; за 2 дня и в день вручения — Сантам без отметки «подарок готов».'),
+          f.draw_auto_date ? field('Автожеребьёвка', f.draw_auto_date) : null,
+          h('label', { class: 'ds-check' }, revealAuto, 'Раскрыть Сант на следующий день после вручения'),
+          h('label', { class: 'ds-check' }, finishAuto, 'Завершить эвент через 3 дня после вручения'),
+          ui.hint('Автодействия бот выполняет в час ежедневных напоминаний. Если автожеребьёвка не получится, бот напишет админам.'),
           saveGame));
     }
+
+    // --- журнал (007): по эвенту, доступен и для завершённого
+    const logBtn = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
+    logBtn.addEventListener('click', () => openAudit(state.evId));
+    nodes.push(ui.section('Журнал'), ui.card(ui.hint('Кто из админов что делал в этом эвенте и что бот сделал сам. Пар и писем в журнале нет.'), logBtn));
 
     // --- опасная зона (004/005): только владелец
     if (me.is_owner) {
@@ -929,6 +1000,33 @@
     }
 
     main.replaceChildren(...nodes.filter(Boolean));
+  }
+
+  // ---------- журнал действий (007) ----------
+  const AUDIT_LABELS = {
+    'event.create': '🎄 Создан эвент', 'event.settings': '⚙️ Параметры', registration: '🔓 Регистрация', 'invite.regen': '🔄 Новая ссылка',
+    participate: '🙋 Участие организатора', 'member.remove': '🗑 Удалён участник', 'member.insert': '➕ Вписан в жеребьёвку',
+    'exclusion.add': '🚧 Исключение добавлено', 'exclusion.del': '✕ Исключение удалено', draw: '🎲 Жеребьёвка',
+    'draw.auto': '🎲 Автожеребьёвка', 'draw.auto.failed': '⚠️ Автожеребьёвка не прошла', 'draw.cancel': '↩️ Жеребьёвка отменена',
+    reveal: '🎅 Тайна раскрыта', finish: '🏁 Эвент завершён', reset: '🧨 Полный сброс', 'event.delete': '🗑 Эвент удалён',
+    'wishlist.view': '👁 Открыто письмо', announce: '📣 Объявление', 'remind.unfilled': '⏰ Напоминание о письмах',
+    'remind.santas': '🎁 Напоминание Сантам', 'invite.from': '📨 Приглашение из эвента', transfer: '🔁 Перенос участия',
+    'role.grant': '🛠 Назначен админ', 'role.revoke': '🛠 Снят админ', 'owner.transfer': '👑 Передано владение', 'owner.link': '👑 Владелец по ссылке /setup',
+  };
+  function openAudit(eventId) {
+    const box = h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…');
+    openSheet(eventId ? 'Журнал эвента' : 'Общий журнал', [box], { full: true });
+    api('admin.audit', eventId ? { event: eventId } : {}).then((d) => {
+      const list = h('div', { class: 'ds-card ds-card--flush' });
+      if (!d.entries.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Записей пока нет.'));
+      for (const e of d.entries) {
+        list.append(h('div', { class: 'ds-list-item' }, h('div', { class: 'ds-grow' },
+          h('div', { class: 'ds-list-item__title' }, AUDIT_LABELS[e.action] || e.action),
+          e.details ? h('div', { class: 'ds-text-sm' }, e.details) : null,
+          ui.hint(`${e.actor_name} · ${fmtTime(e.created_at)}`))));
+      }
+      box.replaceWith(ui.hint('Последние 100 записей, новые сверху.', 'ds-hint--inset'), list);
+    }).catch((e) => box.replaceWith(ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
   }
 
   // ---------- шторка ----------

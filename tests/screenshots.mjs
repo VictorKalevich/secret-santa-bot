@@ -142,10 +142,15 @@ try {
   await shot(ward, '10-chat-ward-view', { event: A, fullPage: false, tab: 'Письмо', before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
   await shot(ward, '10-chat-ward-view', { event: A, fullPage: false, tab: 'Письмо', dark: true, before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
   await shot(people[1], '05-ward-hidden', { event: A, tab: 'Подопечный' });
+  // 007: объявление во вкладке «Инфо», отметка «получил подарок», журнал действий
+  await w.api(admin, 'admin.announce', { event: A, text: 'Собираемся 27 декабря в 18:00 у Маши. Подарки кладём под ёлку, подписываем только именем получателя 🎄' });
+  await w.api(ward, 'ward.received', { event: A, received: true });
   await shot(people[0], '06-info', { event: A, tab: 'Инфо' });
+  await shot(ward, '17-my-gift-received', { event: A, tab: 'Письмо' });
   await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ' });
   await shot(people[0], '08-admin-as-regular-admin', { event: A, tab: 'Админ' });
   await shot(admin, '08b-admin-not-member', { event: B, tab: 'Админ' });
+  await shot(admin, '18-audit', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
   await shot(admin, '11-participant-menu', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
   await shot(admin, '12-danger-zone', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
     await p.locator('.ds-btn', { hasText: 'Полный сброс эвента' }).click();
