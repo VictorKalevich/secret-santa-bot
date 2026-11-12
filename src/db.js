@@ -2,7 +2,7 @@
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
-export const REQUIRED_SCHEMA = 6;
+export const REQUIRED_SCHEMA = 7;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -98,6 +98,7 @@ export async function allEvents(db) {
 const EVENT_FIELDS = new Set([
   'title', 'status', 'finished_at', 'invite_code', 'registration_open', 'draw_done', 'draw_at', 'revealed', 'ring',
   'avoid_previous', 'draw_token', 'budget', 'event_date', 'place', 'deadline', 'notes', 'last_daily',
+  'draw_auto_date', 'reveal_auto', 'finish_auto',
 ]);
 
 export function updateEventStmt(db, id, fields) {
@@ -167,4 +168,48 @@ export function enqueueStmt(db, chatId, payload) {
   return db
     .prepare('INSERT INTO outbox (chat_id, payload, created_at) VALUES (?, ?, ?)')
     .bind(chatId, JSON.stringify(payload), Date.now());
+}
+
+// ---------- журнал действий (007) ----------
+
+// Запись журнала — в том же batch, что и само действие. actor = 0 — бот. details — без пар и текстов писем.
+export function auditStmt(db, eventId, actor, action, details = '') {
+  return db
+    .prepare('INSERT INTO audit (event_id, actor, action, details, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(eventId || 0, actor || 0, action, String(details).slice(0, 500), Date.now());
+}
+
+// Последние записи: по эвенту или общие (eventId = 0)
+export async function getAudit(db, eventId, limit = 100) {
+  const { results } = await db
+    .prepare(
+      `SELECT a.id, a.event_id, a.action, a.details, a.created_at,
+              CASE WHEN a.actor = 0 THEN 'бот' ELSE COALESCE(NULLIF(u.name, ''), 'кто-то') END AS actor_name
+         FROM audit a LEFT JOIN users u ON u.tg_id = a.actor
+        WHERE a.event_id = ? ORDER BY a.id DESC LIMIT ?`
+    )
+    .bind(eventId || 0, limit)
+    .all();
+  return results;
+}
+
+// ---------- объявления (007) ----------
+
+export async function getAnnouncements(db, eventId, limit = 20) {
+  const { results } = await db
+    .prepare(
+      `SELECT a.id, a.text, a.created_at, COALESCE(NULLIF(u.name, ''), 'Организатор') AS author_name
+         FROM announcements a LEFT JOIN users u ON u.tg_id = a.author
+        WHERE a.event_id = ? ORDER BY a.id DESC LIMIT ?`
+    )
+    .bind(eventId, limit)
+    .all();
+  return results;
+}
+
+// Запись журнала только при условии guard (как enqueueIfStmt) — для атомарных действий 006/007
+export function auditIfStmt(db, eventId, actor, action, details, guard, ...args) {
+  return db
+    .prepare(`INSERT INTO audit (event_id, actor, action, details, created_at) SELECT ?, ?, ?, ?, ? WHERE ${guard}`)
+    .bind(eventId || 0, actor || 0, action, String(details).slice(0, 500), Date.now(), ...args);
 }

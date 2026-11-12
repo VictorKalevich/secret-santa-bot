@@ -2,7 +2,8 @@
 
 import {
   getSettings, getUser, updateUser, allUsers, getPairs, pairOfSanta, pairOfWard, getExclusions,
-  getEvent, allEvents, updateEvent, getMember, eventMembers, addMemberStmt,
+  getEvent, allEvents, getMember, eventMembers, addMemberStmt,
+  updateEventStmt, auditStmt, getAudit, getAnnouncements, enqueueIfStmt,
 } from './db.js';
 import { validateInitData } from './telegram.js';
 import {
@@ -10,6 +11,7 @@ import {
   checkDraw, runDraw, removeMember, insertMember, revealAll, remindUnfilled, remindSantas,
   flushOutbox, resolveOwner, grantAdmin, revokeAdmin, transferOwnership, chatPair, unreadCounts, unreadByEvent,
   resetEvent, transferAccount, createEvent, finishEvent, deleteEvent, inviteFromEvent,
+  announce, cancelDraw, drawCancelable, msg, q, openAppButton,
 } from './game.js';
 import { sendAnonymous } from './bot.js';
 
@@ -93,7 +95,13 @@ export async function handleApi(request, env, ctx, action) {
   if (action === 'event.get') {
     if (!member && !me.is_admin) return fail('Ты не участвуешь в этом эвенте.', 403);
     const participants = (await eventMembers(db, ev.id)).filter((m) => m.registered).length;
-    const out = { ok: true, event: { ...publicEvent(ev), participants }, member: null, can: { edit_letter: false, chat_write: false } };
+    const out = {
+      ok: true,
+      event: { ...publicEvent(ev), participants },
+      announcements: await getAnnouncements(db, ev.id), // 007, FR-701
+      member: null,
+      can: { edit_letter: false, chat_write: false },
+    };
     if (member) {
       const [pair, wardPair] = await Promise.all([pairOfSanta(db, ev.id, me.tg_id), pairOfWard(db, ev.id, me.tg_id)]);
       out.member = {
@@ -101,6 +109,7 @@ export async function handleApi(request, env, ctx, action) {
         wishlist_updated_at: member.wishlist_updated_at,
         has_ward: !!pair,
         has_santa: !!wardPair,
+        gift_received: !!wardPair?.gift_received, // 007, FR-704
         unread: pair || wardPair ? await unreadCounts(db, ev.id, me.tg_id) : { from_ward: 0, from_santa: 0 },
       };
       out.can = { edit_letter: !isFinished(ev), chat_write: chatWritable(ev) };
@@ -151,6 +160,31 @@ export async function handleApi(request, env, ctx, action) {
       return json({ ok: true });
     }
 
+    case 'ward.received': {
+      // Подопечный отмечает «подарок получен» (007, FR-704). Санта узнаёт об этом только при первой отметке.
+      if (isFinished(ev)) return fail('Эвент завершён: отметка только для чтения.');
+      const pair = await pairOfWard(db, ev.id, me.tg_id);
+      if (!pair) return fail('У тебя пока нет Санты.');
+      const on = body.received ? 1 : 0;
+      const now = Date.now();
+      const stmts = [
+        db.prepare(
+          `UPDATE pairs SET gift_received = ?, gift_received_at = CASE WHEN ? = 1 AND gift_received_at = 0 THEN ? ELSE gift_received_at END
+            WHERE event_id = ? AND ward = ?`
+        ).bind(on, on, now, ev.id, me.tg_id),
+      ];
+      if (on && !pair.gift_received_at) {
+        // Только если отметку поставил именно этот запрос (защита от двойного нажатия)
+        stmts.push(enqueueIfStmt(db, pair.santa, msg(
+          `🎉 Твой подопечный в эвенте ${q(ev)} получил подарок! Спасибо, Санта 🎅`,
+          { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
+        ), 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = ?)', ev.id, me.tg_id, now));
+      }
+      await db.batch(stmts);
+      ctx.waitUntil(flushOutbox(env));
+      return json({ ok: true });
+    }
+
     case 'message.send': {
       const to = body.to === 'santa' ? 'santa' : 'ward';
       const r = await sendAnonymous(env, ev, me.tg_id, to, body.text, ctx);
@@ -189,19 +223,32 @@ export async function handleApi(request, env, ctx, action) {
 // Действия, разрешённые в завершённом эвенте
 // Завершённый эвент — только просмотр, раскрытие, удаление и приглашение его участников в новый.
 // Сброс запрещён: он вернул бы эвент в «идёт», а завершение необратимо (FR-506).
-const FINISHED_OK = new Set(['admin.state', 'admin.wishlist', 'admin.reveal', 'admin.event.delete', 'admin.event.invite_from']);
+const FINISHED_OK = new Set(['admin.state', 'admin.wishlist', 'admin.reveal', 'admin.event.delete', 'admin.event.invite_from', 'admin.audit']);
 
 async function handleAdmin(action, body, env, ctx, me, settings) {
   const db = env.DB;
   const ownerId = await resolveOwner(db, settings);
   const isOwner = ownerId === me.tg_id;
   const ownerOnly = (what = 'Назначать и снимать администраторов') => fail(`${what} может только владелец бота.`, 403);
+  const nameOf = async (id) => {
+    const u = await getUser(db, id);
+    return u?.name || (u?.username ? '@' + u.username : 'кто-то');
+  };
 
   // ---------- общие (без эвента) ----------
   switch (action) {
     case 'admin.events.create': {
-      const r = await createEvent(env, body.title, me.tg_id);
-      return r.ok ? { event: publicEvent(r.event) } : fail(r.error);
+      let from = null;
+      if (body.from) {
+        from = await getEvent(db, body.from);
+        if (!from) return fail('Образец не найден.');
+      }
+      const r = await createEvent(env, body.title, me.tg_id, { from, invite: !!body.invite });
+      return r.ok ? { event: publicEvent(r.event), invited: r.invited, invite_error: r.inviteError } : fail(r.error);
+    }
+    case 'admin.audit': {
+      if (body.event) break; // журнал эвента — ниже, в пределах эвента
+      return { entries: await getAudit(db, 0) };
     }
     case 'admin.users': {
       const users = (await allUsers(db)).filter((u) => u.registered);
@@ -238,12 +285,12 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
     }
     case 'admin.role.grant': {
       if (!isOwner) return ownerOnly();
-      const r = await grantAdmin(env, Number(body.id));
+      const r = await grantAdmin(env, Number(body.id), me.tg_id);
       return r.ok ? {} : fail(r.error);
     }
     case 'admin.role.revoke': {
       if (!isOwner) return ownerOnly();
-      const r = await revokeAdmin(env, Number(body.id));
+      const r = await revokeAdmin(env, Number(body.id), me.tg_id);
       return r.ok ? {} : fail(r.error);
     }
     case 'admin.owner.transfer': {
@@ -260,9 +307,15 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
 
   switch (action) {
     case 'admin.state': {
-      const [members, pairs, exclusions, events] = await Promise.all([eventMembers(db, ev.id), getPairs(db, ev.id), getExclusions(db, ev.id), allEvents(db)]);
+      const [members, pairs, exclusions, events, cancelable] = await Promise.all([
+        eventMembers(db, ev.id), getPairs(db, ev.id), getExclusions(db, ev.id), allEvents(db), drawCancelable(db, ev),
+      ]);
       const santas = new Set(pairs.map((p) => p.santa));
       const ready = new Set(pairs.filter((p) => p.gift_ready).map((p) => p.santa));
+      // 007: статусы человека, а не пары — «получил подарок» (как подопечный) и «открыл подопечного» (как Санта)
+      const received = new Set(pairs.filter((p) => p.gift_received).map((p) => p.ward));
+      const seen = new Set(pairs.filter((p) => p.seen_text !== null).map((p) => p.santa));
+      const memberIds = new Set(members.map((m) => m.user_id));
       // ВАЖНО: здесь нет ни пар, ни текстов писем — только статусы.
       return {
         users: members.map((u) => ({
@@ -276,8 +329,11 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
           in_draw: santas.has(u.user_id),
           gift_ready: ready.has(u.user_id),
           blocked: !!u.blocked_at, // Telegram сообщил, что бот заблокирован (006)
+          gift_received: received.has(u.user_id),
+          ward_seen: santas.has(u.user_id) ? seen.has(u.user_id) : null,
         })),
-        exclusions,
+        // Исключения образца начинают действовать, когда оба вступят (007, FR-707)
+        exclusions: exclusions.filter((e) => memberIds.has(e.giver) && memberIds.has(e.receiver)),
         me_member: members.some((m) => m.user_id === me.tg_id),
         other_events: events.filter((e) => e.id !== ev.id).map((e) => ({ id: e.id, title: e.title, status: e.status })),
         settings: {
@@ -287,6 +343,10 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
           invite_link: inviteLink(settings, ev),
           draw_at: ev.draw_at,
           owner_id: ownerId,
+          draw_auto_date: ev.draw_auto_date,
+          reveal_auto: !!ev.reveal_auto,
+          finish_auto: !!ev.finish_auto,
+          draw_cancelable: cancelable,
         },
       };
     }
@@ -294,6 +354,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
     case 'admin.wishlist': {
       const [u, m] = await Promise.all([getUser(db, Number(body.id)), getMember(db, ev.id, Number(body.id))]);
       if (!u || !m) return fail('Участник не найден');
+      await auditStmt(db, ev.id, me.tg_id, 'wishlist.view', u.name).run();
       return { name: u.name, wishlist: m.wishlist, updated_at: m.wishlist_updated_at };
     }
 
@@ -302,42 +363,64 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
       const title = String(body.title ?? ev.title).replace(/\s+/g, ' ').trim();
       if (!title || title.length > 80) return fail('Название эвента — от 1 до 80 символов.');
-      await updateEvent(db, ev.id, {
+      const fields = {
         title,
         budget: clean(body.budget, 100),
         place: clean(body.place, 200),
         notes: clean(body.notes, 2000),
         event_date: date(body.event_date),
         deadline: date(body.deadline),
-      });
+      };
+      // Расписание (007, FR-702): дату автожеребьёвки после жеребьёвки не изменить
+      if ('draw_auto_date' in body) {
+        const auto = date(body.draw_auto_date);
+        if (auto !== ev.draw_auto_date) {
+          if (ev.draw_done) return fail('Дату автожеребьёвки после жеребьёвки не задать.');
+          fields.draw_auto_date = auto;
+        }
+      }
+      if ('reveal_auto' in body) fields.reveal_auto = body.reveal_auto ? 1 : 0;
+      if ('finish_auto' in body) fields.finish_auto = body.finish_auto ? 1 : 0;
+      await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, me.tg_id, 'event.settings', 'параметры эвента')]);
       return {};
     }
 
     case 'admin.ring': {
       if (ev.draw_done) return fail('После жеребьёвки кольцевую жеребьёвку менять нельзя.');
-      await updateEvent(db, ev.id, { ring: body.on ? 1 : 0 });
+      await db.batch([
+        updateEventStmt(db, ev.id, { ring: body.on ? 1 : 0 }),
+        auditStmt(db, ev.id, me.tg_id, 'event.settings', `кольцевая жеребьёвка: ${body.on ? 'вкл' : 'выкл'}`),
+      ]);
       return {};
     }
 
     case 'admin.registration':
-      await updateEvent(db, ev.id, { registration_open: body.open ? 1 : 0 });
+      await db.batch([
+        updateEventStmt(db, ev.id, { registration_open: body.open ? 1 : 0 }),
+        auditStmt(db, ev.id, me.tg_id, 'registration', body.open ? 'открыта' : 'закрыта'),
+      ]);
       return {};
 
     case 'admin.invite.regen':
-      await updateEvent(db, ev.id, { invite_code: randomCode() });
+      await db.batch([updateEventStmt(db, ev.id, { invite_code: randomCode() }), auditStmt(db, ev.id, me.tg_id, 'invite.regen')]);
       return {};
 
     case 'admin.avoid_previous':
-      await updateEvent(db, ev.id, { avoid_previous: body.on ? 1 : 0 });
+      await db.batch([
+        updateEventStmt(db, ev.id, { avoid_previous: body.on ? 1 : 0 }),
+        auditStmt(db, ev.id, me.tg_id, 'event.settings', `не повторять прошлые пары: ${body.on ? 'вкл' : 'выкл'}`),
+      ]);
       return {};
 
     case 'admin.participate': {
       if (ev.draw_done) return fail('После жеребьёвки так нельзя. Попроси другого админа вписать тебя.');
-      if (body.on) await addMemberStmt(db, ev.id, me.tg_id).run();
+      const log = auditStmt(db, ev.id, me.tg_id, 'participate', body.on ? 'участвует' : 'не участвует');
+      if (body.on) await db.batch([addMemberStmt(db, ev.id, me.tg_id), log]);
       else {
         await db.batch([
           db.prepare('DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?)').bind(ev.id, me.tg_id, me.tg_id),
           db.prepare('DELETE FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, me.tg_id),
+          log,
         ]);
       }
       return {};
@@ -350,12 +433,12 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       const target = await getUser(db, id);
       if (target?.is_admin && !isOwner) return fail('Удалить администратора может только владелец бота.', 403);
       if (!(await getMember(db, ev.id, id))) return fail('Человек не участвует в этом эвенте.');
-      const r = await removeMember(env, ev, id);
+      const r = await removeMember(env, ev, id, { actor: me.tg_id });
       return r.ok ? {} : fail(r.error);
     }
 
     case 'admin.insert': {
-      const r = await insertMember(env, ev, Number(body.id));
+      const r = await insertMember(env, ev, Number(body.id), me.tg_id);
       return r.ok ? {} : fail(r.error);
     }
 
@@ -367,6 +450,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       if (!g || !r) return fail('Исключение можно задать только между участниками эвента.');
       const stmts = [db.prepare('INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) VALUES (?, ?, ?)').bind(ev.id, giver, receiver)];
       if (body.mutual) stmts.push(db.prepare('INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) VALUES (?, ?, ?)').bind(ev.id, receiver, giver));
+      stmts.push(auditStmt(db, ev.id, me.tg_id, 'exclusion.add', `${await nameOf(giver)} ${body.mutual ? '↔' : '→'} ${await nameOf(receiver)}`));
       await db.batch(stmts);
       return {};
     }
@@ -374,6 +458,8 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
     case 'admin.exclusion.del': {
       const stmts = [db.prepare('DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ?').bind(ev.id, Number(body.giver), Number(body.receiver))];
       if (body.mutual) stmts.push(db.prepare('DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ?').bind(ev.id, Number(body.receiver), Number(body.giver)));
+      stmts.push(auditStmt(db, ev.id, me.tg_id, 'exclusion.del',
+        `${await nameOf(Number(body.giver))} ${body.mutual ? '↔' : '→'} ${await nameOf(Number(body.receiver))}`));
       await db.batch(stmts);
       return {};
     }
@@ -393,24 +479,37 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
     }
 
     case 'admin.draw': {
-      const r = await runDraw(env, ev);
+      const r = await runDraw(env, ev, { actor: me.tg_id });
       return r.ok ? { count: r.count, single_cycle: r.singleCycle, history_ignored: r.historyIgnored } : fail(r.error);
     }
 
+    case 'admin.draw.cancel': {
+      const r = await cancelDraw(env, ev, me.tg_id);
+      return r.ok ? { count: r.count } : fail(r.error);
+    }
+
+    case 'admin.announce': {
+      const r = await announce(env, ev, me.tg_id, body.text);
+      return r.ok ? { count: r.count } : fail(r.error);
+    }
+
+    case 'admin.audit':
+      return { entries: await getAudit(db, ev.id) };
+
     case 'admin.remind.unfilled':
-      return { count: (await remindUnfilled(env, ev)).count };
+      return { count: (await remindUnfilled(env, ev, me.tg_id)).count };
 
     case 'admin.remind.santas':
       if (!ev.draw_done) return fail('Жеребьёвка ещё не проведена.');
-      return { count: (await remindSantas(env, ev)).count };
+      return { count: (await remindSantas(env, ev, me.tg_id)).count };
 
     case 'admin.reveal':
       if (!ev.draw_done) return fail('Жеребьёвка ещё не проведена.');
       if (ev.revealed) return fail('Тайна уже раскрыта.'); // повторно имена не рассылаем (006, FR-610)
-      return { count: (await revealAll(env, ev)).count };
+      return { count: (await revealAll(env, ev, me.tg_id)).count };
 
     case 'admin.event.finish': {
-      const r = await finishEvent(env, ev);
+      const r = await finishEvent(env, ev, me.tg_id);
       return r.ok ? {} : fail(r.error);
     }
 
@@ -418,21 +517,21 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       const fromEv = await getEvent(db, body.from);
       if (!fromEv || fromEv.id === ev.id) return fail('Выбери другой эвент.');
       if (isFinished(ev)) return fail('Эвент завершён — приглашать в него нельзя.');
-      const r = await inviteFromEvent(env, ev, fromEv);
+      const r = await inviteFromEvent(env, ev, fromEv, me.tg_id);
       return r.ok ? { count: r.count } : fail(r.error);
     }
 
     case 'admin.event.delete': {
       if (!isOwner) return ownerOnly('Удалить эвент');
       if (String(body.confirm || '').trim().toUpperCase() !== 'УДАЛИТЬ') return fail('Для удаления введи слово УДАЛИТЬ.');
-      const r = await deleteEvent(env, ev);
+      const r = await deleteEvent(env, ev, me.tg_id);
       return { notified: r.count };
     }
 
     case 'admin.reset.full': {
       if (!isOwner) return ownerOnly('Полный сброс');
       if (String(body.confirm || '').trim().toUpperCase() !== 'СБРОС') return fail('Для полного сброса введи слово СБРОС.');
-      const r = await resetEvent(env, ev, ownerId);
+      const r = await resetEvent(env, ev, ownerId, me.tg_id);
       return { removed: r.removed, invite_link: inviteLink(settings, { invite_code: r.inviteCode }) };
     }
   }

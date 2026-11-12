@@ -3,6 +3,7 @@
 import {
   getSettings, setSettings, setSettingStmt, allUsers, getUser, getExclusions, getPairs, enqueueStmt,
   updateUserStmt, pairOfSanta, pairOfWard, getEvent, updateEventStmt, eventMembers, addMemberStmt, enqueueIfStmt,
+  auditStmt, auditIfStmt,
 } from './db.js';
 import { findAssignment, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { tgApi } from './telegram.js';
@@ -254,7 +255,8 @@ export async function checkDraw(env, ev) {
   };
 }
 
-export async function runDraw(env, ev) {
+// actor — кто проводит (0 — бот), action — код для журнала: 'draw' или 'draw.auto' (007)
+export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
   const db = env.DB;
   if (ev.draw_done) return { ok: false, error: 'Жеребьёвка уже проведена.' };
   const settings = await getSettings(db);
@@ -281,6 +283,7 @@ export async function runDraw(env, ev) {
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Узнать подопечного', { event: ev.id })]] } }
     ), guard, ev.id, token));
   }
+  stmts.push(auditIfStmt(db, ev.id, actor, action, `участников: ${check.people.length}`, guard, ev.id, token));
   const [claim] = await db.batch(stmts);
   if (!claim.meta.changes) return { ok: false, error: 'Жеребьёвка уже проведена.' };
   return { ok: true, count: check.people.length, singleCycle: check.res.singleCycle, historyIgnored: check.historyIgnored };
@@ -332,10 +335,11 @@ async function applyPairsChange(env, ev, oldRows, newMap, changed, members) {
 }
 
 // Убрать человека из эвента (после жеребьёвки — с минимальной перестройкой пар)
-export async function removeMember(env, ev, userId, { notify = true } = {}) {
+export async function removeMember(env, ev, userId, { notify = true, actor = 0 } = {}) {
   const db = env.DB;
   const members = await eventMembers(db, ev.id);
-  if (!members.some((m) => m.user_id === userId)) return { ok: false, error: 'Человек не участвует в этом эвенте.' };
+  const target = members.find((m) => m.user_id === userId);
+  if (!target) return { ok: false, error: 'Человек не участвует в этом эвенте.' };
   const stmts = [];
   if (ev.draw_done) {
     const rows = await getPairs(db, ev.id);
@@ -352,11 +356,12 @@ export async function removeMember(env, ev, userId, { notify = true } = {}) {
   stmts.push(db.prepare('DELETE FROM messages WHERE event_id = ? AND (santa = ? OR ward = ?)').bind(ev.id, userId, userId));
   stmts.push(db.prepare('DELETE FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, userId));
   if (notify) stmts.push(enqueueStmt(db, userId, msg(`Организатор удалил тебя из эвента ${q(ev)}. Если это ошибка — напиши ему.`)));
+  stmts.push(auditStmt(db, ev.id, actor, 'member.remove', displayName(target)));
   await db.batch(stmts);
   return { ok: true };
 }
 
-export async function insertMember(env, ev, userId) {
+export async function insertMember(env, ev, userId, actor = 0) {
   const db = env.DB;
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
   const members = await eventMembers(db, ev.id);
@@ -366,11 +371,14 @@ export async function insertMember(env, ev, userId) {
   if (rows.some((p) => p.santa === userId)) return { ok: false, error: 'Участник уже в жеребьёвке.' };
   const r = insertIntoAssignment(pairsToMap(rows), userId, buildIsAllowed(await getExclusions(db, ev.id)), Math.random, { ring: !!ev.ring });
   if (!r) return { ok: false, error: 'Не получается вписать участника, не нарушив исключения.' };
-  await db.batch(await applyPairsChange(env, ev, rows, r.pairs, r.changed, members));
+  await db.batch([
+    ...(await applyPairsChange(env, ev, rows, r.pairs, r.changed, members)),
+    auditStmt(db, ev.id, actor, 'member.insert', displayName(u)),
+  ]);
   return { ok: true };
 }
 
-export async function revealAll(env, ev) {
+export async function revealAll(env, ev, actor = 0) {
   const db = env.DB;
   const rows = await getPairs(db, ev.id);
   const users = await allUsers(db);
@@ -379,11 +387,12 @@ export async function revealAll(env, ev) {
     enqueueStmt(db, p.ward, msg(`🎅 <b>Тайна раскрыта!</b>\n\nВ эвенте ${q(ev)} твой Тайный Санта — <b>${escapeHtml(byId[p.santa]?.name || '?')}</b>. С праздником! 🎄`))
   );
   stmts.push(updateEventStmt(db, ev.id, { revealed: 1 }));
+  stmts.push(auditStmt(db, ev.id, actor, 'reveal', `пар: ${rows.length}`));
   await db.batch(stmts);
   return { ok: true, count: rows.length };
 }
 
-export async function remindUnfilled(env, ev) {
+export async function remindUnfilled(env, ev, actor = 0) {
   const db = env.DB;
   const settings = await getSettings(db);
   const people = (await drawParticipants(db, ev.id)).filter((u) => !u.wishlist.trim());
@@ -394,11 +403,13 @@ export async function remindUnfilled(env, ev) {
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] } }
     ))
   );
+  // Пустое плановое напоминание журнал не засоряет
+  if (people.length || actor) stmts.push(auditStmt(db, ev.id, actor, 'remind.unfilled', `получили: ${people.length}`));
   if (stmts.length) await db.batch(stmts);
   return { ok: true, count: people.length };
 }
 
-export async function remindSantas(env, ev) {
+export async function remindSantas(env, ev, actor = 0) {
   const db = env.DB;
   const settings = await getSettings(db);
   const rows = (await getPairs(db, ev.id)).filter((p) => !p.gift_ready);
@@ -409,24 +420,49 @@ export async function remindSantas(env, ev) {
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
     ))
   );
+  // Пустое плановое напоминание журнал не засоряет
+  if (rows.length || actor) stmts.push(auditStmt(db, ev.id, actor, 'remind.santas', `получили: ${rows.length}`));
   if (stmts.length) await db.batch(stmts);
   return { ok: true, count: rows.length };
 }
 
 // ---------- жизненный цикл эвента (005) ----------
 
-export async function createEvent(env, title, createdBy) {
+// from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
+// invite — разослать участникам образца приглашение в новый эвент.
+export async function createEvent(env, title, createdBy, { from = null, invite = false } = {}) {
   const db = env.DB;
   const clean = String(title || '').replace(/\s+/g, ' ').trim();
   if (!clean || clean.length > 80) return { ok: false, error: 'Название эвента — от 1 до 80 символов.' };
-  const row = await db
-    .prepare('INSERT INTO events (title, created_at, created_by, invite_code) VALUES (?, ?, ?, ?) RETURNING *')
-    .bind(clean, Date.now(), createdBy, randomCode())
-    .first();
-  return { ok: true, event: row };
+  const code = randomCode();
+  const t = from || { budget: '', place: '', notes: '', ring: 1, avoid_previous: 1, reveal_auto: 0, finish_auto: 0 };
+  // Новый эвент в остальных операторах batch находим по уникальному коду приглашения
+  const newId = '(SELECT id FROM events WHERE invite_code = ?)';
+  const stmts = [
+    db.prepare(
+      `INSERT INTO events (title, created_at, created_by, invite_code, budget, place, notes, ring, avoid_previous, reveal_auto, finish_auto)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+    ).bind(clean, Date.now(), createdBy, code, t.budget, t.place, t.notes, t.ring, t.avoid_previous, t.reveal_auto, t.finish_auto),
+  ];
+  if (from) {
+    stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions WHERE event_id = ?`)
+      .bind(code, from.id));
+  }
+  stmts.push(db.prepare(`INSERT INTO audit (event_id, actor, action, details, created_at) VALUES (${newId}, ?, 'event.create', ?, ?)`)
+    .bind(code, createdBy, from ? `по образцу «${from.title}»` : '', Date.now()));
+  const [ins] = await db.batch(stmts);
+  const row = ins.results[0];
+  let invited = 0;
+  let inviteError = '';
+  if (from && invite) {
+    const r = await inviteFromEvent(env, row, from, createdBy);
+    if (r.ok) invited = r.count;
+    else inviteError = r.error;
+  }
+  return { ok: true, event: row, invited, inviteError };
 }
 
-export async function finishEvent(env, ev) {
+export async function finishEvent(env, ev, actor = 0) {
   const db = env.DB;
   if (isFinished(ev)) return { ok: false, error: 'Эвент уже завершён.' };
   const settings = await getSettings(db);
@@ -435,6 +471,7 @@ export async function finishEvent(env, ev) {
   const until = formatMs(now + CHAT_GRACE_MS, Number(env.TIMEZONE_OFFSET_HOURS ?? 3));
   await db.batch([
     updateEventStmt(db, ev.id, { status: 'finished', finished_at: now, registration_open: 0 }),
+    auditStmt(db, ev.id, actor, 'finish'),
     ...members.map((m) => enqueueStmt(db, m.user_id, msg(
       `🏁 <b>Эвент ${q(ev)} завершён.</b> Спасибо за игру!\n\nПисьмо Санте теперь только для чтения. Переписка открыта ещё 7 дней (до ${until}), потом останется для чтения. История эвента сохранится в приложении.`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '📚 Открыть', { event: ev.id })]] } }
@@ -443,7 +480,7 @@ export async function finishEvent(env, ev) {
   return { ok: true };
 }
 
-export async function deleteEvent(env, ev) {
+export async function deleteEvent(env, ev, actor = 0) {
   const db = env.DB;
   const members = await eventMembers(db, ev.id);
   await db.batch([
@@ -452,13 +489,16 @@ export async function deleteEvent(env, ev) {
     db.prepare('DELETE FROM pairs WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM members WHERE event_id = ?').bind(ev.id),
+    db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM events WHERE id = ?').bind(ev.id),
+    // Журнал эвента остаётся; само удаление — в общем журнале (007)
+    auditStmt(db, 0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`),
   ]);
   return { ok: true, count: members.length };
 }
 
 // Полный сброс эвента (004 → 005: в пределах одного эвента). Владелец, если участвовал, остаётся.
-export async function resetEvent(env, ev, ownerId) {
+export async function resetEvent(env, ev, ownerId, actor = ownerId) {
   const db = env.DB;
   const members = await eventMembers(db, ev.id);
   const removed = members.filter((m) => m.user_id !== ownerId);
@@ -472,16 +512,19 @@ export async function resetEvent(env, ev, ownerId) {
     db.prepare('DELETE FROM pairs WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
+    db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
     updateEventStmt(db, ev.id, {
       status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,
       ring: 1, avoid_previous: 1, budget: '', event_date: '', place: '', deadline: '', notes: '', last_daily: '',
+      draw_auto_date: '', reveal_auto: 0, finish_auto: 0,
     }),
+    auditStmt(db, ev.id, actor, 'reset', `удалено участников: ${removed.length}`),
   ]);
   return { removed: removed.length, inviteCode };
 }
 
 // Пригласить участников другого эвента: сообщение со ссылкой вступления (FR-509)
-export async function inviteFromEvent(env, ev, fromEv) {
+export async function inviteFromEvent(env, ev, fromEv, actor = 0) {
   const db = env.DB;
   const settings = await getSettings(db);
   const link = inviteLink(settings, ev);
@@ -492,7 +535,8 @@ export async function inviteFromEvent(env, ev, fromEv) {
     `📨 <b>Приглашение в эвент ${q(ev)}</b> — Тайный Санта.\nНажми кнопку, чтобы участвовать.`,
     { reply_markup: { inline_keyboard: [[{ text: '🎄 Участвовать', url: link }]] } }
   )));
-  if (stmts.length) await db.batch(stmts);
+  stmts.push(auditStmt(db, ev.id, actor, 'invite.from', `из «${fromEv.title}», приглашено: ${people.length}`));
+  await db.batch(stmts);
   return { ok: true, count: people.length };
 }
 
@@ -622,6 +666,7 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
     )),
     ...otherAdminsNotice(db, users, [actorId, toId, fromId],
       `🔁 <b>${escapeHtml(displayName(actor))}</b> перенёс участие <b>${escapeHtml(displayName(from))}</b> на аккаунт <b>${escapeHtml(displayName(to))}</b>.`),
+    auditStmt(db, 0, actorId, 'transfer', `${displayName(from)} → ${displayName(to)}`),
   );
   await db.batch(stmts);
   return { ok: true, events: fromMembers.length };
@@ -661,6 +706,9 @@ export async function setOwner(env, newOwnerId, { via, prevOwnerId, newOwnerLabe
   const stmts = [
     db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ?').bind(newOwnerId),
     setSettingStmt(db, 'owner_id', String(newOwnerId)),
+    via === 'transfer'
+      ? auditStmt(db, 0, prevOwnerId, 'owner.transfer', `→ ${newOwnerLabel || displayName(target)}`)
+      : auditStmt(db, 0, newOwnerId, 'owner.link', newOwnerLabel || displayName(target)),
   ];
   if (prevOwnerId && prevOwnerId !== newOwnerId) {
     if (via === 'link') {
@@ -680,7 +728,7 @@ export async function setOwner(env, newOwnerId, { via, prevOwnerId, newOwnerLabe
   await db.batch(stmts);
 }
 
-export async function grantAdmin(env, id) {
+export async function grantAdmin(env, id, actor = 0) {
   const db = env.DB;
   const settings = await getSettings(db);
   const users = await allUsers(db);
@@ -695,11 +743,12 @@ export async function grantAdmin(env, id) {
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🛠 Открыть')]] } }
     )),
     ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`),
+    auditStmt(db, 0, actor || ownerId, 'role.grant', displayName(u)),
   ]);
   return { ok: true };
 }
 
-export async function revokeAdmin(env, id) {
+export async function revokeAdmin(env, id, actor = 0) {
   const db = env.DB;
   const settings = await getSettings(db);
   const users = await allUsers(db);
@@ -711,6 +760,7 @@ export async function revokeAdmin(env, id) {
     db.prepare('UPDATE users SET is_admin = 0 WHERE tg_id = ?').bind(id),
     enqueueStmt(db, id, msg('Владелец снял с тебя права администратора. Как участник эвентов ты продолжаешь играть как обычно.')),
     ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> больше не администратор.`),
+    auditStmt(db, 0, actor || ownerId, 'role.revoke', displayName(u)),
   ]);
   return { ok: true };
 }
@@ -726,3 +776,97 @@ export async function transferOwnership(env, fromId, toId) {
 }
 
 export { setSettings, updateUserStmt, addMemberStmt };
+
+// ---------- инструменты организатора (007) ----------
+
+export const ANNOUNCE_MAX = 2000;
+
+// Объявление всем зарегистрированным участникам эвента (FR-701): хранится и рассылается через outbox
+export async function announce(env, ev, actor, rawText) {
+  const db = env.DB;
+  if (isFinished(ev)) return { ok: false, error: 'Эвент завершён — объявления в нём уже не отправить.' };
+  const text = String(rawText ?? '').replace(/\r\n/g, '\n').trim();
+  if (!text) return { ok: false, error: 'Напиши текст объявления.' };
+  if (text.length > ANNOUNCE_MAX) return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${ANNOUNCE_MAX}.` };
+  const [settings, people] = await Promise.all([getSettings(db), drawParticipants(db, ev.id)]);
+  const now = Date.now();
+  await db.batch([
+    db.prepare('INSERT INTO announcements (event_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(ev.id, actor, text, now),
+    ...people.map((u) => enqueueStmt(db, u.user_id, msg(
+      `📣 <b>Объявление · ${q(ev)}</b>\n\n${escapeHtml(text)}`,
+      { reply_markup: { inline_keyboard: [[openAppButton(settings, '📌 Открыть эвент', { event: ev.id })]] } }
+    ))),
+    auditStmt(db, ev.id, actor, 'announce', `получили: ${people.length}`),
+  ]);
+  return { ok: true, count: people.length };
+}
+
+// Можно ли отменить жеребьёвку (FR-708): никто не открыл подопечного и переписки нет
+const CANCEL_COND =
+  'NOT EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND seen_text IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM messages WHERE event_id = ?)';
+
+export async function drawCancelable(db, ev) {
+  if (!ev.draw_done || ev.revealed || isFinished(ev)) return false;
+  const r = await db.prepare(`SELECT ${CANCEL_COND} AS ok`).bind(ev.id, ev.id).first();
+  return !!r?.ok;
+}
+
+// Отмена жеребьёвки атомарно (research R3): если кто-то открыл подопечного между проверкой и batch — ничего не меняется
+export async function cancelDraw(env, ev, actor) {
+  const db = env.DB;
+  if (isFinished(ev)) return { ok: false, error: 'Эвент завершён — отменить жеребьёвку нельзя.' };
+  if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
+  if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
+  const [settings, rows] = await Promise.all([getSettings(db), getPairs(db, ev.id)]);
+  const token = 'cancel:' + randomCode(12);
+  const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)';
+  const stmts = [
+    db.prepare(
+      `UPDATE events SET draw_done = 0, draw_at = 0, draw_token = ?, registration_open = 1, draw_auto_date = ''
+        WHERE id = ? AND draw_done = 1 AND draw_token = ? AND revealed = 0 AND status = 'active' AND ${CANCEL_COND}`
+    ).bind(token, ev.id, ev.draw_token, ev.id, ev.id),
+    db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
+    ...rows.map((p) => enqueueIfStmt(db, p.santa, msg(
+      `↩️ Организатор <b>отменил жеребьёвку</b> в эвенте ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
+      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
+    ), guard, ev.id, token)),
+    auditIfStmt(db, ev.id, actor, 'draw.cancel', `пар удалено: ${rows.length}`, guard, ev.id, token),
+  ];
+  const [claim] = await db.batch(stmts);
+  if (!claim.meta.changes) return { ok: false, error: 'Отменить нельзя: кто-то уже открыл подопечного или началась переписка.' };
+  return { ok: true, count: rows.length };
+}
+
+// ---------- автодействия по расписанию (007, FR-703) ----------
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+
+// Какое автодействие наступило для эвента сегодня: 'draw' → 'reveal' → 'finish' (в этом порядке) или null
+export function dueAutoAction(ev, today) {
+  if (isFinished(ev)) return null;
+  if (!ev.draw_done && ISO_DATE.test(ev.draw_auto_date || '') && ev.draw_auto_date <= today) return 'draw';
+  const dated = ISO_DATE.test(ev.event_date || '');
+  if (ev.reveal_auto && ev.draw_done && !ev.revealed && dated && addDays(ev.event_date, 1) <= today) return 'reveal';
+  if (ev.finish_auto && dated && addDays(ev.event_date, 3) <= today) return 'finish';
+  return null;
+}
+
+export async function runAutoAction(env, ev, what) {
+  const db = env.DB;
+  if (what === 'reveal') return revealAll(env, ev, 0);
+  if (what === 'finish') return finishEvent(env, ev, 0);
+  const r = await runDraw(env, ev, { actor: 0, action: 'draw.auto' });
+  if (r.ok) return r;
+  if ((await getEvent(db, ev.id))?.draw_done) return r; // жеребьёвку уже провёл кто-то другой
+  // Неудача: админам — причина, дата снимается, чтобы не пытаться каждую минуту
+  const users = await allUsers(db);
+  await db.batch([
+    updateEventStmt(db, ev.id, { draw_auto_date: '' }),
+    ...users.filter((u) => u.is_admin && u.registered).map((u) => enqueueStmt(db, u.tg_id, msg(
+      `⚠️ <b>Автожеребьёвка ${q(ev)} не прошла:</b>\n${escapeHtml(r.error)}\n\nДата автожеребьёвки снята — проведи жеребьёвку вручную в панели эвента.`
+    ))),
+    auditStmt(db, ev.id, 0, 'draw.auto.failed', r.error),
+  ]);
+  return r;
+}

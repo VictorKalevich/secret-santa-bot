@@ -1,14 +1,15 @@
 // Плановые задачи: запускаются Cloudflare раз в минуту. Работают только с идущими эвентами.
 
 import { getSettings, enqueueStmt, updateEvent } from './db.js';
-import { flushOutbox, openAppButton, msg, q, remindUnfilled, remindSantas } from './game.js';
+import { flushOutbox, openAppButton, msg, q, remindUnfilled, remindSantas, dueAutoAction, runAutoAction } from './game.js';
 
 export async function runScheduled(env) {
   const db = env.DB;
   const settings = await getSettings(db);
   await notifyWishlistChanges(env, settings);
-  await dailyReminders(env);
-  await flushOutbox(env, 35);
+  const acted = await dailyReminders(env);
+  // Автодействие само тратит ~10 запросов к D1 — отправляем меньше, чтобы уложиться в лимит вызова
+  await flushOutbox(env, acted ? 25 : 35);
 }
 
 // Санта получает уведомление, когда подопечный перестал править письмо
@@ -57,12 +58,24 @@ function daysUntil(env, iso) {
 // Раз в день (в REMINDER_HOUR по местному времени) для каждого идущего эвента:
 //  • до жеребьёвки — за 2 дня, за день и в день дедлайна напомнить тем, у кого пустое письмо;
 //  • после жеребьёвки — за 2 дня и в день вручения напомнить Сантам, которые не отметили «подарок готов».
+// Сначала — автодействия расписания (007): жеребьёвка → раскрытие → завершение. Не больше одного эвента
+// с автодействием за вызов; такой эвент не помечается last_daily и проверяется снова в следующую минуту.
 async function dailyReminders(env) {
   const now = localDate(env);
-  if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
+  if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return false;
   const db = env.DB;
-  const { results } = await db.prepare("SELECT * FROM events WHERE status = 'active' AND last_daily != ?").bind(now.iso).all();
+  // Все идущие эвенты (их немного): автодействие, заданное уже после сегодняшнего прохода, выполняется сразу
+  const { results } = await db.prepare("SELECT * FROM events WHERE status = 'active'").all();
+  let acted = false;
   for (const ev of results) {
+    const due = dueAutoAction(ev, now.iso);
+    if (!due && ev.last_daily === now.iso) continue;
+    if (due) {
+      if (acted) continue;
+      acted = true;
+      await runAutoAction(env, ev, due);
+      continue;
+    }
     await updateEvent(db, ev.id, { last_daily: now.iso });
     if (!ev.draw_done) {
       const d = daysUntil(env, ev.deadline);
@@ -72,4 +85,5 @@ async function dailyReminders(env) {
       if (d === 2 || d === 0) await remindSantas(env, ev);
     }
   }
+  return acted;
 }
