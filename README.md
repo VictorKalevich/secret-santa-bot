@@ -55,6 +55,16 @@ Telegram, ничего устанавливать не нужно.
 
 После установки закройте и снова откройте PowerShell.
 
+Разрешите PowerShell запускать `npm` и `npx` (один раз, права администратора не нужны):
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+На вопрос ответьте `Y`. Без этого `npm install` падает с ошибкой «Невозможно загрузить файл …\npm.ps1, так как
+выполнение сценариев отключено в этой системе». Другой путь — писать `npm.cmd` и `npx.cmd` вместо `npm` и `npx`
+во всех командах ниже.
+
 ### 2. Создайте бота в Telegram
 
 1. Откройте [@BotFather](https://t.me/BotFather) → `/newbot`.
