@@ -1,6 +1,6 @@
 // Анонимная переписка Санты и подопечного (003, по эвентам).
 
-import { getSettings, pairOfSanta, pairOfWard, enqueueStmt } from './db.js';
+import { getSettings, pairOfSanta, pairOfWard, enqueueIfStmt } from './db.js';
 import { msg, q, escapeHtml, shortTitle, appUrl, cleanText } from './format.js';
 import { chatWritable } from './events.js';
 
@@ -28,8 +28,12 @@ function chatButtons(settings, ev, recipientSide) {
   };
 }
 
+const PAIR_CHANGED = '🔄 Пара изменилась после нажатия «Ответить» — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз.';
+
 // Сохранить сообщение в переписке и поставить уведомление получателю в очередь.
-export async function sendChatMessage(env, ev, fromId, to, rawText) {
+// expectOther — собеседник, которому человек собирался ответить (режим ответа в чате бота, 009): если пара с тех пор
+// сменилась, сообщение не уходит новому собеседнику.
+export async function sendChatMessage(env, ev, fromId, to, rawText, { expectOther = 0 } = {}) {
   const db = env.DB;
   const text = cleanText(rawText);
   if (!text) return { ok: false, error: 'Пустое сообщение.' };
@@ -39,6 +43,7 @@ export async function sendChatMessage(env, ev, fromId, to, rawText) {
   if (!chatWritable(ev)) return { ok: false, error: 'Эвент завершён больше недели назад: переписка доступна только для чтения.' };
   const pair = await chatPair(db, ev.id, fromId, to);
   if (!pair) return { ok: false, error: to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.' };
+  if (expectOther && pair.other !== expectOther) return { ok: false, error: PAIR_CHANGED, pairChanged: true };
   const settings = await getSettings(db);
   const now = Date.now();
   // Заголовок + текст до MAX_CHARS всегда помещаются в одно сообщение Telegram: название эвента сокращаем
@@ -46,17 +51,21 @@ export async function sendChatMessage(env, ev, fromId, to, rawText) {
   const header = pair.me === 'santa'
     ? `💬 <b>Твой Тайный Санта (${t}) пишет:</b>`
     : `💬 <b>Тебе пишет твой подопечный (${t}):</b>`;
+  // Пара могла смениться (удаление или вписывание участника) между проверкой и записью: тогда ничего не пишем
+  const pairAlive = 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND santa = ? AND ward = ?)';
+  const alive = [ev.id, pair.santa, pair.ward];
   const [inserted] = await db.batch([
-    db.prepare('INSERT INTO messages (event_id, santa, ward, sender, text, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, created_at')
-      .bind(ev.id, pair.santa, pair.ward, pair.me, text, now),
+    db.prepare(`INSERT INTO messages (event_id, santa, ward, sender, text, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE ${pairAlive} RETURNING id, created_at`)
+      .bind(ev.id, pair.santa, pair.ward, pair.me, text, now, ...alive),
     // Отвечая, человек видел сообщения собеседника — помечаем их прочитанными
     db.prepare('UPDATE messages SET read_at = ? WHERE event_id = ? AND santa = ? AND ward = ? AND sender != ? AND read_at = 0')
       .bind(now, ev.id, pair.santa, pair.ward, pair.me),
-    enqueueStmt(db, pair.other, msg(header + '\n\n' + escapeHtml(text), {
+    enqueueIfStmt(db, pair.other, msg(header + '\n\n' + escapeHtml(text), {
       reply_markup: chatButtons(settings, ev, pair.me === 'santa' ? 'ward' : 'santa'),
-    })),
+    }), pairAlive, ...alive),
   ]);
   const row = inserted.results[0];
+  if (!row) return { ok: false, error: expectOther ? PAIR_CHANGED : 'Пара изменилась — обнови экран.', pairChanged: true };
   return { ok: true, message: { id: row.id, mine: true, text, created_at: row.created_at } };
 }
 

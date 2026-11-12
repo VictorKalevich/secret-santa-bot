@@ -866,8 +866,17 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       await waitFor(() => ztexts(stranger).some((x) => x.includes('не одобрил заявку')), 'уведомление об отказе');
       assert.equal((await zapi(stranger, 'event.get', { event: E4 }, true)).status, 403);
       assert.equal((await zapi(boss, 'admin.request.decide', { event: E4, id: r2.id, approve: true }, true)).data.error, 'Заявка уже рассмотрена.');
+      // 009: после отказа — сутки без новых заявок (админов не засыпать); потом можно снова
+      const asks = () => z.mock.messagesTo(boss.id).filter((c) => c.params.text.includes('Незнакомец') && c.params.text.includes('просится')).length;
+      const asked = asks();
       await z.say(stranger, '/start ' + code);
-      assert.match(z.lastText(stranger), /отправлена организатору/, 'после отказа можно подать снова');
+      assert.match(z.lastText(stranger), /Организатор не одобрил заявку в эвент «Закрытый клуб»/);
+      assert.deepEqual((await zapi(boss, 'admin.state', { event: E4 })).requests.map((r) => r.name), [], 'новой заявки нет');
+      await sleep(300);
+      assert.equal(asks(), asked, 'админу ничего');
+      z.sql(`UPDATE join_requests SET decided_at = decided_at - ${25 * 3600e3} WHERE id = ${r2.id}`);
+      await z.say(stranger, '/start ' + code);
+      assert.match(z.lastText(stranger), /отправлена организатору/, 'через сутки после отказа можно подать снова');
       // админ вступает сам, без заявки; участник не может решать заявки
       assert.equal((await zapi(newbie, 'admin.request.decide', { event: E4, id: r2.id, approve: true }, true)).status, 403);
       const codes = (await zapi(boss, 'admin.audit', { event: E4 })).entries.map((e) => e.action);
@@ -912,7 +921,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
     for (const u of people) await join(u, code);
     return id;
   };
-  let E1;
+  let E1, E6;
 
   try {
     await t.test('подготовка', async () => {
@@ -977,9 +986,92 @@ test('009: исправления перед выкатом', { timeout: 400000 
       // меню человека в пяти идущих эвентах и вступление в шестой — в пределах бюджета (проверка журнала в конце)
       await z.say(zhenya, '/start');
       assert.match(z.lastText(zhenya), /Твои эвенты/);
-      const E6 = (await zapi(boss, 'admin.events.create', { title: 'Шестой 🎄🎄 с длинным-предлинным названием, чтобы обрезать кнопки меню' })).event.id;
+      E6 = (await zapi(boss, 'admin.events.create', { title: 'Шестой 🎄🎄 с длинным-предлинным названием, чтобы обрезать кнопки меню' })).event.id;
       await z.say(zhenya, '/start ' + (await zInvite(E6)));
       assert.match(z.lastText(zhenya), /Твои эвенты/);
+    });
+
+    await t.test('режим ответа: команда, истечение, смена пары, отказ нажатия', async () => {
+      const santa = zhenya;
+      const byIdZ = Object.fromEntries(crew.map((u) => [u.id, u]));
+      let ward = byIdZ[(await pairsSql(E1)).get(santa.id)];
+      const got = (u, text) => ztexts(u).some((x) => x.includes(text));
+      const shiftReplyTime = async (u, ms) => {
+        const [{ pending }] = await z.query(`SELECT pending FROM users WHERE tg_id = ${u.id}`);
+        assert.match(pending, /^msg_ward:\d+:\d+:\d+$/);
+        z.sql(`UPDATE users SET pending = '${pending.replace(/:\d+$/, ':' + (Date.now() - ms))}' WHERE tg_id = ${u.id}`);
+      };
+
+      // команда выключает режим ответа: следующий текст — не в переписку
+      await z.press(santa, `msg:ward:${E1}`);
+      assert.match(z.lastText(santa), /в течение часа/);
+      await z.say(santa, '/start');
+      await z.say(santa, 'Случайный текст после команды');
+      assert.match(z.lastText(santa), /Твои эвенты/);
+
+      // прошло больше часа — не отправлено
+      await z.press(santa, `msg:ward:${E1}`);
+      await shiftReplyTime(santa, 2 * 3600e3);
+      await z.say(santa, 'Текст через два часа');
+      assert.match(z.lastText(santa), /Время ответа истекло — сообщение не отправлено/);
+
+      // пара сменилась после нажатия — не отправлено ни прежнему, ни новому подопечному
+      await z.press(santa, `msg:ward:${E1}`);
+      const oldWard = ward;
+      await zapi(boss, 'admin.remove', { event: E1, id: oldWard.id });
+      ward = byIdZ[(await pairsSql(E1)).get(santa.id)];
+      assert.notEqual(ward.id, oldWard.id);
+      await z.say(santa, 'Текст после смены пары');
+      assert.match(z.lastText(santa), /Пара изменилась после нажатия «Ответить» — сообщение не отправлено/);
+
+      // отклонённое нажатие сбрасывает прежний режим
+      await z.press(santa, `msg:ward:${E1}`);
+      await z.press(santa, `msg:santa:${E6}`); // в E6 жеребьёвки нет
+      await z.say(santa, 'Текст после отказа');
+      assert.match(z.lastText(santa), /Твои эвенты/);
+
+      // обычный ответ доставляется
+      await z.press(santa, `msg:ward:${E1}`);
+      await z.say(santa, 'Обычный ответ подопечному');
+      assert.match(z.lastText(santa), /Отправлено подопечному/);
+      await waitFor(() => got(ward, 'Обычный ответ подопечному'), 'ответ новому подопечному');
+      await sleep(300);
+      for (const text of ['Случайный текст после команды', 'Текст через два часа', 'Текст после смены пары', 'Текст после отказа']) {
+        assert.ok(!crew.some((u) => got(u, text)), `«${text}» никому не ушло`);
+      }
+      assert.equal((await z.query(`SELECT COUNT(*) AS n FROM messages WHERE event_id = ${E1}`))[0].n, 1, 'в переписке только обычный ответ');
+    });
+
+    await t.test('вход: повторная ссылка, удалённый до имени, меню с эмодзи', async () => {
+      // участник после жеребьёвки и закрытия регистрации открывает ссылку снова
+      await z.say(zoya, '/start ' + (await zInvite(E1)));
+      assert.ok(ztexts(zoya).slice(-2).some((x) => x.includes('Ты уже участвуешь в эвенте «Тайна»')));
+      assert.match(z.lastText(zoya), /Твои эвенты/);
+
+      // новичка удалили до ввода имени и закрыли регистрацию: «закрыта», админу — никакого «присоединяется»
+      const nina = { id: 710, name: 'Нина', username: 'nina' };
+      const E7 = (await zapi(boss, 'admin.events.create', { title: 'Открытый' })).event.id;
+      await z.say(nina, '/start ' + (await zInvite(E7)));
+      assert.match(z.lastText(nina), /Как тебя зовут/);
+      await zapi(boss, 'admin.remove', { event: E7, id: nina.id });
+      await zapi(boss, 'admin.registration', { event: E7, open: false });
+      await z.say(nina, nina.name);
+      assert.ok(ztexts(nina).some((x) => x.includes('Регистрация в эвент «Открытый» закрыта')));
+      assert.ok(ztexts(nina).some((x) => /не участвуешь/.test(x)), 'меню после отказа');
+      assert.equal((await zapi(nina, 'event.get', { event: E7 }, true)).status, 403);
+      await sleep(300);
+      assert.ok(!ztexts(boss).some((x) => x.includes('Нина') && x.includes('присоединяется')), 'админу без «присоединяется»');
+
+      // эмодзи на границе обрезки кнопки: меню доставляется (имитация Telegram отвергает разорванные эмодзи)
+      const title = 'А'.repeat(43) + '🎄🎄 Ёлка';
+      const E8 = await newEvent(title, [zhenya, zoya, igor]);
+      await zapi(boss, 'admin.draw', { event: E8 });
+      await z.say(igor, '/start');
+      const menu = z.mock.messagesTo(igor.id).at(-1).params;
+      const buttons = menu.reply_markup.inline_keyboard.flat();
+      assert.ok(buttons.some((b) => b.callback_data === `msg:ward:${E8}`), 'кнопка переписки нового эвента');
+      assert.ok(buttons.every((b) => b.text.isWellFormed()), 'без разорванных эмодзи');
+      assert.ok(!/Telegram API error sendMessage 400/.test(z.log()), 'Telegram не отверг ни одного сообщения');
     });
   } finally {
     const log = z.log();

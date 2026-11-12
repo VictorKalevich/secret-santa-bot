@@ -86,16 +86,42 @@ export async function deleteFamily(env, actor, id) {
   return { ok: true };
 }
 
-// ---------- заявки на вступление ----------
+// ---------- вступление по пригласительной ссылке ----------
 
-// Заявка человека в эвент с одобрением; админам — сообщение с кнопками. already — заявка уже ждёт решения.
-export async function requestJoin(env, ev, user) {
+// После отказа новая заявка в тот же эвент — не раньше чем через сутки: иначе админов можно засыпать заявками (009, FR-924)
+const REJECT_PAUSE_MS = 24 * 3600 * 1000;
+
+// Вступление зарегистрированного человека, который ещё не участник эвента (009, FR-920) — единая логика для ссылки и
+// для ввода имени после неё. Результат: 'joined' | 'closed' | 'request_sent' | 'request_pending' | 'request_rejected'.
+export async function joinByInvite(env, ev, user) {
   const db = env.DB;
+  if (isFinished(ev) || !ev.registration_open) return 'closed';
+  // 008: эвент с одобрением — вместо участия заявка (админы вступают сами)
+  if (ev.approval && !user.is_admin) return requestJoin(env, ev, user);
+  const users = await allUsers(db);
+  await db.batch([
+    addMemberStmt(db, ev, user.tg_id),
+    ...adminRecipients(users, [user.tg_id]).map((a) => enqueueStmt(db, a.tg_id, msg(
+      `👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к эвенту ${q(ev)}`, { disable_notification: true }
+    ))),
+  ]);
+  return 'joined';
+}
+
+// Заявка человека в эвент с одобрением; админам — сообщение с кнопками.
+async function requestJoin(env, ev, user) {
+  const db = env.DB;
+  const now = Date.now();
+  const rejected = await db
+    .prepare("SELECT 1 FROM join_requests WHERE event_id = ? AND user_id = ? AND status = 'rejected' AND decided_at > ? LIMIT 1")
+    .bind(ev.id, user.tg_id, now - REJECT_PAUSE_MS)
+    .first();
+  if (rejected) return 'request_rejected';
   const row = await db
     .prepare("INSERT OR IGNORE INTO join_requests (event_id, user_id, status, created_at) VALUES (?, ?, 'pending', ?) RETURNING id")
-    .bind(ev.id, user.tg_id, Date.now())
+    .bind(ev.id, user.tg_id, now)
     .first();
-  if (!row) return { ok: true, already: true };
+  if (!row) return 'request_pending';
   const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
   const admins = adminRecipients(users, [user.tg_id]);
   if (admins.length) {
@@ -107,7 +133,7 @@ export async function requestJoin(env, ev, user) {
       ] } }
     ))));
   }
-  return { ok: true, already: false, id: row.id };
+  return 'request_sent';
 }
 
 // Решение по заявке — один раз (research R4): повторное нажатие или второй админ ничего не меняют

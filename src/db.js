@@ -106,10 +106,6 @@ export function updateEventStmt(db, id, fields) {
   return db.prepare(`UPDATE events SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).bind(...keys.map((k) => fields[k]), id);
 }
 
-export async function updateEvent(db, id, fields) {
-  await updateEventStmt(db, id, fields).run();
-}
-
 // ---------- members ----------
 
 export async function getMember(db, eventId, userId) {
