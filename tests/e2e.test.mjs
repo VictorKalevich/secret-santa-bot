@@ -1,4 +1,4 @@
-// Сквозной тест: локальный Worker (wrangler dev) + имитация Telegram. Сценарии 001–007.
+// Сквозной тест: локальный Worker (wrangler dev) + имитация Telegram. Сценарии 001–008.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -674,6 +674,187 @@ test('007: инструменты организатора', { timeout: 300000 }
       assert.ok(gc.includes('owner.link') && gc.includes('role.grant') && gc.includes('role.revoke'));
       assert.equal(g.find((e) => e.action === 'role.grant').details, vera.name);
       assert.ok(!gc.includes('draw'), 'в общем журнале нет действий эвентов');
+    });
+  } finally {
+    await z.stop();
+  }
+});
+
+// 008: адрес доставки, семьи, заявки на вступление. Отдельный мир.
+test('008: адрес доставки, семьи, заявки', { timeout: 400000 }, async (t) => {
+  const z = await startWorld();
+  const zapi = (...a) => z.api(...a);
+  const ztexts = (u) => z.texts(u);
+  const boss = { id: 600, name: 'Хозяйка', username: 'host' };
+  const crew = [
+    { id: 601, name: 'Аля', username: 'alya' },
+    { id: 602, name: 'Боря', username: 'borya' },
+    { id: 603, name: 'Вика', username: 'vika' },
+    { id: 604, name: 'Гена', username: 'gena' },
+    { id: 605, name: 'Даша', username: 'dasha' },
+  ];
+  const [alya, borya, vika, gena, dasha] = crew;
+  const borya2 = { id: 612, name: 'Боря (новый)', username: 'borya2' };
+  const SECRET = 'АДРЕС-СЕКРЕТ-601: Минск, отделение 15';
+  const zInvite = async (eid) => /start=(inv_[a-z0-9]+)/.exec((await zapi(boss, 'admin.state', { event: eid })).settings.invite_link)[1];
+  const pairsSql = async (eid) => new Map((await z.query(`SELECT santa, ward FROM pairs WHERE event_id = ${eid}`)).map((r) => [r.santa, r.ward]));
+  const noSecret = (obj, what) => assert.ok(!JSON.stringify(obj).includes('АДРЕС-СЕКРЕТ'), what + ': без адреса');
+  const newEvent = async (title, people, game = {}) => {
+    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    if (Object.keys(game).length) await zapi(boss, 'admin.game', { event: id, ...game });
+    const code = await zInvite(id);
+    for (const u of people) await z.say(u, '/start ' + code);
+    return id;
+  };
+  let E1;
+
+  try {
+    await t.test('подготовка', async () => {
+      const s = await z.setup();
+      await z.say(boss, '/start ' + s.adminCode);
+      await z.say(boss, boss.name);
+      E1 = (await zapi(boss, 'admin.events.create', { title: 'По почте' })).event.id;
+      await zapi(boss, 'admin.game', { event: E1, delivery_on: true });
+      const code = await zInvite(E1);
+      for (const u of crew) { await z.say(u, '/start ' + code); await z.say(u, u.name); }
+      // частичное обновление admin.game не стирает остальные параметры
+      await zapi(boss, 'admin.game', { event: E1, budget: 'до 30 BYN' });
+      await zapi(boss, 'admin.game', { event: E1, approval: false });
+      assert.equal((await zapi(boss, 'admin.state', { event: E1 })).settings.budget, 'до 30 BYN');
+    });
+
+    await t.test('US1: адрес доставки — сохранение и ограничения', async () => {
+      assert.equal((await zapi(alya, 'event.get', { event: E1 })).event.delivery_on, true);
+      await zapi(alya, 'delivery.save', { event: E1, text: SECRET });
+      for (const u of crew.slice(1)) await zapi(u, 'delivery.save', { event: E1, text: `Адрес ${u.name}` });
+      assert.equal((await zapi(alya, 'event.get', { event: E1 })).member.delivery, SECRET);
+      const long = await zapi(alya, 'delivery.save', { event: E1, text: 'я'.repeat(501) }, true);
+      assert.equal(long.status, 400);
+      assert.match(long.data.error, /максимум 500/);
+      const off = await newEvent('Без адреса', [alya]);
+      assert.equal((await zapi(alya, 'delivery.save', { event: off, text: 'x' }, true)).status, 400);
+      assert.equal((await zapi(alya, 'event.get', { event: off })).member.delivery, SECRET, 'новое участие предзаполнено адресом');
+      const st = await zapi(boss, 'admin.state', { event: E1 });
+      assert.equal(st.users.find((u) => u.id === alya.id).has_delivery, true);
+      noSecret(st, 'admin.state');
+      noSecret(await zapi(boss, 'admin.wishlist', { event: E1, id: alya.id }), 'admin.wishlist');
+    });
+
+    await t.test('US2: семьи — управление', async () => {
+      assert.equal((await zapi(alya, 'admin.families', {}, true)).status, 403);
+      await zapi(boss, 'admin.family.save', { name: 'Ивановы', members: [alya.id, borya.id] });
+      const dup = await zapi(boss, 'admin.family.save', { name: 'Петровы', members: [borya.id, vika.id] }, true);
+      assert.equal(dup.status, 400);
+      assert.match(dup.data.error, /Боря уже в семье «Ивановы»/);
+      assert.equal((await zapi(boss, 'admin.family.save', { name: 'Один', members: [vika.id] }, true)).status, 400);
+      const f = await zapi(boss, 'admin.families');
+      assert.deepEqual(f.families.map((x) => [x.name, x.members.map((m) => m.id).sort()]), [['Ивановы', [alya.id, borya.id]]]);
+      const st = await zapi(boss, 'admin.state', { event: E1 });
+      assert.equal(st.settings.families_on, true);
+      assert.deepEqual(st.families.map((x) => x.members.sort()), [[alya.id, borya.id]]);
+    });
+
+    await t.test('US2: 20 жеребьёвок соблюдают семью; замена тоже', async () => {
+      for (let i = 0; i < 20; i++) {
+        await zapi(boss, 'admin.draw', { event: E1 });
+        const p = await pairsSql(E1);
+        assert.equal(p.size, 5);
+        assert.notEqual(p.get(alya.id), borya.id, `жеребьёвка ${i}: Аля → Боря`);
+        assert.notEqual(p.get(borya.id), alya.id, `жеребьёвка ${i}: Боря → Аля`);
+        if (i < 19) await zapi(boss, 'admin.draw.cancel', { event: E1 });
+      }
+      const no = await zapi(boss, 'admin.game', { event: E1, families_on: false }, true);
+      assert.equal(no.status, 400);
+      assert.match(no.data.error, /правило семей/);
+      await zapi(boss, 'admin.remove', { event: E1, id: dasha.id });
+      const p = await pairsSql(E1);
+      assert.equal(p.size, 4);
+      assert.notEqual(p.get(alya.id), borya.id);
+      assert.notEqual(p.get(borya.id), alya.id);
+    });
+
+    await t.test('US2: понятная причина и выключатель семей', async () => {
+      const E3 = await newEvent('Тесно', [alya, borya, vika]);
+      let c = await zapi(boss, 'admin.draw.check', { event: E3 });
+      assert.equal(c.possible, false);
+      assert.match(c.problems[0], /Мешают семьи/);
+      await zapi(boss, 'admin.game', { event: E3, families_on: false });
+      c = await zapi(boss, 'admin.draw.check', { event: E3 });
+      assert.equal(c.possible, true);
+    });
+
+    await t.test('US1: Санта видит адрес, админ — нет; уведомление об изменении', async () => {
+      const p = await pairsSql(E1);
+      const santaId = [...p].find(([, w]) => w === alya.id)[0];
+      const santa = crew.find((u) => u.id === santaId);
+      const wd = await zapi(santa, 'ward.get', { event: E1 });
+      assert.equal(wd.ward.delivery, SECRET);
+      const before = ztexts(santa).filter((x) => x.includes('обновил письмо или адрес')).length;
+      await zapi(alya, 'delivery.save', { event: E1, text: SECRET + ', подъезд 2' });
+      // после 20 жеребьёвок в очереди может быть хвост сообщений — cron отправляет его порциями
+      await waitFor(async () => {
+        await z.cron();
+        return ztexts(santa).filter((x) => x.includes('обновил письмо или адрес')).length === before + 1;
+      }, 'уведомление Санте', 20000);
+      assert.ok(!ztexts(santa).some((x) => x.includes('подъезд 2')), 'уведомление без текста адреса');
+      noSecret(await zapi(boss, 'admin.audit', { event: E1 }), 'журнал');
+      noSecret(await zapi(boss, 'admin.state', { event: E1 }), 'admin.state после жеребьёвки');
+    });
+
+    await t.test('US2: перенос участия переносит семью', async () => {
+      await zapi(boss, 'admin.registration', { event: E1, open: true });
+      await z.say(borya2, '/start ' + (await zInvite(E1)));
+      await z.say(borya2, borya2.name);
+      await zapi(boss, 'admin.transfer', { from: borya.id, to: borya2.id });
+      const f = await zapi(boss, 'admin.families');
+      assert.deepEqual(f.families[0].members.map((m) => m.id).sort(), [alya.id, borya2.id]);
+      const g = (await zapi(boss, 'admin.audit', {})).entries.map((e) => e.action);
+      assert.ok(g.includes('family.save'));
+    });
+
+    await t.test('US3: заявки — принять кнопкой в чате, отклонить в панели', async () => {
+      const newbie = { id: 620, name: 'Новенький', username: 'newbie' };
+      const stranger = { id: 621, name: 'Незнакомец', username: 'who' };
+      const E4 = (await zapi(boss, 'admin.events.create', { title: 'Закрытый клуб' })).event.id;
+      await zapi(boss, 'admin.game', { event: E4, approval: true });
+      const code = await zInvite(E4);
+
+      await z.say(newbie, '/start ' + code);
+      await z.say(newbie, newbie.name);
+      assert.match(z.lastText(newbie), /Заявка в эвент «Закрытый клуб» отправлена/);
+      assert.equal((await zapi(newbie, 'event.get', { event: E4 }, true)).status, 403, 'до одобрения не участник');
+      await z.say(newbie, '/start ' + code);
+      assert.match(z.lastText(newbie), /уже отправлена/);
+      await waitFor(() => z.mock.messagesTo(boss.id).some((c) => c.params.text.includes('Новенький') && c.params.text.includes('просится')), 'заявка админу');
+      const req = z.mock.messagesTo(boss.id).filter((c) => c.params.text.includes('Новенький') && c.params.text.includes('просится'));
+      assert.equal(req.length, 1, 'одна заявка — одно сообщение');
+      const accept = req[0].params.reply_markup.inline_keyboard[0][0].callback_data;
+      assert.match(accept, /^req:\d+:a$/);
+      const st = await zapi(boss, 'admin.state', { event: E4 });
+      assert.deepEqual(st.requests.map((r) => r.name), ['Новенький']);
+
+      await z.press(boss, accept);
+      await waitFor(() => ztexts(newbie).some((x) => x.includes('Тебя приняли в эвент «Закрытый клуб»')), 'уведомление о приёме');
+      assert.ok((await zapi(newbie, 'event.get', { event: E4 })).member);
+      await z.press(boss, accept);
+      const answers = z.mock.calls.filter((c) => c.method === 'answerCallbackQuery').map((c) => c.params.text);
+      assert.equal(answers.at(-1), 'Заявка уже рассмотрена.');
+      assert.equal(ztexts(newbie).filter((x) => x.includes('Тебя приняли')).length, 1);
+
+      await z.say(stranger, '/start ' + code);
+      await z.say(stranger, stranger.name);
+      const st2 = await zapi(boss, 'admin.state', { event: E4 });
+      const r2 = st2.requests.find((r) => r.name === stranger.name);
+      await zapi(boss, 'admin.request.decide', { event: E4, id: r2.id, approve: false });
+      await waitFor(() => ztexts(stranger).some((x) => x.includes('не одобрил заявку')), 'уведомление об отказе');
+      assert.equal((await zapi(stranger, 'event.get', { event: E4 }, true)).status, 403);
+      assert.equal((await zapi(boss, 'admin.request.decide', { event: E4, id: r2.id, approve: true }, true)).data.error, 'Заявка уже рассмотрена.');
+      await z.say(stranger, '/start ' + code);
+      assert.match(z.lastText(stranger), /отправлена организатору/, 'после отказа можно подать снова');
+      // админ вступает сам, без заявки; участник не может решать заявки
+      assert.equal((await zapi(newbie, 'admin.request.decide', { event: E4, id: r2.id, approve: true }, true)).status, 403);
+      const codes = (await zapi(boss, 'admin.audit', { event: E4 })).entries.map((e) => e.action);
+      assert.ok(codes.includes('request.approve') && codes.includes('request.reject'));
     });
   } finally {
     await z.stop();

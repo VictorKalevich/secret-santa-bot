@@ -7,7 +7,7 @@ import {
 import { tgApi, derivedSecret } from './telegram.js';
 import {
   menuMessage, escapeHtml, msg, q, flushOutbox, resolveOwner, setOwner, sendChatMessage, chatWritable, isFinished,
-  MAX_CHARS, openAppButton,
+  MAX_CHARS, openAppButton, requestJoin, decideRequest,
 } from './game.js';
 
 const NAME_PROMPT =
@@ -57,6 +57,14 @@ export async function handleUpdate(update, env, ctx) {
 
   const reply = (payload) => call('sendMessage', { chat_id: from.id, ...(typeof payload === 'string' ? msg(payload) : payload) });
   const sendMenu = async (u) => reply(await buildMenu(db, u, settings));
+  // Заявка на вступление (008)
+  const replyRequest = async (ev, u) => {
+    const r = await requestJoin(env, ev, u);
+    if (!r.already) ctx.waitUntil(flushOutbox(env));
+    return reply(r.already
+      ? `⏳ Заявка в эвент ${q(ev)} уже отправлена — ждём решения организатора.`
+      : `⏳ Заявка в эвент ${q(ev)} отправлена организатору. Как только он её рассмотрит, я напишу.`);
+  };
 
   // ---------- /start ----------
   if (text.startsWith('/start')) {
@@ -91,7 +99,10 @@ export async function handleUpdate(update, env, ctx) {
         return reply(`Регистрация в эвент ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`);
       }
       const already = user ? await getMember(db, ev.id, from.id) : null;
+      // 008: эвент с одобрением — вместо участия заявка (админы вступают сами)
+      const needsApproval = !!ev.approval && !user?.is_admin && !already;
       if (user?.registered) {
+        if (needsApproval) return replyRequest(ev, user);
         if (!already) {
           await addMemberStmt(db, ev.id, from.id).run();
           await notifyAdminsJoined(env, ctx, user.name, ev, from.id);
@@ -104,7 +115,7 @@ export async function handleUpdate(update, env, ctx) {
       }
       if (!user) await createUser(db, from.id, from.username, { pending: 'name:' + ev.id });
       else await updateUser(db, from.id, { pending: 'name:' + ev.id });
-      await addMemberStmt(db, ev.id, from.id).run();
+      if (!needsApproval) await addMemberStmt(db, ev.id, from.id).run();
       return reply(`🎄 Привет! Это бот для игры в Тайного Санту, эвент ${q(ev)}.\n\n` + NAME_PROMPT);
     }
 
@@ -131,6 +142,10 @@ export async function handleUpdate(update, env, ctx) {
     await updateUser(db, from.id, { name, username: from.username || '', registered: 1, pending: '' });
     user = await getUser(db, from.id);
     const ev = eventId ? await getEvent(db, eventId) : null;
+    if (ev && ev.approval && !user.is_admin && !(await getMember(db, ev.id, from.id))) {
+      await reply(`Приятно познакомиться, ${escapeHtml(name)}! 🎉`);
+      return replyRequest(ev, user);
+    }
     if (ev) {
       await notifyAdminsJoined(env, ctx, name, ev, from.id);
       await reply({
@@ -207,6 +222,17 @@ async function handleCallback(cq, env, ctx, call) {
         : `✍️ Напиши сообщение своему Санте (эвент ${q(ev)}) — я передам его. Санта знает, кто ты, а ты его — нет.`) +
       `\nДо ${MAX_CHARS} символов. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`
     ));
+  }
+
+  // Решение по заявке на вступление (008): кнопки в сообщении админу
+  const rq = /^req:(\d+):(a|r)$/.exec(data);
+  if (rq) {
+    if (!user.is_admin) return answer('Только для администратора.');
+    const r = await decideRequest(env, Number(rq[1]), from.id, rq[2] === 'a');
+    if (!r.ok) return answer(r.error);
+    ctx.waitUntil(flushOutbox(env));
+    await answer(rq[2] === 'a' ? '✅ Принято' : '❌ Отклонено');
+    return send(msg(`${rq[2] === 'a' ? '✅ Заявка принята' : '❌ Заявка отклонена'}: <b>${escapeHtml(r.name)}</b>, эвент ${q(r.ev)}.`));
   }
 
   if (data === 'notify') {

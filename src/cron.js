@@ -19,13 +19,13 @@ async function notifyWishlistChanges(env, settings) {
   const delayMs = Number(env.NOTIFY_DELAY_MINUTES ?? 10) * 60 * 1000;
   const { results } = await db
     .prepare(
-      `SELECT p.event_id, p.santa, w.wishlist_updated_at AS upd, s.notify_mode, e.title
+      `SELECT p.event_id, p.santa, MAX(w.wishlist_updated_at, w.delivery_updated_at) AS upd, s.notify_mode, e.title, e.delivery_on
          FROM pairs p
          JOIN events e ON e.id = p.event_id AND e.status = 'active'
          JOIN members w ON w.event_id = p.event_id AND w.user_id = p.ward
          JOIN users s ON s.tg_id = p.santa
-        WHERE w.wishlist_updated_at > p.notified_at
-          AND w.wishlist_updated_at <= ?`
+        WHERE MAX(w.wishlist_updated_at, w.delivery_updated_at) > p.notified_at
+          AND MAX(w.wishlist_updated_at, w.delivery_updated_at) <= ?`
     )
     .bind(Date.now() - delayMs)
     .all();
@@ -35,7 +35,9 @@ async function notifyWishlistChanges(env, settings) {
     stmts.push(db.prepare('UPDATE pairs SET notified_at = ? WHERE event_id = ? AND santa = ?').bind(r.upd, r.event_id, r.santa));
     if (r.notify_mode === 'off') continue;
     // Без имени подопечного и без текста — превью видно на экране блокировки.
-    stmts.push(enqueueStmt(db, r.santa, msg(`📝 Твой подопечный в эвенте ${q(r)} обновил письмо Санте.`, {
+    // 008: изменение адреса доставки — тем же уведомлением, без текста адреса
+    const what = r.delivery_on ? 'обновил письмо или адрес доставки' : 'обновил письмо Санте';
+    stmts.push(enqueueStmt(db, r.santa, msg(`📝 Твой подопечный в эвенте ${q(r)} ${what}.`, {
       disable_notification: r.notify_mode === 'silent',
       reply_markup: { inline_keyboard: [[openAppButton(settings, '👀 Посмотреть', { event: r.event_id })]] },
     })));

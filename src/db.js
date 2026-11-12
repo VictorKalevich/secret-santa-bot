@@ -1,8 +1,8 @@
-// Работа с базой D1 (SQLite). Схема 6: эвенты с историей (005) + поля 006 (см. migrations/).
+// Работа с базой D1 (SQLite). Схема 8: эвенты с историей (005) + поля 006–008 (см. migrations/).
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
-export const REQUIRED_SCHEMA = 7;
+export const REQUIRED_SCHEMA = 8;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -98,7 +98,7 @@ export async function allEvents(db) {
 const EVENT_FIELDS = new Set([
   'title', 'status', 'finished_at', 'invite_code', 'registration_open', 'draw_done', 'draw_at', 'revealed', 'ring',
   'avoid_previous', 'draw_token', 'budget', 'event_date', 'place', 'deadline', 'notes', 'last_daily',
-  'draw_auto_date', 'reveal_auto', 'finish_auto',
+  'draw_auto_date', 'reveal_auto', 'finish_auto', 'delivery_on', 'families_on', 'approval',
 ]);
 
 export function updateEventStmt(db, id, fields) {
@@ -129,10 +129,15 @@ export async function eventMembers(db, eventId) {
   return results;
 }
 
+// Новое участие предзаполняет адрес доставки последним указанным адресом человека (008, FR-802)
 export function addMemberStmt(db, eventId, userId) {
   return db
-    .prepare('INSERT INTO members (event_id, user_id, joined_at) VALUES (?, ?, ?) ON CONFLICT(event_id, user_id) DO NOTHING')
-    .bind(eventId, userId, Date.now());
+    .prepare(
+      `INSERT INTO members (event_id, user_id, joined_at, delivery)
+       VALUES (?, ?, ?, COALESCE((SELECT delivery FROM members WHERE user_id = ? AND delivery != '' ORDER BY joined_at DESC LIMIT 1), ''))
+       ON CONFLICT(event_id, user_id) DO NOTHING`
+    )
+    .bind(eventId, userId, Date.now(), userId);
 }
 
 // ---------- pairs / exclusions ----------
@@ -148,6 +153,24 @@ export async function pairOfSanta(db, eventId, santa) {
 
 export async function pairOfWard(db, eventId, ward) {
   return db.prepare('SELECT * FROM pairs WHERE event_id = ? AND ward = ?').bind(eventId, ward).first();
+}
+
+// Семьи (008): пары «не дарят друг другу» между членами одной семьи среди ids — если в эвенте включено правило семей
+export async function familyExclusions(db, ev, ids) {
+  if (!ev.families_on || ids.length < 2) return [];
+  const { results } = await db.prepare('SELECT user_id, family_id FROM family_members').all();
+  const set = new Set(ids);
+  const byFamily = new Map();
+  for (const r of results) {
+    if (!set.has(r.user_id)) continue;
+    if (!byFamily.has(r.family_id)) byFamily.set(r.family_id, []);
+    byFamily.get(r.family_id).push(r.user_id);
+  }
+  const out = [];
+  for (const list of byFamily.values()) {
+    for (const a of list) for (const b of list) if (a !== b) out.push({ giver: a, receiver: b });
+  }
+  return out;
 }
 
 export async function getExclusions(db, eventId) {

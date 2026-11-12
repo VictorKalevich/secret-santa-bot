@@ -3,7 +3,7 @@
 import {
   getSettings, setSettings, setSettingStmt, allUsers, getUser, getExclusions, getPairs, enqueueStmt,
   updateUserStmt, pairOfSanta, pairOfWard, getEvent, updateEventStmt, eventMembers, addMemberStmt, enqueueIfStmt,
-  auditStmt, auditIfStmt,
+  auditStmt, auditIfStmt, familyExclusions,
 } from './db.js';
 import { findAssignment, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { tgApi } from './telegram.js';
@@ -233,7 +233,9 @@ export async function checkDraw(env, ev) {
   const db = env.DB;
   const people = await drawParticipants(db, ev.id);
   const ids = people.map((u) => u.user_id);
-  const exclusions = (await getExclusions(db, ev.id)).filter((e) => ids.includes(e.giver) && ids.includes(e.receiver));
+  const own = (await getExclusions(db, ev.id)).filter((e) => ids.includes(e.giver) && ids.includes(e.receiver));
+  const fam = await familyExclusions(db, ev, ids); // 008: семьи — как исключения
+  const exclusions = [...own, ...fam];
   const prev = ev.avoid_previous ? await previousPairs(db, ev, ids) : [];
   const ring = !!ev.ring;
   let res = findAssignment(ids, buildIsAllowed(exclusions, prev), Math.random, { ring });
@@ -242,6 +244,8 @@ export async function checkDraw(env, ev) {
     res = findAssignment(ids, buildIsAllowed(exclusions), Math.random, { ring });
     historyUsed = false;
   }
+  // 008, FR-807: если мешают именно семьи — сказать об этом
+  const familiesBlock = !res.ok && fam.length > 0 && findAssignment(ids, buildIsAllowed(own), Math.random, { ring }).ok;
   const byId = Object.fromEntries(people.map((u) => [u.user_id, u]));
   return {
     people,
@@ -251,7 +255,10 @@ export async function checkDraw(env, ev) {
     historyUsed,
     historyIgnored: prev.length > 0 && !historyUsed,
     emptyWishlists: people.filter((u) => !u.wishlist.trim()).map((u) => u.name),
-    problems: res.ok ? [] : res.problems.map((p) => describeProblem(p, byId)),
+    problems: res.ok ? [] : [
+      ...(familiesBlock ? ['Мешают семьи: члены одной семьи не дарят друг другу, и распределить всех так не получается. Выключи «Учитывать семьи» или кольцевую жеребьёвку.'] : []),
+      ...res.problems.map((p) => describeProblem(p, byId)),
+    ],
   };
 }
 
@@ -274,7 +281,7 @@ export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
   for (const [santa, ward] of check.res.pairs) {
     stmts.push(
       db.prepare(`INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) SELECT ?, ?, ?, NULL, ?, 0 WHERE ${guard}`)
-        .bind(ev.id, santa, ward, check.byId[ward].wishlist_updated_at || 0, ev.id, token)
+        .bind(ev.id, santa, ward, lastUpdate(check.byId[ward]), ev.id, token)
     );
   }
   for (const u of check.people) {
@@ -288,6 +295,9 @@ export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
   if (!claim.meta.changes) return { ok: false, error: 'Жеребьёвка уже проведена.' };
   return { ok: true, count: check.people.length, singleCycle: check.res.singleCycle, historyIgnored: check.historyIgnored };
 }
+
+// Последнее изменение письма или адреса подопечного (008) — с него Санте приходят уведомления
+const lastUpdate = (m) => Math.max(m?.wishlist_updated_at || 0, m?.delivery_updated_at || 0);
 
 function pairsToMap(rows) {
   return new Map(rows.map((p) => [p.santa, p.ward]));
@@ -318,7 +328,7 @@ async function applyPairsChange(env, ev, oldRows, newMap, changed, members) {
     if (oldMap.get(santa) !== ward) {
       stmts.push(
         db.prepare('INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) VALUES (?, ?, ?, NULL, ?, 0)')
-          .bind(ev.id, santa, ward, byId[ward]?.wishlist_updated_at || 0)
+          .bind(ev.id, santa, ward, lastUpdate(byId[ward]))
       );
     }
   }
@@ -344,7 +354,7 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0 }
   if (ev.draw_done) {
     const rows = await getPairs(db, ev.id);
     if (rows.some((p) => p.santa === userId || p.ward === userId)) {
-      const isAllowed = buildIsAllowed(await getExclusions(db, ev.id));
+      const isAllowed = buildIsAllowed([...(await getExclusions(db, ev.id)), ...(await familyExclusions(db, ev, members.map((m) => m.user_id)))]);
       const r = removeFromAssignment(pairsToMap(rows), userId, isAllowed, Math.random, { ring: !!ev.ring });
       if (!r) {
         return { ok: false, error: 'Не получается убрать участника, не нарушив исключения или кольцевую жеребьёвку. Ослабь исключения.' };
@@ -369,7 +379,8 @@ export async function insertMember(env, ev, userId, actor = 0) {
   if (!u || !u.registered) return { ok: false, error: 'Участник не найден.' };
   const rows = await getPairs(db, ev.id);
   if (rows.some((p) => p.santa === userId)) return { ok: false, error: 'Участник уже в жеребьёвке.' };
-  const r = insertIntoAssignment(pairsToMap(rows), userId, buildIsAllowed(await getExclusions(db, ev.id)), Math.random, { ring: !!ev.ring });
+  const ex = [...(await getExclusions(db, ev.id)), ...(await familyExclusions(db, ev, members.map((m) => m.user_id)))];
+  const r = insertIntoAssignment(pairsToMap(rows), userId, buildIsAllowed(ex), Math.random, { ring: !!ev.ring });
   if (!r) return { ok: false, error: 'Не получается вписать участника, не нарушив исключения.' };
   await db.batch([
     ...(await applyPairsChange(env, ev, rows, r.pairs, r.changed, members)),
@@ -435,14 +446,16 @@ export async function createEvent(env, title, createdBy, { from = null, invite =
   const clean = String(title || '').replace(/\s+/g, ' ').trim();
   if (!clean || clean.length > 80) return { ok: false, error: 'Название эвента — от 1 до 80 символов.' };
   const code = randomCode();
-  const t = from || { budget: '', place: '', notes: '', ring: 1, avoid_previous: 1, reveal_auto: 0, finish_auto: 0 };
+  const t = from || { budget: '', place: '', notes: '', ring: 1, avoid_previous: 1, reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0 };
   // Новый эвент в остальных операторах batch находим по уникальному коду приглашения
   const newId = '(SELECT id FROM events WHERE invite_code = ?)';
   const stmts = [
     db.prepare(
-      `INSERT INTO events (title, created_at, created_by, invite_code, budget, place, notes, ring, avoid_previous, reveal_auto, finish_auto)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
-    ).bind(clean, Date.now(), createdBy, code, t.budget, t.place, t.notes, t.ring, t.avoid_previous, t.reveal_auto, t.finish_auto),
+      `INSERT INTO events (title, created_at, created_by, invite_code, budget, place, notes, ring, avoid_previous, reveal_auto, finish_auto,
+                           delivery_on, families_on, approval)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+    ).bind(clean, Date.now(), createdBy, code, t.budget, t.place, t.notes, t.ring, t.avoid_previous, t.reveal_auto, t.finish_auto,
+      t.delivery_on, t.families_on, t.approval),
   ];
   if (from) {
     stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions WHERE event_id = ?`)
@@ -490,6 +503,7 @@ export async function deleteEvent(env, ev, actor = 0) {
     db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM members WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
+    db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM events WHERE id = ?').bind(ev.id),
     // Журнал эвента остаётся; само удаление — в общем журнале (007)
     auditStmt(db, 0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`),
@@ -513,10 +527,12 @@ export async function resetEvent(env, ev, ownerId, actor = ownerId) {
     db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
+    db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
+    db.prepare("UPDATE members SET delivery = '', delivery_updated_at = 0 WHERE event_id = ?").bind(ev.id),
     updateEventStmt(db, ev.id, {
       status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,
       ring: 1, avoid_previous: 1, budget: '', event_date: '', place: '', deadline: '', notes: '', last_daily: '',
-      draw_auto_date: '', reveal_auto: 0, finish_auto: 0,
+      draw_auto_date: '', reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0,
     }),
     auditStmt(db, ev.id, actor, 'reset', `удалено участников: ${removed.length}`),
   ]);
@@ -654,6 +670,11 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
     db.prepare('UPDATE OR IGNORE exclusions SET giver = ? WHERE giver = ?').bind(toId, fromId),
     db.prepare('UPDATE OR IGNORE exclusions SET receiver = ? WHERE receiver = ?').bind(toId, fromId),
     db.prepare('DELETE FROM exclusions WHERE giver = ? OR receiver = ? OR giver = receiver').bind(fromId, fromId),
+    // 008: семья и заявки переходят на новый аккаунт (если новый уже в семье — остаётся его семья)
+    db.prepare('UPDATE OR IGNORE family_members SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
+    db.prepare('DELETE FROM family_members WHERE user_id = ?').bind(fromId),
+    db.prepare('UPDATE OR IGNORE join_requests SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
+    db.prepare('DELETE FROM join_requests WHERE user_id = ?').bind(fromId),
     db.prepare('UPDATE users SET is_admin = ? WHERE tg_id = ?').bind(from.is_admin || to.is_admin ? 1 : 0, toId),
     db.prepare('DELETE FROM users WHERE tg_id = ?').bind(fromId),
     enqueueStmt(db, toId, msg(
@@ -869,4 +890,120 @@ export async function runAutoAction(env, ev, what) {
     auditStmt(db, ev.id, 0, 'draw.auto.failed', r.error),
   ]);
   return r;
+}
+
+// ---------- семьи (008): постоянные группы исключений ----------
+
+export const FAMILY_MAX = 20;
+
+export async function saveFamily(env, actor, { id = 0, name, members }) {
+  const db = env.DB;
+  const clean = String(name || '').replace(/\s+/g, ' ').trim();
+  if (!clean || clean.length > 40) return { ok: false, error: 'Название семьи — от 1 до 40 символов.' };
+  const ids = [...new Set((Array.isArray(members) ? members : []).map(Number).filter(Boolean))];
+  if (ids.length < 2 || ids.length > FAMILY_MAX) return { ok: false, error: `В семье должно быть от 2 до ${FAMILY_MAX} человек.` };
+  id = Number(id) || 0;
+  if (id && !(await db.prepare('SELECT id FROM families WHERE id = ?').bind(id).first())) return { ok: false, error: 'Семья не найдена.' };
+  const users = await allUsers(db);
+  const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
+  for (const uid of ids) if (!byId[uid]?.registered) return { ok: false, error: 'Участник не найден.' };
+  // Один человек — одна семья (FR-805)
+  const { results: taken } = await db
+    .prepare(`SELECT fm.user_id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id
+               WHERE fm.family_id != ? AND fm.user_id IN (${ids.map(() => '?').join(',')})`)
+    .bind(id, ...ids)
+    .all();
+  if (taken.length) return { ok: false, error: `${displayName(byId[taken[0].user_id])} уже в семье «${taken[0].name}».` };
+  const now = Date.now();
+  // Новая семья в остальных операторах batch — по автору и времени создания
+  const famId = id ? '?' : '(SELECT MAX(id) FROM families WHERE created_by = ? AND created_at = ?)';
+  const famArgs = id ? [id] : [actor, now];
+  const stmts = id
+    ? [db.prepare('UPDATE families SET name = ? WHERE id = ?').bind(clean, id), db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(id)]
+    : [db.prepare('INSERT INTO families (name, created_by, created_at) VALUES (?, ?, ?)').bind(clean, actor, now)];
+  for (const uid of ids) stmts.push(db.prepare(`INSERT INTO family_members (user_id, family_id) VALUES (?, ${famId})`).bind(uid, ...famArgs));
+  stmts.push(auditStmt(db, 0, actor, 'family.save', `«${clean}»: ${ids.map((x) => displayName(byId[x])).join(', ')}`));
+  await db.batch(stmts);
+  return { ok: true };
+}
+
+export async function deleteFamily(env, actor, id) {
+  const db = env.DB;
+  const fam = await db.prepare('SELECT * FROM families WHERE id = ?').bind(Number(id) || 0).first();
+  if (!fam) return { ok: false, error: 'Семья не найдена.' };
+  await db.batch([
+    db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(fam.id),
+    db.prepare('DELETE FROM families WHERE id = ?').bind(fam.id),
+    auditStmt(db, 0, actor, 'family.delete', `«${fam.name}»`),
+  ]);
+  return { ok: true };
+}
+
+// ---------- заявки на вступление (008) ----------
+
+// Заявка человека в эвент с одобрением; админам — сообщение с кнопками. already — заявка уже ждёт решения.
+export async function requestJoin(env, ev, user) {
+  const db = env.DB;
+  const row = await db
+    .prepare("INSERT OR IGNORE INTO join_requests (event_id, user_id, status, created_at) VALUES (?, ?, 'pending', ?) RETURNING id")
+    .bind(ev.id, user.tg_id, Date.now())
+    .first();
+  if (!row) return { ok: true, already: true };
+  const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
+  const admins = users.filter((u) => u.is_admin && u.registered && u.tg_id !== user.tg_id);
+  if (admins.length) {
+    await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(
+      `🙋 <b>${escapeHtml(displayName(user))}</b>${user.username ? ' (@' + escapeHtml(user.username) + ')' : ''} просится в эвент ${q(ev)}.`,
+      { reply_markup: { inline_keyboard: [
+        [{ text: '✅ Принять', callback_data: `req:${row.id}:a` }, { text: '❌ Отклонить', callback_data: `req:${row.id}:r` }],
+        [openAppButton(settings, '🛠 Открыть эвент', { event: ev.id })],
+      ] } }
+    ))));
+  }
+  return { ok: true, already: false, id: row.id };
+}
+
+// Решение по заявке — один раз (research R4): повторное нажатие или второй админ ничего не меняют
+export async function decideRequest(env, id, actor, approve) {
+  const db = env.DB;
+  const req = await db.prepare('SELECT * FROM join_requests WHERE id = ?').bind(Number(id) || 0).first();
+  if (!req) return { ok: false, error: 'Заявка не найдена.' };
+  if (req.status !== 'pending') return { ok: false, error: 'Заявка уже рассмотрена.' };
+  const ev = await getEvent(db, req.event_id);
+  if (!ev) return { ok: false, error: 'Эвент не найден.' };
+  if (approve && isFinished(ev)) return { ok: false, error: 'Эвент завершён — принять в него уже нельзя.' };
+  const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
+  const person = users.find((u) => u.tg_id === req.user_id);
+  const by = users.find((u) => u.tg_id === actor);
+  const status = approve ? 'approved' : 'rejected';
+  const now = Date.now();
+  const guard = 'EXISTS (SELECT 1 FROM join_requests WHERE id = ? AND status = ? AND decided_by = ? AND decided_at = ?)';
+  const g = [req.id, status, actor, now];
+  const stmts = [
+    db.prepare("UPDATE join_requests SET status = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'").bind(status, actor, now, req.id),
+  ];
+  if (approve) {
+    stmts.push(db.prepare(
+      `INSERT OR IGNORE INTO members (event_id, user_id, joined_at, delivery)
+       SELECT ?, ?, ?, COALESCE((SELECT delivery FROM members WHERE user_id = ? AND delivery != '' ORDER BY joined_at DESC LIMIT 1), '')
+        WHERE ${guard}`
+    ).bind(ev.id, req.user_id, now, req.user_id, ...g));
+  }
+  stmts.push(enqueueIfStmt(db, req.user_id, approve
+    ? msg(
+      ev.draw_done
+        ? `🎉 Тебя приняли в эвент ${q(ev)}! Жеребьёвка уже прошла — организатор впишет тебя, бот пришлёт уведомление. А пока напиши письмо Санте.`
+        : `🎉 Тебя приняли в эвент ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`,
+      { reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] } })
+    : msg(`Организатор не одобрил заявку в эвент ${q(ev)}. Если это ошибка — напиши ему.`), guard, ...g));
+  for (const a of users.filter((u) => u.is_admin && u.registered && u.tg_id !== actor && u.tg_id !== req.user_id)) {
+    stmts.push(enqueueIfStmt(db, a.tg_id, msg(
+      `${approve ? '✅' : '❌'} <b>${escapeHtml(displayName(by))}</b> ${approve ? 'принял(а)' : 'отклонил(а)'} заявку <b>${escapeHtml(displayName(person))}</b> в эвент ${q(ev)}.`,
+      { disable_notification: true }
+    ), guard, ...g));
+  }
+  stmts.push(auditIfStmt(db, ev.id, actor, approve ? 'request.approve' : 'request.reject', displayName(person), guard, ...g));
+  const [claim] = await db.batch(stmts);
+  if (!claim.meta.changes) return { ok: false, error: 'Заявка уже рассмотрена.' };
+  return { ok: true, ev, name: displayName(person) };
 }

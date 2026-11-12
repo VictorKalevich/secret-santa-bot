@@ -12,7 +12,10 @@ import {
   flushOutbox, resolveOwner, grantAdmin, revokeAdmin, transferOwnership, chatPair, unreadCounts, unreadByEvent,
   resetEvent, transferAccount, createEvent, finishEvent, deleteEvent, inviteFromEvent,
   announce, cancelDraw, drawCancelable, msg, q, openAppButton,
+  saveFamily, deleteFamily, decideRequest,
 } from './game.js';
+
+export const DELIVERY_MAX = 500;
 import { sendAnonymous } from './bot.js';
 
 const json = (data, status = 200) =>
@@ -35,6 +38,8 @@ function publicEvent(ev) {
     draw_done: !!ev.draw_done,
     revealed: !!ev.revealed,
     ring: !!ev.ring,
+    delivery_on: !!ev.delivery_on, // 008
+    approval: !!ev.approval,
   };
 }
 
@@ -110,6 +115,7 @@ export async function handleApi(request, env, ctx, action) {
         has_ward: !!pair,
         has_santa: !!wardPair,
         gift_received: !!wardPair?.gift_received, // 007, FR-704
+        delivery: member.delivery, // 008: свой адрес доставки
         unread: pair || wardPair ? await unreadCounts(db, ev.id, me.tg_id) : { from_ward: 0, from_santa: 0 },
       };
       out.can = { edit_letter: !isFinished(ev), chat_write: chatWritable(ev) };
@@ -133,6 +139,19 @@ export async function handleApi(request, env, ctx, action) {
       return json({ ok: true, updated_at: now });
     }
 
+    case 'delivery.save': {
+      // Адрес доставки (008): виден только самому участнику и его Санте
+      if (!ev.delivery_on) return fail('В этом эвенте адрес доставки не нужен.');
+      if (isFinished(ev)) return fail('Эвент завершён: адрес теперь только для чтения.');
+      const text = String(body.text ?? '').replace(/\r\n/g, '\n').trim();
+      if (text.length > DELIVERY_MAX) return fail(`Слишком длинно: ${text.length} символов, максимум ${DELIVERY_MAX}.`);
+      if (text === member.delivery) return json({ ok: true, updated_at: member.delivery_updated_at });
+      const now = Date.now();
+      await db.prepare('UPDATE members SET delivery = ?, delivery_updated_at = ? WHERE event_id = ? AND user_id = ?')
+        .bind(text, now, ev.id, me.tg_id).run();
+      return json({ ok: true, updated_at: now });
+    }
+
     case 'ward.get': {
       if (!ev.draw_done) return json({ ok: true, state: 'no_draw' });
       const pair = await pairOfSanta(db, ev.id, me.tg_id);
@@ -146,7 +165,12 @@ export async function handleApi(request, env, ctx, action) {
       return json({
         ok: true,
         state: 'ok',
-        ward: { name: ward.name, wishlist: wardMember.wishlist, updated_at: wardMember.wishlist_updated_at },
+        ward: {
+          name: ward.name,
+          wishlist: wardMember.wishlist,
+          updated_at: wardMember.wishlist_updated_at,
+          ...(ev.delivery_on ? { delivery: wardMember.delivery } : {}), // 008: адрес — только Санте
+        },
         previous: prev === null || prev === wardMember.wishlist ? null : prev,
         first_view: prev === null,
         gift_ready: !!pair.gift_ready,
@@ -246,6 +270,28 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       const r = await createEvent(env, body.title, me.tg_id, { from, invite: !!body.invite });
       return r.ok ? { event: publicEvent(r.event), invited: r.invited, invite_error: r.inviteError } : fail(r.error);
     }
+    case 'admin.families': {
+      // Семьи (008) — общие для бота; адресов и пар здесь нет
+      const [users, fams, rows] = await Promise.all([
+        allUsers(db),
+        db.prepare('SELECT id, name FROM families ORDER BY name').all().then((r) => r.results),
+        db.prepare('SELECT user_id, family_id FROM family_members').all().then((r) => r.results),
+      ]);
+      const famOf = Object.fromEntries(rows.map((r) => [r.user_id, r.family_id]));
+      const reg = users.filter((u) => u.registered);
+      return {
+        families: fams.map((f) => ({ id: f.id, name: f.name, members: reg.filter((u) => famOf[u.tg_id] === f.id).map((u) => ({ id: u.tg_id, name: u.name })) })),
+        users: reg.map((u) => ({ id: u.tg_id, name: u.name, family_id: famOf[u.tg_id] || 0 })),
+      };
+    }
+    case 'admin.family.save': {
+      const r = await saveFamily(env, me.tg_id, { id: body.id, name: body.name, members: body.members });
+      return r.ok ? {} : fail(r.error);
+    }
+    case 'admin.family.delete': {
+      const r = await deleteFamily(env, me.tg_id, body.id);
+      return r.ok ? {} : fail(r.error);
+    }
     case 'admin.audit': {
       if (body.event) break; // журнал эвента — ниже, в пределах эвента
       return { entries: await getAudit(db, 0) };
@@ -307,8 +353,13 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
 
   switch (action) {
     case 'admin.state': {
-      const [members, pairs, exclusions, events, cancelable] = await Promise.all([
+      const [members, pairs, exclusions, events, cancelable, famRows, requests] = await Promise.all([
         eventMembers(db, ev.id), getPairs(db, ev.id), getExclusions(db, ev.id), allEvents(db), drawCancelable(db, ev),
+        db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id').all().then((r) => r.results),
+        db.prepare(
+          `SELECT r.id, r.user_id, r.created_at, u.name, u.username FROM join_requests r JOIN users u ON u.tg_id = r.user_id
+            WHERE r.event_id = ? AND r.status = 'pending' ORDER BY r.id`
+        ).bind(ev.id).all().then((r) => r.results),
       ]);
       const santas = new Set(pairs.map((p) => p.santa));
       const ready = new Set(pairs.filter((p) => p.gift_ready).map((p) => p.santa));
@@ -331,7 +382,15 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
           blocked: !!u.blocked_at, // Telegram сообщил, что бот заблокирован (006)
           gift_received: received.has(u.user_id),
           ward_seen: santas.has(u.user_id) ? seen.has(u.user_id) : null,
+          // 008: только «указан ли адрес» — сам адрес админу не отдаётся
+          ...(ev.delivery_on ? { has_delivery: !!u.delivery.trim() } : {}),
         })),
+        // 008: семьи, в которых не меньше двух участников этого эвента
+        families: Object.values(famRows.filter((r) => memberIds.has(r.user_id)).reduce((acc, r) => {
+          (acc[r.id] ||= { id: r.id, name: r.name, members: [] }).members.push(r.user_id);
+          return acc;
+        }, {})).filter((f) => f.members.length >= 2),
+        requests: requests.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, username: r.username, created_at: r.created_at })),
         // Исключения образца начинают действовать, когда оба вступят (007, FR-707)
         exclusions: exclusions.filter((e) => memberIds.has(e.giver) && memberIds.has(e.receiver)),
         me_member: members.some((m) => m.user_id === me.tg_id),
@@ -347,6 +406,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
           reveal_auto: !!ev.reveal_auto,
           finish_auto: !!ev.finish_auto,
           draw_cancelable: cancelable,
+          families_on: !!ev.families_on,
         },
       };
     }
@@ -363,14 +423,11 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
       const title = String(body.title ?? ev.title).replace(/\s+/g, ' ').trim();
       if (!title || title.length > 80) return fail('Название эвента — от 1 до 80 символов.');
-      const fields = {
-        title,
-        budget: clean(body.budget, 100),
-        place: clean(body.place, 200),
-        notes: clean(body.notes, 2000),
-        event_date: date(body.event_date),
-        deadline: date(body.deadline),
-      };
+      // Меняются только переданные поля (008): отдельные переключатели не стирают остальные параметры
+      const fields = { title };
+      const limits = { budget: 100, place: 200, notes: 2000 };
+      for (const [k, n] of Object.entries(limits)) if (k in body) fields[k] = clean(body[k], n);
+      for (const k of ['event_date', 'deadline']) if (k in body) fields[k] = date(body[k]);
       // Расписание (007, FR-702): дату автожеребьёвки после жеребьёвки не изменить
       if ('draw_auto_date' in body) {
         const auto = date(body.draw_auto_date);
@@ -378,6 +435,13 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
           if (ev.draw_done) return fail('Дату автожеребьёвки после жеребьёвки не задать.');
           fields.draw_auto_date = auto;
         }
+      }
+      // 008: адрес доставки, одобрение заявок, семьи (семьи — только до жеребьёвки)
+      if ('delivery_on' in body) fields.delivery_on = body.delivery_on ? 1 : 0;
+      if ('approval' in body) fields.approval = body.approval ? 1 : 0;
+      if ('families_on' in body && (body.families_on ? 1 : 0) !== ev.families_on) {
+        if (ev.draw_done) return fail('После жеребьёвки правило семей не изменить.');
+        fields.families_on = body.families_on ? 1 : 0;
       }
       if ('reveal_auto' in body) fields.reveal_auto = body.reveal_auto ? 1 : 0;
       if ('finish_auto' in body) fields.finish_auto = body.finish_auto ? 1 : 0;
@@ -495,6 +559,13 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
 
     case 'admin.audit':
       return { entries: await getAudit(db, ev.id) };
+
+    case 'admin.request.decide': {
+      const req = await db.prepare('SELECT event_id FROM join_requests WHERE id = ?').bind(Number(body.id) || 0).first();
+      if (!req || req.event_id !== ev.id) return fail('Заявка не найдена.');
+      const r = await decideRequest(env, body.id, me.tg_id, !!body.approve);
+      return r.ok ? {} : fail(r.error);
+    }
 
     case 'admin.remind.unfilled':
       return { count: (await remindUnfilled(env, ev, me.tg_id)).count };
