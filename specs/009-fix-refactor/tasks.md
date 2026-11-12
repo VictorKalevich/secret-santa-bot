@@ -161,10 +161,10 @@ description: "Задачи: исправление багов и рефакто�
 
 ## Phase 11: Polish
 
-- [ ] T956 `README.md`: режим ответа (час, сброс командой), исключения и семьи после жеребьёвки, раскрытие/завершение;
+- [X] T956 `README.md`: режим ответа (час, сброс командой), исключения и семьи после жеребьёвки, раскрытие/завершение;
   `CLAUDE.md`: структура модулей вместо `game.js`, фича 009 в таблице, счётчик запросов, правила тайны 009
-- [ ] T957 Контракты: ссылка на `specs/009-fix-refactor/contracts/api-changes.md` из `CLAUDE.md`
-- [ ] T958 `npm test`, `npm run test:e2e`, `npm run screenshots` — зелёные; просмотреть скриншоты; отметить задачи
+- [X] T957 Контракты: ссылка на `specs/009-fix-refactor/contracts/api-changes.md` из `CLAUDE.md`
+- [X] T958 `npm test`, `npm run test:e2e`, `npm run screenshots` — зелёные; просмотреть скриншоты; отметить задачи
 
 ## Dependencies
 
