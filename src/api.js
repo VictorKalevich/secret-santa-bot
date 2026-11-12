@@ -6,17 +6,18 @@ import {
   updateEventStmt, auditStmt, getAudit, getAnnouncements, enqueueIfStmt,
 } from './db.js';
 import { validateInitData } from './telegram.js';
+import { msg, q, openAppButton, inviteLink, randomCode, displayName, cleanText, oneLine, ISO_DATE } from './format.js';
+import { flushOutbox } from './outbox.js';
 import {
-  MAX_CHARS, inviteLink, randomCode, isFinished, chatUntil, chatWritable,
-  checkDraw, runDraw, removeMember, insertMember, revealAll, remindUnfilled, remindSantas,
-  flushOutbox, resolveOwner, grantAdmin, revokeAdmin, transferOwnership, chatPair, unreadCounts, unreadByEvent,
-  resetEvent, transferAccount, createEvent, finishEvent, deleteEvent, inviteFromEvent,
-  announce, cancelDraw, drawCancelable, msg, q, openAppButton,
-  saveFamily, deleteFamily, decideRequest,
-} from './game.js';
+  isFinished, chatUntil, chatWritable, createEvent, finishEvent, deleteEvent, resetEvent, inviteFromEvent,
+  revealAll, remindUnfilled, remindSantas, announce,
+} from './events.js';
+import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, drawCancelable } from './pairs.js';
+import { MAX_CHARS, chatPair, sendChatMessage, unreadCounts, unreadByEvent } from './chat.js';
+import { resolveOwner, grantAdmin, revokeAdmin, transferOwnership, transferAccount } from './roles.js';
+import { saveFamily, deleteFamily, decideRequest } from './membership.js';
 
-export const DELIVERY_MAX = 500;
-import { sendAnonymous } from './bot.js';
+const DELIVERY_MAX = 500;
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
@@ -143,7 +144,7 @@ export async function handleApi(request, env, ctx, action) {
       // Адрес доставки (008): виден только самому участнику и его Санте
       if (!ev.delivery_on) return fail('В этом эвенте адрес доставки не нужен.');
       if (isFinished(ev)) return fail('Эвент завершён: адрес теперь только для чтения.');
-      const text = String(body.text ?? '').replace(/\r\n/g, '\n').trim();
+      const text = cleanText(body.text);
       if (text.length > DELIVERY_MAX) return fail(`Слишком длинно: ${text.length} символов, максимум ${DELIVERY_MAX}.`);
       if (text === member.delivery) return json({ ok: true, updated_at: member.delivery_updated_at });
       const now = Date.now();
@@ -211,7 +212,8 @@ export async function handleApi(request, env, ctx, action) {
 
     case 'message.send': {
       const to = body.to === 'santa' ? 'santa' : 'ward';
-      const r = await sendAnonymous(env, ev, me.tg_id, to, body.text, ctx);
+      const r = await sendChatMessage(env, ev, me.tg_id, to, body.text);
+      if (r.ok) ctx.waitUntil(flushOutbox(env));
       return r.ok ? json({ ok: true, message: r.message }) : fail(r.error);
     }
 
@@ -254,10 +256,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
   const ownerId = await resolveOwner(db, settings);
   const isOwner = ownerId === me.tg_id;
   const ownerOnly = (what = 'Назначать и снимать администраторов') => fail(`${what} может только владелец бота.`, 403);
-  const nameOf = async (id) => {
-    const u = await getUser(db, id);
-    return u?.name || (u?.username ? '@' + u.username : 'кто-то');
-  };
+  const nameOf = async (id) => displayName(await getUser(db, id));
 
   // ---------- общие (без эвента) ----------
   switch (action) {
@@ -305,7 +304,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       };
     }
     case 'admin.rename': {
-      const name = String(body.name || '').replace(/\s+/g, ' ').trim();
+      const name = oneLine(body.name);
       if (!name || name.length > 40) return fail('Имя должно быть от 1 до 40 символов');
       const target = await getUser(db, Number(body.id));
       if (!target) return fail('Участник не найден');
@@ -420,8 +419,8 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
 
     case 'admin.game': {
       const clean = (v, n) => String(v ?? '').slice(0, n);
-      const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
-      const title = String(body.title ?? ev.title).replace(/\s+/g, ' ').trim();
+      const date = (v) => (ISO_DATE.test(v || '') ? v : '');
+      const title = oneLine(body.title ?? ev.title);
       if (!title || title.length > 80) return fail('Название эвента — от 1 до 80 символов.');
       // Меняются только переданные поля (008): отдельные переключатели не стирают остальные параметры
       const fields = { title };
@@ -479,7 +478,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
     case 'admin.participate': {
       if (ev.draw_done) return fail('После жеребьёвки так нельзя. Попроси другого админа вписать тебя.');
       const log = auditStmt(db, ev.id, me.tg_id, 'participate', body.on ? 'участвует' : 'не участвует');
-      if (body.on) await db.batch([addMemberStmt(db, ev.id, me.tg_id), log]);
+      if (body.on) await db.batch([addMemberStmt(db, ev, me.tg_id), log]);
       else {
         await db.batch([
           db.prepare('DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?)').bind(ev.id, me.tg_id, me.tg_id),

@@ -129,15 +129,23 @@ export async function eventMembers(db, eventId) {
   return results;
 }
 
-// Новое участие предзаполняет адрес доставки последним указанным адресом человека (008, FR-802)
-export function addMemberStmt(db, eventId, userId) {
+// Участники, которые завершили регистрацию (они и попадают в жеребьёвку и рассылки эвента)
+export async function drawParticipants(db, eventId) {
+  return (await eventMembers(db, eventId)).filter((m) => m.registered);
+}
+
+// Добавить участника — единственное место вставки (вход по ссылке, «Я участвую», решение по заявке).
+// Новое участие предзаполняет адрес доставки последним указанным адресом человека (008, FR-802).
+// guard — необязательное SQL-условие с параметрами args (вставка только при нём, для атомарных действий).
+export function addMemberStmt(db, ev, userId, guard = '1', ...args) {
   return db
     .prepare(
       `INSERT INTO members (event_id, user_id, joined_at, delivery)
-       VALUES (?, ?, ?, COALESCE((SELECT delivery FROM members WHERE user_id = ? AND delivery != '' ORDER BY joined_at DESC LIMIT 1), ''))
+       SELECT ?, ?, ?, COALESCE((SELECT delivery FROM members WHERE user_id = ? AND delivery != '' ORDER BY joined_at DESC LIMIT 1), '')
+        WHERE ${guard}
        ON CONFLICT(event_id, user_id) DO NOTHING`
     )
-    .bind(eventId, userId, Date.now(), userId);
+    .bind(ev.id, userId, Date.now(), userId, ...args);
 }
 
 // ---------- pairs / exclusions ----------

@@ -1,7 +1,10 @@
 // Плановые задачи: запускаются Cloudflare раз в минуту. Работают только с идущими эвентами.
 
-import { getSettings, enqueueStmt, updateEvent } from './db.js';
-import { flushOutbox, openAppButton, msg, q, remindUnfilled, remindSantas, dueAutoAction, runAutoAction } from './game.js';
+import { getSettings, enqueueStmt, updateEvent, updateEventStmt, getEvent, allUsers, auditStmt } from './db.js';
+import { openAppButton, msg, q, escapeHtml, localDate, daysUntil, addDays, ISO_DATE, adminRecipients } from './format.js';
+import { flushOutbox } from './outbox.js';
+import { isFinished, remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
+import { runDraw } from './pairs.js';
 
 export async function runScheduled(env) {
   const db = env.DB;
@@ -45,18 +48,6 @@ async function notifyWishlistChanges(env, settings) {
   await db.batch(stmts);
 }
 
-function localDate(env, plusDays = 0) {
-  const offset = Number(env.TIMEZONE_OFFSET_HOURS ?? 3);
-  const d = new Date(Date.now() + offset * 3600 * 1000 + plusDays * 86400 * 1000);
-  return { iso: d.toISOString().slice(0, 10), hour: d.getUTCHours() };
-}
-
-function daysUntil(env, iso) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return null;
-  const today = localDate(env).iso;
-  return Math.round((Date.parse(iso + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000);
-}
-
 // Раз в день (в REMINDER_HOUR по местному времени) для каждого идущего эвента:
 //  • до жеребьёвки — за 2 дня, за день и в день дедлайна напомнить тем, у кого пустое письмо;
 //  • после жеребьёвки — за 2 дня и в день вручения напомнить Сантам, которые не отметили «подарок готов».
@@ -88,4 +79,35 @@ async function dailyReminders(env) {
     }
   }
   return acted;
+}
+
+// ---------- автодействия по расписанию (007, FR-703) ----------
+
+// Какое автодействие наступило для эвента сегодня: 'draw' → 'reveal' → 'finish' (в этом порядке) или null
+function dueAutoAction(ev, today) {
+  if (isFinished(ev)) return null;
+  if (!ev.draw_done && ISO_DATE.test(ev.draw_auto_date || '') && ev.draw_auto_date <= today) return 'draw';
+  const dated = ISO_DATE.test(ev.event_date || '');
+  if (ev.reveal_auto && ev.draw_done && !ev.revealed && dated && addDays(ev.event_date, 1) <= today) return 'reveal';
+  if (ev.finish_auto && dated && addDays(ev.event_date, 3) <= today) return 'finish';
+  return null;
+}
+
+async function runAutoAction(env, ev, what) {
+  const db = env.DB;
+  if (what === 'reveal') return revealAll(env, ev, 0);
+  if (what === 'finish') return finishEvent(env, ev, 0);
+  const r = await runDraw(env, ev, { actor: 0, action: 'draw.auto' });
+  if (r.ok) return r;
+  if ((await getEvent(db, ev.id))?.draw_done) return r; // жеребьёвку уже провёл кто-то другой
+  // Неудача: админам — причина, дата снимается, чтобы не пытаться каждую минуту
+  const users = await allUsers(db);
+  await db.batch([
+    updateEventStmt(db, ev.id, { draw_auto_date: '' }),
+    ...adminRecipients(users).map((u) => enqueueStmt(db, u.tg_id, msg(
+      `⚠️ <b>Автожеребьёвка ${q(ev)} не прошла:</b>\n${escapeHtml(r.error)}\n\nДата автожеребьёвки снята — проведи жеребьёвку вручную в панели эвента.`
+    ))),
+    auditStmt(db, ev.id, 0, 'draw.auto.failed', r.error),
+  ]);
+  return r;
 }

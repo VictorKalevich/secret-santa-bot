@@ -12,26 +12,29 @@ description: "Задачи: исправление багов и рефакто�
 Цель: разбить `src/game.js` на модули, не меняя поведения. Проверка: `npm test` и `npm run test:e2e` проходят без
 изменения ожиданий.
 
-- [ ] T901 [US10] `src/format.js`: перенести из `src/game.js` `escapeHtml`, `msg`, `q`, `shortTitle`, `MONTHS`,
+- [X] T901 [US10] `src/format.js`: перенести из `src/game.js` `escapeHtml`, `msg`, `q`, `shortTitle`, `MONTHS`,
   `formatDate`, `formatMs`, `addDays`, `ISO_DATE`, `appUrl`, `openAppButton`, `inviteLink`, `randomCode`; добавить
   `displayName(u)` (одна версия вместо двух в game.js/api.js), `cleanText(s)` (`\r\n`→`\n` + `trim`), `localDate(env)`
   (из cron.js), `adminRecipients(users, exclude)` — зарегистрированные админы кроме перечисленных
-- [ ] T902 [US10] `src/outbox.js`: перенести `flushOutbox`/`flushRound` (OUTBOX_LOCK_MS, OUTBOX_TTL_MS)
-- [ ] T903 [US10] `src/chat.js`: перенести `MAX_CHARS`, `TELEGRAM_MESSAGE_LIMIT`, `chatPair`, `chatButtons`,
+- [X] T902 [US10] `src/outbox.js`: перенести `flushOutbox`/`flushRound` (OUTBOX_LOCK_MS, OUTBOX_TTL_MS)
+- [X] T903 [US10] `src/chat.js`: перенести `MAX_CHARS`, `TELEGRAM_MESSAGE_LIMIT`, `chatPair`, `chatButtons`,
   `sendChatMessage`, `unreadCounts`, `unreadByEvent`
-- [ ] T904 [US10] `src/events.js`: перенести `CHAT_GRACE_MS`, `isFinished`, `chatUntil`, `chatWritable`, `createEvent`,
+- [X] T904 [US10] `src/events.js`: перенести `CHAT_GRACE_MS`, `isFinished`, `chatUntil`, `chatWritable`, `createEvent`,
   `finishEvent`, `deleteEvent`, `resetEvent`, `inviteFromEvent`, `revealAll`, `remindUnfilled`, `remindSantas`,
-  `ANNOUNCE_MAX`, `announce`, `dueAutoAction`, `runAutoAction`
-- [ ] T905 [US10] `src/pairs.js`: перенести `buildIsAllowed`, `drawParticipants`, `previousPairs`, `describeProblem`,
+  `ANNOUNCE_MAX`, `announce`, `dueAutoAction`, `runAutoAction` (по факту: `dueAutoAction`/`runAutoAction` — в
+  `src/cron.js`, их единственном потребителе, чтобы не было цикла импортов `events.js` ↔ `pairs.js`;
+  `TELEGRAM_MESSAGE_LIMIT` не использовался — удалён)
+- [X] T905 [US10] `src/pairs.js`: перенести `buildIsAllowed`, `drawParticipants`, `previousPairs`, `describeProblem`,
   `checkDraw`, `runDraw`, `lastUpdate`, `applyPairsChange`, `removeMember`, `insertMember`, `drawCancelable`, `cancelDraw`
-- [ ] T906 [US10] `src/roles.js`: перенести `resolveOwner`, `setOwner`, `grantAdmin`, `revokeAdmin`,
+  (по факту: `drawParticipants` — в `src/db.js`, им пользуются и `events.js`, и `pairs.js`)
+- [X] T906 [US10] `src/roles.js`: перенести `resolveOwner`, `setOwner`, `grantAdmin`, `revokeAdmin`,
   `transferOwnership`, `transferAccount` (адресаты — через `adminRecipients`)
-- [ ] T907 [US10] `src/membership.js`: перенести `FAMILY_MAX`, `saveFamily`, `deleteFamily`, `requestJoin`,
+- [X] T907 [US10] `src/membership.js`: перенести `FAMILY_MAX`, `saveFamily`, `deleteFamily`, `requestJoin`,
   `decideRequest`; `src/db.js`: `addMemberStmt(db, ev, userId, guard, ...args)` — одна вставка участника для вступления
   по ссылке, `admin.participate` и решения по заявке
-- [ ] T908 [US10] `src/bot.js`: перенести `menuMessage`; `sendAnonymous` убрать — `src/api.js` вызывает
+- [X] T908 [US10] `src/bot.js`: перенести `menuMessage`; `sendAnonymous` убрать — `src/api.js` вызывает
   `sendChatMessage` из `src/chat.js`; `src/api.js`: `nameOf` → `displayName`; `DELIVERY_MAX` после импортов
-- [ ] T909 [US10] Обновить импорты в `src/index.js`, `src/cron.js`, `src/bot.js`, `src/api.js`; удалить `src/game.js`;
+- [X] T909 [US10] Обновить импорты в `src/index.js`, `src/cron.js`, `src/bot.js`, `src/api.js`; удалить `src/game.js`;
   `npm test` + `npm run test:e2e` — зелёные; коммит «Refactor 009: split game.js into modules (no behavior change)»
 
 ## Phase 2: Foundational — счётчик запросов и единая точка отправки (US2)

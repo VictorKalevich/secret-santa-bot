@@ -5,17 +5,19 @@ import {
   getEvent, getEventByInvite, getMember, addMemberStmt,
 } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
-import {
-  menuMessage, escapeHtml, msg, q, flushOutbox, resolveOwner, setOwner, sendChatMessage, chatWritable, isFinished,
-  MAX_CHARS, openAppButton, requestJoin, decideRequest,
-} from './game.js';
+import { escapeHtml, msg, q, openAppButton, adminRecipients, oneLine } from './format.js';
+import { flushOutbox } from './outbox.js';
+import { isFinished, chatWritable } from './events.js';
+import { MAX_CHARS, sendChatMessage } from './chat.js';
+import { resolveOwner, setOwner } from './roles.js';
+import { requestJoin, decideRequest } from './membership.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта и организатор.';
 const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси у организатора пригласительную ссылку эвента.';
 
 // Меню: идущие эвенты человека с кнопками переписки
-export async function buildMenu(db, user, settings) {
+async function buildMenu(db, user, settings) {
   const { results } = await db
     .prepare(
       `SELECT e.*, m.wishlist FROM members m JOIN events e ON e.id = m.event_id
@@ -32,9 +34,42 @@ export async function buildMenu(db, user, settings) {
   return menuMessage(user, settings, items, results.length - results.filter((e) => e.status === 'active').length);
 }
 
+// items: [{ ev, member, pair, wardPair }] — идущие эвенты человека; finishedCount — сколько завершённых
+function menuMessage(user, settings, items, finishedCount = 0) {
+  const lines = ['🎄 <b>Тайный Санта</b>', ''];
+  if (!items.length) {
+    lines.push(user.is_admin
+      ? 'Идущих эвентов у тебя нет. Создай эвент в приложении — там появится пригласительная ссылка.'
+      : 'Сейчас ты не участвуешь ни в одном идущем эвенте. Попроси у организатора пригласительную ссылку.');
+  } else {
+    lines.push('Твои эвенты:');
+    for (const it of items) {
+      const letter = it.member.wishlist.trim() ? 'письмо ✅' : 'письмо пустое ✏️';
+      const draw = !it.ev.draw_done ? 'жеребьёвка впереди' : it.pair ? 'подопечный назначен 🎁' : 'ждёт добавления в жеребьёвку';
+      lines.push(`• ${q(it.ev)} — ${letter}, ${draw}`);
+    }
+  }
+  if (finishedCount) lines.push('', `📚 Завершённых эвентов: ${finishedCount} — их история в приложении.`);
+  if (user.is_admin) {
+    const owner = Number(settings.owner_id || 0) === user.tg_id;
+    lines.push('', owner
+      ? '👑 Ты владелец бота — эвенты и администраторы в приложении.'
+      : '🛠 Ты администратор — эвенты в приложении.');
+  }
+  const kb = [[openAppButton(settings)]];
+  for (const it of items.slice(0, 3)) {
+    const row = [];
+    if (it.pair) row.push({ text: `💬 Подопечному · ${it.ev.title}`.slice(0, 60), callback_data: `msg:ward:${it.ev.id}` });
+    if (it.wardPair) row.push({ text: `💬 Санте · ${it.ev.title}`.slice(0, 60), callback_data: `msg:santa:${it.ev.id}` });
+    if (row.length) kb.push(row);
+  }
+  kb.push([{ text: '🔔 Уведомления', callback_data: 'notify' }]);
+  return { text: lines.join('\n'), parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } };
+}
+
 async function notifyAdminsJoined(env, ctx, name, ev, exceptId) {
   const db = env.DB;
-  const admins = (await allUsers(db)).filter((u) => u.is_admin && u.registered && u.tg_id !== exceptId);
+  const admins = adminRecipients(await allUsers(db), [exceptId]);
   if (!admins.length) return;
   await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(`👋 <b>${escapeHtml(name)}</b> присоединяется к эвенту ${q(ev)}`, { disable_notification: true }))));
   ctx.waitUntil(flushOutbox(env));
@@ -104,7 +139,7 @@ export async function handleUpdate(update, env, ctx) {
       if (user?.registered) {
         if (needsApproval) return replyRequest(ev, user);
         if (!already) {
-          await addMemberStmt(db, ev.id, from.id).run();
+          await addMemberStmt(db, ev, from.id).run();
           await notifyAdminsJoined(env, ctx, user.name, ev, from.id);
         }
         await reply({
@@ -115,7 +150,7 @@ export async function handleUpdate(update, env, ctx) {
       }
       if (!user) await createUser(db, from.id, from.username, { pending: 'name:' + ev.id });
       else await updateUser(db, from.id, { pending: 'name:' + ev.id });
-      if (!needsApproval) await addMemberStmt(db, ev.id, from.id).run();
+      if (!needsApproval) await addMemberStmt(db, ev, from.id).run();
       return reply(`🎄 Привет! Это бот для игры в Тайного Санту, эвент ${q(ev)}.\n\n` + NAME_PROMPT);
     }
 
@@ -134,7 +169,7 @@ export async function handleUpdate(update, env, ctx) {
 
   // ---------- ввод имени при регистрации ----------
   if (user.pending.startsWith('name')) {
-    const name = text.replace(/\s+/g, ' ').trim();
+    const name = oneLine(text);
     if (!name || name.startsWith('/') || name.length > 40) {
       return reply('Напиши, пожалуйста, имя обычным текстом (до 40 символов).');
     }
@@ -174,20 +209,14 @@ export async function handleUpdate(update, env, ctx) {
     const ev = await getEvent(db, eid);
     await updateUser(db, from.id, { pending: '' });
     if (!ev) return reply('❌ Эвент не найден.');
-    const res = await sendAnonymous(env, ev, from.id, toWard ? 'ward' : 'santa', text, ctx);
+    const res = await sendChatMessage(env, ev, from.id, toWard ? 'ward' : 'santa', text);
+    if (res.ok) ctx.waitUntil(flushOutbox(env));
     return reply(res.ok
       ? (toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.')
       : '❌ ' + res.error);
   }
 
   return sendMenu(user);
-}
-
-// Сообщение в переписку Санты и подопечного (из чата с ботом или из мини-приложения)
-export async function sendAnonymous(env, ev, fromId, to, text, ctx) {
-  const r = await sendChatMessage(env, ev, fromId, to, text);
-  if (r.ok) ctx.waitUntil(flushOutbox(env));
-  return r;
 }
 
 const NOTIFY_LABELS = {

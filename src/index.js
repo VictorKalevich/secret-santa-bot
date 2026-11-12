@@ -8,7 +8,7 @@ import { tgApi, derivedSecret } from './telegram.js';
 import { handleUpdate } from './bot.js';
 import { handleApi } from './api.js';
 import { runScheduled } from './cron.js';
-import { escapeHtml } from './game.js';
+import { escapeHtml } from './format.js';
 
 // Страница мини-приложения со встроенной дизайн-системой (без сборщика).
 const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS);
