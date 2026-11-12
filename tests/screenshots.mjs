@@ -124,6 +124,8 @@ try {
   // До жеребьёвки
   await shot(people[4], '01-my-letter-empty');
   await shot(people[0], '02-my-letter', { event: A });
+  // 006: Катя заблокировала бота (после того как открыла приложение для скриншота 01) — в панели админа у неё метка «не получает сообщения»
+  w.sql('UPDATE users SET blocked_at = 1 WHERE tg_id = 105');
   await shot(admin, '03-admin-before-draw', { event: A, tab: 'Админ' });
 
   // Жеребьёвка и правка письма подопечного (для подсветки изменений)

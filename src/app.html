@@ -639,7 +639,8 @@
     // --- меню участника (004)
     const canRemove = (u) => !done && u.id !== me.id && !u.is_owner && (!u.is_admin || me.is_owner);
     const canTransfer = (u) => u.registered && !u.is_owner && (!u.is_admin || me.is_owner);
-    const transferTargets = (u) => users.filter((x) => x.id !== u.id && x.registered && !x.in_draw);
+    // На аккаунт администратора переносить нельзя: он получил бы чужие пары (006)
+    const transferTargets = (u) => users.filter((x) => x.id !== u.id && x.registered && !x.in_draw && !x.is_admin);
     function openParticipantMenu(u, chips) {
       const items = [];
       if (u.registered) {
@@ -652,14 +653,16 @@
           });
         });
         items.push(b);
+        // Администраторов переименовывает только владелец; себя — любой админ (006)
+        const canRename = !(u.is_admin || u.is_owner) || me.is_owner || u.id === me.id;
         const r = ui.btn('✏️ Переименовать', 'secondary', 'ds-btn--block');
-        r.addEventListener('click', () => {
+        if (canRename) r.addEventListener('click', () => {
           const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
           const ok = ui.btn('Сохранить', '', 'ds-btn--block');
           ok.addEventListener('click', () => busy(ok, async () => { await api('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
           openSheet('Имя участника', [ui.hint('Имя одно на все эвенты.'), inp, ok]);
         });
-        items.push(r);
+        if (canRename) items.push(r);
       }
       if (canTransfer(u) && transferTargets(u).length) {
         const b = ui.btn('🔁 Перенести на новый аккаунт', 'secondary', 'ds-btn--block');
@@ -713,6 +716,7 @@
           else chips.push(ui.chip('не в жеребьёвке', 'warning'));
         }
       }
+      if (u.blocked) chips.push(ui.chip('🚫 не получает сообщения', 'warning'));
       if (u.is_owner) chips.push(ui.chip('👑 владелец'));
       else if (u.is_admin) chips.push(ui.chip('🛠 админ'));
       const actions = h('div', { class: 'ds-row ds-row--tight' },
@@ -841,6 +845,7 @@
         drawCard.append(remindS);
       }
       const reveal = ui.btn(s.revealed ? '🎅 Тайна уже раскрыта' : '🎅 Раскрыть Сант (после праздника)', 'secondary', 'ds-btn--block');
+      reveal.disabled = s.revealed; // повторно имена Сант не рассылаются (006)
       reveal.addEventListener('click', async () => {
         if (!(await confirmBox('Каждый участник получит сообщение, кто был его Сантой. Делай это после вручения подарков. Раскрыть?'))) return;
         busy(reveal, async () => { const r = await eapi('admin.reveal'); toast(`Отправлено: ${r.count}`); await renderAdmin(); });

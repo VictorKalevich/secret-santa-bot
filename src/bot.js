@@ -52,6 +52,8 @@ export async function handleUpdate(update, env, ctx) {
   const text = (m.text || '').trim();
   const settings = await getSettings(db);
   let user = await getUser(db, from.id);
+  // Человек пишет боту — значит, бот у него не заблокирован (006, FR-609)
+  if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 });
 
   const reply = (payload) => call('sendMessage', { chat_id: from.id, ...(typeof payload === 'string' ? msg(payload) : payload) });
   const sendMenu = async (u) => reply(await buildMenu(db, u, settings));
@@ -185,6 +187,7 @@ async function handleCallback(cq, env, ctx, call) {
   const data = cq.data || '';
   const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const user = await getUser(db, from.id);
+  if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 }); // 006, FR-609
   if (!user || !user.registered) return answer('Сначала зарегистрируйся по пригласительной ссылке.');
   const send = (payload) => call('sendMessage', { chat_id: from.id, ...payload });
 

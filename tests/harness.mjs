@@ -1,7 +1,7 @@
 // Общая обвязка для локальных тестов: имитация Telegram + `wrangler dev` + помощники.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,12 +41,35 @@ function localEnv() {
   return env;
 }
 
-export async function startWorld({ notifyDelay = 0, reminderHour = 0 } = {}) {
+// Применить миграции D1 к локальной базе (006: схема только миграциями).
+function applyMigrations(persistDir) {
+  const r = spawnSync('npx', ['wrangler', 'd1', 'migrations', 'apply', 'DB', '--local', '--persist-to', persistDir], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)), env: localEnv(), shell: process.platform === 'win32', encoding: 'utf8', input: '',
+  });
+  if (r.status !== 0) throw new Error('d1 migrations apply: ' + r.stderr + r.stdout);
+}
+
+// SQL к локальной базе. Всегда через файл: на Windows аргументы идут через cmd.exe без кавычек.
+let sqlFileNo = 0;
+function execSql(persistDir, command, json = false) {
+  const file = join(persistDir, `santa-sql-${++sqlFileNo}.sql`); // удаляется вместе с базой в stop()
+  writeFileSync(file, command);
+  const r = spawnSync('npx', ['wrangler', 'd1', 'execute', 'DB', '--local', '--persist-to', persistDir, '--file', file, ...(json ? ['--json'] : [])], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)), env: localEnv(), shell: process.platform === 'win32', encoding: 'utf8',
+  });
+  if (r.status !== 0) throw new Error('d1 execute: ' + r.stderr + r.stdout);
+  return json ? JSON.parse(r.stdout)[0].results : r.stdout;
+}
+
+// sqlBefore — SQL до миграций (например, база «как у 005»); migrate: false — база без миграций.
+export async function startWorld({ notifyDelay = 0, reminderHour = 0, migrate = true, sqlBefore = '' } = {}) {
   const port = 8787 + Math.floor(Math.random() * 400);
   const tgPort = 9300 + Math.floor(Math.random() * 400);
   const base = `http://127.0.0.1:${port}`;
   const mock = await startMockTelegram(tgPort);
   const persistDir = mkdtempSync(join(tmpdir(), 'santa-test-'));
+  if (sqlBefore) execSql(persistDir, sqlBefore);
+  if (migrate) applyMigrations(persistDir);
   const isWin = process.platform === 'win32';
   const worker = spawn('npx', [
     'wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1', '--test-scheduled',
@@ -73,12 +96,13 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0 } = {}) {
       else try { process.kill(-worker.pid, 'SIGTERM'); } catch { /* уже остановлен */ }
     }
     await mock.close();
-    rmSync(persistDir, { recursive: true, force: true });
+    // На Windows файлы базы освобождаются не сразу после остановки wrangler
+    try { rmSync(persistDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch (e) { console.log('не удалось удалить', persistDir, e.code); }
   };
 
   try {
     await waitFor(async () => {
-      try { return (await fetch(base + '/')).ok; } catch { return false; }
+      try { return (await fetch(base + '/')).status > 0; } catch { return false; } // 500 «база не подготовлена» — тоже ответ
     }, 'запуск wrangler dev', 90000);
   } catch (e) {
     await stop();
@@ -92,12 +116,10 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0 } = {}) {
     mock,
     stop,
     // Прямой SQL к локальной базе (для «перемотки времени» в тестах)
-    sql(command) {
-      const r = spawnSync('npx', ['wrangler', 'd1', 'execute', 'DB', '--local', '--persist-to', persistDir, '--command', command], {
-        cwd: fileURLToPath(new URL('..', import.meta.url)), env: localEnv(), shell: isWin, encoding: 'utf8',
-      });
-      if (r.status !== 0) throw new Error('d1 execute: ' + r.stderr + r.stdout);
-    },
+    sql: (command) => execSql(persistDir, command),
+    // Прямой SQL-запрос с результатом (строки первого оператора)
+    query: (command) => execSql(persistDir, command, true),
+    migrate: () => applyMigrations(persistDir),
     async api(user, action, body = {}, raw = false) {
       const res = await fetch(`${base}/api/${action}`, {
         method: 'POST',

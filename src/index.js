@@ -3,7 +3,7 @@
 import APP_HTML from './app.html';
 import TOKENS_CSS from '../design-system/tokens.css';
 import COMPONENTS_CSS from '../design-system/components.css';
-import { ensureSchema, setSettings } from './db.js';
+import { checkSchema, setSettings, SchemaError } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
 import { handleUpdate } from './bot.js';
 import { handleApi } from './api.js';
@@ -17,7 +17,20 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (!env.BOT_TOKEN) return new Response('Не задан секрет BOT_TOKEN (см. инструкцию).', { status: 500 });
-    await ensureSchema(env.DB);
+    try {
+      await checkSchema(env.DB);
+    } catch (e) {
+      if (!(e instanceof SchemaError)) throw e;
+      // Миграции не применены: ничего не трогаем, объясняем (006). Telegram повторит webhook позже.
+      console.log('schema not ready', e.found);
+      if (url.pathname.startsWith('/api/')) {
+        return new Response(JSON.stringify({ ok: false, error: e.message }), {
+          status: 500,
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+        });
+      }
+      return new Response(e.message, { status: 500, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+    }
 
     if (url.pathname === '/tg' && request.method === 'POST') {
       const expected = await derivedSecret(env, 'webhook');
@@ -58,7 +71,12 @@ export default {
 
   async scheduled(event, env, ctx) {
     if (!env.BOT_TOKEN) return;
-    await ensureSchema(env.DB);
+    try {
+      await checkSchema(env.DB);
+    } catch (e) {
+      if (e instanceof SchemaError) return console.log('scheduled skipped: schema not ready', e.found);
+      throw e;
+    }
     await runScheduled(env);
   },
 };

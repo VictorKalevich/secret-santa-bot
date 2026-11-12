@@ -1,6 +1,7 @@
-// Сквозной тест: локальный Worker (wrangler dev) + имитация Telegram. Сценарии 001–005.
+// Сквозной тест: локальный Worker (wrangler dev) + имитация Telegram. Сценарии 001–006.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { startWorld, initData, waitFor, sleep } from './harness.mjs';
 import { BLOCKED_CHAT } from './mock-telegram.mjs';
 
@@ -328,8 +329,19 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     const crewC = [owner, masha, petya, anya, oleg, katya, late];
     const beforeC = await pairsOf(ev.C, crewC);
     assert.equal((await api(owner, 'admin.transfer', { from: owner.id, to: katya2.id }, true)).status, 400);
+    // 006: на аккаунт администратора переносить нельзя — иначе админ получил бы чужие пары
+    const wardOfAnya = (await api(anya, 'ward.get', { event: ev.C })).ward?.name;
+    const toAdmin = await api(owner, 'admin.transfer', { from: anya.id, to: masha.id }, true);
+    assert.equal(toAdmin.status, 400);
+    assert.match(toAdmin.data.error, /аккаунт администратора/);
+    assert.equal((await api(owner, 'admin.transfer', { from: anya.id, to: owner.id }, true)).status, 400, 'и на свой');
+    assert.equal((await api(anya, 'ward.get', { event: ev.C })).ward?.name, wardOfAnya, 'пары Ани на месте');
     await api(owner, 'admin.transfer', { from: katya.id, to: katya2.id });
     await waitFor(() => texts(katya2).some((x) => /перенёс на этот аккаунт/.test(x)), 'сообщение новому аккаунту');
+    // 006: перенос не тайный — прежний аккаунт и другие админы узнают о нём
+    await waitFor(() => texts(katya).some((x) => /перенесено на аккаунт <b>Катя Новая<\/b>/.test(x)), 'сообщение прежнему аккаунту');
+    await waitFor(() => texts(masha).some((x) => /<b>Дмитрий<\/b> перенёс участие <b>Катя<\/b> на аккаунт <b>Катя Новая<\/b>/.test(x)), 'сообщение админу');
+    assert.ok(!texts(owner).some((x) => /перенёс участие/.test(x)), 'выполнившему — без уведомления');
     const evs = (await api(katya2, 'me')).events.map((e) => e.id).sort();
     assert.deepEqual(evs, [ev.A, ev.C].sort(), 'история перенесена');
     const afterC = await pairsOf(ev.C, crewC.map((u) => (u.id === katya.id ? katya2 : u)));
@@ -370,5 +382,97 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     await waitFor(() => mock.messagesTo(BLOCKED_CHAT).some((c) => /Напоминание.*пока пустое/.test(c.params.text)), 'попытка отправки');
     await cron();
     assert.equal(mock.messagesTo(BLOCKED_CHAT).filter((c) => /Напоминание.*пока пустое/.test(c.params.text)).length, 1);
+    // 006: админ видит, что человек не получает сообщения; отметка снимается, когда он пишет боту
+    const flag = async () => (await api(owner, 'admin.state', { event: ev.C })).users.find((u) => u.id === BLOCKED_CHAT).blocked;
+    assert.equal(await flag(), true);
+    assert.equal((await api(owner, 'admin.state', { event: ev.C })).users.find((u) => u.id === anya.id).blocked, false);
+    await say(blocked, '/start');
+    assert.equal(await flag(), false);
   });
+
+  await t.test('006: двойная жеребьёвка, длинное название, раскрытие, мелочи', async () => {
+    const longTitle = 'Новогодний обмен подарками отдела маркетинга и всех-всех друзей 2026 🎄🎄🎄🎄';
+    assert.ok(longTitle.length >= 76 && longTitle.length <= 80, 'длина названия ' + longTitle.length);
+    ev.D = (await api(owner, 'admin.events.create', { title: longTitle })).event.id;
+    await api(owner, 'admin.participate', { event: ev.D, on: true });
+    const crew = [owner, petya, anya, oleg];
+    const code = await inviteOf(ev.D);
+    for (const p of crew.slice(1)) await say(p, '/start ' + code);
+    // мелочи: исключение и удаление — только участники эвента
+    const ex = await api(owner, 'admin.exclusion.add', { event: ev.D, giver: petya.id, receiver: ivan.id }, true);
+    assert.equal(ex.status, 400);
+    assert.match(ex.data.error, /только между участниками/);
+    const ivanBefore = texts(ivan).length;
+    const rm = await api(owner, 'admin.remove', { event: ev.D, id: ivan.id }, true);
+    assert.equal(rm.status, 400);
+    assert.match(rm.data.error, /не участвует/);
+    // переименование администратора — только владелец
+    assert.equal((await api(masha, 'admin.rename', { id: owner.id, name: 'Взлом' }, true)).status, 403);
+    await api(masha, 'admin.rename', { id: masha.id, name: masha.name });
+    await api(masha, 'admin.rename', { id: petya.id, name: petya.name });
+    assert.equal((await api(masha, 'admin.rename', { id: 424242, name: 'Никто' }, true)).status, 400);
+
+    // двойная жеребьёвка: два одновременных запроса — ровно одна
+    const drawn = (u) => texts(u).filter((x) => x.includes('Жеребьёвка в эвенте') && x.includes('отдела маркетинга')).length;
+    const [r1, r2] = await Promise.all([
+      api(owner, 'admin.draw', { event: ev.D }, true),
+      api(masha, 'admin.draw', { event: ev.D }, true),
+    ]);
+    assert.deepEqual([r1.status, r2.status].sort(), [200, 400]);
+    assert.match((r1.status === 400 ? r1 : r2).data.error, /уже проведена/);
+    await waitFor(() => crew.every((u) => drawn(u) === 1), 'уведомления о жеребьёвке');
+    await cron();
+    await sleep(300);
+    assert.ok(crew.every((u) => drawn(u) === 1), 'ровно одно уведомление на участника');
+    const pairsD = await pairsOf(ev.D, crew);
+    assertPermutation(pairsD, crew.map((u) => u.id), [], { ring: true });
+
+    // длинное название + 4000 символов: уведомление помещается в одно сообщение Telegram
+    const ward = byId[pairsD.get(owner.id)];
+    const long = 'Ж'.repeat(3990) + ' & <ok>';
+    await api(owner, 'message.send', { event: ev.D, to: 'ward', text: long });
+    await waitFor(() => texts(ward).some((x) => x.includes('Ж'.repeat(3990))), 'длинное сообщение подопечному');
+    const got = texts(ward).find((x) => x.includes('Ж'.repeat(3990)));
+    assert.match(got, /Твой Тайный Санта \(«Новогодний обмен подарками отдела.*…»\) пишет/);
+    assert.ok(got.includes('&amp; &lt;ok&gt;'), 'текст экранирован');
+
+    // раскрытие — один раз
+    await api(owner, 'admin.reveal', { event: ev.D });
+    await waitFor(() => texts(ward).some((x) => /Тайна раскрыта/.test(x) && x.includes('отдела маркетинга')), 'раскрытие');
+    const again = await api(owner, 'admin.reveal', { event: ev.D }, true);
+    assert.equal(again.status, 400);
+    assert.match(again.data.error, /уже раскрыта/);
+    await cron();
+    await sleep(300);
+    assert.equal(texts(ward).filter((x) => /Тайна раскрыта/.test(x) && x.includes('отдела маркетинга')).length, 1);
+    assert.equal(texts(ivan).length, ivanBefore, 'Ивану (не участнику) — ни одного сообщения');
+  });
+});
+
+// 006: схема базы — только миграциями. База «как у 005» (миграция 0001 с данными): бот отвечает понятным отказом
+// и ничего не трогает; после применения миграций данные на месте.
+test('006: миграции — неготовая база и обновление с 005 без потери данных', { timeout: 300000 }, async () => {
+  const v5 = fs.readFileSync(new URL('../migrations/0001_initial.sql', import.meta.url), 'utf8') + `
+INSERT INTO users (tg_id, name, username, is_admin, registered, created_at) VALUES (300, 'Старожил', 'old', 0, 1, 1);
+INSERT INTO events (id, title, created_at, invite_code) VALUES (1, 'Новый год 2025', 1, 'oldcode');
+INSERT INTO members (event_id, user_id, wishlist, wishlist_updated_at, joined_at) VALUES (1, 300, 'Письмо из прошлого', 1, 1);
+`;
+  const oldie = { id: 300, name: 'Старожил', username: 'old' };
+  const old = await startWorld({ migrate: false, sqlBefore: v5 });
+  try {
+    const page = await fetch(old.base + '/');
+    assert.equal(page.status, 500);
+    assert.match(await page.text(), /База не подготовлена/);
+    const r = await old.api(oldie, 'me', {}, true);
+    assert.equal(r.status, 500);
+    assert.match(r.data.error, /примени миграции/);
+    assert.equal((await old.query("SELECT value FROM settings WHERE key = 'schema'"))[0].value, '5', 'база не тронута');
+    old.migrate();
+    const me = await old.api(oldie, 'me');
+    assert.deepEqual(me.events.map((e) => e.title), ['Новый год 2025']);
+    const evd = await old.api(oldie, 'event.get', { event: 1 });
+    assert.equal(evd.member.wishlist, 'Письмо из прошлого');
+  } finally {
+    await old.stop();
+  }
 });

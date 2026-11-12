@@ -2,7 +2,7 @@
 
 import {
   getSettings, setSettings, setSettingStmt, allUsers, getUser, getExclusions, getPairs, enqueueStmt,
-  updateUserStmt, pairOfSanta, pairOfWard, getEvent, updateEventStmt, eventMembers, addMemberStmt,
+  updateUserStmt, pairOfSanta, pairOfWard, getEvent, updateEventStmt, eventMembers, addMemberStmt, enqueueIfStmt,
 } from './db.js';
 import { findAssignment, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { tgApi } from './telegram.js';
@@ -45,6 +45,18 @@ export function escapeHtml(s) {
 }
 
 export const q = (ev) => `«${escapeHtml(ev.title)}»`;
+
+// Короткое название для заголовков: не больше max единиц UTF-16, суррогатная пара не разрывается (006, FR-603).
+export function shortTitle(title, max = 40) {
+  const s = String(title ?? '');
+  if (s.length <= max) return s;
+  let out = '';
+  for (const ch of s) {
+    if (out.length + ch.length > max - 1) break;
+    out += ch;
+  }
+  return out.trimEnd() + '…';
+}
 
 export function msg(text, extra = {}) {
   return { text, parse_mode: 'HTML', ...extra };
@@ -100,38 +112,70 @@ export function menuMessage(user, settings, items, finishedCount = 0) {
 
 // ---------- очередь сообщений ----------
 
-// Атомарно забираем пачку сообщений из очереди и отправляем.
+// Отправка очереди (006): пачку сообщений «захватываем» на минуту (locked_until), отправляем, затем удаляем
+// отправленные и освобождаем неотправленные. Если вызов оборвётся, захват истечёт и сообщения уйдут позже — без потерь
+// (редкий дубль допустим). Порядок сохраняется: id не меняются, а сообщение человеку не берётся, пока более старое
+// сообщение ему же захвачено другим вызовом или не ушло в этой пачке.
 // Лимит небольшой: на бесплатном тарифе Cloudflare не больше 50 внешних запросов за вызов.
+const OUTBOX_LOCK_MS = 60 * 1000;
+const OUTBOX_TTL_MS = 2 * 24 * 3600 * 1000;
+
 export async function flushOutbox(env, limit = 25) {
+  // Несколько кругов: пока этот вызов отправлял, другой мог поставить в очередь сообщения тем же людям и пропустить их
+  // (их более старые сообщения были захвачены здесь). Забираем их сразу, а не через минуту, — если круг прошёл без сбоев.
+  let total = 0;
+  for (let round = 0; round < 3 && total < limit; round++) {
+    const r = await flushRound(env, limit - total);
+    total += r.claimed;
+    if (!r.claimed || r.released) break;
+  }
+  return total;
+}
+
+async function flushRound(env, limit) {
   const db = env.DB;
+  const now = Date.now();
   const { results } = await db
-    .prepare('DELETE FROM outbox WHERE id IN (SELECT id FROM outbox ORDER BY id LIMIT ?) RETURNING *')
-    .bind(limit)
+    .prepare(
+      `UPDATE outbox SET locked_until = ?1 WHERE id IN (
+         SELECT o.id FROM outbox o
+          WHERE o.locked_until < ?2
+            AND NOT EXISTS (SELECT 1 FROM outbox p WHERE p.chat_id = o.chat_id AND p.id < o.id AND p.locked_until >= ?2)
+          ORDER BY o.id LIMIT ?3)
+       RETURNING *`
+    )
+    .bind(now + OUTBOX_LOCK_MS, now, limit)
     .all();
-  if (!results.length) return 0;
+  if (!results.length) return { claimed: 0, released: 0 };
   results.sort((a, b) => a.id - b.id);
   const call = tgApi(env);
-  const retry = [];
+  const done = [];
+  const release = [];
+  const blocked = new Set();
+  const held = new Set(); // люди, чьё более старое сообщение не ушло: следующие ему его не обгоняют
   let rateLimited = false;
   for (const r of results) {
-    if (rateLimited || Date.now() - r.created_at > 2 * 24 * 3600 * 1000) {
-      if (rateLimited) retry.push(r);
-      continue;
-    }
+    if (now - r.created_at > OUTBOX_TTL_MS || blocked.has(r.chat_id)) { done.push(r.id); continue; }
+    if (rateLimited || held.has(r.chat_id)) { release.push(r.id); continue; }
     const res = await call('sendMessage', { chat_id: r.chat_id, ...JSON.parse(r.payload) });
-    if (res.ok) continue;
-    if (res.error_code === 400 || res.error_code === 403) continue; // человек заблокировал бота и т.п.
+    if (res.ok) { done.push(r.id); continue; }
+    // 403 — бот заблокирован или человек удалён: запоминаем, чтобы админ это видел (006, FR-608)
+    if (res.error_code === 403) { blocked.add(r.chat_id); done.push(r.id); continue; }
+    // 400 — сообщение некорректно, повтор не поможет (код и описание уже в журнале — см. tgApi)
+    if (res.error_code === 400) { done.push(r.id); continue; }
     if (res.error_code === 429) rateLimited = true;
-    retry.push(r);
+    held.add(r.chat_id);
+    release.push(r.id);
   }
-  if (retry.length) {
-    await db.batch(
-      retry.map((r) =>
-        db.prepare('INSERT INTO outbox (chat_id, payload, created_at) VALUES (?, ?, ?)').bind(r.chat_id, r.payload, r.created_at)
-      )
-    );
+  const list = (ids) => ids.map(() => '?').join(',');
+  const stmts = [];
+  if (done.length) stmts.push(db.prepare(`DELETE FROM outbox WHERE id IN (${list(done)})`).bind(...done));
+  if (release.length) stmts.push(db.prepare(`UPDATE outbox SET locked_until = 0 WHERE id IN (${list(release)})`).bind(...release));
+  for (const chat of blocked) {
+    stmts.push(db.prepare('UPDATE users SET blocked_at = ? WHERE tg_id = ? AND blocked_at = 0').bind(Date.now(), chat));
   }
-  return results.length;
+  if (stmts.length) await db.batch(stmts);
+  return { claimed: results.length, released: release.length };
 }
 
 // ---------- участники и ограничения ----------
@@ -179,6 +223,7 @@ function describeProblem(p, byId) {
     case 'ring_impossible': return 'С такими исключениями без взаимных пар не обойтись. Убери часть исключений или выключи кольцевую жеребьёвку.';
     case 'no_receivers': return `${name(p.id)} не может дарить никому — проверь исключения.`;
     case 'no_givers': return `${name(p.id)} не может достаться никому — проверь исключения.`;
+    case 'search_exhausted': return 'Не удалось быстро подобрать распределение — попробуй ещё раз. Если не выйдет, убери часть исключений или выключи кольцевую жеребьёвку.';
     default: return 'Слишком много исключений: распределить всех так, чтобы их соблюсти, не получается. Убери часть исключений.';
   }
 }
@@ -215,21 +260,29 @@ export async function runDraw(env, ev) {
   const settings = await getSettings(db);
   const check = await checkDraw(env, ev);
   if (!check.res.ok) return { ok: false, error: check.problems.join('\n') };
-  const stmts = [db.prepare('DELETE FROM pairs WHERE event_id = ?').bind(ev.id)];
+  // Атомарно (006, FR-607): batch D1 — одна транзакция. Первый оператор «занимает» жеребьёвку своим токеном;
+  // остальные записи выполняются, только если токен в эвенте — наш. Вторая одновременная жеребьёвка ничего не запишет.
+  const token = randomCode(16);
+  const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)';
+  const stmts = [
+    db.prepare('UPDATE events SET draw_done = 1, draw_at = ?, draw_token = ?, registration_open = 0, revealed = 0 WHERE id = ? AND draw_done = 0')
+      .bind(Date.now(), token, ev.id),
+    db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
+  ];
   for (const [santa, ward] of check.res.pairs) {
     stmts.push(
-      db.prepare('INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) VALUES (?, ?, ?, NULL, ?, 0)')
-        .bind(ev.id, santa, ward, check.byId[ward].wishlist_updated_at || 0)
+      db.prepare(`INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) SELECT ?, ?, ?, NULL, ?, 0 WHERE ${guard}`)
+        .bind(ev.id, santa, ward, check.byId[ward].wishlist_updated_at || 0, ev.id, token)
     );
   }
-  stmts.push(updateEventStmt(db, ev.id, { draw_done: 1, draw_at: Date.now(), registration_open: 0, revealed: 0 }));
   for (const u of check.people) {
-    stmts.push(enqueueStmt(db, u.user_id, msg(
+    stmts.push(enqueueIfStmt(db, u.user_id, msg(
       `🎄 <b>Жеребьёвка в эвенте ${q(ev)} проведена!</b>\n\nОткрой приложение и загляни во вкладку «Подопечный», чтобы узнать, кому ты даришь подарок. Никому не рассказывай 🤫`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Узнать подопечного', { event: ev.id })]] } }
-    )));
+    ), guard, ev.id, token));
   }
-  await db.batch(stmts);
+  const [claim] = await db.batch(stmts);
+  if (!claim.meta.changes) return { ok: false, error: 'Жеребьёвка уже проведена.' };
   return { ok: true, count: check.people.length, singleCycle: check.res.singleCycle, historyIgnored: check.historyIgnored };
 }
 
@@ -282,6 +335,7 @@ async function applyPairsChange(env, ev, oldRows, newMap, changed, members) {
 export async function removeMember(env, ev, userId, { notify = true } = {}) {
   const db = env.DB;
   const members = await eventMembers(db, ev.id);
+  if (!members.some((m) => m.user_id === userId)) return { ok: false, error: 'Человек не участвует в этом эвенте.' };
   const stmts = [];
   if (ev.draw_done) {
     const rows = await getPairs(db, ev.id);
@@ -419,7 +473,7 @@ export async function resetEvent(env, ev, ownerId) {
     db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
     updateEventStmt(db, ev.id, {
-      status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, revealed: 0, registration_open: 1, invite_code: inviteCode,
+      status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,
       ring: 1, avoid_previous: 1, budget: '', event_date: '', place: '', deadline: '', notes: '', last_daily: '',
     }),
   ]);
@@ -477,9 +531,11 @@ export async function sendChatMessage(env, ev, fromId, to, rawText) {
   if (!pair) return { ok: false, error: to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.' };
   const settings = await getSettings(db);
   const now = Date.now();
+  // Заголовок + текст до MAX_CHARS всегда помещаются в одно сообщение Telegram: название эвента сокращаем
+  const t = q({ title: shortTitle(ev.title) });
   const header = pair.me === 'santa'
-    ? `💬 <b>Твой Тайный Санта (${q(ev)}) пишет:</b>`
-    : `💬 <b>Тебе пишет твой подопечный (${q(ev)}):</b>`;
+    ? `💬 <b>Твой Тайный Санта (${t}) пишет:</b>`
+    : `💬 <b>Тебе пишет твой подопечный (${t}):</b>`;
   const [inserted] = await db.batch([
     db.prepare('INSERT INTO messages (event_id, santa, ward, sender, text, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, created_at')
       .bind(ev.id, pair.santa, pair.ward, pair.me, text, now),
@@ -513,7 +569,7 @@ export async function unreadByEvent(db, userId) {
 
 // ---------- перенос участия на новый аккаунт (004 → 005: во всех эвентах) ----------
 
-export async function transferAccount(env, fromId, toId) {
+export async function transferAccount(env, fromId, toId, actorId = 0) {
   const db = env.DB;
   if (!fromId || !toId || fromId === toId) return { ok: false, error: 'Выбери две разные записи.' };
   const from = await getUser(db, fromId);
@@ -531,7 +587,8 @@ export async function transferAccount(env, fromId, toId) {
       return { ok: false, error: `Новый аккаунт уже участвует в жеребьёвке эвента «${ev?.title || ''}» — выбери другую запись.` };
     }
   }
-  const settings = await getSettings(db);
+  const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
+  const actor = users.find((u) => u.tg_id === actorId);
   const stmts = [];
   for (const m of fromMembers) {
     const t = toByEvent.get(m.event_id);
@@ -559,6 +616,12 @@ export async function transferAccount(env, fromId, toId) {
       '🔁 Организатор перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история эвентов сохранены.',
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть')]] } }
     )),
+    // Перенос не должен быть незаметным (006, FR-602): прежний аккаунт и остальные админы узнают о нём
+    enqueueStmt(db, fromId, msg(
+      `🔁 Твоё участие в «Тайном Санте» перенесено на аккаунт <b>${escapeHtml(displayName(to))}</b>. Если это не ты — напиши организатору.`
+    )),
+    ...otherAdminsNotice(db, users, [actorId, toId, fromId],
+      `🔁 <b>${escapeHtml(displayName(actor))}</b> перенёс участие <b>${escapeHtml(displayName(from))}</b> на аккаунт <b>${escapeHtml(displayName(to))}</b>.`),
   );
   await db.batch(stmts);
   return { ok: true, events: fromMembers.length };

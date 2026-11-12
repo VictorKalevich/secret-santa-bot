@@ -44,6 +44,8 @@ export async function handleApi(request, env, ctx, action) {
   const db = env.DB;
   const me = await getUser(db, tgUser.id);
   const settings = await getSettings(db);
+  // Человек открыл приложение — значит, бот у него не заблокирован (006, FR-609)
+  if (me?.blocked_at) await updateUser(db, me.tg_id, { blocked_at: 0 });
 
   if (action === 'me') {
     if (!me || !me.registered) return json({ ok: true, registered: false });
@@ -212,7 +214,13 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
     case 'admin.rename': {
       const name = String(body.name || '').replace(/\s+/g, ' ').trim();
       if (!name || name.length > 40) return fail('Имя должно быть от 1 до 40 символов');
-      await updateUser(db, Number(body.id), { name });
+      const target = await getUser(db, Number(body.id));
+      if (!target) return fail('Участник не найден');
+      // Администраторов и владельца переименовывает только владелец; себя — любой админ (006, FR-613)
+      if ((target.is_admin || target.tg_id === ownerId) && target.tg_id !== me.tg_id && !isOwner) {
+        return fail('Переименовать администратора может только владелец бота.', 403);
+      }
+      await updateUser(db, target.tg_id, { name });
       return {};
     }
     case 'admin.transfer': {
@@ -220,9 +228,12 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       if (from === ownerId) {
         return fail('Запись владельца не переносится: владелец восстанавливает доступ по ссылке владельца со страницы /setup.');
       }
-      const fromUser = await getUser(db, from);
+      const to = Number(body.to);
+      const [fromUser, toUser] = await Promise.all([getUser(db, from), getUser(db, to)]);
       if (fromUser?.is_admin && !isOwner) return fail('Перенести администратора может только владелец бота.', 403);
-      const r = await transferAccount(env, from, Number(body.to));
+      // Иначе админ получил бы чужие пары и переписку (Конституция, принцип I; 006, FR-601)
+      if (toUser?.is_admin || to === ownerId) return fail('Переносить участие на аккаунт администратора нельзя.');
+      const r = await transferAccount(env, from, to, me.tg_id);
       return r.ok ? { events: r.events } : fail(r.error);
     }
     case 'admin.role.grant': {
@@ -264,6 +275,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
           has_wishlist: !!u.wishlist.trim(),
           in_draw: santas.has(u.user_id),
           gift_ready: ready.has(u.user_id),
+          blocked: !!u.blocked_at, // Telegram сообщил, что бот заблокирован (006)
         })),
         exclusions,
         me_member: members.some((m) => m.user_id === me.tg_id),
@@ -337,6 +349,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       if (id === ownerId) return fail('Владельца нельзя удалить из эвента. Сначала он должен передать права владельца.');
       const target = await getUser(db, id);
       if (target?.is_admin && !isOwner) return fail('Удалить администратора может только владелец бота.', 403);
+      if (!(await getMember(db, ev.id, id))) return fail('Человек не участвует в этом эвенте.');
       const r = await removeMember(env, ev, id);
       return r.ok ? {} : fail(r.error);
     }
@@ -350,6 +363,8 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
       const giver = Number(body.giver);
       const receiver = Number(body.receiver);
       if (!giver || !receiver || giver === receiver) return fail('Выбери двух разных людей');
+      const [g, r] = await Promise.all([getMember(db, ev.id, giver), getMember(db, ev.id, receiver)]);
+      if (!g || !r) return fail('Исключение можно задать только между участниками эвента.');
       const stmts = [db.prepare('INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) VALUES (?, ?, ?)').bind(ev.id, giver, receiver)];
       if (body.mutual) stmts.push(db.prepare('INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) VALUES (?, ?, ?)').bind(ev.id, receiver, giver));
       await db.batch(stmts);
@@ -391,6 +406,7 @@ async function handleAdmin(action, body, env, ctx, me, settings) {
 
     case 'admin.reveal':
       if (!ev.draw_done) return fail('Жеребьёвка ещё не проведена.');
+      if (ev.revealed) return fail('Тайна уже раскрыта.'); // повторно имена не рассылаем (006, FR-610)
       return { count: (await revealAll(env, ev)).count };
 
     case 'admin.event.finish': {

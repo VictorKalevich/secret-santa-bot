@@ -3,6 +3,15 @@ import http from 'node:http';
 
 export const BLOCKED_CHAT = 555000555; // этот «пользователь» заблокировал бота → 403
 
+// Длина текста так, как её считает Telegram: после разбора HTML-разметки (теги не в счёт, сущности — 1 символ).
+function visibleLength(params) {
+  let t = String(params.text || '');
+  if (params.parse_mode === 'HTML') {
+    t = t.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt|quot);/g, '_');
+  }
+  return t.length;
+}
+
 export function startMockTelegram(port = 8790) {
   const calls = [];
   let messageId = 1;
@@ -20,9 +29,10 @@ export function startMockTelegram(port = 8790) {
       if (method === 'getMe') result = { id: 1, is_bot: true, first_name: 'Santa', username: 'test_santa_bot' };
       if (method === 'sendMessage') {
         if (params.chat_id === BLOCKED_CHAT) reply = { ok: false, error_code: 403, description: 'Forbidden: bot was blocked by the user' };
+        else if (visibleLength(params) > 4096) reply = { ok: false, error_code: 400, description: 'Bad Request: message is too long' };
         else result = { message_id: messageId++, chat: { id: params.chat_id }, text: params.text };
       }
-      res.writeHead(reply ? 403 : 200, { 'content-type': 'application/json' });
+      res.writeHead(reply ? reply.error_code : 200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(reply || { ok: true, result }));
     });
   });
