@@ -54,9 +54,12 @@ let sqlFileNo = 0;
 function execSql(persistDir, command, json = false) {
   const file = join(persistDir, `santa-sql-${++sqlFileNo}.sql`); // удаляется вместе с базой в stop()
   writeFileSync(file, command);
-  const r = spawnSync('npx', ['wrangler', 'd1', 'execute', 'DB', '--local', '--persist-to', persistDir, '--file', file, ...(json ? ['--json'] : [])], {
+  const run = () => spawnSync('npx', ['wrangler', 'd1', 'execute', 'DB', '--local', '--persist-to', persistDir, '--file', file, ...(json ? ['--json'] : [])], {
     cwd: fileURLToPath(new URL('..', import.meta.url)), env: localEnv(), shell: process.platform === 'win32', encoding: 'utf8',
   });
+  let r = run();
+  // Изредка локальный wrangler не успевает поднять базу («fetch failed») — повторяем
+  for (let i = 0; i < 2 && r.status !== 0 && /fetch failed/.test(r.stderr + r.stdout); i++) r = run();
   if (r.status !== 0) throw new Error('d1 execute: ' + r.stderr + r.stdout);
   return json ? JSON.parse(r.stdout)[0].results : r.stdout;
 }
@@ -73,7 +76,7 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, migrate = 
   const isWin = process.platform === 'win32';
   const worker = spawn('npx', [
     'wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1', '--test-scheduled',
-    '--persist-to', persistDir, '--log-level', 'warn',
+    '--persist-to', persistDir, '--log-level', 'log',
     '--var', `TG_API:http://127.0.0.1:${tgPort}`,
     '--var', `BOT_TOKEN:${TOKEN}`,
     '--var', `ADMIN_SECRET:${ADMIN_SECRET}`,
@@ -157,6 +160,8 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, migrate = 
       return world.update({ callback_query: { id: 'cq' + updateId, from: world.from(u), data, chat_instance: 'x' } });
     },
     cron: () => fetch(`${base}/__scheduled?cron=*+*+*+*+*`).then((r) => r.text()),
+    // Журнал Worker (console.log) — для проверки, что вызовы укладываются в бюджет запросов (009)
+    log: () => log,
     texts: (u) => mock.messagesTo(u.id).map((c) => c.params.text),
     lastText: (u) => mock.messagesTo(u.id).map((c) => c.params.text).at(-1) || '',
   };

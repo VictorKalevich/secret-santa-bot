@@ -54,18 +54,18 @@ description: "Задачи: исправление багов и рефакто�
 
 ## Phase 3: US1 — Админ не может вычислить пары (P1)
 
-- [ ] T915 [US1] `src/api.js`: `admin.exclusion.add/del` при `ev.draw_done` → 400 (текст из contracts/api-changes.md)
-- [ ] T916 [US1] `src/membership.js`: `saveFamily`/`deleteFamily` — затронутые люди (добавленные ∪ удалённые; при удалении
+- [X] T915 [US1] `src/api.js`: `admin.exclusion.add/del` при `ev.draw_done` → 400 (текст из contracts/api-changes.md)
+- [X] T916 [US1] `src/membership.js`: `saveFamily`/`deleteFamily` — затронутые люди (добавленные ∪ удалённые; при удалении
   — все члены); если кто-то в эвенте `status='active' AND draw_done=1 AND families_on=1` → отказ с названием эвента;
   переименование без смены состава — разрешено
-- [ ] T917 [US1] `src/api.js`: `admin.insert` с `id === me.tg_id` → 400 «Вписать себя нельзя — попроси другого
+- [X] T917 [US1] `src/api.js`: `admin.insert` с `id === me.tg_id` → 400 «Вписать себя нельзя — попроси другого
   администратора.»
-- [ ] T918 [US1] `src/api.js`: `admin.draw.check` без `history_used`/`history_ignored`; `admin.draw` без
+- [X] T918 [US1] `src/api.js`: `admin.draw.check` без `history_used`/`history_ignored`; `admin.draw` без
   `history_ignored`; `src/pairs.js`: `checkDraw`/`runDraw` не возвращают эти признаки наружу
-- [ ] T919 [US1] `src/db.js`: `addMemberStmt` копирует последний адрес только при `ev.delivery_on`; все вызовы передают эвент
-- [ ] T920 [US1] `src/app.html`: исключения после жеребьёвки — только чтение с пояснением; убрать строку «Не повторять
+- [X] T919 [US1] `src/db.js`: `addMemberStmt` копирует последний адрес только при `ev.delivery_on`; все вызовы передают эвент
+- [X] T920 [US1] `src/app.html`: исключения после жеребьёвки — только чтение с пояснением; убрать строку «Не повторять
   прошлые пары не получится…» из подтверждения жеребьёвки
-- [ ] T921 [US1] `tests/e2e.test.mjs`: убрать проверку `history_used` в блоке 005 (сохранить проверку «пары не повторились»);
+- [X] T921 [US1] `tests/e2e.test.mjs`: убрать проверку `history_used` в блоке 005 (сохранить проверку «пары не повторились»);
   блок «009 / тайна»: исключение после жеребьёвки → 400; семья участника идущего эвента с жеребьёвкой → 400, после
   завершения → 200; самовписывание → 400; ответ проверки без `history_*`; адрес не копируется без `delivery_on`
 

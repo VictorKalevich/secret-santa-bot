@@ -8,6 +8,33 @@ import { isFinished } from './events.js';
 
 const FAMILY_MAX = 20;
 
+// Состав семьи меняет исключения во всех идущих эвентах, где есть двое её членов. После жеребьёвки это позволило бы
+// вычислить пары по заменам (009, FR-902), поэтому членство людей такого эвента заморожено до его завершения.
+// changed — люди, чьё членство меняется; family — все члены семьи до и после изменения.
+async function frozenFamilyEvent(db, changed, family) {
+  if (!changed.length) return null;
+  const list = (a) => a.map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT e.title FROM events e
+        WHERE e.status = 'active' AND e.draw_done = 1 AND e.families_on = 1
+          AND EXISTS (SELECT 1 FROM members m WHERE m.event_id = e.id AND m.user_id IN (${list(changed)}))
+          AND (SELECT COUNT(*) FROM members m WHERE m.event_id = e.id AND m.user_id IN (${list(family)})) >= 2
+        LIMIT 1`
+    )
+    .bind(...changed, ...family)
+    .first();
+}
+
+const familyFrozen = (ev) =>
+  `Состав семьи нельзя менять, пока идёт эвент «${ev.title}» с проведённой жеребьёвкой: иначе по заменам участников ` +
+  'можно было бы вычислить пары. Изменения — после его завершения.';
+
+async function familyMembers(db, familyId) {
+  const { results } = await db.prepare('SELECT user_id FROM family_members WHERE family_id = ?').bind(familyId).all();
+  return results.map((r) => r.user_id);
+}
+
 export async function saveFamily(env, actor, { id = 0, name, members }) {
   const db = env.DB;
   const clean = oneLine(name);
@@ -26,6 +53,11 @@ export async function saveFamily(env, actor, { id = 0, name, members }) {
     .bind(id, ...ids)
     .all();
   if (taken.length) return { ok: false, error: `${displayName(byId[taken[0].user_id])} уже в семье «${taken[0].name}».` };
+  // Переименование без смены состава разрешено всегда
+  const before = id ? await familyMembers(db, id) : [];
+  const changed = [...ids.filter((x) => !before.includes(x)), ...before.filter((x) => !ids.includes(x))];
+  const frozen = await frozenFamilyEvent(db, changed, [...new Set([...before, ...ids])]);
+  if (frozen) return { ok: false, error: familyFrozen(frozen) };
   const now = Date.now();
   // Новая семья в остальных операторах batch — по автору и времени создания
   const famId = id ? '?' : '(SELECT MAX(id) FROM families WHERE created_by = ? AND created_at = ?)';
@@ -43,6 +75,9 @@ export async function deleteFamily(env, actor, id) {
   const db = env.DB;
   const fam = await db.prepare('SELECT * FROM families WHERE id = ?').bind(Number(id) || 0).first();
   if (!fam) return { ok: false, error: 'Семья не найдена.' };
+  const all = await familyMembers(db, fam.id);
+  const frozen = await frozenFamilyEvent(db, all, all);
+  if (frozen) return { ok: false, error: familyFrozen(frozen) };
   await db.batch([
     db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(fam.id),
     db.prepare('DELETE FROM families WHERE id = ?').bind(fam.id),

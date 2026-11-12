@@ -903,13 +903,15 @@
         exPairs.push({ ...e, mutual });
       }
       if (!exPairs.length) exList.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Исключений нет — подарить может кто угодно кому угодно.'));
+      // 009: после жеребьёвки исключения только для чтения — по заменам можно было бы вычислить пары
+      const exFrozen = s.draw_done;
       for (const e of exPairs) {
         const a = byId[e.giver]?.name || '?', b = byId[e.receiver]?.name || '?';
         exList.append(h('div', { class: 'ds-list-item' },
           h('div', { class: 'ds-grow' }, e.mutual
             ? [h('b', {}, a), ' и ', h('b', {}, b), ' не дарят друг другу']
             : [h('b', {}, a), ' не дарит ', h('b', {}, b)]),
-          h('button', { class: 'ds-icon-btn', title: 'Удалить исключение', onclick: () => busy(null, async () => { await eapi('admin.exclusion.del', e); await renderAdmin(); }) }, '✕')));
+          exFrozen ? null : h('button', { class: 'ds-icon-btn', title: 'Удалить исключение', onclick: () => busy(null, async () => { await eapi('admin.exclusion.del', e); await renderAdmin(); }) }, '✕')));
       }
       const opts = (ph) => [h('option', { value: '' }, ph), ...players.map((u) => h('option', { value: u.id }, u.name))];
       const selA = h('select', { class: 'ds-input' }, opts('Кто дарит…'));
@@ -940,11 +942,13 @@
         ui.section('Исключения'),
         famCard,
         exList,
-        ui.card(
-          ui.hint('Например, пары или члены одной семьи. Бот не даст жеребьёвке нарушить эти правила.'),
-          selA, selB,
-          h('label', { class: 'ds-check' }, mutual, 'и наоборот (в обе стороны)'),
-          addEx));
+        exFrozen
+          ? ui.hint('После жеребьёвки исключения не меняются: иначе по заменам участников можно было бы вычислить пары. Чтобы поменять их, отмени жеребьёвку (пока никто не открыл подопечного).', 'ds-hint--inset')
+          : ui.card(
+            ui.hint('Например, пары или члены одной семьи. Бот не даст жеребьёвке нарушить эти правила.'),
+            selA, selB,
+            h('label', { class: 'ds-check' }, mutual, 'и наоборот (в обе стороны)'),
+            addEx));
     }
 
     // --- жеребьёвка
@@ -975,7 +979,6 @@
         }
         let text = `Провести жеребьёвку для ${c.count} ${plural(c.count, 'участника', 'участников', 'участников')}${c.ring ? ' (кольцевая)' : ''}? Отменить её будет нельзя.`;
         if (c.empty_wishlists.length) text += `\n\nПисьма ещё нет у: ${c.empty_wishlists.join(', ')} (его можно написать и позже).`;
-        if (c.history_ignored) text += '\n\nНе повторять прошлые пары не получится — их учитывать не будем.';
         if (!(await confirmBox(text))) return;
         const r = await eapi('admin.draw');
         haptic('success');

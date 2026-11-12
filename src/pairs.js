@@ -62,11 +62,7 @@ export async function checkDraw(env, ev) {
   const prev = ev.avoid_previous ? await previousPairs(db, ev, ids) : [];
   const ring = !!ev.ring;
   let res = findAssignment(ids, buildIsAllowed(exclusions, prev), Math.random, { ring });
-  let historyUsed = prev.length > 0;
-  if (!res.ok && prev.length) {
-    res = findAssignment(ids, buildIsAllowed(exclusions), Math.random, { ring });
-    historyUsed = false;
-  }
+  if (!res.ok && prev.length) res = findAssignment(ids, buildIsAllowed(exclusions), Math.random, { ring });
   // 008, FR-807: если мешают именно семьи — сказать об этом
   const familiesBlock = !res.ok && fam.length > 0 && findAssignment(ids, buildIsAllowed(own), Math.random, { ring }).ok;
   const byId = Object.fromEntries(people.map((u) => [u.user_id, u]));
@@ -75,8 +71,7 @@ export async function checkDraw(env, ev) {
     byId,
     res,
     ring,
-    historyUsed,
-    historyIgnored: prev.length > 0 && !historyUsed,
+    // Учтены ли прошлые пары, наружу не сообщается: по этому признаку можно вычислить пары прошлого (009, FR-904)
     emptyWishlists: people.filter((u) => !u.wishlist.trim()).map((u) => u.name),
     problems: res.ok ? [] : [
       ...(familiesBlock ? ['Мешают семьи: члены одной семьи не дарят друг другу, и распределить всех так не получается. Выключи «Учитывать семьи» или кольцевую жеребьёвку.'] : []),
@@ -116,7 +111,7 @@ export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
   stmts.push(auditIfStmt(db, ev.id, actor, action, `участников: ${check.people.length}`, guard, ev.id, token));
   const [claim] = await db.batch(stmts);
   if (!claim.meta.changes) return { ok: false, error: 'Жеребьёвка уже проведена.' };
-  return { ok: true, count: check.people.length, singleCycle: check.res.singleCycle, historyIgnored: check.historyIgnored };
+  return { ok: true, count: check.people.length, singleCycle: check.res.singleCycle };
 }
 
 // Последнее изменение письма или адреса подопечного (008) — с него Санте приходят уведомления

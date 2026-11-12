@@ -20,7 +20,17 @@ before(async () => {
   BASE = w.base;
 });
 
-after(async () => { await w?.stop(); });
+// 009: ни один вызов Worker не должен превышать бюджет внешних запросов бесплатного тарифа
+function assertBudget(log) {
+  const over = log.split('\n').filter((l) => /budget exceeded/.test(l));
+  assert.deepEqual(over, [], 'вызовы сверх бюджета запросов');
+}
+
+after(async () => {
+  const log = w?.log() || '';
+  await w?.stop();
+  assertBudget(log);
+});
 
 // Люди
 const owner = { id: 100, name: 'Дмитрий', username: 'dima' };
@@ -292,7 +302,8 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     const crew = [owner, masha, petya, anya, oleg, katya, late];
     for (const u of crew) await say(u, '/start ' + code);
     const c = await api(owner, 'admin.draw.check', { event: ev.C });
-    assert.equal(c.history_used, true);
+    // 009: признаков учёта прошлых пар в ответе нет — по ним можно было бы вычислить чужие пары
+    assert.ok(!Object.keys(c).some((k) => k.startsWith('history')), 'ответ проверки без history_*');
     await api(owner, 'admin.draw', { event: ev.C });
     const pc = await pairsOf(ev.C, crew);
     assertPermutation(pc, crew.map((u) => u.id), [], { ring: true });
@@ -676,7 +687,9 @@ test('007: инструменты организатора', { timeout: 300000 }
       assert.ok(!gc.includes('draw'), 'в общем журнале нет действий эвентов');
     });
   } finally {
+    const log = z.log();
     await z.stop();
+    assertBudget(log);
   }
 });
 
@@ -733,7 +746,11 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       assert.match(long.data.error, /максимум 500/);
       const off = await newEvent('Без адреса', [alya]);
       assert.equal((await zapi(alya, 'delivery.save', { event: off, text: 'x' }, true)).status, 400);
-      assert.equal((await zapi(alya, 'event.get', { event: off })).member.delivery, SECRET, 'новое участие предзаполнено адресом');
+      // 009: в эвент без адреса доставки адрес не копируется; в эвент с адресом — предзаполняется
+      assert.equal((await zapi(alya, 'event.get', { event: off })).member.delivery, '', 'в эвенте без адреса адреса нет');
+      assert.equal((await z.query(`SELECT delivery FROM members WHERE event_id = ${off} AND user_id = ${alya.id}`))[0].delivery, '');
+      const on = await newEvent('С адресом', [alya], { delivery_on: true });
+      assert.equal((await zapi(alya, 'event.get', { event: on })).member.delivery, SECRET, 'новое участие предзаполнено адресом');
       const st = await zapi(boss, 'admin.state', { event: E1 });
       assert.equal(st.users.find((u) => u.id === alya.id).has_delivery, true);
       noSecret(st, 'admin.state');
@@ -857,6 +874,96 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       assert.ok(codes.includes('request.approve') && codes.includes('request.reject'));
     });
   } finally {
+    const log = z.log();
     await z.stop();
+    assertBudget(log);
+  }
+});
+
+// 009: исправления перед первым выкатом — тайна, рассылка, режим ответа, вход, атомарность, перенос.
+test('009: исправления перед выкатом', { timeout: 400000 }, async (t) => {
+  const z = await startWorld();
+  const zapi = (...a) => z.api(...a);
+  const ztexts = (u) => z.texts(u);
+  const boss = { id: 700, name: 'Ведущий', username: 'lead' };
+  const crew = [
+    { id: 701, name: 'Женя', username: 'zhenya' },
+    { id: 702, name: 'Зоя', username: 'zoya' },
+    { id: 703, name: 'Игорь', username: 'igor' },
+    { id: 704, name: 'Лиза', username: 'liza' },
+    { id: 705, name: 'Миша', username: 'misha' },
+  ];
+  const [zhenya, zoya, igor, liza, misha] = crew;
+  const registered = new Set();
+  const zInvite = async (eid) => /start=(inv_[a-z0-9]+)/.exec((await zapi(boss, 'admin.state', { event: eid })).settings.invite_link)[1];
+  const pairsSql = async (eid) => new Map((await z.query(`SELECT santa, ward FROM pairs WHERE event_id = ${eid}`)).map((r) => [r.santa, r.ward]));
+  // Вступить по ссылке; кто ещё не зарегистрирован — пишет имя
+  const join = async (u, code) => {
+    await z.say(u, '/start ' + code);
+    if (!registered.has(u.id)) {
+      await z.say(u, u.name);
+      registered.add(u.id);
+    }
+  };
+  const newEvent = async (title, people, game = {}) => {
+    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    if (Object.keys(game).length) await zapi(boss, 'admin.game', { event: id, ...game });
+    const code = await zInvite(id);
+    for (const u of people) await join(u, code);
+    return id;
+  };
+  let E1;
+
+  try {
+    await t.test('подготовка', async () => {
+      const s = await z.setup();
+      await z.say(boss, '/start ' + s.adminCode);
+      await z.say(boss, boss.name);
+      registered.add(boss.id);
+      E1 = await newEvent('Тайна', crew);
+    });
+
+    await t.test('тайна: исключения и семьи после жеребьёвки заморожены, себя не вписать', async () => {
+      await zapi(boss, 'admin.exclusion.add', { event: E1, giver: zhenya.id, receiver: zoya.id });
+      await zapi(boss, 'admin.draw', { event: E1 });
+      for (const action of ['admin.exclusion.add', 'admin.exclusion.del']) {
+        const r = await zapi(boss, action, { event: E1, giver: zhenya.id, receiver: zoya.id }, true);
+        assert.equal(r.status, 400, action);
+        assert.match(r.data.error, /После жеребьёвки исключения не меняются/);
+      }
+      const add2 = await zapi(boss, 'admin.exclusion.add', { event: E1, giver: igor.id, receiver: liza.id, mutual: true }, true);
+      assert.equal(add2.status, 400);
+      assert.deepEqual((await zapi(boss, 'admin.state', { event: E1 })).exclusions, [{ giver: zhenya.id, receiver: zoya.id }]);
+
+      // семья из двух участников идущего эвента с жеребьёвкой — нельзя
+      const fam = await zapi(boss, 'admin.family.save', { name: 'Пара', members: [zhenya.id, zoya.id] }, true);
+      assert.equal(fam.status, 400);
+      assert.match(fam.data.error, /Состав семьи нельзя менять, пока идёт эвент «Тайна»/);
+      // в эвенте только один член семьи — исключения там не меняются, можно
+      await zapi(boss, 'admin.family.save', { name: 'Родня', members: [zhenya.id, boss.id] });
+      let f = (await zapi(boss, 'admin.families')).families.find((x) => x.name === 'Родня');
+      await zapi(boss, 'admin.family.save', { id: f.id, name: 'Родные', members: [zhenya.id, boss.id] }); // переименование
+      const grow = await zapi(boss, 'admin.family.save', { id: f.id, name: 'Родные', members: [zhenya.id, boss.id, zoya.id] }, true);
+      assert.equal(grow.status, 400, 'добавить второго участника эвента в семью нельзя');
+      assert.equal((await zapi(boss, 'admin.family.delete', { id: f.id })).ok, true, 'в эвенте один член семьи — удалить можно');
+
+      // вписать себя нельзя
+      const self = await zapi(boss, 'admin.insert', { event: E1, id: boss.id }, true);
+      assert.equal(self.status, 400);
+      assert.match(self.data.error, /Вписать себя нельзя/);
+
+      // проверка жеребьёвки без признаков учёта прошлых пар
+      const E2 = await newEvent('Снова', crew);
+      const c = await zapi(boss, 'admin.draw.check', { event: E2 });
+      assert.equal(c.possible, true);
+      assert.deepEqual(Object.keys(c).sort(), ['count', 'empty_wishlists', 'ok', 'possible', 'problems', 'ring']);
+      const d = await zapi(boss, 'admin.draw', { event: E2 });
+      assert.ok(!('history_ignored' in d));
+      await zapi(boss, 'admin.draw.cancel', { event: E2 });
+    });
+  } finally {
+    const log = z.log();
+    await z.stop();
+    assertBudget(log);
   }
 });

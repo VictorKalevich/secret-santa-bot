@@ -3,7 +3,7 @@
 import {
   getSettings, getUser, updateUser, allUsers, getPairs, pairOfSanta, pairOfWard, getExclusions,
   getEvent, allEvents, getMember, eventMembers, addMemberStmt,
-  updateEventStmt, auditStmt, getAudit, getAnnouncements, enqueueIfStmt,
+  updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt,
 } from './db.js';
 import { validateInitData } from './telegram.js';
 import { msg, q, openAppButton, inviteLink, randomCode, displayName, cleanText, oneLine, ISO_DATE } from './format.js';
@@ -17,6 +17,9 @@ import { resolveOwner, grantAdmin, revokeAdmin, transferOwnership, transferAccou
 import { saveFamily, deleteFamily, decideRequest } from './membership.js';
 
 const DELIVERY_MAX = 500;
+const EXCLUSIONS_FROZEN =
+  'После жеребьёвки исключения не меняются: иначе по заменам участников можно было бы вычислить пары. ' +
+  'Чтобы поменять исключения, отмени жеребьёвку (пока никто не открыл подопечного).';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
@@ -497,49 +500,54 @@ async function handleAdmin(action, body, env, me, settings) {
     }
 
     case 'admin.insert': {
+      // Вписав себя, админ узнал бы своего подопечного из заранее известной перестановки (009, FR-903)
+      if (Number(body.id) === me.tg_id) return fail('Вписать себя нельзя — попроси другого администратора.');
       const r = await insertMember(env, ev, Number(body.id), me.tg_id);
       return r.ok ? {} : fail(r.error);
     }
 
-    case 'admin.exclusion.add': {
+    case 'admin.exclusion.add':
+    case 'admin.exclusion.del': {
+      // После жеребьёвки исключения заморожены: по заменам при удалении/вписывании их можно было бы использовать,
+      // чтобы вычислить пары (009, FR-901). Условие повторено в SQL — на случай жеребьёвки в эту же секунду.
+      if (ev.draw_done) return fail(EXCLUSIONS_FROZEN);
       const giver = Number(body.giver);
       const receiver = Number(body.receiver);
-      if (!giver || !receiver || giver === receiver) return fail('Выбери двух разных людей');
-      const [g, r] = await Promise.all([getMember(db, ev.id, giver), getMember(db, ev.id, receiver)]);
-      if (!g || !r) return fail('Исключение можно задать только между участниками эвента.');
-      const stmts = [db.prepare('INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) VALUES (?, ?, ?)').bind(ev.id, giver, receiver)];
-      if (body.mutual) stmts.push(db.prepare('INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) VALUES (?, ?, ?)').bind(ev.id, receiver, giver));
-      stmts.push(auditStmt(db, ev.id, me.tg_id, 'exclusion.add', `${await nameOf(giver)} ${body.mutual ? '↔' : '→'} ${await nameOf(receiver)}`));
+      const add = action === 'admin.exclusion.add';
+      if (add) {
+        if (!giver || !receiver || giver === receiver) return fail('Выбери двух разных людей');
+        const [g, r] = await Promise.all([getMember(db, ev.id, giver), getMember(db, ev.id, receiver)]);
+        if (!g || !r) return fail('Исключение можно задать только между участниками эвента.');
+      }
+      const beforeDraw = 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
+      const change = (a, b) => add
+        ? db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ?, ?, ? WHERE ${beforeDraw}`).bind(ev.id, a, b, ev.id)
+        : db.prepare(`DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ? AND ${beforeDraw}`).bind(ev.id, a, b, ev.id);
+      const stmts = [change(giver, receiver)];
+      if (body.mutual) stmts.push(change(receiver, giver));
+      const names = `${await nameOf(giver)} ${body.mutual ? '↔' : '→'} ${await nameOf(receiver)}`;
+      stmts.push(auditIfStmt(db, ev.id, me.tg_id, add ? 'exclusion.add' : 'exclusion.del', names, beforeDraw, ev.id));
       await db.batch(stmts);
-      return {};
-    }
-
-    case 'admin.exclusion.del': {
-      const stmts = [db.prepare('DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ?').bind(ev.id, Number(body.giver), Number(body.receiver))];
-      if (body.mutual) stmts.push(db.prepare('DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ?').bind(ev.id, Number(body.receiver), Number(body.giver)));
-      stmts.push(auditStmt(db, ev.id, me.tg_id, 'exclusion.del',
-        `${await nameOf(Number(body.giver))} ${body.mutual ? '↔' : '→'} ${await nameOf(Number(body.receiver))}`));
-      await db.batch(stmts);
+      if ((await getEvent(db, ev.id))?.draw_done) return fail(EXCLUSIONS_FROZEN);
       return {};
     }
 
     case 'admin.draw.check': {
       if (ev.draw_done) return fail('Жеребьёвка уже проведена.');
       const c = await checkDraw(env, ev);
+      // Без признаков учёта прошлых пар: по ним можно было бы вычислить чужие пары прошлого года (009, FR-904)
       return {
         possible: c.res.ok,
         count: c.people.length,
         ring: c.ring,
         problems: c.problems,
         empty_wishlists: c.emptyWishlists,
-        history_ignored: c.historyIgnored,
-        history_used: c.historyUsed,
       };
     }
 
     case 'admin.draw': {
       const r = await runDraw(env, ev, { actor: me.tg_id });
-      return r.ok ? { count: r.count, single_cycle: r.singleCycle, history_ignored: r.historyIgnored } : fail(r.error);
+      return r.ok ? { count: r.count, single_cycle: r.singleCycle } : fail(r.error);
     }
 
     case 'admin.draw.cancel': {
