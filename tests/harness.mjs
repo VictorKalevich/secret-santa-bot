@@ -2,6 +2,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHmac } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,11 +66,23 @@ function execSql(persistDir, command, json = false) {
 }
 
 // sqlBefore — SQL до миграций (например, база «как у 005»); migrate: false — база без миграций.
+// Свободный порт от системы (случайный номер иногда совпадал с занятым — EADDRINUSE)
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const s = createServer();
+    s.once('error', reject);
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address();
+      s.close(() => resolve(port));
+    });
+  });
+}
+
 export async function startWorld({ notifyDelay = 0, reminderHour = 0, migrate = true, sqlBefore = '' } = {}) {
-  const port = 8787 + Math.floor(Math.random() * 400);
-  const tgPort = 9300 + Math.floor(Math.random() * 400);
+  const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
-  const mock = await startMockTelegram(tgPort);
+  const mock = await startMockTelegram();
+  const tgPort = mock.port;
   const persistDir = mkdtempSync(join(tmpdir(), 'santa-test-'));
   if (sqlBefore) execSql(persistDir, sqlBefore);
   if (migrate) applyMigrations(persistDir);

@@ -5,7 +5,7 @@ import {
   getEvent, getEventByInvite, getMember, addMemberStmt,
 } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
-import { escapeHtml, msg, q, openAppButton, adminRecipients, oneLine } from './format.js';
+import { escapeHtml, msg, q, openAppButton, adminRecipients, oneLine, shortTitle } from './format.js';
 import { isFinished, chatWritable } from './events.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { resolveOwner, setOwner } from './roles.js';
@@ -15,26 +15,22 @@ const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта и организатор.';
 const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси у организатора пригласительную ссылку эвента.';
 
-// Меню: идущие эвенты человека с кнопками переписки
+// Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913).
 async function buildMenu(db, user, settings) {
   const { results } = await db
     .prepare(
-      `SELECT e.*, m.wishlist FROM members m JOIN events e ON e.id = m.event_id
-        WHERE m.user_id = ? ORDER BY e.created_at DESC`
+      `SELECT e.id, e.title, e.status, e.draw_done, m.wishlist,
+              EXISTS (SELECT 1 FROM pairs p WHERE p.event_id = e.id AND p.santa = ?1) AS has_ward,
+              EXISTS (SELECT 1 FROM pairs p WHERE p.event_id = e.id AND p.ward = ?1) AS has_santa
+         FROM members m JOIN events e ON e.id = m.event_id
+        WHERE m.user_id = ?1 ORDER BY e.created_at DESC`
     )
     .bind(user.tg_id)
     .all();
-  const active = results.filter((e) => e.status === 'active').slice(0, 5);
-  const items = [];
-  for (const ev of active) {
-    const [pair, wardPair] = await Promise.all([pairOfSanta(db, ev.id, user.tg_id), pairOfWard(db, ev.id, user.tg_id)]);
-    items.push({ ev, member: { wishlist: ev.wishlist }, pair, wardPair });
-  }
-  return menuMessage(user, settings, items, results.length - results.filter((e) => e.status === 'active').length);
-}
+  const active = results.filter((e) => e.status === 'active');
+  const finishedCount = results.length - active.length;
+  const items = active.slice(0, 5);
 
-// items: [{ ev, member, pair, wardPair }] — идущие эвенты человека; finishedCount — сколько завершённых
-function menuMessage(user, settings, items, finishedCount = 0) {
   const lines = ['🎄 <b>Тайный Санта</b>', ''];
   if (!items.length) {
     lines.push(user.is_admin
@@ -42,10 +38,10 @@ function menuMessage(user, settings, items, finishedCount = 0) {
       : 'Сейчас ты не участвуешь ни в одном идущем эвенте. Попроси у организатора пригласительную ссылку.');
   } else {
     lines.push('Твои эвенты:');
-    for (const it of items) {
-      const letter = it.member.wishlist.trim() ? 'письмо ✅' : 'письмо пустое ✏️';
-      const draw = !it.ev.draw_done ? 'жеребьёвка впереди' : it.pair ? 'подопечный назначен 🎁' : 'ждёт добавления в жеребьёвку';
-      lines.push(`• ${q(it.ev)} — ${letter}, ${draw}`);
+    for (const ev of items) {
+      const letter = ev.wishlist.trim() ? 'письмо ✅' : 'письмо пустое ✏️';
+      const draw = !ev.draw_done ? 'жеребьёвка впереди' : ev.has_ward ? 'подопечный назначен 🎁' : 'ждёт добавления в жеребьёвку';
+      lines.push(`• ${q(ev)} — ${letter}, ${draw}`);
     }
   }
   if (finishedCount) lines.push('', `📚 Завершённых эвентов: ${finishedCount} — их история в приложении.`);
@@ -56,10 +52,11 @@ function menuMessage(user, settings, items, finishedCount = 0) {
       : '🛠 Ты администратор — эвенты в приложении.');
   }
   const kb = [[openAppButton(settings)]];
-  for (const it of items.slice(0, 3)) {
+  for (const ev of items.slice(0, 3)) {
+    // shortTitle не разрывает эмодзи: кнопка с половинкой эмодзи сломала бы всё меню (009, FR-914)
     const row = [];
-    if (it.pair) row.push({ text: `💬 Подопечному · ${it.ev.title}`.slice(0, 60), callback_data: `msg:ward:${it.ev.id}` });
-    if (it.wardPair) row.push({ text: `💬 Санте · ${it.ev.title}`.slice(0, 60), callback_data: `msg:santa:${it.ev.id}` });
+    if (ev.has_ward) row.push({ text: `💬 Подопечному · ${shortTitle(ev.title)}`, callback_data: `msg:ward:${ev.id}` });
+    if (ev.has_santa) row.push({ text: `💬 Санте · ${shortTitle(ev.title)}`, callback_data: `msg:santa:${ev.id}` });
     if (row.length) kb.push(row);
   }
   kb.push([{ text: '🔔 Уведомления', callback_data: 'notify' }]);

@@ -961,6 +961,26 @@ test('009: исправления перед выкатом', { timeout: 400000 
       assert.ok(!('history_ignored' in d));
       await zapi(boss, 'admin.draw.cancel', { event: E2 });
     });
+
+    await t.test('рассылка: три эвента с напоминаниями в один день — каждому ровно одно', async () => {
+      const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+      const titles = ['Утро', 'День', 'Вечер'];
+      for (const title of titles) await newEvent(title, crew.slice(0, 4), { deadline: today });
+      const reminders = (u, title) => ztexts(u).filter((x) => x.includes('пока пустое') && x.includes(`«${title}»`)).length;
+      await waitFor(async () => {
+        await z.cron();
+        return crew.slice(0, 4).every((u) => titles.every((title) => reminders(u, title) === 1));
+      }, 'напоминания по трём эвентам', 20000);
+      for (let i = 0; i < 3; i++) await z.cron();
+      await sleep(300);
+      for (const u of crew.slice(0, 4)) for (const title of titles) assert.equal(reminders(u, title), 1, `${u.name}: «${title}»`);
+      // меню человека в пяти идущих эвентах и вступление в шестой — в пределах бюджета (проверка журнала в конце)
+      await z.say(zhenya, '/start');
+      assert.match(z.lastText(zhenya), /Твои эвенты/);
+      const E6 = (await zapi(boss, 'admin.events.create', { title: 'Шестой 🎄🎄 с длинным-предлинным названием, чтобы обрезать кнопки меню' })).event.id;
+      await z.say(zhenya, '/start ' + (await zInvite(E6)));
+      assert.match(z.lastText(zhenya), /Твои эвенты/);
+    });
   } finally {
     const log = z.log();
     await z.stop();

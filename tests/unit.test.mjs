@@ -86,6 +86,32 @@ test('бюджет: без трат отправка берёт запрошен
   assert.equal(spent.meter.used, 49, 'ни одного запроса');
 });
 
+test('cron: падающий шаг не мешает отправке очереди', async () => {
+  const calls = mockTelegram();
+  const { runScheduled } = await import('../src/cron.js');
+  let claimed = 0;
+  const db = fakeD1((sql, args) => {
+    if (sql.includes("FROM events WHERE status = 'active'")) throw new Error('D1 упала на выборке эвентов');
+    if (sql.includes('UPDATE outbox SET locked_until = ?1')) {
+      claimed++;
+      return { results: claimed === 1 ? [{ id: 1, chat_id: 42, payload: '{"text":"привет"}', created_at: Date.now() }] : [] };
+    }
+    return { results: [], meta: { changes: 1 } };
+  });
+  const env = metered({ DB: db, BOT_TOKEN: 't', TG_API: 'http://tg.test', REMINDER_HOUR: '0' });
+  const logged = [];
+  const realLog = console.log;
+  console.log = (...a) => logged.push(a.join(' '));
+  try {
+    await runScheduled(env);
+  } finally {
+    console.log = realLog;
+  }
+  assert.ok(logged.some((l) => l.includes('cron step failed daily')), 'ошибка шага записана в журнал');
+  assert.ok(claimed >= 1, 'очередь всё равно отправлялась');
+  assert.equal(calls.filter((c) => c.url.endsWith('/sendMessage')).length, 1);
+});
+
 test('бюджет: запросы к Telegram учитываются, постановка в очередь отмечается', async () => {
   mockTelegram();
   const { tgApi } = await import('../src/telegram.js');

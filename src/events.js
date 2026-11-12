@@ -143,7 +143,8 @@ export async function revealAll(env, ev, actor = 0) {
   return { ok: true, count: rows.length };
 }
 
-export async function remindUnfilled(env, ev, actor = 0) {
+// extra — операторы, которые выполняются в том же batch, что и рассылка (cron: отметка last_daily, 009)
+export async function remindUnfilled(env, ev, actor = 0, extra = []) {
   const db = env.DB;
   const settings = await getSettings(db);
   const people = (await drawParticipants(db, ev.id)).filter((u) => !u.wishlist.trim());
@@ -156,11 +157,12 @@ export async function remindUnfilled(env, ev, actor = 0) {
   );
   // Пустое плановое напоминание журнал не засоряет
   if (people.length || actor) stmts.push(auditStmt(db, ev.id, actor, 'remind.unfilled', `получили: ${people.length}`));
+  stmts.push(...extra);
   if (stmts.length) await db.batch(stmts);
   return { ok: true, count: people.length };
 }
 
-export async function remindSantas(env, ev, actor = 0) {
+export async function remindSantas(env, ev, actor = 0, extra = []) {
   const db = env.DB;
   const settings = await getSettings(db);
   const rows = (await getPairs(db, ev.id)).filter((p) => !p.gift_ready);
@@ -173,6 +175,7 @@ export async function remindSantas(env, ev, actor = 0) {
   );
   // Пустое плановое напоминание журнал не засоряет
   if (rows.length || actor) stmts.push(auditStmt(db, ev.id, actor, 'remind.santas', `получили: ${rows.length}`));
+  stmts.push(...extra);
   if (stmts.length) await db.batch(stmts);
   return { ok: true, count: rows.length };
 }

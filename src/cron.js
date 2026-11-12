@@ -1,24 +1,32 @@
 // Плановые задачи: запускаются Cloudflare раз в минуту. Работают только с идущими эвентами.
 
-import { getSettings, enqueueStmt, updateEvent, updateEventStmt, getEvent, allUsers, auditStmt } from './db.js';
+import { getSettings, enqueueStmt, updateEventStmt, getEvent, allUsers, auditStmt } from './db.js';
 import { openAppButton, msg, q, escapeHtml, localDate, daysUntil, addDays, ISO_DATE, adminRecipients } from './format.js';
 import { flushOutbox } from './outbox.js';
 import { isFinished, remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
 import { runDraw } from './pairs.js';
 
+// Шаги запуска независимы (009, FR-910): ошибка в одном не мешает остальным, а очередь сообщений отправляется
+// всегда — в пределах оставшегося бюджета запросов вызова (outbox.js).
 export async function runScheduled(env) {
-  const db = env.DB;
-  const settings = await getSettings(db);
-  await notifyWishlistChanges(env, settings);
-  const acted = await dailyReminders(env);
-  // Автодействие само тратит ~10 запросов к D1 — отправляем меньше, чтобы уложиться в лимит вызова
-  await flushOutbox(env, acted ? 25 : 35);
+  await step('notify', () => notifyWishlistChanges(env));
+  await step('daily', () => dailyStep(env));
+  await step('flush', () => flushOutbox(env, 45));
+}
+
+async function step(name, fn) {
+  try {
+    await fn();
+  } catch (e) {
+    console.log('cron step failed', name, e && e.stack ? e.stack : String(e));
+  }
 }
 
 // Санта получает уведомление, когда подопечный перестал править письмо
 // (через NOTIFY_DELAY_MINUTES после последней правки), чтобы не было спама.
-async function notifyWishlistChanges(env, settings) {
+async function notifyWishlistChanges(env) {
   const db = env.DB;
+  const settings = await getSettings(db);
   const delayMs = Number(env.NOTIFY_DELAY_MINUTES ?? 10) * 60 * 1000;
   const { results } = await db
     .prepare(
@@ -48,37 +56,47 @@ async function notifyWishlistChanges(env, settings) {
   await db.batch(stmts);
 }
 
-// Раз в день (в REMINDER_HOUR по местному времени) для каждого идущего эвента:
+// Какое ежедневное напоминание нужно эвенту сегодня:
 //  • до жеребьёвки — за 2 дня, за день и в день дедлайна напомнить тем, у кого пустое письмо;
 //  • после жеребьёвки — за 2 дня и в день вручения напомнить Сантам, которые не отметили «подарок готов».
-// Сначала — автодействия расписания (007): жеребьёвка → раскрытие → завершение. Не больше одного эвента
-// с автодействием за вызов; такой эвент не помечается last_daily и проверяется снова в следующую минуту.
-async function dailyReminders(env) {
+function dailyReminder(env, ev) {
+  if (!ev.draw_done) {
+    const d = daysUntil(env, ev.deadline);
+    return d !== null && d >= 0 && d <= 2 ? remindUnfilled : null;
+  }
+  const d = daysUntil(env, ev.event_date);
+  return d === 2 || d === 0 ? remindSantas : null;
+}
+
+// Раз в день (с REMINDER_HOUR по местному времени) — автодействия расписания (007: жеребьёвка → раскрытие →
+// завершение) и ежедневные напоминания. Каждое такое действие стоит ~10 запросов, поэтому за запуск выполняется
+// только одно (009, FR-911); остальные — в следующие минуты. Кандидат выбирается по минуте суток: если один эвент
+// раз за разом падает, он не задерживает остальные. Эвенты, которым сегодня ничего не нужно, отмечаются одним запросом.
+async function dailyStep(env) {
   const now = localDate(env);
-  if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return false;
+  if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
   const db = env.DB;
   // Все идущие эвенты (их немного): автодействие, заданное уже после сегодняшнего прохода, выполняется сразу
   const { results } = await db.prepare("SELECT * FROM events WHERE status = 'active'").all();
-  let acted = false;
+  const autos = [];
+  const reminders = [];
+  const quiet = [];
   for (const ev of results) {
     const due = dueAutoAction(ev, now.iso);
-    if (!due && ev.last_daily === now.iso) continue;
-    if (due) {
-      if (acted) continue;
-      acted = true;
-      await runAutoAction(env, ev, due);
-      continue;
-    }
-    await updateEvent(db, ev.id, { last_daily: now.iso });
-    if (!ev.draw_done) {
-      const d = daysUntil(env, ev.deadline);
-      if (d !== null && d >= 0 && d <= 2) await remindUnfilled(env, ev);
-    } else {
-      const d = daysUntil(env, ev.event_date);
-      if (d === 2 || d === 0) await remindSantas(env, ev);
+    if (due) autos.push(() => runAutoAction(env, ev, due));
+    else if (ev.last_daily !== now.iso) {
+      const remind = dailyReminder(env, ev);
+      // Отметка «сегодня сделано» — в одном batch с напоминанием: либо оба, либо ничего
+      if (remind) reminders.push(() => remind(env, ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso })]));
+      else quiet.push(ev.id);
     }
   }
-  return acted;
+  for (let i = 0; i < quiet.length; i += 90) {
+    const ids = quiet.slice(i, i + 90); // не больше 100 параметров в запросе
+    await db.prepare(`UPDATE events SET last_daily = ? WHERE id IN (${ids.map(() => '?').join(',')})`).bind(now.iso, ...ids).run();
+  }
+  const candidates = [...autos, ...reminders];
+  if (candidates.length) await candidates[now.minute % candidates.length]();
 }
 
 // ---------- автодействия по расписанию (007, FR-703) ----------

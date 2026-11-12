@@ -12,7 +12,14 @@ function visibleLength(params) {
   return t.length;
 }
 
-export function startMockTelegram(port = 8790) {
+// Telegram отвергает строки с одиночной половинкой суррогатной пары (разорванный эмодзи) — в тексте и в кнопках (009)
+function brokenUtf16(params) {
+  const buttons = (params.reply_markup?.inline_keyboard || []).flat().map((b) => b.text || '');
+  return [params.text || '', ...buttons].some((s) => !String(s).isWellFormed());
+}
+
+// port = 0 — свободный порт выбирает система (без случайных совпадений с занятыми портами)
+export function startMockTelegram(port = 0) {
   const calls = [];
   let messageId = 1;
   const server = http.createServer((req, res) => {
@@ -30,6 +37,7 @@ export function startMockTelegram(port = 8790) {
       if (method === 'sendMessage') {
         if (params.chat_id === BLOCKED_CHAT) reply = { ok: false, error_code: 403, description: 'Forbidden: bot was blocked by the user' };
         else if (visibleLength(params) > 4096) reply = { ok: false, error_code: 400, description: 'Bad Request: message is too long' };
+        else if (brokenUtf16(params)) reply = { ok: false, error_code: 400, description: 'Bad Request: strings must be encoded in UTF-8' };
         else result = { message_id: messageId++, chat: { id: params.chat_id }, text: params.text };
       }
       res.writeHead(reply ? reply.error_code : 200, { 'content-type': 'application/json' });
@@ -38,6 +46,7 @@ export function startMockTelegram(port = 8790) {
   });
   return new Promise((resolve) => {
     server.listen(port, '127.0.0.1', () => resolve({
+      port: server.address().port,
       calls,
       messagesTo: (chatId) => calls.filter((c) => c.method === 'sendMessage' && c.params.chat_id === chatId),
       close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(r); }),
