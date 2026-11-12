@@ -732,9 +732,8 @@
     nodes.push(
       ui.section('Как это работает'),
       h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
-        h('li', {}, 'Напиши письмо Санте — его увидит тот, кто будет дарить тебе подарок. Организатор может открыть письмо, но это записывается в журнал.'),
+        h('li', {}, 'Напиши письмо Санте — его увидит тот, кто будет дарить тебе подарок.'),
         h('li', {}, 'После жеребьёвки во вкладке «Подопечный» появится, кому даришь ты.'),
-        h('li', {}, 'Организаторы не видят, кто кому дарит. Владелец бота может открыть пары, если что-то пошло не так, — каждое открытие записывается в журнал.'),
         h('li', {}, 'После завершения эвента письмо остаётся для чтения, переписка открыта ещё 7 дней. Эвент сохранится в истории.'))));
     main.replaceChildren(...nodes.filter(Boolean));
   }
@@ -1406,6 +1405,7 @@
     sheetOnClose = onClose;
     sheetBeforeClose = beforeClose;
     document.body.append(sheetEl);
+    document.body.classList.add('ds-root--locked'); // страница под шторкой не прокручивается (011)
     syncBack();
   }
   async function requestCloseSheet() {
@@ -1414,6 +1414,7 @@
   }
   function closeSheet() {
     if (sheetEl) { sheetEl.remove(); sheetEl = null; }
+    document.body.classList.remove('ds-root--locked');
     sheetBeforeClose = null;
     syncBack();
     const cb = sheetOnClose;

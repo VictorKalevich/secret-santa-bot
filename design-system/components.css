@@ -1,5 +1,5 @@
 /*
- * Secret Santa Design System — компоненты v1.3.0
+ * Secret Santa Design System — компоненты v1.4.0
  * Только var(--ds-*) из tokens.css: здесь нет «сырых» цветов и px (проверяет tests/design-system.test.mjs).
  * Именование: .ds-<блок>, .ds-<блок>__<элемент>, .ds-<блок>--<модификатор>.
  */
@@ -19,6 +19,11 @@
 /* Базовые стили элементов — только через :where() (нулевая специфичность), чтобы не перебивать цвета
  * и размеры компонентов (.ds-btn--*, .ds-tab--active и т.д.). Проверяет tests/design-system.test.mjs. */
 :where(.ds-root) :where(button, input, textarea, select) { font: inherit; color: inherit; }
+/* Системные элементы — в схеме темы (011): без этого в тёмной теме раскрытый список белый, а текст пунктов светлый. */
+:where(:root, .ds-theme) { color-scheme: var(--ds-color-scheme); }
+:where(.ds-root) :where(option, optgroup) { background-color: var(--ds-color-surface); color: var(--ds-color-text); }
+/* Открыта шторка — страница под ней не прокручивается (на <body>; позиция прокрутки сохраняется). */
+.ds-root--locked { overflow: hidden; }
 [hidden] { display: none !important; }
 
 /* ========== Раскладка ========== */
@@ -236,7 +241,7 @@
 /* ========== Шторка ========== */
 .ds-sheet-backdrop { position: fixed; inset: 0; z-index: var(--ds-z-sheet); display: flex; align-items: flex-end; background: var(--ds-color-overlay); }
 .ds-sheet {
-  width: 100%; max-height: var(--ds-sheet-max-h); overflow: auto;
+  width: 100%; max-height: var(--ds-sheet-max-h); overflow: auto; overscroll-behavior: contain;
   padding: var(--ds-space-4) var(--ds-space-3) calc(var(--ds-space-5) + var(--ds-safe-bottom));
   border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0; background: var(--ds-color-bg);
 }
@@ -251,7 +256,7 @@
 
 /* ========== Переписка ========== */
 .ds-chat {
-  flex: 1; min-height: 0; overflow-y: auto;
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: var(--ds-space-2);
   padding: var(--ds-space-3) var(--ds-space-1);
 }

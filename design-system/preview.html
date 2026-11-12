@@ -11,7 +11,9 @@
   body { margin: 0; }
   .pv-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
   .pv-col { padding-top: var(--ds-space-2); }
+  .pv-light { --tg-color-scheme: light; }
   .pv-dark {
+    --tg-color-scheme: dark;
     --tg-theme-bg-color: #1c1c1e;
     --tg-theme-secondary-bg-color: #0f0f10;
     --tg-theme-section-bg-color: #1c1c1e;
@@ -38,7 +40,7 @@
 </head>
 <body class="ds-root">
 <div class="pv-cols">
-  <section class="pv-col ds-root ds-theme" id="light"></section>
+  <section class="pv-col ds-root ds-theme pv-light" id="light"></section>
   <section class="pv-col ds-root ds-theme pv-dark" id="dark"></section>
 </div>
 
@@ -122,7 +124,9 @@
     <div class="ds-section-title">Поля ввода</div>
     <div class="ds-card ds-stack">
       <label class="ds-field"><span class="ds-field__label">Бюджет подарка</span><input class="ds-input" type="text" placeholder="например, до 50 BYN"></label>
-      <select class="ds-input"><option>Кто дарит…</option></select>
+      <select class="ds-input"><option value="">Кто дарит…</option><option>Маша</option><option>Петя</option><option>Оля</option></select>
+      <input class="ds-input" type="date" value="2026-12-25">
+      <div class="ds-hint">Раскрытый список, календарь и флажки — в схеме темы (<code>--ds-color-scheme</code>).</div>
       <textarea class="ds-input ds-input--letter" placeholder="Дорогой Санта!…"></textarea>
       <div class="ds-row ds-row--between"><span class="ds-counter">120 / 1000 слов</span><span class="ds-counter ds-counter--over">1012 / 1000 слов</span></div>
       <label class="ds-check"><input type="checkbox" checked> и наоборот (в обе стороны)</label>
@@ -241,6 +245,8 @@
           </div>
         </div>
       </div>
+      <div class="ds-hint">Пока шторка открыта, на &lt;body&gt; стоит <code>ds-root--locked</code>: страница под ней не
+        прокручивается; шторка и лента переписки не передают прокрутку дальше (<code>overscroll-behavior</code>).</div>
     </div>
   </main>
 </template>

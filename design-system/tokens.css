@@ -1,5 +1,5 @@
 /*
- * Secret Santa Design System — токены v1.3.0
+ * Secret Santa Design System — токены v1.4.0
  * Единственное место, где разрешены «сырые» значения цветов и размеров.
  * Компоненты (components.css) и страницы используют только var(--ds-*).
  * Цвета интерфейса берутся из темы Telegram (--tg-theme-*), с запасными значениями для браузера.
@@ -16,6 +16,9 @@
   --ds-color-on-accent: var(--tg-theme-button-text-color, #ffffff);
   --ds-color-danger: var(--tg-theme-destructive-text-color, #e53935);
   --ds-color-section-title: var(--tg-theme-section-header-text-color, #6d6d72);
+  /* Схема системных элементов (раскрытый список, календарь, флажки, полосы прокрутки): light/dark от Telegram
+   * (SDK ставит --tg-color-scheme на <html>), без Telegram — по системной теме. */
+  --ds-color-scheme: var(--tg-color-scheme, light dark);
 
   /* ---------- Цвета: нейтральные полупрозрачные (работают в светлой и тёмной теме) ---------- */
   --ds-color-separator: rgba(128, 128, 128, 0.2);

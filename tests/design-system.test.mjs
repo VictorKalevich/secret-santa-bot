@@ -69,3 +69,24 @@ test('превью показывает все компоненты', () => {
     assert.ok(preview.includes(b), `превью не показывает компонент .${b}`);
   }
 });
+
+test('системные элементы в схеме темы Telegram (011)', () => {
+  assert.match(tokens, /--ds-color-scheme:\s*var\(--tg-color-scheme,\s*light dark\)/);
+  const css = stripComments(components);
+  assert.match(css, /:where\(:root, \.ds-theme\)\s*\{\s*color-scheme:\s*var\(--ds-color-scheme\)/);
+  assert.match(css, /:where\(\.ds-root\)\s*:where\(option, optgroup\)\s*\{[^}]*background-color:\s*var\(--ds-color-surface\)[^}]*color:\s*var\(--ds-color-text\)/);
+});
+
+test('открытая шторка блокирует прокрутку страницы (011)', () => {
+  const css = stripComments(components);
+  assert.match(css, /\.ds-root--locked\s*\{\s*overflow:\s*hidden/);
+  for (const [sel, re] of [['.ds-sheet', /\.ds-sheet\s*\{([^}]*)\}/], ['.ds-chat', /\.ds-chat\s*\{([^}]*)\}/]]) {
+    const block = css.match(re);
+    assert.ok(block && /overscroll-behavior:\s*contain/.test(block[1]), `${sel}: нет overscroll-behavior: contain`);
+  }
+  const open = app.match(/function openSheet\([\s\S]*?\n {2}\}/)[0];
+  const close = app.match(/function closeSheet\([\s\S]*?\n {2}\}/)[0];
+  assert.match(open, /document\.body\.classList\.add\('ds-root--locked'\)/);
+  assert.match(close, /document\.body\.classList\.remove\('ds-root--locked'\)/);
+  assert.equal((app.match(/ds-root--locked/g) || []).length, 2, 'блокировка ставится и снимается только в openSheet/closeSheet');
+});

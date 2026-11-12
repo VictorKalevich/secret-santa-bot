@@ -8,7 +8,10 @@ import { startWorld, initData } from './harness.mjs';
 const OUT = new URL('../test-results/', import.meta.url);
 mkdirSync(OUT, { recursive: true });
 
+// Telegram SDK ставит --tg-color-scheme на <html>; здесь SDK заблокирован — ставим сами (011)
+const LIGHT = { '--tg-color-scheme': 'light' };
 const DARK = {
+  '--tg-color-scheme': 'dark',
   '--tg-theme-bg-color': '#1c1c1e',
   '--tg-theme-secondary-bg-color': '#0f0f10',
   '--tg-theme-section-bg-color': '#1c1c1e',
@@ -102,23 +105,83 @@ try {
   const launch = process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' };
   browser = await chromium.launch(launch);
 
+  // 011: раскрытый список и пункты — в схеме темы: color-scheme как у Telegram, пункты — surface/text
+  async function checkScheme(page, label, expected) {
+    const r = await page.evaluate(() => {
+      const paint = (prop, name) => {
+        const d = document.createElement('div');
+        d.style[prop] = `var(${name})`;
+        document.body.append(d);
+        const c = getComputedStyle(d)[prop];
+        d.remove();
+        return c;
+      };
+      const sel = document.createElement('select');
+      sel.className = 'ds-input';
+      const opt = document.createElement('option');
+      opt.textContent = 'x';
+      sel.append(opt);
+      document.body.append(sel);
+      const out = {
+        scheme: getComputedStyle(sel).colorScheme,
+        optBg: getComputedStyle(opt).backgroundColor, surface: paint('backgroundColor', '--ds-color-surface'),
+        optColor: getComputedStyle(opt).color, text: paint('color', '--ds-color-text'),
+      };
+      sel.remove();
+      return out;
+    });
+    if (r.scheme !== expected) colorProblems.push(`${label}: color-scheme списка — ${r.scheme}, ожидалось ${expected}`);
+    if (r.optBg !== r.surface) colorProblems.push(`${label}: фон пункта списка — ${r.optBg}, ожидалось ${r.surface}`);
+    if (r.optColor !== r.text) colorProblems.push(`${label}: текст пункта списка — ${r.optColor}, ожидалось ${r.text}`);
+  }
+
+  // 011: открытая шторка не отдаёт прокрутку колеса странице; после закрытия страница прокручивается и стоит на месте
+  async function checkSheetScroll(user, event) {
+    const page = await browser.newPage({ viewport: { width: 390, height: 600 } });
+    await page.route('https://telegram.org/**', (r) => r.abort());
+    await page.goto(`${w.base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
+    await page.waitForSelector('.ds-tabs:not([hidden])');
+    await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+    const logBtn = page.locator('.ds-btn', { hasText: 'Журнал действий' });
+    await logBtn.waitFor();
+    await logBtn.scrollIntoViewIfNeeded();
+    await logBtn.click();
+    await page.waitForSelector('.ds-sheet .ds-list-item, .ds-sheet .ds-hint');
+    const y = () => page.evaluate(() => window.scrollY);
+    const y1 = await y();
+    const problems = [];
+    if (!(await page.evaluate(() => document.body.classList.contains('ds-root--locked')))) problems.push('нет ds-root--locked при открытой шторке');
+    await page.mouse.move(195, 500); await page.mouse.wheel(0, 3000); await page.waitForTimeout(300);
+    await page.mouse.move(195, 20); await page.mouse.wheel(0, -3000); await page.waitForTimeout(300);
+    await page.mouse.move(195, 20); await page.mouse.wheel(0, 3000); await page.waitForTimeout(300);
+    if ((await y()) !== y1) problems.push(`страница прокрутилась под шторкой: ${y1} → ${await y()}`);
+    const sheetScrolled = await page.evaluate(() => document.querySelector('.ds-sheet').scrollTop);
+    await page.locator('.ds-sheet .ds-icon-btn', { hasText: '✕' }).click();
+    if (await page.evaluate(() => document.body.classList.contains('ds-root--locked'))) problems.push('ds-root--locked остался после закрытия');
+    if ((await y()) !== y1) problems.push(`после закрытия страница не на месте: ${y1} → ${await y()}`);
+    await page.mouse.move(195, 300); await page.mouse.wheel(0, y1 > 0 ? -200 : 200); await page.waitForTimeout(300);
+    if ((await y()) === y1) problems.push('после закрытия шторки страница не прокручивается');
+    await page.close();
+    if (problems.length) colorProblems.push(...problems.map((x) => 'шторка: ' + x));
+    else console.log(`✔ шторка держит прокрутку (страница ${y1}, шторка прокручена на ${sheetScrolled})`);
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
     await page.route('https://telegram.org/**', (r) => r.abort());
-    if (dark) {
-      await page.addInitScript((vars) => {
-        document.addEventListener('DOMContentLoaded', () => {
-          for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
-        });
-      }, DARK);
-    }
+    await page.addInitScript((vars) => {
+      document.addEventListener('DOMContentLoaded', () => {
+        for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
+      });
+    }, dark ? DARK : LIGHT);
     const q = event ? `?event=${event}` : '';
     await page.goto(`${w.base}/app${q}#tgWebAppData=${encodeURIComponent(initData(user))}`);
     await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : '.ds-list-item--link, .ds-tabs:not([hidden])');
     if (tab) { await page.locator('.ds-tab', { hasText: tab }).click(); }
     await page.waitForTimeout(400);
     await checkColors(page, name + (dark ? ' (тёмная)' : ''));
+    await checkScheme(page, name + (dark ? ' (тёмная)' : ''), dark ? 'dark' : 'light');
     if (before) { await before(page); await page.waitForTimeout(500); }
     await page.screenshot({ path: fileURLToPath(new URL(`${name}${dark ? '-dark' : ''}.png`, OUT)), fullPage });
     await page.close();
@@ -201,6 +264,7 @@ try {
   await shot(people[0], '14-finished-letter', { event: A });
   await shot(admin, '15-finished-ward', { event: A, tab: 'Подопечный' });
   await shot(people[1], '16-home-participant', { dark: true });
+  await checkSheetScroll(admin, A);
   console.log('Скриншоты сохранены в test-results/');
   if (colorProblems.length) {
     console.error('✘ Цвета не соответствуют дизайн-системе:\n' + colorProblems.join('\n'));
