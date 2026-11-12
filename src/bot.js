@@ -6,7 +6,6 @@ import {
 } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
 import { escapeHtml, msg, q, openAppButton, adminRecipients, oneLine } from './format.js';
-import { flushOutbox } from './outbox.js';
 import { isFinished, chatWritable } from './events.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { resolveOwner, setOwner } from './roles.js';
@@ -67,19 +66,18 @@ function menuMessage(user, settings, items, finishedCount = 0) {
   return { text: lines.join('\n'), parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } };
 }
 
-async function notifyAdminsJoined(env, ctx, name, ev, exceptId) {
+async function notifyAdminsJoined(env, name, ev, exceptId) {
   const db = env.DB;
   const admins = adminRecipients(await allUsers(db), [exceptId]);
   if (!admins.length) return;
   await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(`👋 <b>${escapeHtml(name)}</b> присоединяется к эвенту ${q(ev)}`, { disable_notification: true }))));
-  ctx.waitUntil(flushOutbox(env));
 }
 
-export async function handleUpdate(update, env, ctx) {
+export async function handleUpdate(update, env) {
   const db = env.DB;
   const call = tgApi(env);
 
-  if (update.callback_query) return handleCallback(update.callback_query, env, ctx, call);
+  if (update.callback_query) return handleCallback(update.callback_query, env, call);
 
   const m = update.message;
   if (!m || !m.from || m.chat?.type !== 'private') return;
@@ -95,7 +93,6 @@ export async function handleUpdate(update, env, ctx) {
   // Заявка на вступление (008)
   const replyRequest = async (ev, u) => {
     const r = await requestJoin(env, ev, u);
-    if (!r.already) ctx.waitUntil(flushOutbox(env));
     return reply(r.already
       ? `⏳ Заявка в эвент ${q(ev)} уже отправлена — ждём решения организатора.`
       : `⏳ Заявка в эвент ${q(ev)} отправлена организатору. Как только он её рассмотрит, я напишу.`);
@@ -115,7 +112,6 @@ export async function handleUpdate(update, env, ctx) {
         prevOwnerId,
         newOwnerLabel: user?.name || from.first_name || (from.username ? '@' + from.username : ''),
       });
-      if (prevOwnerId && prevOwnerId !== from.id) ctx.waitUntil(flushOutbox(env));
       settings.owner_id = String(from.id);
       user = await getUser(db, from.id);
       if (!user.registered) {
@@ -140,7 +136,7 @@ export async function handleUpdate(update, env, ctx) {
         if (needsApproval) return replyRequest(ev, user);
         if (!already) {
           await addMemberStmt(db, ev, from.id).run();
-          await notifyAdminsJoined(env, ctx, user.name, ev, from.id);
+          await notifyAdminsJoined(env, user.name, ev, from.id);
         }
         await reply({
           ...msg(`🎄 Ты в эвенте ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`),
@@ -182,7 +178,7 @@ export async function handleUpdate(update, env, ctx) {
       return replyRequest(ev, user);
     }
     if (ev) {
-      await notifyAdminsJoined(env, ctx, name, ev, from.id);
+      await notifyAdminsJoined(env, name, ev, from.id);
       await reply({
         ...msg(`Приятно познакомиться, ${escapeHtml(name)}! 🎉\n\nТеперь открой приложение и напиши письмо своему Тайному Санте в эвенте ${q(ev)}: что хочешь получить, что любишь, размеры, чего точно не надо.`),
         reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] },
@@ -210,7 +206,6 @@ export async function handleUpdate(update, env, ctx) {
     await updateUser(db, from.id, { pending: '' });
     if (!ev) return reply('❌ Эвент не найден.');
     const res = await sendChatMessage(env, ev, from.id, toWard ? 'ward' : 'santa', text);
-    if (res.ok) ctx.waitUntil(flushOutbox(env));
     return reply(res.ok
       ? (toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.')
       : '❌ ' + res.error);
@@ -225,7 +220,7 @@ const NOTIFY_LABELS = {
   off: '🚫 Не присылать',
 };
 
-async function handleCallback(cq, env, ctx, call) {
+async function handleCallback(cq, env, call) {
   const db = env.DB;
   const from = cq.from;
   const data = cq.data || '';
@@ -259,7 +254,6 @@ async function handleCallback(cq, env, ctx, call) {
     if (!user.is_admin) return answer('Только для администратора.');
     const r = await decideRequest(env, Number(rq[1]), from.id, rq[2] === 'a');
     if (!r.ok) return answer(r.error);
-    ctx.waitUntil(flushOutbox(env));
     await answer(rq[2] === 'a' ? '✅ Принято' : '❌ Отклонено');
     return send(msg(`${rq[2] === 'a' ? '✅ Заявка принята' : '❌ Заявка отклонена'}: <b>${escapeHtml(r.name)}</b>, эвент ${q(r.ev)}.`));
   }

@@ -188,14 +188,22 @@ export async function getExclusions(db, eventId) {
 
 // ---------- outbox (очередь сообщений) ----------
 
+// Сообщения другим людям только ставятся в очередь; отправляет её index.js один раз в конце вызова (009).
+// Отметка на счётчике (budget.js) говорит, что в этом вызове очередь пополнялась.
+const markEnqueued = (db) => {
+  if (db.meter) db.meter.enqueued = true;
+};
+
 // Поставить сообщение в очередь, только если выполняется условие guard (SQL-выражение с параметрами args) — 006
 export function enqueueIfStmt(db, chatId, payload, guard, ...args) {
+  markEnqueued(db);
   return db
     .prepare(`INSERT INTO outbox (chat_id, payload, created_at) SELECT ?, ?, ? WHERE ${guard}`)
     .bind(chatId, JSON.stringify(payload), Date.now(), ...args);
 }
 
 export function enqueueStmt(db, chatId, payload) {
+  markEnqueued(db);
   return db
     .prepare('INSERT INTO outbox (chat_id, payload, created_at) VALUES (?, ?, ?)')
     .bind(chatId, JSON.stringify(payload), Date.now());

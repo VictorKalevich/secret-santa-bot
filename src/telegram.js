@@ -1,13 +1,18 @@
 // Тонкая обёртка над Telegram Bot API.
 
+// Зависший запрос не должен съедать время вызова: через 10 с — ошибка (сообщение очереди уйдёт позже)
+const TIMEOUT_MS = 10000;
+
 export function tgApi(env) {
   const base = (env.TG_API || 'https://api.telegram.org') + '/bot' + env.BOT_TOKEN + '/';
   return async function call(method, params = {}) {
+    if (env.meter) env.meter.used++; // бюджет внешних запросов вызова (budget.js)
     try {
       const res = await fetch(base + method, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(params),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       const data = await res.json().catch(() => ({ ok: false, description: 'bad json' }));
       if (!data.ok) console.log('Telegram API error', method, data.error_code, data.description);

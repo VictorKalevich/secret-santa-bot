@@ -9,14 +9,28 @@ import { handleUpdate } from './bot.js';
 import { handleApi } from './api.js';
 import { runScheduled } from './cron.js';
 import { escapeHtml } from './format.js';
+import { flushOutbox } from './outbox.js';
+import { metered, reportBudget } from './budget.js';
 
 // Страница мини-приложения со встроенной дизайн-системой (без сборщика).
 const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS);
 
+// Единственная точка отправки очереди после запроса (009): если обработчик ставил сообщения в очередь —
+// отправить их уже после ответа, в пределах оставшегося бюджета вызова; остаток уйдёт в cron.
+function afterRequest(env, ctx, where) {
+  if (!env.meter.enqueued) return reportBudget(env, where);
+  ctx.waitUntil(
+    flushOutbox(env, 25)
+      .catch((e) => console.log('flush failed', where, e && e.stack ? e.stack : String(e)))
+      .finally(() => reportBudget(env, where))
+  );
+}
+
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, rawEnv, ctx) {
     const url = new URL(request.url);
-    if (!env.BOT_TOKEN) return new Response('Не задан секрет BOT_TOKEN (см. инструкцию).', { status: 500 });
+    if (!rawEnv.BOT_TOKEN) return new Response('Не задан секрет BOT_TOKEN (см. инструкцию).', { status: 500 });
+    const env = metered(rawEnv);
     try {
       await checkSchema(env.DB);
     } catch (e) {
@@ -39,10 +53,11 @@ export default {
       }
       try {
         const update = await request.json();
-        await handleUpdate(update, env, ctx);
+        await handleUpdate(update, env);
       } catch (e) {
         console.log('update failed', e && e.stack ? e.stack : String(e));
       }
+      afterRequest(env, ctx, 'tg');
       return new Response('ok');
     }
 
@@ -53,24 +68,32 @@ export default {
     }
 
     if (url.pathname.startsWith('/api/')) {
+      const action = url.pathname.slice(5);
       try {
-        return await handleApi(request, env, ctx, url.pathname.slice(5));
+        return await handleApi(request, env, action);
       } catch (e) {
         console.log('api failed', e && e.stack ? e.stack : String(e));
         return new Response(JSON.stringify({ ok: false, error: 'Ошибка сервера. Попробуй ещё раз.' }), {
           status: 500,
           headers: { 'content-type': 'application/json; charset=utf-8' },
         });
+      } finally {
+        afterRequest(env, ctx, 'api ' + action);
       }
     }
 
-    if (url.pathname === '/setup') return setup(url, env);
+    if (url.pathname === '/setup') {
+      const res = await setup(url, env);
+      reportBudget(env, 'setup');
+      return res;
+    }
 
     return new Response('🎄 Бот Тайного Санты работает.', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
   },
 
-  async scheduled(event, env, ctx) {
-    if (!env.BOT_TOKEN) return;
+  async scheduled(event, rawEnv) {
+    if (!rawEnv.BOT_TOKEN) return;
+    const env = metered(rawEnv);
     try {
       await checkSchema(env.DB);
     } catch (e) {
@@ -78,6 +101,7 @@ export default {
       throw e;
     }
     await runScheduled(env);
+    reportBudget(env, 'cron');
   },
 };
 

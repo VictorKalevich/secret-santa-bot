@@ -7,7 +7,6 @@ import {
 } from './db.js';
 import { validateInitData } from './telegram.js';
 import { msg, q, openAppButton, inviteLink, randomCode, displayName, cleanText, oneLine, ISO_DATE } from './format.js';
-import { flushOutbox } from './outbox.js';
 import {
   isFinished, chatUntil, chatWritable, createEvent, finishEvent, deleteEvent, resetEvent, inviteFromEvent,
   revealAll, remindUnfilled, remindSantas, announce,
@@ -44,7 +43,7 @@ function publicEvent(ev) {
   };
 }
 
-export async function handleApi(request, env, ctx, action) {
+export async function handleApi(request, env, action) {
   if (request.method !== 'POST') return fail('method', 405);
   const tgUser = await validateInitData(request.headers.get('x-init-data'), env.BOT_TOKEN);
   if (!tgUser) return fail('Не удалось проверить вход. Открой приложение заново из чата с ботом.', 401);
@@ -87,9 +86,8 @@ export async function handleApi(request, env, ctx, action) {
   // ---------- администратор ----------
   if (action.startsWith('admin.')) {
     if (!me.is_admin) return fail('Только для администратора.', 403);
-    const result = await handleAdmin(action, body, env, ctx, me, settings);
+    const result = await handleAdmin(action, body, env, me, settings);
     if (result instanceof Response) return result;
-    ctx.waitUntil(flushOutbox(env));
     return json({ ok: true, ...result });
   }
 
@@ -206,14 +204,12 @@ export async function handleApi(request, env, ctx, action) {
         ), 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = ?)', ev.id, me.tg_id, now));
       }
       await db.batch(stmts);
-      ctx.waitUntil(flushOutbox(env));
       return json({ ok: true });
     }
 
     case 'message.send': {
       const to = body.to === 'santa' ? 'santa' : 'ward';
       const r = await sendChatMessage(env, ev, me.tg_id, to, body.text);
-      if (r.ok) ctx.waitUntil(flushOutbox(env));
       return r.ok ? json({ ok: true, message: r.message }) : fail(r.error);
     }
 
@@ -251,7 +247,7 @@ export async function handleApi(request, env, ctx, action) {
 // Сброс запрещён: он вернул бы эвент в «идёт», а завершение необратимо (FR-506).
 const FINISHED_OK = new Set(['admin.state', 'admin.wishlist', 'admin.reveal', 'admin.event.delete', 'admin.event.invite_from', 'admin.audit']);
 
-async function handleAdmin(action, body, env, ctx, me, settings) {
+async function handleAdmin(action, body, env, me, settings) {
   const db = env.DB;
   const ownerId = await resolveOwner(db, settings);
   const isOwner = ownerId === me.tg_id;

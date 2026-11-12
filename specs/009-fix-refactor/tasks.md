@@ -39,17 +39,17 @@ description: "Задачи: исправление багов и рефакто�
 
 ## Phase 2: Foundational — счётчик запросов и единая точка отправки (US2)
 
-- [ ] T910 [US2] `src/budget.js`: `SUBREQUEST_LIMIT = 50`; `metered(env)` → `{ ...env, DB: обёртка, meter }`,
+- [X] T910 [US2] `src/budget.js`: `SUBREQUEST_LIMIT = 50`; `metered(env)` → `{ ...env, DB: обёртка, meter }`,
   обёртка считает `first/all/run/raw` и `batch` (+1 за вызов), `bind` возвращает обёрнутый оператор, `batch` разворачивает
   исходные операторы; `budgetLeft(env)`; `reportBudget(env, where)` → `console.log('budget exceeded', …)` при `used > 50`
-- [ ] T911 [US2] `src/telegram.js`: `tgApi` считает каждый `fetch` в `env.meter`; `signal: AbortSignal.timeout(10000)`;
+- [X] T911 [US2] `src/telegram.js`: `tgApi` считает каждый `fetch` в `env.meter`; `signal: AbortSignal.timeout(10000)`;
   `src/db.js`: `enqueueStmt`/`enqueueIfStmt` ставят `db.meter.enqueued = true`
-- [ ] T912 [US2] `src/outbox.js`: перед каждым кругом брать не больше `budgetLeft − 2` (захват + завершающий `batch`)
+- [X] T912 [US2] `src/outbox.js`: перед каждым кругом брать не больше `budgetLeft − 2` (захват + завершающий `batch`)
   и не больше запрошенного; круг не начинается, если места нет
-- [ ] T913 [US2] `src/index.js`: `env = metered(env)` в `fetch` и `scheduled`; после `/tg` и `/api/*` —
+- [X] T913 [US2] `src/index.js`: `env = metered(env)` в `fetch` и `scheduled`; после `/tg` и `/api/*` —
   `ctx.waitUntil(flushOutbox(env, 25).finally(() => reportBudget(env, …)))`, если `meter.enqueued`; убрать
   `ctx.waitUntil(flushOutbox…)` из `src/bot.js`, `src/api.js` и модулей логики
-- [ ] T914 [P] [US2] `tests/unit.test.mjs` (новый, добавить в `npm test`): обёртка считает запросы и `batch` как один;
+- [X] T914 [P] [US2] `tests/unit.test.mjs` (новый, добавить в `npm test`): обёртка считает запросы и `batch` как один;
   `flushOutbox` при `used = 40` делает не больше 10 запросов (фейковая база + подменённый `fetch`)
 
 ## Phase 3: US1 — Админ не может вычислить пары (P1)
