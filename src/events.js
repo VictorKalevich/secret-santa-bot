@@ -20,16 +20,19 @@ export async function createEvent(env, title, createdBy, { from = null, invite =
   const clean = oneLine(title);
   if (!clean || clean.length > 80) return { ok: false, error: 'Название эвента — от 1 до 80 символов.' };
   const code = randomCode();
-  const t = from || { budget: '', place: '', notes: '', ring: 1, avoid_previous: 1, reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0 };
+  const t = from || {
+    budget: '', place: '', notes: '', ring: 1, avoid_previous: 1, reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0,
+    rejoin: 1,
+  };
   // Новый эвент в остальных операторах batch находим по уникальному коду приглашения
   const newId = '(SELECT id FROM events WHERE invite_code = ?)';
   const stmts = [
     db.prepare(
       `INSERT INTO events (title, created_at, created_by, invite_code, budget, place, notes, ring, avoid_previous, reveal_auto, finish_auto,
-                           delivery_on, families_on, approval)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+                           delivery_on, families_on, approval, rejoin)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
     ).bind(clean, Date.now(), createdBy, code, t.budget, t.place, t.notes, t.ring, t.avoid_previous, t.reveal_auto, t.finish_auto,
-      t.delivery_on, t.families_on, t.approval),
+      t.delivery_on, t.families_on, t.approval, t.rejoin ?? 1),
   ];
   if (from) {
     stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions WHERE event_id = ?`)
@@ -73,21 +76,27 @@ export async function finishEvent(env, ev, actor = 0) {
   return { ok: true };
 }
 
+// Атомарно (010, FR-1024): рассылка и запись журнала — только пока эвент существует, сам эвент удаляется последним.
+// Batch D1 — одна транзакция, транзакции записи идут по очереди: второе одновременное удаление видит эвент уже удалённым
+// и ничего не рассылает и не пишет.
 export async function deleteEvent(env, ev, actor = 0) {
   const db = env.DB;
   const members = await eventMembers(db, ev.id);
-  await db.batch([
-    ...members.map((m) => enqueueStmt(db, m.user_id, msg(`🗑 Эвент ${q(ev)} удалён организатором вместе с письмами и перепиской.`))),
+  const exists = 'EXISTS (SELECT 1 FROM events WHERE id = ?)';
+  const res = await db.batch([
+    ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(`🗑 Эвент ${q(ev)} удалён организатором вместе с письмами и перепиской.`), exists, ev.id)),
+    // Журнал эвента остаётся; само удаление — в общем журнале (007)
+    auditIfStmt(db, 0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`, exists, ev.id),
     db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM pairs WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM members WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
+    db.prepare('DELETE FROM removed_members WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM events WHERE id = ?').bind(ev.id),
-    // Журнал эвента остаётся; само удаление — в общем журнале (007)
-    auditStmt(db, 0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`),
   ]);
+  if (!res.at(-1).meta.changes) return { ok: false, error: 'Эвент уже удалён.' };
   return { ok: true, count: members.length };
 }
 
@@ -108,25 +117,32 @@ export async function resetEvent(env, ev, ownerId, actor = ownerId) {
     db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
+    db.prepare('DELETE FROM removed_members WHERE event_id = ?').bind(ev.id),
     db.prepare("UPDATE members SET delivery = '', delivery_updated_at = 0 WHERE event_id = ?").bind(ev.id),
     updateEventStmt(db, ev.id, {
       status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,
       ring: 1, avoid_previous: 1, budget: '', event_date: '', place: '', deadline: '', notes: '', last_daily: '',
-      draw_auto_date: '', reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0,
+      draw_auto_date: '', reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0, rejoin: 1,
     }),
     auditStmt(db, ev.id, actor, 'reset', `удалено участников: ${removed.length}`),
   ]);
   return { removed: removed.length, inviteCode };
 }
 
-// Пригласить участников другого эвента: сообщение со ссылкой вступления (FR-509)
+// Пригласить участников другого эвента: сообщение со ссылкой вступления (FR-509).
+// Закрытая регистрация — значит никто (010, FR-1017); удалённым организатором при запрете возврата — не приглашаем.
 export async function inviteFromEvent(env, ev, fromEv, actor = 0) {
   const db = env.DB;
+  if (!ev.registration_open) return { ok: false, error: 'Регистрация закрыта — открой её, чтобы приглашать.' };
   const settings = await getSettings(db);
   const link = inviteLink(settings, ev);
   if (!link) return { ok: false, error: 'Сначала открой страницу настройки /setup (см. README).' };
-  const current = new Set((await eventMembers(db, ev.id)).map((m) => m.user_id));
-  const people = (await drawParticipants(db, fromEv.id)).filter((m) => !current.has(m.user_id));
+  const [members, removed] = await Promise.all([
+    eventMembers(db, ev.id),
+    ev.rejoin ? [] : db.prepare('SELECT user_id FROM removed_members WHERE event_id = ?').bind(ev.id).all().then((r) => r.results),
+  ]);
+  const skip = new Set([...members, ...removed].map((m) => m.user_id));
+  const people = (await drawParticipants(db, fromEv.id)).filter((m) => !skip.has(m.user_id));
   const stmts = people.map((m) => enqueueStmt(db, m.user_id, msg(
     `📨 <b>Приглашение в эвент ${q(ev)}</b> — Тайный Санта.\nНажми кнопку, чтобы участвовать.`,
     { reply_markup: { inline_keyboard: [[{ text: '🎄 Участвовать', url: link }]] } }

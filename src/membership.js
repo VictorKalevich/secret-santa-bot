@@ -1,6 +1,8 @@
 // Участие в эвентах (008): семьи — постоянные группы исключений, заявки на вступление с одобрением.
 
-import { getSettings, allUsers, getEvent, addMemberStmt, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt } from './db.js';
+import {
+  getSettings, allUsers, getEvent, addMemberStmt, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt, clearRemovedStmt, isRemoved,
+} from './db.js';
 import { msg, q, escapeHtml, openAppButton, displayName, adminRecipients, oneLine } from './format.js';
 import { isFinished } from './events.js';
 
@@ -35,7 +37,8 @@ async function familyMembers(db, familyId) {
   return results.map((r) => r.user_id);
 }
 
-export async function saveFamily(env, actor, { id = 0, name, members }) {
+// owner — действует владелец бота: заморозка против вычисления пар на него не распространяется (010, FR-1008)
+export async function saveFamily(env, actor, { id = 0, name, members }, { owner = false } = {}) {
   const db = env.DB;
   const clean = oneLine(name);
   if (!clean || clean.length > 40) return { ok: false, error: 'Название семьи — от 1 до 40 символов.' };
@@ -56,7 +59,7 @@ export async function saveFamily(env, actor, { id = 0, name, members }) {
   // Переименование без смены состава разрешено всегда
   const before = id ? await familyMembers(db, id) : [];
   const changed = [...ids.filter((x) => !before.includes(x)), ...before.filter((x) => !ids.includes(x))];
-  const frozen = await frozenFamilyEvent(db, changed, [...new Set([...before, ...ids])]);
+  const frozen = owner ? null : await frozenFamilyEvent(db, changed, [...new Set([...before, ...ids])]);
   if (frozen) return { ok: false, error: familyFrozen(frozen) };
   const now = Date.now();
   // Новая семья в остальных операторах batch — по автору и времени создания
@@ -71,12 +74,12 @@ export async function saveFamily(env, actor, { id = 0, name, members }) {
   return { ok: true };
 }
 
-export async function deleteFamily(env, actor, id) {
+export async function deleteFamily(env, actor, id, { owner = false } = {}) {
   const db = env.DB;
   const fam = await db.prepare('SELECT * FROM families WHERE id = ?').bind(Number(id) || 0).first();
   if (!fam) return { ok: false, error: 'Семья не найдена.' };
   const all = await familyMembers(db, fam.id);
-  const frozen = await frozenFamilyEvent(db, all, all);
+  const frozen = owner ? null : await frozenFamilyEvent(db, all, all);
   if (frozen) return { ok: false, error: familyFrozen(frozen) };
   await db.batch([
     db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(fam.id),
@@ -91,16 +94,24 @@ export async function deleteFamily(env, actor, id) {
 // После отказа новая заявка в тот же эвент — не раньше чем через сутки: иначе админов можно засыпать заявками (009, FR-924)
 const REJECT_PAUSE_MS = 24 * 3600 * 1000;
 
+// Удалённый организатором при запрете возврата (010, FR-1022) не вступает и не подаёт заявку по ссылке
+export async function rejoinBlocked(db, ev, userId) {
+  return !ev.rejoin && (await isRemoved(db, ev.id, userId));
+}
+
 // Вступление зарегистрированного человека, который ещё не участник эвента (009, FR-920) — единая логика для ссылки и
-// для ввода имени после неё. Результат: 'joined' | 'closed' | 'request_sent' | 'request_pending' | 'request_rejected'.
+// для ввода имени после неё.
+// Результат: 'joined' | 'closed' | 'removed' | 'request_sent' | 'request_pending' | 'request_rejected'.
 export async function joinByInvite(env, ev, user) {
   const db = env.DB;
   if (isFinished(ev) || !ev.registration_open) return 'closed';
+  if (await rejoinBlocked(db, ev, user.tg_id)) return 'removed';
   // 008: эвент с одобрением — вместо участия заявка (админы вступают сами)
   if (ev.approval && !user.is_admin) return requestJoin(env, ev, user);
   const users = await allUsers(db);
   await db.batch([
     addMemberStmt(db, ev, user.tg_id),
+    clearRemovedStmt(db, ev.id, user.tg_id), // вернулся — больше не в списке удалённых (010)
     ...adminRecipients(users, [user.tg_id]).map((a) => enqueueStmt(db, a.tg_id, msg(
       `👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к эвенту ${q(ev)}`, { disable_notification: true }
     ))),
@@ -145,6 +156,9 @@ export async function decideRequest(env, id, actor, approve) {
   const ev = await getEvent(db, req.event_id);
   if (!ev) return { ok: false, error: 'Эвент не найден.' };
   if (approve && isFinished(ev)) return { ok: false, error: 'Эвент завершён — принять в него уже нельзя.' };
+  // Закрытая регистрация — значит никто (010, FR-1016): заявка ждёт открытия, отклонить можно
+  const closed = `Регистрация в эвент «${ev.title}» закрыта — открой её, чтобы принять заявку.`;
+  if (approve && !ev.registration_open) return { ok: false, error: closed };
   const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
   const person = users.find((u) => u.tg_id === req.user_id);
   const by = users.find((u) => u.tg_id === actor);
@@ -152,10 +166,13 @@ export async function decideRequest(env, id, actor, approve) {
   const now = Date.now();
   const guard = 'EXISTS (SELECT 1 FROM join_requests WHERE id = ? AND status = ? AND decided_by = ? AND decided_at = ?)';
   const g = [req.id, status, actor, now];
+  // Принять — только пока регистрация открыта (условие повторено в захвате: её могли закрыть в эту же секунду)
+  const open = approve ? "AND EXISTS (SELECT 1 FROM events WHERE id = ? AND registration_open = 1 AND status = 'active')" : '';
   const stmts = [
-    db.prepare("UPDATE join_requests SET status = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'").bind(status, actor, now, req.id),
+    db.prepare(`UPDATE join_requests SET status = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending' ${open}`)
+      .bind(status, actor, now, req.id, ...(approve ? [ev.id] : [])),
   ];
-  if (approve) stmts.push(addMemberStmt(db, ev, req.user_id, guard, ...g));
+  if (approve) stmts.push(addMemberStmt(db, ev, req.user_id, guard, ...g), clearRemovedStmt(db, ev.id, req.user_id, guard, ...g));
   stmts.push(enqueueIfStmt(db, req.user_id, approve
     ? msg(
       ev.draw_done
@@ -171,6 +188,9 @@ export async function decideRequest(env, id, actor, approve) {
   }
   stmts.push(auditIfStmt(db, ev.id, actor, approve ? 'request.approve' : 'request.reject', displayName(person), guard, ...g));
   const [claim] = await db.batch(stmts);
-  if (!claim.meta.changes) return { ok: false, error: 'Заявка уже рассмотрена.' };
+  if (!claim.meta.changes) {
+    const cur = approve ? await getEvent(db, ev.id) : null;
+    return { ok: false, error: cur && !cur.registration_open ? closed : 'Заявка уже рассмотрена.' };
+  }
   return { ok: true, ev, name: displayName(person) };
 }

@@ -166,6 +166,31 @@ try {
     await p.locator('.ds-btn', { hasText: 'Полный сброс эвента' }).click();
     await p.locator('.ds-sheet .ds-input').fill('СБРОС');
   } });
+  // 010: служебный просмотр владельца — вход словом, участник, все пары; журнал с открытиями
+  const vaultIn = async (p) => {
+    await p.locator('.ds-btn', { hasText: 'Открыть служебный просмотр' }).click();
+    await p.locator('.ds-sheet .ds-input').fill('ОТКРЫТЬ');
+  };
+  await shot(admin, '19-vault-gate', { event: A, fullPage: false, tab: 'Админ', before: vaultIn });
+  await shot(admin, '20-vault-person', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
+    await vaultIn(p);
+    await p.locator('.ds-sheet .ds-btn', { hasText: 'Войти' }).click();
+    await p.locator('.ds-sheet select').selectOption(String(ward.id === admin.id ? people[0].id : ward.id));
+    await p.locator('.ds-sheet .ds-btn', { hasText: 'Открыть участника' }).click();
+    await p.waitForSelector('.ds-sheet .ds-info-grid');
+  } });
+  await shot(admin, '21-vault-pairs', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
+    p.once('dialog', (d) => d.accept());
+    await vaultIn(p);
+    await p.locator('.ds-sheet .ds-btn', { hasText: 'Войти' }).click();
+    await p.locator('.ds-sheet .ds-btn', { hasText: 'Показать все пары' }).click();
+    await p.waitForSelector('.ds-sheet .ds-section-title');
+  } });
+  await shot(admin, '23-audit-vault', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
+  // 010: запрет возврата и список «Удалённые» в эвенте B
+  await w.api(admin, 'admin.game', { event: B, rejoin: false });
+  await w.api(admin, 'admin.remove', { event: B, id: people[1].id });
+  await shot(admin, '22-removed-list', { event: B, tab: 'Админ' });
   await shot(people[0], '02-my-letter', { event: A, dark: true });
   await shot(people[2], '05-ward-hidden', { event: A, tab: 'Подопечный', dark: true });
   await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ', dark: true });

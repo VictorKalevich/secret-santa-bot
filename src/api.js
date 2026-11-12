@@ -3,7 +3,7 @@
 import {
   getSettings, getUser, updateUser, allUsers, getPairs, pairOfSanta, pairOfWard, getExclusions,
   getEvent, allEvents, getMember, eventMembers, addMemberStmt,
-  updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt,
+  updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt, clearRemovedStmt,
 } from './db.js';
 import { validateInitData } from './telegram.js';
 import { msg, q, openAppButton, inviteLink, randomCode, displayName, cleanText, oneLine, ISO_DATE } from './format.js';
@@ -15,6 +15,7 @@ import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, drawCancela
 import { MAX_CHARS, chatPair, sendChatMessage, unreadCounts, unreadByEvent } from './chat.js';
 import { resolveOwner, grantAdmin, revokeAdmin, transferOwnership, transferAccount } from './roles.js';
 import { saveFamily, deleteFamily, decideRequest } from './membership.js';
+import { vaultPerson, vaultPairs } from './vault.js';
 
 const DELIVERY_MAX = 500;
 const EXCLUSIONS_FROZEN =
@@ -43,6 +44,7 @@ function publicEvent(ev) {
     ring: !!ev.ring,
     delivery_on: !!ev.delivery_on, // 008
     approval: !!ev.approval,
+    rejoin: !!ev.rejoin, // 010: удалённые организатором могут вернуться по ссылке
   };
 }
 
@@ -248,7 +250,11 @@ export async function handleApi(request, env, action) {
 // Действия, разрешённые в завершённом эвенте
 // Завершённый эвент — только просмотр, раскрытие, удаление и приглашение его участников в новый.
 // Сброс запрещён: он вернул бы эвент в «идёт», а завершение необратимо (FR-506).
-const FINISHED_OK = new Set(['admin.state', 'admin.wishlist', 'admin.reveal', 'admin.event.delete', 'admin.event.invite_from', 'admin.audit']);
+// Служебный просмотр владельца (010) — тоже только чтение.
+const FINISHED_OK = new Set([
+  'admin.state', 'admin.wishlist', 'admin.reveal', 'admin.event.delete', 'admin.event.invite_from', 'admin.audit',
+  'admin.vault.person', 'admin.vault.pairs',
+]);
 
 async function handleAdmin(action, body, env, me, settings) {
   const db = env.DB;
@@ -283,11 +289,12 @@ async function handleAdmin(action, body, env, me, settings) {
       };
     }
     case 'admin.family.save': {
-      const r = await saveFamily(env, me.tg_id, { id: body.id, name: body.name, members: body.members });
+      // Владелец видит пары и так — заморозка семей против вычисления пар на него не действует (010, FR-1008)
+      const r = await saveFamily(env, me.tg_id, { id: body.id, name: body.name, members: body.members }, { owner: isOwner });
       return r.ok ? {} : fail(r.error);
     }
     case 'admin.family.delete': {
-      const r = await deleteFamily(env, me.tg_id, body.id);
+      const r = await deleteFamily(env, me.tg_id, body.id, { owner: isOwner });
       return r.ok ? {} : fail(r.error);
     }
     case 'admin.audit': {
@@ -315,9 +322,11 @@ async function handleAdmin(action, body, env, me, settings) {
       return {};
     }
     case 'admin.transfer': {
+      // Иначе админ перенёс бы участие игрока на свой второй, не-админский аккаунт и увидел его пары (010, FR-1001)
+      if (!isOwner) return ownerOnly('Переносить участие на новый аккаунт');
       const from = Number(body.from);
       if (from === ownerId) {
-        return fail('Запись владельца не переносится: владелец восстанавливает доступ по ссылке владельца со страницы /setup.');
+        return fail('Запись владельца не переносится: владелец восстанавливает доступ по новой ссылке владельца (смена ADMIN_SECRET → страница /setup).');
       }
       const to = Number(body.to);
       const [fromUser, toUser] = await Promise.all([getUser(db, from), getUser(db, to)]);
@@ -351,12 +360,17 @@ async function handleAdmin(action, body, env, me, settings) {
 
   switch (action) {
     case 'admin.state': {
-      const [members, pairs, exclusions, events, cancelable, famRows, requests] = await Promise.all([
+      const [members, pairs, exclusions, events, cancelable, famRows, requests, removed] = await Promise.all([
         eventMembers(db, ev.id), getPairs(db, ev.id), getExclusions(db, ev.id), allEvents(db), drawCancelable(db, ev),
         db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id').all().then((r) => r.results),
         db.prepare(
           `SELECT r.id, r.user_id, r.created_at, u.name, u.username FROM join_requests r JOIN users u ON u.tg_id = r.user_id
             WHERE r.event_id = ? AND r.status = 'pending' ORDER BY r.id`
+        ).bind(ev.id).all().then((r) => r.results),
+        // 010: удалённые организатором (при запрете возврата они не войдут по ссылке)
+        db.prepare(
+          `SELECT r.user_id, r.removed_at, u.name, u.username FROM removed_members r JOIN users u ON u.tg_id = r.user_id
+            WHERE r.event_id = ? ORDER BY r.removed_at DESC`
         ).bind(ev.id).all().then((r) => r.results),
       ]);
       const santas = new Set(pairs.map((p) => p.santa));
@@ -389,6 +403,7 @@ async function handleAdmin(action, body, env, me, settings) {
           return acc;
         }, {})).filter((f) => f.members.length >= 2),
         requests: requests.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, username: r.username, created_at: r.created_at })),
+        removed: removed.map((r) => ({ id: r.user_id, name: r.name, username: r.username, removed_at: r.removed_at })),
         // Исключения образца начинают действовать, когда оба вступят (007, FR-707)
         exclusions: exclusions.filter((e) => memberIds.has(e.giver) && memberIds.has(e.receiver)),
         me_member: members.some((m) => m.user_id === me.tg_id),
@@ -437,6 +452,7 @@ async function handleAdmin(action, body, env, me, settings) {
       // 008: адрес доставки, одобрение заявок, семьи (семьи — только до жеребьёвки)
       if ('delivery_on' in body) fields.delivery_on = body.delivery_on ? 1 : 0;
       if ('approval' in body) fields.approval = body.approval ? 1 : 0;
+      if ('rejoin' in body) fields.rejoin = body.rejoin ? 1 : 0; // 010
       if ('families_on' in body && (body.families_on ? 1 : 0) !== ev.families_on) {
         if (ev.draw_done) return fail('После жеребьёвки правило семей не изменить.');
         fields.families_on = body.families_on ? 1 : 0;
@@ -477,7 +493,7 @@ async function handleAdmin(action, body, env, me, settings) {
     case 'admin.participate': {
       if (ev.draw_done) return fail('После жеребьёвки так нельзя. Попроси другого админа вписать тебя.');
       const log = auditStmt(db, ev.id, me.tg_id, 'participate', body.on ? 'участвует' : 'не участвует');
-      if (body.on) await db.batch([addMemberStmt(db, ev, me.tg_id), log]);
+      if (body.on) await db.batch([addMemberStmt(db, ev, me.tg_id), clearRemovedStmt(db, ev.id, me.tg_id), log]);
       else {
         await db.batch([
           db.prepare('DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?)').bind(ev.id, me.tg_id, me.tg_id),
@@ -495,13 +511,23 @@ async function handleAdmin(action, body, env, me, settings) {
       const target = await getUser(db, id);
       if (target?.is_admin && !isOwner) return fail('Удалить администратора может только владелец бота.', 403);
       if (!(await getMember(db, ev.id, id))) return fail('Человек не участвует в этом эвенте.');
-      const r = await removeMember(env, ev, id, { actor: me.tg_id });
+      // Отметка «удалён организатором» (010): при запрете возврата человек не войдёт по ссылке снова
+      const r = await removeMember(env, ev, id, { actor: me.tg_id, mark: true });
       return r.ok ? {} : fail(r.error);
     }
 
+    case 'admin.removed.allow': {
+      const id = Number(body.id) || 0;
+      const row = await db.prepare('SELECT 1 FROM removed_members WHERE event_id = ? AND user_id = ?').bind(ev.id, id).first();
+      if (!row) return fail('Этого человека нет среди удалённых.');
+      await db.batch([clearRemovedStmt(db, ev.id, id), auditStmt(db, ev.id, me.tg_id, 'member.allow', await nameOf(id))]);
+      return {};
+    }
+
     case 'admin.insert': {
-      // Вписав себя, админ узнал бы своего подопечного из заранее известной перестановки (009, FR-903)
-      if (Number(body.id) === me.tg_id) return fail('Вписать себя нельзя — попроси другого администратора.');
+      // Вписав себя, админ узнал бы своего подопечного из заранее известной перестановки (009, FR-903).
+      // Владелец пары видит и так (010, FR-1008).
+      if (Number(body.id) === me.tg_id && !isOwner) return fail('Вписать себя нельзя — попроси другого администратора.');
       const r = await insertMember(env, ev, Number(body.id), me.tg_id);
       return r.ok ? {} : fail(r.error);
     }
@@ -510,7 +536,8 @@ async function handleAdmin(action, body, env, me, settings) {
     case 'admin.exclusion.del': {
       // После жеребьёвки исключения заморожены: по заменам при удалении/вписывании их можно было бы использовать,
       // чтобы вычислить пары (009, FR-901). Условие повторено в SQL — на случай жеребьёвки в эту же секунду.
-      if (ev.draw_done) return fail(EXCLUSIONS_FROZEN);
+      // Владелец пары видит и так — для него заморозки нет (010, FR-1008).
+      if (ev.draw_done && !isOwner) return fail(EXCLUSIONS_FROZEN);
       const giver = Number(body.giver);
       const receiver = Number(body.receiver);
       const add = action === 'admin.exclusion.add';
@@ -519,7 +546,7 @@ async function handleAdmin(action, body, env, me, settings) {
         const [g, r] = await Promise.all([getMember(db, ev.id, giver), getMember(db, ev.id, receiver)]);
         if (!g || !r) return fail('Исключение можно задать только между участниками эвента.');
       }
-      const beforeDraw = 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
+      const beforeDraw = isOwner ? '? > 0' : 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
       const change = (a, b) => add
         ? db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ?, ?, ? WHERE ${beforeDraw}`).bind(ev.id, a, b, ev.id)
         : db.prepare(`DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ? AND ${beforeDraw}`).bind(ev.id, a, b, ev.id);
@@ -528,7 +555,7 @@ async function handleAdmin(action, body, env, me, settings) {
       const names = `${await nameOf(giver)} ${body.mutual ? '↔' : '→'} ${await nameOf(receiver)}`;
       stmts.push(auditIfStmt(db, ev.id, me.tg_id, add ? 'exclusion.add' : 'exclusion.del', names, beforeDraw, ev.id));
       await db.batch(stmts);
-      if ((await getEvent(db, ev.id))?.draw_done) return fail(EXCLUSIONS_FROZEN);
+      if (!isOwner && (await getEvent(db, ev.id))?.draw_done) return fail(EXCLUSIONS_FROZEN);
       return {};
     }
 
@@ -600,7 +627,19 @@ async function handleAdmin(action, body, env, me, settings) {
       if (!isOwner) return ownerOnly('Удалить эвент');
       if (String(body.confirm || '').trim().toUpperCase() !== 'УДАЛИТЬ') return fail('Для удаления введи слово УДАЛИТЬ.');
       const r = await deleteEvent(env, ev, me.tg_id);
-      return { notified: r.count };
+      return r.ok ? { notified: r.count } : fail(r.error);
+    }
+
+    // ---------- служебный просмотр владельца (010, FR-1009–FR-1013) ----------
+    case 'admin.vault.person':
+    case 'admin.vault.pairs': {
+      if (!isOwner) return fail('Служебный просмотр доступен только владельцу бота.', 403);
+      const r = action === 'admin.vault.pairs'
+        ? await vaultPairs(env, ev, me.tg_id)
+        : await vaultPerson(env, ev, Number(body.id) || 0, me.tg_id);
+      if (!r.ok) return fail(r.error);
+      const { ok, ...data } = r;
+      return data;
     }
 
     case 'admin.reset.full': {

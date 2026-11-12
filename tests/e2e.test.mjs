@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { startWorld, initData, waitFor, sleep } from './harness.mjs';
+import { startWorld, initData, waitFor, sleep, ADMIN_SECRET } from './harness.mjs';
 import { BLOCKED_CHAT } from './mock-telegram.mjs';
 
 let w, mock, BASE;
@@ -76,7 +76,12 @@ function assertPermutation(map, ids, exclusions = [], { ring = true } = {}) {
 
 test('сквозной сценарий: эвенты, жеребьёвка, переписка, история', { timeout: 300000 }, async (t) => {
   await t.test('настройка /setup и защита webhook', async () => {
-    assert.equal((await fetch(`${BASE}/setup?key=wrong`)).status, 403);
+    // 010: ключ — только формой; адрес с ключом показывает форму и ничего не настраивает
+    const get = await fetch(`${BASE}/setup?key=${ADMIN_SECRET}`);
+    assert.equal(get.status, 200);
+    assert.match(await get.text(), /<form method="post"/);
+    assert.ok(!mock.calls.some((c) => c.method === 'setWebhook'), 'ключ из адреса не принят');
+    assert.equal((await w.setup('wrong-key-123')).status, 403);
     const s = await w.setup();
     assert.match(s.html, /Бот настроен/);
     assert.match(s.html, /Создай эвент/);
@@ -325,6 +330,12 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     await api(owner, 'admin.owner.transfer', { id: masha.id });
     assert.equal((await api(masha, 'me')).me.is_owner, true);
     assert.equal((await api(owner, 'admin.role.grant', { id: petya.id }, true)).status, 403);
+    // 010: ссылка владельца одноразовая — повторный переход владельца не меняет
+    await say(owner, '/start ' + ownerCode);
+    assert.ok(texts(owner).slice(-2).some((x) => /Ссылка владельца уже использована/.test(x)), 'отказ (и меню следом)');
+    assert.equal((await api(masha, 'me')).me.is_owner, true, 'владелец не сменился');
+    // Смена ADMIN_SECRET делает отметку «использована» чужой — здесь так же, без перезапуска Worker
+    w.sql("UPDATE settings SET value = 'old-secret' WHERE key = 'owner_link_used'");
     await say(owner, '/start ' + ownerCode); // ссылка владельца возвращает права
     assert.equal((await api(owner, 'me')).me.is_owner, true);
     await waitFor(() => texts(masha).some((x) => /Права владельца бота перешли к <b>Дмитрий<\/b>/.test(x)), 'предупреждение');
@@ -903,6 +914,8 @@ test('009: исправления перед выкатом', { timeout: 400000 
     { id: 705, name: 'Миша', username: 'misha' },
   ];
   const [zhenya, zoya, igor, liza, misha] = crew;
+  // 010: заморозки 009 действуют на админов, владелец (boss) от них освобождён — проверяем от имени админа
+  const helper = { id: 709, name: 'Помощник', username: 'helper009' };
   const registered = new Set();
   const zInvite = async (eid) => /start=(inv_[a-z0-9]+)/.exec((await zapi(boss, 'admin.state', { event: eid })).settings.invite_link)[1];
   const pairsSql = async (eid) => new Map((await z.query(`SELECT santa, ward FROM pairs WHERE event_id = ${eid}`)).map((r) => [r.santa, r.ward]));
@@ -930,34 +943,36 @@ test('009: исправления перед выкатом', { timeout: 400000 
       await z.say(boss, boss.name);
       registered.add(boss.id);
       E1 = await newEvent('Тайна', crew);
+      await newEvent('Штаб', [helper]);
+      await zapi(boss, 'admin.role.grant', { id: helper.id });
     });
 
-    await t.test('тайна: исключения и семьи после жеребьёвки заморожены, себя не вписать', async () => {
+    await t.test('тайна: админу исключения и семьи после жеребьёвки заморожены, себя не вписать', async () => {
       await zapi(boss, 'admin.exclusion.add', { event: E1, giver: zhenya.id, receiver: zoya.id });
       await zapi(boss, 'admin.draw', { event: E1 });
       for (const action of ['admin.exclusion.add', 'admin.exclusion.del']) {
-        const r = await zapi(boss, action, { event: E1, giver: zhenya.id, receiver: zoya.id }, true);
+        const r = await zapi(helper, action, { event: E1, giver: zhenya.id, receiver: zoya.id }, true);
         assert.equal(r.status, 400, action);
         assert.match(r.data.error, /После жеребьёвки исключения не меняются/);
       }
-      const add2 = await zapi(boss, 'admin.exclusion.add', { event: E1, giver: igor.id, receiver: liza.id, mutual: true }, true);
+      const add2 = await zapi(helper, 'admin.exclusion.add', { event: E1, giver: igor.id, receiver: liza.id, mutual: true }, true);
       assert.equal(add2.status, 400);
       assert.deepEqual((await zapi(boss, 'admin.state', { event: E1 })).exclusions, [{ giver: zhenya.id, receiver: zoya.id }]);
 
       // семья из двух участников идущего эвента с жеребьёвкой — нельзя
-      const fam = await zapi(boss, 'admin.family.save', { name: 'Пара', members: [zhenya.id, zoya.id] }, true);
+      const fam = await zapi(helper, 'admin.family.save', { name: 'Пара', members: [zhenya.id, zoya.id] }, true);
       assert.equal(fam.status, 400);
       assert.match(fam.data.error, /Состав семьи нельзя менять, пока идёт эвент «Тайна»/);
       // в эвенте только один член семьи — исключения там не меняются, можно
-      await zapi(boss, 'admin.family.save', { name: 'Родня', members: [zhenya.id, boss.id] });
-      let f = (await zapi(boss, 'admin.families')).families.find((x) => x.name === 'Родня');
-      await zapi(boss, 'admin.family.save', { id: f.id, name: 'Родные', members: [zhenya.id, boss.id] }); // переименование
-      const grow = await zapi(boss, 'admin.family.save', { id: f.id, name: 'Родные', members: [zhenya.id, boss.id, zoya.id] }, true);
+      await zapi(helper, 'admin.family.save', { name: 'Родня', members: [zhenya.id, boss.id] });
+      let f = (await zapi(helper, 'admin.families')).families.find((x) => x.name === 'Родня');
+      await zapi(helper, 'admin.family.save', { id: f.id, name: 'Родные', members: [zhenya.id, boss.id] }); // переименование
+      const grow = await zapi(helper, 'admin.family.save', { id: f.id, name: 'Родные', members: [zhenya.id, boss.id, zoya.id] }, true);
       assert.equal(grow.status, 400, 'добавить второго участника эвента в семью нельзя');
-      assert.equal((await zapi(boss, 'admin.family.delete', { id: f.id })).ok, true, 'в эвенте один член семьи — удалить можно');
+      assert.equal((await zapi(helper, 'admin.family.delete', { id: f.id })).ok, true, 'в эвенте один член семьи — удалить можно');
 
       // вписать себя нельзя
-      const self = await zapi(boss, 'admin.insert', { event: E1, id: boss.id }, true);
+      const self = await zapi(helper, 'admin.insert', { event: E1, id: helper.id }, true);
       assert.equal(self.status, 400);
       assert.match(self.data.error, /Вписать себя нельзя/);
 
@@ -1126,6 +1141,319 @@ test('009: исправления перед выкатом', { timeout: 400000 
       await zapi(boss, 'admin.transfer', { from: igor.id, to: igor2.id });
       assert.equal((await zapi(igor2, 'event.get', { event: EA })).member.delivery, 'Новый адрес');
       assert.equal((await zapi(igor2, 'event.get', { event: EB })).member.delivery, 'Старый адрес Б');
+    });
+  } finally {
+    const log = z.log();
+    await z.stop();
+    assertBudget(log);
+  }
+});
+
+// 010: права владельца — настройка, служебный просмотр, освобождения, закрытый набор, возврат удалённых, удаление.
+test('010: права владельца', { timeout: 400000 }, async (t) => {
+  const z = await startWorld();
+  const zapi = (...a) => z.api(...a);
+  const ztexts = (u) => z.texts(u);
+  const boss = { id: 800, name: 'Хозяин', username: 'host' };
+  const helper = { id: 801, name: 'Админ', username: 'admin010' };
+  const anya = { id: 802, name: 'Аня', username: 'anya010' };
+  const borya = { id: 803, name: 'Боря', username: 'borya010' };
+  const vera = { id: 804, name: 'Вера', username: 'vera010' };
+  const gena = { id: 805, name: 'Гена', username: 'gena010' };
+  const dasha = { id: 806, name: 'Даша', username: 'dasha010' };
+  const eva = { id: 807, name: 'Ева', username: 'eva010' };
+  const anya2 = { id: 808, name: 'Аня', username: 'anya_new010' };
+  const zhora = { id: 809, name: 'Жора', username: 'zhora010' };
+  const registered = new Set();
+  const zInvite = async (eid) => /start=(inv_[a-z0-9]+)/.exec((await zapi(boss, 'admin.state', { event: eid })).settings.invite_link)[1];
+  const pairsSql = async (eid) => new Map((await z.query(`SELECT santa, ward FROM pairs WHERE event_id = ${eid}`)).map((r) => [r.santa, r.ward]));
+  const join = async (u, code) => {
+    await z.say(u, '/start ' + code);
+    if (!registered.has(u.id)) {
+      await z.say(u, u.name);
+      registered.add(u.id);
+    }
+  };
+  const newEvent = async (title, people, game = {}) => {
+    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    if (Object.keys(game).length) await zapi(boss, 'admin.game', { event: id, ...game });
+    const code = await zInvite(id);
+    for (const u of people) await join(u, code);
+    return id;
+  };
+  let E;
+
+  try {
+    await t.test('настройка: ключ формой, одноразовая ссылка владельца, блокировка до смены секрета', async () => {
+      const get = await fetch(`${z.base}/setup?key=${ADMIN_SECRET}`);
+      assert.equal(get.status, 200);
+      assert.equal(get.headers.get('referrer-policy'), 'no-referrer');
+      assert.equal(get.headers.get('cache-control'), 'no-store');
+      assert.ok(!(await get.text()).includes('adm_'), 'по ключу из адреса ссылки нет');
+      assert.ok(!z.mock.calls.some((c) => c.method === 'setWebhook'), 'и настройки нет');
+      assert.equal((await z.setup('wrong-key-123')).status, 403);
+
+      const s = await z.setup();
+      assert.equal(s.status, 200);
+      assert.match(s.html, /срабатывает один раз/);
+      assert.equal(s.headers.get('referrer-policy'), 'no-referrer');
+      assert.equal((await z.setup()).adminCode, s.adminCode, 'пока ссылку не использовали, страница работает повторно');
+
+      await z.say(boss, '/start ' + s.adminCode);
+      await z.say(boss, boss.name);
+      registered.add(boss.id);
+      assert.equal((await zapi(boss, 'me')).me.is_owner, true);
+
+      // второй переход — отказ, владелец не меняется, запись не создаётся
+      await z.say(zhora, '/start ' + s.adminCode);
+      assert.equal(z.lastText(zhora), 'Ссылка владельца уже использована. Чтобы получить новую — смени ADMIN_SECRET и снова открой страницу настройки.');
+      assert.equal((await zapi(zhora, 'me')).registered, false);
+      assert.equal((await zapi(boss, 'me')).me.is_owner, true);
+
+      const locked = await z.setup();
+      assert.equal(locked.status, 423);
+      assert.match(locked.html, /Страница заблокирована/);
+      assert.ok(!locked.html.includes('adm_'), 'ссылка не показывается');
+
+      // смена ADMIN_SECRET: отметка «использована» относится к старому секрету — страница снова работает
+      z.sql("UPDATE settings SET value = 'old-secret' WHERE key = 'owner_link_used'");
+      const unlocked = await z.setup();
+      assert.equal(unlocked.status, 200);
+      await z.say(boss, '/start ' + unlocked.adminCode);
+      assert.equal((await z.setup()).status, 423, 'после перехода снова заблокирована');
+    });
+
+    await t.test('подготовка', async () => {
+      E = await newEvent('База', [helper, anya, borya, vera, gena, dasha]);
+      await zapi(boss, 'admin.role.grant', { id: helper.id });
+    });
+
+    await t.test('перенос участия — только владелец', async () => {
+      await join(anya2, await zInvite(E));
+      const r = await zapi(helper, 'admin.transfer', { from: anya.id, to: anya2.id }, true);
+      assert.equal(r.status, 403);
+      assert.equal(r.data.error, 'Переносить участие на новый аккаунт может только владелец бота.');
+      assert.ok((await zapi(anya, 'event.get', { event: E })).member, 'ничего не изменилось');
+    });
+
+    await t.test('служебный просмотр: участник и все пары, журнал без пар, статусы не меняются', async () => {
+      // до жеребьёвки пар нет
+      const pre = await zapi(boss, 'admin.vault.person', { event: E, id: anya.id });
+      assert.equal(pre.ward, null);
+      assert.equal(pre.santa, null);
+      assert.deepEqual((await zapi(boss, 'admin.vault.pairs', { event: E })).pairs, []);
+
+      const V = await newEvent('Сейф', [anya, borya, vera, gena], { delivery_on: true });
+      await zapi(boss, 'admin.participate', { event: V, on: true });
+      await zapi(vera, 'wishlist.save', { event: V, text: 'Хочу шарф ВЕРА-СЕКРЕТ' });
+      await zapi(vera, 'delivery.save', { event: V, text: 'Минск, ул. Ёлочная, 1' });
+      await zapi(boss, 'admin.draw', { event: V });
+      const pairs = await pairsSql(V);
+      const santaOf = (id) => [...pairs].find(([, ward]) => ward === id)[0];
+      await zapi(vera, 'message.send', { event: V, to: 'santa', text: 'Привет, Санта!' });
+      await zapi(vera, 'message.send', { event: V, to: 'ward', text: 'Привет от Санты' });
+      const statusSql = `SELECT santa, ward, seen_text, notified_at, gift_ready, gift_received FROM pairs WHERE event_id = ${V} ORDER BY santa`;
+      const readSql = `SELECT id, read_at FROM messages WHERE event_id = ${V} ORDER BY id`;
+      const before = [await z.query(statusSql), await z.query(readSql)];
+      await sleep(300);
+      const helperMsgs = z.mock.messagesTo(helper.id).length;
+
+      for (const action of ['admin.vault.person', 'admin.vault.pairs']) {
+        const r = await zapi(helper, action, { event: V, id: vera.id }, true);
+        assert.equal(r.status, 403, action);
+        assert.equal(r.data.error, 'Служебный просмотр доступен только владельцу бота.');
+      }
+
+      const all = await zapi(boss, 'admin.vault.pairs', { event: V });
+      assert.deepEqual(new Map(all.pairs.map((p) => [p.santa.id, p.ward.id])), pairs);
+      const p = await zapi(boss, 'admin.vault.person', { event: V, id: vera.id });
+      assert.equal(p.person.name, 'Вера');
+      assert.equal(p.ward.id, pairs.get(vera.id));
+      assert.equal(p.santa.id, santaOf(vera.id));
+      assert.equal(p.wishlist, 'Хочу шарф ВЕРА-СЕКРЕТ');
+      assert.equal(p.delivery, 'Минск, ул. Ёлочная, 1');
+      assert.deepEqual(p.chat_with_santa.map((m) => [m.from, m.text]), [['ward', 'Привет, Санта!']]);
+      assert.deepEqual(p.chat_with_ward.map((m) => [m.from, m.text]), [['santa', 'Привет от Санты']]);
+      assert.ok(p.chat_with_santa[0].created_at > 0, 'с датами');
+      assert.equal((await zapi(boss, 'admin.vault.person', { event: V, id: zhora.id }, true)).status, 400, 'не участник');
+
+      assert.deepEqual([await z.query(statusSql), await z.query(readSql)], before, 'статусы и непрочитанные не изменились');
+      const log = (await zapi(helper, 'admin.audit', { event: V })).entries;
+      assert.deepEqual(log.filter((e) => e.action === 'vault.person').map((e) => e.details), ['Вера'], 'в журнале — только чьи данные открыты');
+      assert.deepEqual(log.filter((e) => e.action === 'vault.pairs').map((e) => e.details), [`пар: ${pairs.size}`]);
+      await sleep(300);
+      assert.equal(z.mock.messagesTo(helper.id).length, helperMsgs, 'другим админам сообщений нет');
+
+      // отмена жеребьёвки остаётся доступной; завершённый эвент тоже открывается
+      const V2 = await newEvent('Сейф-2', [anya, borya, vera]);
+      await zapi(boss, 'admin.draw', { event: V2 });
+      await zapi(boss, 'admin.vault.pairs', { event: V2 });
+      for (const u of [anya, borya, vera]) await zapi(boss, 'admin.vault.person', { event: V2, id: u.id });
+      assert.equal((await zapi(boss, 'admin.state', { event: V2 })).settings.draw_cancelable, true, 'просмотр не мешает отменить жеребьёвку');
+      await zapi(boss, 'admin.event.finish', { event: V2 });
+      assert.equal((await zapi(boss, 'admin.vault.pairs', { event: V2 })).pairs.length, 3, 'и в завершённом эвенте');
+
+      // владельцу не действуют ограничения против вычисления пар; админу — действуют
+      await zapi(boss, 'admin.exclusion.add', { event: V, giver: anya.id, receiver: borya.id });
+      assert.ok((await zapi(boss, 'admin.state', { event: V })).exclusions.some((e) => e.giver === anya.id && e.receiver === borya.id));
+      await zapi(boss, 'admin.exclusion.del', { event: V, giver: anya.id, receiver: borya.id });
+      assert.equal((await zapi(helper, 'admin.exclusion.add', { event: V, giver: gena.id, receiver: vera.id }, true)).status, 400);
+      assert.equal((await zapi(helper, 'admin.family.save', { name: 'Пара-010', members: [anya.id, borya.id] }, true)).status, 400);
+      await zapi(boss, 'admin.family.save', { name: 'Пара-010', members: [anya.id, borya.id] });
+      const fam = (await zapi(boss, 'admin.families')).families.find((f) => f.name === 'Пара-010');
+      await zapi(boss, 'admin.family.delete', { id: fam.id });
+
+      const V4 = await newEvent('Вписать', [anya, borya, vera]);
+      await zapi(boss, 'admin.draw', { event: V4 });
+      await zapi(boss, 'admin.registration', { event: V4, open: true });
+      const code = await zInvite(V4);
+      await z.say(helper, '/start ' + code);
+      await z.say(boss, '/start ' + code);
+      const hs = await zapi(helper, 'admin.insert', { event: V4, id: helper.id }, true);
+      assert.equal(hs.status, 400);
+      assert.match(hs.data.error, /Вписать себя нельзя/);
+      await zapi(boss, 'admin.insert', { event: V4, id: boss.id });
+      assert.ok((await pairsSql(V4)).has(boss.id), 'владелец вписал себя');
+    });
+
+    await t.test('владелец может всё, что админ (автотест по всем действиям admin.*)', async () => {
+      const src = fs.readFileSync(new URL('../src/api.js', import.meta.url), 'utf8');
+      const actions = [...new Set([...src.matchAll(/case '(admin\.[a-z.]+)'/g)].map((m) => m[1]))];
+      assert.ok(actions.length >= 35, `найдено действий: ${actions.length}`);
+      // Минимальное тело: без слов подтверждения и без людей — опасные действия получают отказ по данным, а не по правам
+      const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
+      const P1 = (await zapi(boss, 'admin.events.create', { title: 'Права владельца' })).event.id;
+      const denied = [];
+      for (const a of actions) {
+        const r = await zapi(boss, a, body(P1), true);
+        if (r.status === 403) denied.push(`${a}: ${r.data.error}`);
+      }
+      assert.deepEqual(denied, [], 'владельцу ни одного отказа по правам');
+      // Проверка не пустая: обычный админ получает отказ на действия владельца
+      const P2 = (await zapi(boss, 'admin.events.create', { title: 'Права админа' })).event.id;
+      const deniedAdmin = [];
+      for (const a of actions) {
+        const r = await zapi(helper, a, body(P2), true);
+        if (r.status === 403) deniedAdmin.push(a);
+      }
+      for (const a of ['admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete']) {
+        assert.ok(deniedAdmin.includes(a), `админу отказано: ${a}`);
+      }
+    });
+
+    await t.test('закрытая регистрация: заявки ждут, приглашений нет, «Я участвую» можно', async () => {
+      const R = await newEvent('Набор', []);
+      await zapi(boss, 'admin.game', { event: R, approval: true });
+      const code = await zInvite(R);
+      await z.say(gena, '/start ' + code);
+      await z.say(dasha, '/start ' + code);
+      assert.match(z.lastText(gena), /отправлена организатору/);
+      await zapi(helper, 'admin.registration', { event: R, open: false });
+      const st = await zapi(helper, 'admin.state', { event: R });
+      const rg = st.requests.find((r) => r.user_id === gena.id);
+      const rd = st.requests.find((r) => r.user_id === dasha.id);
+      const closed = 'Регистрация в эвент «Набор» закрыта — открой её, чтобы принять заявку.';
+
+      await waitFor(() => z.mock.messagesTo(helper.id).some((c) => c.params.text.includes('Гена') && c.params.text.includes('просится')), 'заявка админу');
+      const msgToHelper = z.mock.messagesTo(helper.id).filter((c) => c.params.text.includes('Гена') && c.params.text.includes('просится')).at(-1);
+      await z.press(helper, msgToHelper.params.reply_markup.inline_keyboard[0][0].callback_data);
+      const answers = z.mock.calls.filter((c) => c.method === 'answerCallbackQuery').map((c) => c.params.text);
+      assert.equal(answers.at(-1), closed, 'кнопка в чате');
+      const r1 = await zapi(helper, 'admin.request.decide', { event: R, id: rg.id, approve: true }, true);
+      assert.equal(r1.status, 400);
+      assert.equal(r1.data.error, closed);
+      assert.equal((await z.query(`SELECT status FROM join_requests WHERE id = ${rg.id}`))[0].status, 'pending', 'заявка ждёт');
+      await zapi(helper, 'admin.request.decide', { event: R, id: rd.id, approve: false }); // отклонить можно
+
+      const inv = await zapi(helper, 'admin.event.invite_from', { event: R, from: E }, true);
+      assert.equal(inv.status, 400);
+      assert.equal(inv.data.error, 'Регистрация закрыта — открой её, чтобы приглашать.');
+
+      await zapi(helper, 'admin.participate', { event: R, on: true });
+      assert.ok((await zapi(helper, 'event.get', { event: R })).member, '«Я участвую» при закрытой регистрации');
+
+      await zapi(helper, 'admin.registration', { event: R, open: true });
+      await zapi(helper, 'admin.request.decide', { event: R, id: rg.id, approve: true });
+      assert.ok((await zapi(gena, 'event.get', { event: R })).member, 'после открытия принять можно');
+    });
+
+    await t.test('возврат удалённых: запрет, «Разрешить вернуться», включено по умолчанию, образец', async () => {
+      const J = await newEvent('Возврат', [anya, borya, vera]);
+      assert.equal((await zapi(boss, 'admin.state', { event: J })).settings.rejoin, true, 'по умолчанию включено');
+      await zapi(helper, 'admin.game', { event: J, rejoin: false });
+      await zapi(helper, 'admin.remove', { event: J, id: borya.id });
+      assert.deepEqual((await zapi(helper, 'admin.state', { event: J })).removed.map((r) => r.id), [borya.id]);
+
+      const toAdmins = () => [helper, boss].map((a) => z.mock.messagesTo(a.id)
+        .filter((c) => c.params.text.includes('Боря') && c.params.text.includes('«Возврат»') && /присоединяется|просится/.test(c.params.text)).length);
+      await sleep(300);
+      const seen0 = toAdmins();
+      const refused = /Организатор удалил тебя из эвента «Возврат» — вернуться по ссылке нельзя\. Если это ошибка — напиши ему\./;
+      const code = await zInvite(J);
+      await z.say(borya, '/start ' + code);
+      assert.match(z.lastText(borya), refused);
+      assert.equal((await zapi(borya, 'event.get', { event: J }, true)).status, 403);
+      // и заявкой — тоже нет
+      await zapi(helper, 'admin.game', { event: J, approval: true });
+      await z.say(borya, '/start ' + code);
+      assert.match(z.lastText(borya), refused);
+      assert.deepEqual((await zapi(helper, 'admin.state', { event: J })).requests, []);
+      await zapi(helper, 'admin.game', { event: J, approval: false });
+      // приглашение из прошлого эвента его пропускает
+      const invites = () => ztexts(borya).filter((x) => x.includes('Приглашение в эвент «Возврат»')).length;
+      const inv0 = invites();
+      await zapi(helper, 'admin.event.invite_from', { event: J, from: E });
+      await sleep(500);
+      assert.equal(invites(), inv0, 'удалённому приглашение не ушло');
+      assert.deepEqual(toAdmins(), seen0, 'админам о попытках ничего');
+
+      // удалили ещё до ввода имени — после имени тоже отказ
+      await z.say(eva, '/start ' + code);
+      assert.ok((await zapi(helper, 'admin.state', { event: J })).users.some((u) => u.id === eva.id && !u.registered));
+      await zapi(helper, 'admin.remove', { event: J, id: eva.id });
+      await z.say(eva, eva.name);
+      assert.ok(ztexts(eva).some((x) => refused.test(x)));
+      assert.equal((await zapi(eva, 'event.get', { event: J }, true)).status, 403);
+
+      // «Разрешить вернуться»
+      await zapi(helper, 'admin.removed.allow', { event: J, id: borya.id });
+      await z.say(borya, '/start ' + code);
+      assert.ok((await zapi(borya, 'event.get', { event: J })).member, 'вернулся по ссылке');
+      assert.deepEqual((await zapi(helper, 'admin.state', { event: J })).removed.map((r) => r.id), [eva.id]);
+      assert.ok((await zapi(helper, 'admin.audit', { event: J })).entries.some((e) => e.action === 'member.allow' && e.details === 'Боря'));
+
+      // включено: удалённый возвращается и пропадает из списка
+      await zapi(helper, 'admin.game', { event: J, rejoin: true });
+      await zapi(helper, 'admin.remove', { event: J, id: vera.id });
+      await z.say(vera, '/start ' + code);
+      assert.ok((await zapi(vera, 'event.get', { event: J })).member);
+      assert.ok(!(await zapi(helper, 'admin.state', { event: J })).removed.some((r) => r.id === vera.id));
+
+      // «Я участвую» выкл. — не удаление организатором
+      await zapi(helper, 'admin.participate', { event: J, on: true });
+      await zapi(helper, 'admin.participate', { event: J, on: false });
+      assert.ok(!(await zapi(helper, 'admin.state', { event: J })).removed.some((r) => r.id === helper.id));
+
+      // эвент по образцу копирует настройку
+      await zapi(helper, 'admin.game', { event: J, rejoin: false });
+      const J2 = (await zapi(boss, 'admin.events.create', { title: 'Возврат-2', from: J })).event.id;
+      assert.equal((await zapi(boss, 'admin.state', { event: J2 })).settings.rejoin, false);
+    });
+
+    await t.test('удаление эвента: два одновременных — одно уведомление и одна запись журнала', async () => {
+      const D = await newEvent('Удаляшка', [anya, borya, vera]);
+      const rs = await Promise.all([1, 2].map(() => zapi(boss, 'admin.event.delete', { event: D, confirm: 'УДАЛИТЬ' }, true)));
+      const ok = rs.filter((r) => r.status === 200);
+      assert.equal(ok.length, 1, 'удалило одно');
+      const other = rs.find((r) => r.status !== 200);
+      assert.match(other.data.error, /^Эвент (уже удалён|не найден)\.$/);
+      const gone = (u) => ztexts(u).filter((x) => x.includes('«Удаляшка»') && x.includes('удалён организатором')).length;
+      await waitFor(() => [anya, borya, vera].every((u) => gone(u) >= 1), 'уведомления об удалении');
+      await z.cron();
+      await sleep(300);
+      for (const u of [anya, borya, vera]) assert.equal(gone(u), 1, `${u.name}: одно уведомление`);
+      const rows = await z.query("SELECT COUNT(*) AS n FROM audit WHERE event_id = 0 AND action = 'event.delete' AND details LIKE '«Удаляшка»%'");
+      assert.equal(rows[0].n, 1, 'одна запись в общем журнале');
     });
   } finally {
     const log = z.log();

@@ -1,8 +1,8 @@
-// Работа с базой D1 (SQLite). Схема 8: эвенты с историей (005) + поля 006–008 (см. migrations/).
+// Работа с базой D1 (SQLite). Схема 9: эвенты с историей (005) + поля 006–008, 010 (см. migrations/).
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
-export const REQUIRED_SCHEMA = 8;
+export const REQUIRED_SCHEMA = 9;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -98,7 +98,7 @@ export async function allEvents(db) {
 const EVENT_FIELDS = new Set([
   'title', 'status', 'finished_at', 'invite_code', 'registration_open', 'draw_done', 'draw_at', 'revealed', 'ring',
   'avoid_previous', 'draw_token', 'budget', 'event_date', 'place', 'deadline', 'notes', 'last_daily',
-  'draw_auto_date', 'reveal_auto', 'finish_auto', 'delivery_on', 'families_on', 'approval',
+  'draw_auto_date', 'reveal_auto', 'finish_auto', 'delivery_on', 'families_on', 'approval', 'rejoin',
 ]);
 
 export function updateEventStmt(db, id, fields) {
@@ -149,6 +149,27 @@ export function addMemberStmt(db, ev, userId, guard = '1', ...args) {
     .bind(ev.id, userId, Date.now(), ...(copy ? [userId] : []), ...args);
 }
 
+// ---------- отметки «удалён организатором» (010) ----------
+
+// Отметка пишется при удалении участника организатором (admin.remove) — по тому же условию guard, что и само удаление
+export function markRemovedStmt(db, eventId, userId, actor, guard = '1', ...args) {
+  return db
+    .prepare(
+      `INSERT INTO removed_members (event_id, user_id, removed_by, removed_at) SELECT ?, ?, ?, ? WHERE ${guard}
+       ON CONFLICT(event_id, user_id) DO UPDATE SET removed_by = excluded.removed_by, removed_at = excluded.removed_at`
+    )
+    .bind(eventId, userId, actor || 0, Date.now(), ...args);
+}
+
+// Снять отметку: человек снова вступил или ему разрешили вернуться
+export function clearRemovedStmt(db, eventId, userId, guard = '1', ...args) {
+  return db.prepare(`DELETE FROM removed_members WHERE event_id = ? AND user_id = ? AND ${guard}`).bind(eventId, userId, ...args);
+}
+
+export async function isRemoved(db, eventId, userId) {
+  return !!(await db.prepare('SELECT 1 FROM removed_members WHERE event_id = ? AND user_id = ?').bind(eventId, userId).first());
+}
+
 // ---------- pairs / exclusions ----------
 
 export async function getPairs(db, eventId) {
@@ -164,13 +185,19 @@ export async function pairOfWard(db, eventId, ward) {
   return db.prepare('SELECT * FROM pairs WHERE event_id = ? AND ward = ?').bind(eventId, ward).first();
 }
 
-// Семьи (008): пары «не дарят друг другу» между членами одной семьи среди ids — если в эвенте включено правило семей
-export async function familyExclusions(db, ev, ids) {
-  if (!ev.families_on || ids.length < 2) return [];
+// Семьи (008): строки «человек — семья» (все; фильтр по участникам — в функциях ниже)
+export async function familyRows(db) {
   const { results } = await db.prepare('SELECT user_id, family_id FROM family_members').all();
+  return results;
+}
+
+// Семьи (008): пары «не дарят друг другу» между членами одной семьи среди ids — если в эвенте включено правило семей.
+// rows — уже прочитанные строки familyRows (необязательно).
+export async function familyExclusions(db, ev, ids, rows = null) {
+  if (!ev.families_on || ids.length < 2) return [];
   const set = new Set(ids);
   const byFamily = new Map();
-  for (const r of results) {
+  for (const r of rows || (await familyRows(db))) {
     if (!set.has(r.user_id)) continue;
     if (!byFamily.has(r.family_id)) byFamily.set(r.family_id, []);
     byFamily.get(r.family_id).push(r.user_id);
@@ -181,6 +208,27 @@ export async function familyExclusions(db, ev, ids) {
   }
   return out;
 }
+
+// Снимок семей участников (010, FR-1019): «число:Σ(человек×семья):Σ(семья)» по строкам семей людей ids.
+// То же выражение считает SQL в условии записи жеребьёвки (FAMILY_SNAPSHOT_SQL) — пары пишутся, только если семьи те же.
+export function familySnapshot(rows, ids) {
+  const set = new Set(ids);
+  let count = 0;
+  let mixed = 0;
+  let fams = 0;
+  for (const r of rows) {
+    if (!set.has(r.user_id)) continue;
+    count += 1;
+    mixed += r.user_id * r.family_id;
+    fams += r.family_id;
+  }
+  return `${count}:${mixed}:${fams}`;
+}
+
+// Параметр — id эвента; учитываются зарегистрированные участники (как в жеребьёвке)
+export const FAMILY_SNAPSHOT_SQL = `(SELECT COUNT(*) || ':' || COALESCE(SUM(fm.user_id * fm.family_id), 0) || ':' || COALESCE(SUM(fm.family_id), 0)
+   FROM family_members fm
+  WHERE fm.user_id IN (SELECT m.user_id FROM members m JOIN users u ON u.tg_id = m.user_id WHERE m.event_id = ? AND u.registered = 1))`;
 
 export async function getExclusions(db, eventId) {
   const { results } = await db.prepare('SELECT giver, receiver FROM exclusions WHERE event_id = ?').bind(eventId).all();

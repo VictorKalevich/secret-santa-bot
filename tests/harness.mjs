@@ -147,10 +147,14 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, migrate = 
       if (!data.ok) throw new Error(`${action}: ${data.error}`);
       return data;
     },
-    async setup() {
-      const html = await (await fetch(`${base}/setup?key=${ADMIN_SECRET}`)).text();
+    // Ключ — только формой (010, FR-1002)
+    async setup(key = ADMIN_SECRET) {
+      const res = await fetch(`${base}/setup`, { method: 'POST', body: new URLSearchParams({ key }) });
+      const html = await res.text();
       webhookSecret = mock.calls.find((c) => c.method === 'setWebhook')?.params.secret_token || '';
       return {
+        status: res.status,
+        headers: res.headers,
         html,
         adminCode: /start=(adm_[a-f0-9]+)/.exec(html)?.[1],
         inviteCode: /start=(inv_[a-z0-9]+)/.exec(html)?.[1],

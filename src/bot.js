@@ -2,19 +2,21 @@
 
 import {
   getSettings, getUser, createUser, updateUser, pairOfSanta, pairOfWard, enqueueStmt, allUsers,
-  getEvent, getEventByInvite, getMember, addMemberStmt,
+  getEvent, getEventByInvite, getMember, addMemberStmt, clearRemovedStmt,
 } from './db.js';
-import { tgApi, derivedSecret } from './telegram.js';
+import { tgApi } from './telegram.js';
 import { escapeHtml, msg, q, openAppButton, adminRecipients, oneLine, shortTitle } from './format.js';
 import { isFinished, chatWritable } from './events.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
-import { resolveOwner, setOwner } from './roles.js';
-import { joinByInvite, decideRequest } from './membership.js';
+import { resolveOwner, setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
+import { joinByInvite, decideRequest, rejoinBlocked } from './membership.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта и организатор.';
 const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси у организатора пригласительную ссылку эвента.';
 const STALE_INVITE = 'Эта пригласительная ссылка устарела. Попроси у организатора новую.';
+// Удалённый организатором при запрете возврата (010, FR-1022); админам об этой попытке ничего не приходит
+const REMOVED = (ev) => `Организатор удалил тебя из эвента ${q(ev)} — вернуться по ссылке нельзя. Если это ошибка — напиши ему.`;
 // Режим ответа в переписку: msg_<ward|santa>:<эвент>[:<собеседник>:<время нажатия>] (старый формат — без двух последних)
 const REPLY_MODE = /^msg_(ward|santa):(\d+)(?::(\d+):(\d+))?$/;
 const REPLY_WINDOW_MS = 60 * 60 * 1000;
@@ -104,6 +106,9 @@ export async function handleUpdate(update, env) {
       case 'closed':
         await reply(`Регистрация в эвент ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`);
         return false;
+      case 'removed':
+        await reply(REMOVED(ev));
+        return false;
       case 'request_pending':
         await reply(`⏳ Заявка в эвент ${q(ev)} уже отправлена — ждём решения организатора.`);
         return false;
@@ -125,10 +130,12 @@ export async function handleUpdate(update, env) {
   // ---------- /start ----------
   if (text.startsWith('/start')) {
     const payload = text.split(/\s+/)[1] || '';
-    const adminCode = 'adm_' + (await derivedSecret(env, 'admin:' + (env.ADMIN_SECRET || ''), 24));
-
-    // Ссылка со страницы /setup делает владельцем бота (002, FR-102)
-    if (payload === adminCode) {
+    // Ссылка со страницы /setup делает владельцем бота (002, FR-102) — один раз для текущего секрета (010, FR-1004)
+    if (payload.startsWith('adm_') && payload === (await ownerLinkCode(env))) {
+      if (!(await claimOwnerLink(env))) {
+        await reply('Ссылка владельца уже использована. Чтобы получить новую — смени ADMIN_SECRET и снова открой страницу настройки.');
+        return user?.registered ? sendMenu(user) : undefined;
+      }
       const prevOwnerId = await resolveOwner(db, settings);
       if (!user) await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
       await setOwner(env, from.id, {
@@ -169,11 +176,13 @@ export async function handleUpdate(update, env) {
       if (!member && (isFinished(ev) || !ev.registration_open)) {
         return reply(`Регистрация в эвент ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`);
       }
+      // Удалили ещё до ввода имени, а возврат запрещён (010): не добавляем и имя не спрашиваем
+      if (!member && user && (await rejoinBlocked(db, ev, from.id))) return reply(REMOVED(ev));
       const pending = `name:${ev.id}:${code}`;
       if (!user) await createUser(db, from.id, from.username, { pending });
       else await updateUser(db, from.id, { pending });
       // Без одобрения человек сразу виден организатору в списке (ещё без имени)
-      if (!member && !ev.approval) await addMemberStmt(db, ev, from.id).run();
+      if (!member && !ev.approval) await db.batch([addMemberStmt(db, ev, from.id), clearRemovedStmt(db, ev.id, from.id)]);
       return reply(`🎄 Привет! Это бот для игры в Тайного Санту, эвент ${q(ev)}.\n\n` + NAME_PROMPT);
     }
 
@@ -220,7 +229,7 @@ export async function handleUpdate(update, env) {
     await reply(hello);
     const status = await joinByInvite(env, ev, user);
     const menu = await replyJoin(ev, status);
-    if (menu || status === 'closed') return sendMenu(user);
+    if (menu || status === 'closed' || status === 'removed') return sendMenu(user);
     return;
   }
 

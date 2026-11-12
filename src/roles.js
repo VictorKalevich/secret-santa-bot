@@ -4,10 +4,37 @@ import {
   getSettings, setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, auditStmt,
 } from './db.js';
 import { msg, escapeHtml, openAppButton, displayName, adminRecipients } from './format.js';
+import { derivedSecret } from './telegram.js';
 
 // Сообщение остальным админам (без звука) — кроме перечисленных
 function otherAdminsNotice(db, users, exclude, text) {
   return adminRecipients(users, exclude).map((u) => enqueueStmt(db, u.tg_id, msg(text, { disable_notification: true })));
+}
+
+// ---------- ссылка владельца (010, FR-1004–FR-1006) ----------
+
+// Код ссылки владельца — производная от текущего ADMIN_SECRET: после смены секрета старая ссылка не совпадает
+export async function ownerLinkCode(env) {
+  return 'adm_' + (await derivedSecret(env, 'admin:' + (env.ADMIN_SECRET || ''), 24));
+}
+
+// Отметка «ссылка использована» для текущего секрета (сама ссылка из неё не восстанавливается)
+const usedMark = (env) => derivedSecret(env, 'owner-used:' + (env.ADMIN_SECRET || ''), 24);
+
+export async function ownerLinkUsed(env, settings) {
+  return settings.owner_link_used === (await usedMark(env));
+}
+
+// Захват ссылки: true — только у первого перехода для этого секрета (один оператор — атомарно)
+export async function claimOwnerLink(env) {
+  const r = await env.DB
+    .prepare(
+      `INSERT INTO settings (key, value) VALUES ('owner_link_used', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value != excluded.value`
+    )
+    .bind(await usedMark(env))
+    .run();
+  return r.meta.changes > 0;
 }
 
 // Владелец бота: settings.owner_id; если не задан или недействителен — самый ранний админ (FR-109).
@@ -40,7 +67,7 @@ export async function setOwner(env, newOwnerId, { via, prevOwnerId, newOwnerLabe
     if (via === 'link') {
       stmts.push(enqueueStmt(db, prevOwnerId, msg(
         `⚠️ Права владельца бота перешли к <b>${label}</b> по ссылке со страницы настройки. Ты остаёшься администратором.\n\n` +
-        'Если это не ты и не по договорённости — открой страницу настройки и перейди по ссылке владельца снова, а потом смени ADMIN_SECRET.'
+        'Если это не ты и не по договорённости — смени ADMIN_SECRET (см. README), открой страницу настройки и перейди по новой ссылке владельца.'
       )));
     }
     if (via === 'transfer') {
@@ -158,6 +185,11 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
     db.prepare('DELETE FROM family_members WHERE user_id = ?').bind(fromId),
     db.prepare('UPDATE OR IGNORE join_requests SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
     db.prepare('DELETE FROM join_requests WHERE user_id = ?').bind(fromId),
+    // 010: отметки «удалён организатором» тоже переходят — перенос не должен открывать путь назад
+    db.prepare('UPDATE OR IGNORE removed_members SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
+    db.prepare('DELETE FROM removed_members WHERE user_id = ?').bind(fromId),
+    // …кроме эвентов, где новый аккаунт теперь участник: участник не может быть «удалённым»
+    db.prepare('DELETE FROM removed_members WHERE user_id = ? AND event_id IN (SELECT event_id FROM members WHERE user_id = ?)').bind(toId, toId),
     db.prepare('UPDATE users SET is_admin = ? WHERE tg_id = ?').bind(from.is_admin || to.is_admin ? 1 : 0, toId),
     db.prepare('DELETE FROM users WHERE tg_id = ?').bind(fromId),
     enqueueStmt(db, toId, msg(

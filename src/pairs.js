@@ -1,8 +1,8 @@
 // Пары эвента: проверка и проведение жеребьёвки, отмена, удаление и вписывание участника после жеребьёвки.
 
 import {
-  getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyExclusions,
-  enqueueIfStmt, auditIfStmt,
+  getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, familyExclusions, familySnapshot,
+  FAMILY_SNAPSHOT_SQL, enqueueIfStmt, auditIfStmt, markRemovedStmt,
 } from './db.js';
 import { planDraw, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, openAppButton, randomCode, displayName } from './format.js';
@@ -58,7 +58,9 @@ export async function checkDraw(env, ev) {
   const ids = people.map((u) => u.user_id);
   const allEx = await getExclusions(db, ev.id);
   const own = allEx.filter((e) => ids.includes(e.giver) && ids.includes(e.receiver));
-  const families = await familyExclusions(db, ev, ids); // 008: семьи — как исключения
+  // 008: семьи — как исключения; строки семей читаются один раз — и для исключений, и для снимка (010)
+  const famRows = ev.families_on ? await familyRows(db) : [];
+  const families = await familyExclusions(db, ev, ids, famRows);
   const prev = ev.avoid_previous ? await previousPairs(db, ev, ids) : [];
   const history = prev.map((p) => ({ giver: p.santa, receiver: p.ward }));
   const ring = !!ev.ring;
@@ -71,10 +73,12 @@ export async function checkDraw(env, ev) {
     byId,
     res,
     ring,
-    // Снимок того, по чему считались пары (009, FR-922): runDraw записывает пары, только если он не изменился
+    // Снимок того, по чему считались пары (009, FR-922; семьи — 010, FR-1019): runDraw записывает пары, только если
+    // он не изменился. Семьи сравниваются, только если правило семей включено.
     snapshot: {
       members: `${ids.length}:${sum(ids)}`,
       exclusions: `${allEx.length}:${sum(allEx.map((e) => e.giver))}:${sum(allEx.map((e) => e.receiver))}`,
+      families: ev.families_on ? familySnapshot(famRows, ids) : '',
     },
     // Учтены ли прошлые пары, наружу не сообщается: по этому признаку можно вычислить пары прошлого (009, FR-904)
     emptyWishlists: people.filter((u) => !u.wishlist.trim()).map((u) => u.name),
@@ -105,9 +109,11 @@ export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
                  FROM members m JOIN users u ON u.tg_id = m.user_id
                 WHERE m.event_id = ? AND u.registered = 1) = ?
           AND (SELECT COUNT(*) || ':' || COALESCE(SUM(giver), 0) || ':' || COALESCE(SUM(receiver), 0)
-                 FROM exclusions WHERE event_id = ?) = ?`
+                 FROM exclusions WHERE event_id = ?) = ?
+          AND (? = '' OR ${FAMILY_SNAPSHOT_SQL} = ?)`
     ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ev.families_on ? 1 : 0,
-      ev.id, check.snapshot.members, ev.id, check.snapshot.exclusions),
+      ev.id, check.snapshot.members, ev.id, check.snapshot.exclusions,
+      check.snapshot.families, ev.id, check.snapshot.families),
     db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
   ];
   for (const [santa, ward] of check.res.pairs) {
@@ -128,7 +134,7 @@ export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
     const cur = await getEvent(db, ev.id);
     if (cur?.draw_done) return { ok: false, error: 'Жеребьёвка уже проведена.' };
     if (isFinished(cur || ev)) return { ok: false, error: 'Эвент завершён.' };
-    return { ok: false, error: 'Состав эвента изменился во время жеребьёвки — попробуй ещё раз.' };
+    return { ok: false, error: 'Участники, исключения или семьи изменились во время жеребьёвки — попробуй ещё раз.' };
   }
   return { ok: true, count: check.people.length, singleCycle: check.res.singleCycle };
 }
@@ -202,8 +208,9 @@ async function applyPairsChange(env, ev, oldRows, newMap, changed, members, v) {
   return stmts;
 }
 
-// Убрать человека из эвента (после жеребьёвки — с минимальной перестройкой пар)
-export async function removeMember(env, ev, userId, { notify = true, actor = 0 } = {}) {
+// Убрать человека из эвента (после жеребьёвки — с минимальной перестройкой пар).
+// mark — удаляет организатор: запомнить «удалён» (010, FR-1021), при запрете возврата по ссылке он не вернётся.
+export async function removeMember(env, ev, userId, { notify = true, actor = 0, mark = false } = {}) {
   const db = env.DB;
   const members = await eventMembers(db, ev.id);
   const target = members.find((m) => m.user_id === userId);
@@ -226,6 +233,7 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0 }
   stmts.push(db.prepare(`DELETE FROM messages WHERE event_id = ? AND (santa = ? OR ward = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
   const removeAt = stmts.length;
   stmts.push(db.prepare(`DELETE FROM members WHERE event_id = ? AND user_id = ? ${when}`).bind(ev.id, userId, ...v.args));
+  if (mark) stmts.push(markRemovedStmt(db, ev.id, userId, actor, v.guard, ...v.args));
   if (notify) stmts.push(enqueueIfStmt(db, userId, msg(`Организатор удалил тебя из эвента ${q(ev)}. Если это ошибка — напиши ему.`), v.guard, ...v.args));
   stmts.push(auditIfStmt(db, ev.id, actor, 'member.remove', displayName(target), v.guard, ...v.args));
   const res = await db.batch(stmts);
