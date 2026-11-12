@@ -11,7 +11,7 @@ crons = ["* * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "secret-santa-db"
-database_id = "REPLACE_WITH_DATABASE_ID"
+database_id = "d9d60a6e-623e-427f-8eda-4a1f634c5af4"
 migrations_dir = "migrations"   # схема базы — только миграциями (см. README)
 
 # Настройки (не секретные)
