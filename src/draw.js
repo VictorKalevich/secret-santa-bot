@@ -18,73 +18,89 @@ function allowedFn(isAllowed) {
   return (a, b) => a !== b && isAllowed(a, b);
 }
 
+// ---------- бюджет вычислений (006) ----------
+// Бесплатный тариф Cloudflare даёт ~10 мс CPU на запрос, а время в Workers во время вычислений не идёт.
+// Поэтому поиск ограничен числом элементарных шагов: при исчерпании — понятный отказ «попробуй ещё раз».
+// 150 000 шагов ≈ 1–3 мс в Node (см. tests/draw.test.mjs, замер).
+export const DEFAULT_BUDGET = 150000;
+const EXHAUSTED = Symbol('budget exhausted');
+
+function spend(counter, n) {
+  counter.left -= n;
+  if (counter.left < 0) throw EXHAUSTED;
+}
+
+const range = (n) => Array.from({ length: n }, (_, i) => i);
+
+// Дальше участники — индексы 0..n−1, допустимость — матрица adj (adj[i*n+j] = 1, если i может дарить j).
+
 // Попытка выстроить всех в один общий круг (A→B→C→…→A).
-// Так не бывает взаимных пар и проще заменять выбывших.
-function findCycle(ids, ok, rng, budget = 40000) {
-  const n = ids.length;
-  if (n < 2) return null;
-  const order = shuffle(ids, rng);
+// Так не бывает взаимных пар и проще заменять выбывших. counter — бюджет шагов этой попытки.
+function findCycle(n, adj, rng, counter) {
+  const ok = (a, b) => adj[a * n + b] === 1;
+  const order = shuffle(range(n), rng);
   const start = order[0];
   const path = [start];
-  const used = new Set([start]);
-  let steps = 0;
-
-  function options(from) {
-    return order.filter((x) => !used.has(x) && ok(from, x));
-  }
+  const used = new Uint8Array(n);
+  used[start] = 1;
 
   function dfs() {
-    if (++steps > budget) return false;
     const last = path[path.length - 1];
     if (path.length === n) return ok(last, start);
+    const rest = order.filter((x) => !used[x]);
+    const options = rest.filter((x) => ok(last, x));
+    spend(counter, n + options.length * rest.length);
     // Эвристика Варнсдорфа: сначала идём к тем, у кого меньше всего вариантов
-    const cand = shuffle(options(last), rng)
+    const cand = shuffle(options, rng)
       .map((x) => {
-        used.add(x);
-        const deg = order.filter((y) => !used.has(y) && ok(x, y)).length + (ok(x, start) ? 0.5 : 0);
-        used.delete(x);
+        let deg = ok(x, start) ? 0.5 : 0;
+        for (const y of rest) if (y !== x && ok(x, y)) deg++;
         return [x, deg];
       })
       .sort((p, q) => p[1] - q[1]);
     for (const [x] of cand) {
-      used.add(x);
+      used[x] = 1;
       path.push(x);
       if (dfs()) return true;
       path.pop();
-      used.delete(x);
-      if (steps > budget) return false;
+      used[x] = 0;
     }
     return false;
   }
 
   if (!dfs()) return null;
-  const m = new Map();
-  for (let i = 0; i < n; i++) m.set(path[i], path[(i + 1) % n]);
-  return m;
+  const to = new Array(n);
+  for (let i = 0; i < n; i++) to[path[i]] = path[(i + 1) % n];
+  return to;
 }
 
-// Случайное совершенное паросочетание (алгоритм Куна). Любая перестановка без «самому себе».
-function findMatching(ids, ok, rng) {
-  const givers = shuffle(ids, rng);
-  const matchR = new Map(); // receiver -> giver
+// Случайное совершенное паросочетание (алгоритм Куна), O(n·E). Любая перестановка без «самому себе».
+function findMatching(n, adj, rng, counter) {
+  const lists = range(n).map((g) => shuffle(range(n).filter((r) => adj[g * n + r] === 1), rng));
+  spend(counter, n * n);
+  const matchR = new Int32Array(n).fill(-1); // receiver -> giver
   function tryKuhn(g, seen) {
-    for (const r of shuffle(ids, rng)) {
-      if (!ok(g, r) || seen.has(r)) continue;
-      seen.add(r);
-      if (!matchR.has(r) || tryKuhn(matchR.get(r), seen)) {
-        matchR.set(r, g);
+    const list = lists[g];
+    spend(counter, list.length);
+    for (const r of list) {
+      if (seen[r]) continue;
+      seen[r] = 1;
+      if (matchR[r] < 0 || tryKuhn(matchR[r], seen)) {
+        matchR[r] = g;
         return true;
       }
     }
     return false;
   }
-  for (const g of givers) {
-    if (!tryKuhn(g, new Set())) return null;
+  for (const g of shuffle(range(n), rng)) {
+    if (!tryKuhn(g, new Uint8Array(n))) return null;
   }
-  const m = new Map();
-  for (const [r, g] of matchR) m.set(g, r);
-  return m;
+  const to = new Array(n);
+  for (let r = 0; r < n; r++) to[matchR[r]] = r;
+  return to;
 }
+
+const hasMutualIdx = (to) => to.some((r, g) => to[r] === g);
 
 function mutualCount(m) {
   let c = 0;
@@ -107,33 +123,62 @@ export function diagnose(ids, isAllowed, { ring = false } = {}) {
 
 // ring = true («кольцевая»): взаимных пар нет — если A дарит B, то B не дарит A (005).
 // ring = false: любое корректное распределение, взаимные пары допустимы.
-export function findAssignment(ids, isAllowed, rng = Math.random, { ring = true } = {}) {
-  const ok = allowedFn(isAllowed);
-  if (ids.length < 2 || (ring && ids.length < 3)) return { ok: false, problems: diagnose(ids, isAllowed, { ring }) };
-  if (ring) {
-    // Сначала — единый круг (несколько попыток с разным случайным порядком)
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const cyc = findCycle(ids, ok, rng);
-      if (cyc) return { ok: true, pairs: cyc, singleCycle: true };
-    }
-    // Иначе — несколько кругов, но без взаимных пар
-    for (let attempt = 0; attempt < 60; attempt++) {
-      const m = findMatching(ids, ok, rng);
-      if (!m) break;
-      if (mutualCount(m) === 0) return { ok: true, pairs: m, singleCycle: false };
-    }
-    const problems = diagnose(ids, isAllowed, { ring });
-    if (!problems.length) {
-      const anyMatching = findMatching(ids, ok, rng);
-      problems.push({ type: anyMatching ? 'ring_impossible' : 'too_strict' });
-    }
-    return { ok: false, problems };
-  }
-  const m = findMatching(ids, ok, rng);
-  if (m) return { ok: true, pairs: m, singleCycle: isSingleCycle(m) };
+// budget — предел шагов поиска (006): при исчерпании — проблема search_exhausted.
+export function findAssignment(ids, isAllowed, rng = Math.random, { ring = true, budget = DEFAULT_BUDGET } = {}) {
+  const n = ids.length;
+  if (n < 2 || (ring && n < 3)) return { ok: false, problems: diagnose(ids, isAllowed, { ring }) };
   const problems = diagnose(ids, isAllowed, { ring });
-  if (!problems.length) problems.push({ type: 'too_strict' });
-  return { ok: false, problems };
+  if (problems.length) return { ok: false, problems };
+
+  const ok = allowedFn(isAllowed);
+  const adj = new Uint8Array(n * n);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) adj[i * n + j] = ok(ids[i], ids[j]) ? 1 : 0;
+  const result = (to, singleCycle) => {
+    const pairs = new Map(to.map((r, g) => [ids[g], ids[r]]));
+    return { ok: true, pairs, singleCycle: singleCycle ?? isSingleCycle(pairs) };
+  };
+
+  // Точная и быстрая проверка (O(n³) в худшем случае, вне бюджета): распределение вообще существует?
+  const first = findMatching(n, adj, rng, { left: Infinity });
+  if (!first) return { ok: false, problems: [{ type: 'too_strict' }] };
+  if (!ring) return result(first);
+
+  // Сначала — единый круг. Самое дешёвое — случайный круг: при немногих исключениях почти всегда подходит
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const order = shuffle(range(n), rng);
+    if (order.every((g, i) => adj[g * n + order[(i + 1) % n]] === 1)) {
+      const to = new Array(n);
+      for (let i = 0; i < n; i++) to[order[i]] = order[(i + 1) % n];
+      return result(to, true);
+    }
+  }
+  // Затем — перебор (до 5 попыток с разным порядком; все вместе — не больше половины бюджета)
+  const cycleTotal = { left: budget / 2 };
+  const cap = Math.max(budget / 10, n ** 3 / 2);
+  for (let attempt = 0; attempt < 5 && cycleTotal.left > 0; attempt++) {
+    const c = { left: Math.min(cap, cycleTotal.left) };
+    const given = c.left;
+    try {
+      const cyc = findCycle(n, adj, rng, c);
+      if (cyc) return result(cyc, true);
+    } catch (e) {
+      if (e !== EXHAUSTED) throw e;
+    }
+    cycleTotal.left -= given - Math.max(c.left, 0);
+  }
+  // Иначе — несколько кругов, но без взаимных пар (оставшаяся половина бюджета)
+  if (!hasMutualIdx(first)) return result(first, false);
+  const counter = { left: budget / 2 };
+  try {
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const m = findMatching(n, adj, rng, counter);
+      if (m && !hasMutualIdx(m)) return result(m, false);
+    }
+    return { ok: false, problems: [{ type: 'ring_impossible' }] };
+  } catch (e) {
+    if (e !== EXHAUSTED) throw e;
+    return { ok: false, problems: [{ type: 'search_exhausted' }] };
+  }
 }
 
 function isSingleCycle(m) {

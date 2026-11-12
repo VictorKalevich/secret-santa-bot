@@ -225,3 +225,87 @@ test('кольцевая: вписывание не создаёт взаимн�
     assert.equal(hasMutual(res.pairs), false);
   }
 });
+
+// ---------- бюджет вычислений (006): лимит CPU бесплатного тарифа ----------
+
+// Худший из нескольких запусков: замер CPU на один вызов findAssignment
+function worstMs(ids, rules, opts, runs = 10) {
+  let worst = 0;
+  let last;
+  for (let k = 0; k < runs; k++) {
+    const t0 = performance.now();
+    last = findAssignment(ids, rules, seeded(100 + k), opts);
+    worst = Math.max(worst, performance.now() - t0);
+  }
+  return { worst, last };
+}
+
+const people = (n) => Array.from({ length: n }, (_, i) => i + 1);
+
+test('бюджет: 50 человек, только взаимные пары возможны (кольцевая) — быстрый понятный отказ', () => {
+  const ids = people(50);
+  const rules = (a, b) => ((a - 1) ^ 1) === b - 1; // каждый может дарить только «соседу по паре»
+  const { worst, last } = worstMs(ids, rules, { ring: true });
+  assert.equal(last.ok, false);
+  assert.ok(last.problems.some((p) => p.type === 'search_exhausted' || p.type === 'ring_impossible'));
+  assert.ok(worst < 10, `заняло ${worst.toFixed(1)} мс`);
+});
+
+test('бюджет: 50 человек, нарушение условия Холла — too_strict за миллисекунды', () => {
+  const ids = people(50);
+  const rules = (a) => a > 3 || false; // первые трое не могут дарить никому... кроме ограниченного набора ниже
+  const hall = (a, b) => (a <= 3 ? b === 4 || b === 5 : rules(a, b));
+  for (const ring of [true, false]) {
+    const { worst, last } = worstMs(ids, hall, { ring });
+    assert.equal(last.ok, false);
+    assert.ok(last.problems.some((p) => p.type === 'too_strict'));
+    assert.ok(worst < 10, `заняло ${worst.toFixed(1)} мс`);
+  }
+});
+
+test('бюджет: 50 человек, «тройки» — единый круг невозможен, но кольцевое распределение находится', () => {
+  const ids = people(48);
+  const rules = (a, b) => Math.floor((a - 1) / 3) === Math.floor((b - 1) / 3);
+  const { worst, last } = worstMs(ids, rules, { ring: true });
+  assert.ok(last.ok);
+  assertValid(ids, last.pairs, rules);
+  assert.equal(hasMutual(last.pairs), false);
+  assert.ok(worst < 10, `заняло ${worst.toFixed(1)} мс`);
+});
+
+test('бюджет: 50 человек, супруги + пары прошлого года — 100 кольцевых жеребьёвок успешны', () => {
+  const ids = people(50);
+  const list = [];
+  for (let i = 1; i < 50; i += 2) list.push([i, i + 1], [i + 1, i]);
+  for (let i = 1; i <= 50; i++) list.push([i, (i % 50) + 1]); // «прошлый год» — круг 1→2→…→50→1
+  const rules = banned(list);
+  let worst = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const t0 = performance.now();
+    const r = findAssignment(ids, rules, seeded(seed), { ring: true });
+    worst = Math.max(worst, performance.now() - t0);
+    assert.ok(r.ok, 'seed ' + seed);
+    assertValid(ids, r.pairs, rules);
+    assert.equal(hasMutual(r.pairs), false);
+  }
+  assert.ok(worst < 10, `заняло ${worst.toFixed(1)} мс`);
+});
+
+test('бюджет: 50 человек без ограничений — 100 из 100 жеребьёвок успешны', () => {
+  const ids = people(50);
+  for (let seed = 1; seed <= 100; seed++) {
+    for (const ring of [true, false]) {
+      const r = findAssignment(ids, () => true, seeded(seed), { ring });
+      assert.ok(r.ok);
+      assertValid(ids, r.pairs, () => true);
+    }
+  }
+});
+
+test('бюджет: маленький бюджет даёт search_exhausted, а не зависание', () => {
+  const ids = people(30);
+  const rules = (a, b) => ((a - 1) ^ 1) === b - 1;
+  const r = findAssignment(ids, rules, seeded(1), { ring: true, budget: 100 });
+  assert.equal(r.ok, false);
+  assert.ok(r.problems.some((p) => p.type === 'search_exhausted'));
+});
