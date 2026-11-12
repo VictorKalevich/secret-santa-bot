@@ -181,6 +181,30 @@ export function findAssignment(ids, isAllowed, rng = Math.random, { ring = true,
   }
 }
 
+// Полная жеребьёвка эвента (009, FR-923): все попытки делят один бюджет, а не тратят по полному каждая.
+// own — исключения эвента, families — пары «не дарят друг другу» из семей, history — пары прошлого эвента
+// (все — { giver, receiver }). Сначала с историей (половина бюджета), при неудаче — без неё (вторая половина);
+// если мешают семьи, проверка «без семей» — на четверти бюджета. Возвращает результат findAssignment и familiesBlock.
+export function planDraw(ids, { own = [], families = [], history = [] } = {}, rng = Math.random, { ring = true, budget = DEFAULT_BUDGET } = {}) {
+  const rules = (...lists) => {
+    const banned = new Set();
+    for (const list of lists) for (const e of list) banned.add(`${e.giver}:${e.receiver}`);
+    return (a, b) => !banned.has(`${a}:${b}`);
+  };
+  const familyBudget = families.length ? budget / 4 : 0;
+  const main = budget - familyBudget;
+  let res;
+  if (history.length) {
+    res = findAssignment(ids, rules(own, families, history), rng, { ring, budget: main / 2 });
+    if (!res.ok) res = findAssignment(ids, rules(own, families), rng, { ring, budget: main / 2 });
+  } else {
+    res = findAssignment(ids, rules(own, families), rng, { ring, budget: main });
+  }
+  const familiesBlock = !res.ok && families.length > 0 &&
+    findAssignment(ids, rules(own), rng, { ring, budget: familyBudget }).ok;
+  return { ...res, familiesBlock };
+}
+
 function isSingleCycle(m) {
   const start = m.keys().next().value;
   let cur = m.get(start);

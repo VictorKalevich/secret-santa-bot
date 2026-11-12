@@ -1,7 +1,7 @@
 // Юнит-тесты жеребьёвки (FR-010, FR-011, FR-013, FR-023, FR-024).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findAssignment, removeFromAssignment, insertIntoAssignment, diagnose, hasMutual } from '../src/draw.js';
+import { findAssignment, planDraw, removeFromAssignment, insertIntoAssignment, diagnose, hasMutual } from '../src/draw.js';
 
 function seeded(seed) {
   let s = seed >>> 0;
@@ -308,4 +308,61 @@ test('бюджет: маленький бюджет даёт search_exhausted, �
   const r = findAssignment(ids, rules, seeded(1), { ring: true, budget: 100 });
   assert.equal(r.ok, false);
   assert.ok(r.problems.some((p) => p.type === 'search_exhausted'));
+});
+
+// ---------- 009: все попытки одной жеребьёвки делят один бюджет (planDraw) ----------
+
+test('planDraw: 50 человек, кольцевая невозможна — все три попытки (история, без истории, семьи) вместе < 10 мс', () => {
+  const ids = people(50);
+  const own = [];
+  for (const a of ids) for (const b of ids) if (a !== b && ((a - 1) ^ 1) !== b - 1) own.push({ giver: a, receiver: b });
+  const families = [];
+  for (let i = 1; i < 50; i += 4) families.push({ giver: i, receiver: i + 2 }, { giver: i + 2, receiver: i });
+  const history = ids.map((a) => ({ giver: a, receiver: (a % 50) + 1 }));
+  let worst = 0;
+  for (let seed = 1; seed <= 10; seed++) {
+    const t0 = performance.now();
+    const r = planDraw(ids, { own, families, history }, seeded(seed), { ring: true });
+    worst = Math.max(worst, performance.now() - t0);
+    assert.equal(r.ok, false);
+    assert.equal(r.familiesBlock, false, 'мешают не семьи');
+    assert.ok(r.problems.some((p) => p.type === 'ring_impossible' || p.type === 'search_exhausted'));
+  }
+  assert.ok(worst < 10, `заняло ${worst.toFixed(1)} мс`);
+});
+
+test('planDraw: 50 человек, супруги + прошлый год — находит, историю и семьи соблюдает, < 10 мс', () => {
+  const ids = people(50);
+  const families = [];
+  for (let i = 1; i < 50; i += 2) families.push({ giver: i, receiver: i + 1 }, { giver: i + 1, receiver: i });
+  const history = ids.map((a) => ({ giver: a, receiver: (a % 50) + 1 }));
+  const rules = banned([...families, ...history].map((e) => [e.giver, e.receiver]));
+  let worst = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const t0 = performance.now();
+    const r = planDraw(ids, { families, history }, seeded(seed), { ring: true });
+    worst = Math.max(worst, performance.now() - t0);
+    assert.ok(r.ok, 'seed ' + seed);
+    assertValid(ids, r.pairs, rules);
+    assert.equal(hasMutual(r.pairs), false);
+  }
+  assert.ok(worst < 10, `заняло ${worst.toFixed(1)} мс`);
+});
+
+test('planDraw: если с историей нельзя — распределение без неё', () => {
+  // 1 не дарит 3: остаётся единственный круг 1→2→3→1, и он же был в прошлый раз
+  const r = planDraw([1, 2, 3], {
+    own: [{ giver: 1, receiver: 3 }],
+    history: [{ giver: 1, receiver: 2 }, { giver: 2, receiver: 3 }, { giver: 3, receiver: 1 }],
+  }, seeded(7), { ring: true });
+  assert.ok(r.ok);
+  assert.deepEqual([...r.pairs].sort(), [[1, 2], [2, 3], [3, 1]]);
+});
+
+test('planDraw: мешают именно семьи — familiesBlock', () => {
+  // трое, кольцевая: 1 и 2 — семья; без семьи круг есть, с семьёй — нет
+  const families = [{ giver: 1, receiver: 2 }, { giver: 2, receiver: 1 }];
+  const r = planDraw([1, 2, 3], { families }, seeded(3), { ring: true });
+  assert.equal(r.ok, false);
+  assert.equal(r.familiesBlock, true);
 });

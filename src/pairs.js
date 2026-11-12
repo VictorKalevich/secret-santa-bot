@@ -4,14 +4,13 @@ import {
   getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyExclusions,
   enqueueIfStmt, auditIfStmt,
 } from './db.js';
-import { findAssignment, removeFromAssignment, insertIntoAssignment } from './draw.js';
+import { planDraw, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, openAppButton, randomCode, displayName } from './format.js';
 import { isFinished } from './events.js';
 
-function buildIsAllowed(exclusions, extraPairs = []) {
+function buildIsAllowed(exclusions) {
   const banned = new Set();
   for (const e of exclusions) banned.add(`${e.giver}:${e.receiver}`);
-  for (const h of extraPairs) banned.add(`${h.santa}:${h.ward}`);
   return (a, b) => !banned.has(`${a}:${b}`);
 }
 
@@ -44,7 +43,8 @@ function describeProblem(p, byId) {
   switch (p.type) {
     case 'too_few': return 'Нужно хотя бы 2 участника.';
     case 'ring_too_few': return 'Для кольцевой жеребьёвки нужно минимум 3 участника — или выключи кольцевую в параметрах эвента.';
-    case 'ring_impossible': return 'С такими исключениями без взаимных пар не обойтись. Убери часть исключений или выключи кольцевую жеребьёвку.';
+    // Это вывод по ограниченному поиску, а не доказательство (009, FR-924) — отсюда «похоже» и «попробуй ещё раз»
+    case 'ring_impossible': return 'Похоже, без взаимных пар с такими исключениями не обойтись. Попробуй ещё раз; если не выйдет — убери часть исключений или выключи кольцевую жеребьёвку.';
     case 'no_receivers': return `${name(p.id)} не может дарить никому — проверь исключения.`;
     case 'no_givers': return `${name(p.id)} не может достаться никому — проверь исключения.`;
     case 'search_exhausted': return 'Не удалось быстро подобрать распределение — попробуй ещё раз. Если не выйдет, убери часть исключений или выключи кольцевую жеребьёвку.';
@@ -58,14 +58,12 @@ export async function checkDraw(env, ev) {
   const ids = people.map((u) => u.user_id);
   const allEx = await getExclusions(db, ev.id);
   const own = allEx.filter((e) => ids.includes(e.giver) && ids.includes(e.receiver));
-  const fam = await familyExclusions(db, ev, ids); // 008: семьи — как исключения
-  const exclusions = [...own, ...fam];
+  const families = await familyExclusions(db, ev, ids); // 008: семьи — как исключения
   const prev = ev.avoid_previous ? await previousPairs(db, ev, ids) : [];
+  const history = prev.map((p) => ({ giver: p.santa, receiver: p.ward }));
   const ring = !!ev.ring;
-  let res = findAssignment(ids, buildIsAllowed(exclusions, prev), Math.random, { ring });
-  if (!res.ok && prev.length) res = findAssignment(ids, buildIsAllowed(exclusions), Math.random, { ring });
-  // 008, FR-807: если мешают именно семьи — сказать об этом
-  const familiesBlock = !res.ok && fam.length > 0 && findAssignment(ids, buildIsAllowed(own), Math.random, { ring }).ok;
+  // 009, FR-923: попытки (с историей, без неё, «мешают ли семьи» — 008, FR-807) делят один бюджет поиска
+  const { familiesBlock, ...res } = planDraw(ids, { own, families, history }, Math.random, { ring });
   const byId = Object.fromEntries(people.map((u) => [u.user_id, u]));
   const sum = (list) => list.reduce((s, x) => s + x, 0);
   return {
