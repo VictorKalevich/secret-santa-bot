@@ -313,6 +313,7 @@
         openSheet('Новый эвент', [...sheet, ok]);
       });
       nodes.push(h('div', { class: 'ds-card' }, create));
+      nodes.push(...renderFamiliesSection());
       nodes.push(...renderAdminsSection());
     }
 
@@ -327,6 +328,53 @@
     nodes.push(ui.section('Уведомления'),
       ui.card(ui.hint('Когда подопечный меняет письмо (в любом эвенте), бот сообщит об этом — без имени и подробностей.'), seg));
     main.replaceChildren(...nodes);
+  }
+
+  // Раздел «Семьи» (008): постоянные исключения для всех эвентов
+  function renderFamiliesSection() {
+    const box = h('div', {}, ui.section('Семьи'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
+    const load = () => api('admin.families').then((d) => {
+      const list = h('div', { class: 'ds-card ds-card--flush' });
+      if (!d.families.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Семей пока нет.'));
+      for (const f of d.families) {
+        list.append(h('div', { class: 'ds-list-item' },
+          h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, f.name), ui.hint(f.members.map((m) => m.name).join(', '))),
+          h('button', { class: 'ds-icon-btn', title: 'Изменить семью', onclick: () => openFamily(d, f) }, '✏️')));
+      }
+      const add = ui.btn('＋ Новая семья', 'secondary', 'ds-btn--block');
+      add.addEventListener('click', () => openFamily(d, null));
+      box.replaceChildren(ui.section('Семьи'), list,
+        ui.card(ui.hint('Члены одной семьи не дарят друг другу ни в одном эвенте (если в эвенте включено «Учитывать семьи»). Один человек — одна семья.'), add));
+    }).catch((e) => box.replaceChildren(ui.section('Семьи'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
+    function openFamily(d, f) {
+      const name = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: f ? f.name : '', placeholder: 'Например: Ивановы' });
+      const free = d.users.filter((u) => !u.family_id || (f && u.family_id === f.id));
+      const boxes = free.map((u) => {
+        const c = h('input', { type: 'checkbox', checked: !!f && u.family_id === f.id });
+        c.dataset.id = u.id;
+        return [c, h('label', { class: 'ds-check' }, c, u.name)];
+      });
+      const save = ui.btn('Сохранить', '', 'ds-btn--block');
+      save.addEventListener('click', () => busy(save, async () => {
+        const members = boxes.filter(([c]) => c.checked).map(([c]) => +c.dataset.id);
+        await api('admin.family.save', { id: f ? f.id : undefined, name: name.value, members });
+        closeSheet();
+        toast('Семья сохранена');
+        await load();
+      }));
+      const items = [name, ui.hint('Кто в семье (люди из других семей здесь не показаны):'), ...boxes.map(([, l]) => l), save];
+      if (f) {
+        const del = ui.btn('🗑 Удалить семью', 'danger', 'ds-btn--block');
+        del.addEventListener('click', async () => {
+          if (!(await confirmBox(`Удалить семью «${f.name}»? Уже проведённые жеребьёвки не изменятся.`))) return;
+          busy(del, async () => { await api('admin.family.delete', { id: f.id }); closeSheet(); toast('Семья удалена'); await load(); });
+        });
+        items.push(del);
+      }
+      openSheet(f ? 'Семья' : 'Новая семья', items);
+    }
+    load();
+    return [box];
   }
 
   // Раздел «Администраторы» (002): общий для бота, показывается на главном экране
@@ -491,6 +539,23 @@
         ta, h('div', { class: 'ds-row ds-row--between' }, counter, status), saveBtn));
       requestAnimationFrame(update);
     }
+    // 008: адрес доставки — увидит только Санта
+    if (state.ev.delivery_on) {
+      nodes.push(ui.section('Как передать подарок'));
+      if (!state.can.edit_letter) {
+        nodes.push(ui.card(m.delivery ? h('div', { class: 'ds-letter' }, m.delivery) : h('div', { class: 'ds-text-muted' }, 'Адрес не указан.')));
+      } else {
+        const addr = ui.textarea({ placeholder: 'Город, отделение почты или адрес, получатель, телефон — или «заберу сам(а)»', rows: 2, maxlength: 500, value: m.delivery });
+        const saveAddr = ui.btn('Сохранить адрес', 'secondary', 'ds-btn--block');
+        saveAddr.addEventListener('click', () => busy(saveAddr, async () => {
+          await eapi('delivery.save', { text: addr.value });
+          m.delivery = addr.value.trim();
+          haptic('success');
+          toast('📍 Адрес сохранён');
+        }));
+        nodes.push(ui.card(ui.hint('Подарки в этом эвенте отправляют. Адрес увидит только твой Санта — организатор его не видит.'), addr, saveAddr));
+      }
+    }
     if (m.has_santa) {
       // 007: подопечный отмечает «получил подарок»; Санта узнает об этом (без имени)
       const got = h('input', { type: 'checkbox', checked: m.gift_received, disabled: !state.can.edit_letter });
@@ -552,6 +617,10 @@
       h('div', { class: 'ds-ward-card' }, h('div', { class: 'ds-ward-card__label' }, finished() ? 'Ты был(а) Тайным Сантой для' : 'Ты — Тайный Санта для'), nameEl, toggle),
       ui.section('Письмо подопечного'),
       ui.card(letter, d.ward.updated_at && text.trim() ? ui.hint('Обновлено ' + fmtTime(d.ward.updated_at)) : null),
+      d.ward.delivery !== undefined ? ui.section('Как передать подарок') : null,
+      d.ward.delivery !== undefined
+        ? ui.card(d.ward.delivery ? h('div', { class: 'ds-letter' }, d.ward.delivery) : h('div', { class: 'ds-text-muted' }, 'Подопечный пока не указал адрес — спроси в переписке.'))
+        : null,
       h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Подарок готов', 'Видно только организатору — для статистики', gift)),
       ui.section('Переписка с подопечным'),
       ui.card(ui.hint('Есть вопрос? Напиши подопечному — для него ты «Тайный Санта», имя не раскрывается.'), chatButton('ward')),
@@ -637,10 +706,17 @@
         if (!(await confirmBox('Создать новую ссылку? Старая перестанет работать (уже вступивших это не затронет).'))) return;
         busy(regenBtn, async () => { await eapi('admin.invite.regen'); toast('Ссылка обновлена'); await renderAdmin(); });
       });
+      // 008: вступление по одобрению
+      const apprToggle = h('input', { type: 'checkbox', checked: s.approval });
+      apprToggle.addEventListener('change', () => busy(null, async () => {
+        await eapi('admin.game', { approval: apprToggle.checked });
+        toast(apprToggle.checked ? 'Новые участники — по заявке' : 'Вступление без одобрения');
+      }));
       const regCard = ui.card(
         ui.toggleRow('Регистрация открыта', 'Закрывается автоматически после жеребьёвки', regToggle),
         linkInput,
-        h('div', { class: 'ds-row ds-row--wrap' }, copyBtn, shareBtn, regenBtn));
+        h('div', { class: 'ds-row ds-row--wrap' }, copyBtn, shareBtn, regenBtn),
+        ui.toggleRow('Вступление по одобрению', 'По ссылке приходит заявка — админ принимает или отклоняет', apprToggle, 'ds-divided'));
       if (!s.draw_done) {
         const partToggle = h('input', { type: 'checkbox', checked: d.me_member });
         partToggle.addEventListener('change', () => busy(null, async () => {
@@ -652,6 +728,24 @@
         regCard.append(ui.toggleRow('Я участвую', 'Выключи, если ты только организатор этого эвента', partToggle, 'ds-divided'));
       }
       nodes.push(ui.section('Приглашение'), regCard);
+      if (d.requests.length) {
+        const reqList = h('div', { class: 'ds-card ds-card--flush' });
+        for (const r of d.requests) {
+          const decide = (approve) => busy(null, async () => {
+            await eapi('admin.request.decide', { id: r.id, approve });
+            toast(approve ? `✅ ${r.name} в эвенте` : 'Заявка отклонена');
+            await refresh();
+          });
+          reqList.append(h('div', { class: 'ds-list-item' },
+            h('div', { class: 'ds-grow' },
+              h('div', { class: 'ds-list-item__title' }, r.name || 'без имени', r.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + r.username) : null),
+              ui.hint(fmtTime(r.created_at))),
+            h('div', { class: 'ds-row ds-row--tight' },
+              h('button', { class: 'ds-icon-btn', title: 'Принять', onclick: () => decide(true) }, '✅'),
+              h('button', { class: 'ds-icon-btn', title: 'Отклонить', onclick: () => decide(false) }, '❌'))));
+        }
+        nodes.push(ui.section(`Заявки · ${d.requests.length}`), reqList);
+      }
       if (d.other_events.length) {
         const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Из какого эвента…'), ...d.other_events.map((e) => h('option', { value: e.id }, e.title + (e.status === 'finished' ? ' (завершён)' : ''))));
         const inv = ui.btn('📨 Пригласить участников', 'secondary', 'ds-btn--block');
@@ -761,6 +855,8 @@
           if (u.gift_received) chips.push(ui.chip('📦 получил', 'success'));
         }
       }
+      if (u.has_delivery === true) chips.push(ui.chip('📍 адрес указан', 'success'));
+      else if (u.has_delivery === false && u.registered) chips.push(ui.chip('📍 адреса нет', 'warning'));
       if (u.blocked) chips.push(ui.chip('🚫 не получает сообщения', 'warning'));
       if (u.is_owner) chips.push(ui.chip('👑 владелец'));
       else if (u.is_admin) chips.push(ui.chip('🛠 админ'));
@@ -827,8 +923,22 @@
         toast('Исключение добавлено');
         await renderAdmin();
       }));
+      // 008: семьи эвента и правило «Учитывать семьи»
+      const famCard = ui.card();
+      const famOn = h('input', { type: 'checkbox', checked: s.families_on, disabled: s.draw_done });
+      famOn.addEventListener('change', () => busy(null, async () => {
+        await eapi('admin.game', { families_on: famOn.checked });
+        toast(famOn.checked ? 'Семьи учитываются' : 'Семьи не учитываются');
+        await renderAdmin();
+      }));
+      famCard.append(ui.toggleRow('👪 Учитывать семьи', s.draw_done ? 'После жеребьёвки не меняется' : 'Члены одной семьи не дарят друг другу. Семьи задаются на главном экране.', famOn));
+      for (const f of d.families) {
+        famCard.append(h('div', { class: s.families_on ? 'ds-text-sm' : 'ds-text-sm ds-text-muted' },
+          h('b', {}, f.name + ': '), f.members.map((id) => byId[id]?.name || '?').join(', ')));
+      }
       nodes.push(
         ui.section('Исключения'),
+        famCard,
         exList,
         ui.card(
           ui.hint('Например, пары или члены одной семьи. Бот не даст жеребьёвке нарушить эти правила.'),
@@ -928,6 +1038,7 @@
       };
       // Расписание (007): автожеребьёвка (до жеребьёвки), авто-раскрытие и автозавершение
       if (!s.draw_done) f.draw_auto_date = h('input', { class: 'ds-input', type: 'date', value: s.draw_auto_date });
+      const deliveryOn = h('input', { type: 'checkbox', checked: s.delivery_on });
       const revealAuto = h('input', { type: 'checkbox', checked: s.reveal_auto });
       const finishAuto = h('input', { type: 'checkbox', checked: s.finish_auto });
       const saveGame = ui.btn('Сохранить', '', 'ds-btn--block');
@@ -936,6 +1047,7 @@
           ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])),
           reveal_auto: revealAuto.checked,
           finish_auto: finishAuto.checked,
+          delivery_on: deliveryOn.checked,
         });
         await reloadEvent().catch(() => {});
         await reloadMe().catch(() => {});
@@ -953,6 +1065,7 @@
           field('Место', f.place),
           field('Написать письмо до', f.deadline),
           field('Заметки для всех', f.notes),
+          h('label', { class: 'ds-check' }, deliveryOn, 'Подарки отправляют — спросить адрес доставки (увидит только Санта)'),
           ui.hint('Бот сам напомнит: за 2 дня до срока — тем, у кого нет письма; за 2 дня и в день вручения — Сантам без отметки «подарок готов».'),
           f.draw_auto_date ? field('Автожеребьёвка', f.draw_auto_date) : null,
           h('label', { class: 'ds-check' }, revealAuto, 'Раскрыть Сант на следующий день после вручения'),
@@ -1012,6 +1125,7 @@
     'wishlist.view': '👁 Открыто письмо', announce: '📣 Объявление', 'remind.unfilled': '⏰ Напоминание о письмах',
     'remind.santas': '🎁 Напоминание Сантам', 'invite.from': '📨 Приглашение из эвента', transfer: '🔁 Перенос участия',
     'role.grant': '🛠 Назначен админ', 'role.revoke': '🛠 Снят админ', 'owner.transfer': '👑 Передано владение', 'owner.link': '👑 Владелец по ссылке /setup',
+    'family.save': '👪 Семья сохранена', 'family.delete': '👪 Семья удалена', 'request.approve': '✅ Заявка принята', 'request.reject': '❌ Заявка отклонена',
   };
   function openAudit(eventId) {
     const box = h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…');

@@ -88,6 +88,16 @@ try {
   await w.api(admin, 'admin.game', { event: B, title: 'Офис', budget: 'до 30 BYN', event_date: '2026-12-24', place: 'Переговорка', deadline: '', notes: '' });
   await w.api(admin, 'admin.exclusion.add', { event: A, giver: 101, receiver: 102, mutual: true });
   await w.api(admin, 'admin.role.grant', { id: people[0].id });
+  // 008: адрес доставки в эвенте A, семья, заявка в эвент B
+  await w.api(admin, 'admin.game', { event: A, delivery_on: true });
+  for (const p of [admin, ...people.slice(0, 3)]) {
+    await w.api(p, 'delivery.save', { event: A, text: `Минск, Европочта, отделение 15 — ${p.name}, +375 29 000-00-0${p.id % 10}` });
+  }
+  await w.api(admin, 'admin.family.save', { name: 'Ивановы', members: [103, 104] });
+  await w.api(admin, 'admin.game', { event: B, approval: true });
+  const stepa = { id: 130, name: 'Стёпа', username: 'stepa' };
+  await w.say(stepa, '/start ' + codeB);
+  await w.say(stepa, stepa.name);
 
   const launch = process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' };
   browser = await chromium.launch(launch);
