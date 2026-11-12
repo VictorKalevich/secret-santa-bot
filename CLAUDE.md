@@ -24,9 +24,10 @@ Telegram-бот «Тайный Санта» для небольшой групп
 | `005-events-history` | `specs/005-events-history/` | реализовано: эвенты (параллельно), история, завершение, кольцевая жеребьёвка |
 | `006-fixes` | `specs/006-fixes/` | реализовано: исправления ревью (тайна при переносе, лимит CPU жеребьёвки, очередь, отметка блокировки), миграции D1 |
 | `007-admin-tools` | `specs/007-admin-tools/` | реализовано: объявления, расписание (автодействия cron), «получил»/«не открыл», эвент по образцу, отмена жеребьёвки, журнал |
+| `008-delivery-families-requests` | `specs/008-delivery-families-requests/` | реализовано: адрес доставки (только Санте), семьи (постоянные исключения), заявки на вступление |
 
 С 005 почти все действия привязаны к эвенту (`event_id`); актуальный контракт API — `specs/005-events-history/contracts/events.md`
-(контракты 001–004 описывают поведение внутри одного эвента); изменения 006 — `specs/006-fixes/contracts/api-changes.md`; 007 — `specs/007-admin-tools/contracts/api.md`.
+(контракты 001–004 описывают поведение внутри одного эвента); изменения 006 — `specs/006-fixes/contracts/api-changes.md`; 007 — `specs/007-admin-tools/contracts/api.md`; 008 — `specs/008-delivery-families-requests/contracts/api.md`.
 
 ## Технологии
 
@@ -54,9 +55,10 @@ npm run deploy       # выкат в Cloudflare
   напоминания, объявления, автодействия расписания (`dueAutoAction`/`runAutoAction`).
 - `src/draw.js` — чистые функции жеребьёвки (тестируются в Node); поиск ограничен бюджетом шагов (`DEFAULT_BUDGET`, лимит CPU).
 - `src/cron.js` — уведомления об изменениях писем, автодействия (≤ 1 эвент за вызов), ежедневные напоминания.
-- `migrations/` — схема D1 (сейчас 7): `0001_initial.sql` (схема 005), `0002_fixes.sql` (`users.blocked_at`,
+- `migrations/` — схема D1 (сейчас 8): `0001_initial.sql` (схема 005), `0002_fixes.sql` (`users.blocked_at`,
   `outbox.locked_until`, `events.draw_token`), `0003_admin_tools.sql` (`announcements`, `audit`, поля расписания
-  эвента, `pairs.gift_received`). Код таблицы не создаёт и не удаляет: `checkSchema` требует `REQUIRED_SCHEMA`.
+  эвента, `pairs.gift_received`), `0004_delivery_families_requests.sql` (`members.delivery`, `families`,
+  `family_members`, `join_requests`, параметры эвента `delivery_on`/`families_on`/`approval`). Код таблицы не создаёт и не удаляет: `checkSchema` требует `REQUIRED_SCHEMA`.
   Новая схема → новый файл миграции + `REQUIRED_SCHEMA` в `src/db.js`.
 - `src/db.js` — проверка схемы и запросы; `auditStmt`/`auditIfStmt` — запись журнала в том же batch, что и действие
   (каждое действие админа и бота пишет журнал; без пар, писем и текстов объявлений).
@@ -73,6 +75,8 @@ npm run deploy       # выкат в Cloudflare
    кроме переписки в течение `CHAT_GRACE_MS` (7 суток); завершение необратимо, сброс завершённого запрещён.
    Кольцевая (`events.ring`) — без взаимных пар, в т.ч. при заменах (`src/draw.js`).
    Перенос участия на аккаунт админа/владельца запрещён (иначе админ получил бы чужие пары).
+   **Адрес доставки** (`members.delivery`) отдаётся только самому участнику (`event.get`) и его Санте (`ward.get`);
+   админу — только `has_delivery`. Семьи (`familyExclusions`) учитываются везде, где строятся пары.
 2. **Дизайн-система.** В `src/app.html` — только классы `ds-*`, без `style`, без сырых цветов и px. Базовые стили
    элементов в `components.css` — только через `:where()`. Новый элемент:
    токен → компонент в `components.css` → показ в `preview.html` → строка в `design-system/README.md`. Тест

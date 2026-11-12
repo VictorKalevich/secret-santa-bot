@@ -14,7 +14,7 @@
 
 | Action | Тело | Ответ / эффект |
 |---|---|---|
-| `admin.game` | + `delivery_on`, `families_on`, `approval` | `families_on` после жеребьёвки → 400 «После жеребьёвки правило семей не изменить» (если меняется) |
+| `admin.game` | меняет только переданные поля (кроме `title`, по умолчанию прежний); + `delivery_on`, `families_on`, `approval` | `families_on` после жеребьёвки → 400 «После жеребьёвки правило семей не изменить» (если меняется) |
 | `admin.state` | `{event}` | + у участника `has_delivery` (если `delivery_on`); + `families[{id, name, members[ids]}]` (≥ 2 участника эвента); + `requests[{id, user_id, name, username, created_at}]` (ожидающие); + `settings.delivery_on`, `families_on`, `approval` |
 | `admin.request.decide` | `{event, id, approve}` | принять/отклонить; 400 «Заявка уже рассмотрена» |
 | `admin.families` | `{}` | `families[{id, name, members[{id, name}]}]`, `users[{id, name, family_id}]` (зарегистрированные) |
