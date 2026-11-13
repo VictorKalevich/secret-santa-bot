@@ -12,23 +12,23 @@ description: "Task list for 012 — вписывание по приоритет
 
 ## Phase 1: Setup
 
-- [ ] T001 Миграция `migrations/0006_support.sql`: таблица `support_threads` (`id` PK AUTOINCREMENT, `event_id`, `user_id`, `status TEXT NOT NULL DEFAULT 'open'` — «`open` / `closed`», `assignee INTEGER NOT NULL DEFAULT 0` — «0 — ничьё», `created_at`, `taken_at`, `closed_at`, `closed_by` DEFAULT 0), уникальный индекс `(event_id, user_id) WHERE status = 'open'`, индекс `(event_id, id)`; таблица `support_messages` (`id`, `thread_id`, `sender`, `from_admin` «1 — организатор, 0 — участник», `text` «≤ 4000», `created_at`, `read_at DEFAULT 0`), индекс `(thread_id, id)`; `settings.schema = '10'`
-- [ ] T002 `REQUIRED_SCHEMA = 10` и комментарий схемы в `src/db.js`
+- [X] T001 Миграция `migrations/0006_support.sql`: таблица `support_threads` (`id` PK AUTOINCREMENT, `event_id`, `user_id`, `status TEXT NOT NULL DEFAULT 'open'` — «`open` / `closed`», `assignee INTEGER NOT NULL DEFAULT 0` — «0 — ничьё», `created_at`, `taken_at`, `closed_at`, `closed_by` DEFAULT 0), уникальный индекс `(event_id, user_id) WHERE status = 'open'`, индекс `(event_id, id)`; таблица `support_messages` (`id`, `thread_id`, `sender`, `from_admin` «1 — организатор, 0 — участник», `text` «≤ 4000», `created_at`, `read_at DEFAULT 0`), индекс `(thread_id, id)`; `settings.schema = '10'`
+- [X] T002 `REQUIRED_SCHEMA = 10` и комментарий схемы в `src/db.js`
 
 ## Phase 2: Foundational
 
-- [ ] T003 Поправка Конституции 2.1.0 → 2.2.0 (MINOR) в `.specify/memory/constitution.md`: «Безопасность и данные» — хранятся обращения к организатору; переписку видят участник, взявший админ и владелец (до взятия — все админы); Sync Impact Report
+- [X] T003 Поправка Конституции 2.1.0 → 2.2.0 (MINOR) в `.specify/memory/constitution.md`: «Безопасность и данные» — хранятся обращения к организатору; переписку видят участник, взявший админ и владелец (до взятия — все админы); Sync Impact Report
 
 ## Phase 3: User Story 1 — вписывание по приоритету (P1) 🎯
 
 **Goal**: вписывает только владелец; Санта выбирается из лучшей группы; иначе общий отказ.
 **Independent Test**: quickstart п. 1–2; e2e блок 012 «вписывание».
 
-- [ ] T004 [US1] `insertIntoAssignment` в `src/draw.js`: опция `rank(santa) → 0 | 1 | null`; связки группируются по рангу Санты, случайный выбор внутри лучшей непустой группы; без `rank` — как раньше; результат дополнен `santa` (у кого сменился подопечный) и `ward` (прежний подопечный)
-- [ ] T005 [P] [US1] Юнит-тесты групп в `tests/draw.test.mjs`: 100 прогонов — ранг 0 есть → меняется только ранг 0; ранга 0 нет → ранг 1; все null → null; ранг 0 заблокирован исключениями → ранг 1; кольцевая сохраняется
-- [ ] T006 [US1] `insertMember` в `src/pairs.js`: ранг из `pairs` (`seen_text`, `gift_ready`, `gift_received`) и сообщений пар (`messages`); общий текст отказа из contracts; захват версии пар с условием выбранной группы для пары «А → Б» (research R2) → `PAIRS_RACE`
-- [ ] T007 [US1] `src/api.js`: `admin.insert` — только владелец (403 «Вписывать в жеребьёвку после неё может только владелец бота.»), снять проверку «вписать себя»; `admin.participate` после жеребьёвки — «Попроси владельца бота вписать тебя.»
-- [ ] T008 [US1] `src/app.html`: кнопка «Вписать в жеребьёвку» — только владельцу; админу в той же строке — подсказка «Вписать в жеребьёвку может владелец бота»; текст подтверждения без изменений смысла
+- [X] T004 [US1] `insertIntoAssignment` в `src/draw.js`: опция `rank(santa) → 0 | 1 | null`; связки группируются по рангу Санты, случайный выбор внутри лучшей непустой группы; без `rank` — как раньше; результат дополнен `santa` (у кого сменился подопечный) и `ward` (прежний подопечный)
+- [X] T005 [P] [US1] Юнит-тесты групп в `tests/draw.test.mjs`: 100 прогонов — ранг 0 есть → меняется только ранг 0; ранга 0 нет → ранг 1; все null → null; ранг 0 заблокирован исключениями → ранг 1; кольцевая сохраняется
+- [X] T006 [US1] `insertMember` в `src/pairs.js`: ранг из `pairs` (`seen_text`, `gift_ready`, `gift_received`) и сообщений пар (`messages`); общий текст отказа из contracts; захват версии пар с условием выбранной группы для пары «А → Б» (research R2) → `PAIRS_RACE`
+- [X] T007 [US1] `src/api.js`: `admin.insert` — только владелец (403 «Вписывать в жеребьёвку после неё может только владелец бота.»), снять проверку «вписать себя»; `admin.participate` после жеребьёвки — «Попроси владельца бота вписать тебя.»
+- [X] T008 [US1] `src/app.html`: кнопка «Вписать в жеребьёвку» — только владельцу; админу в той же строке — подсказка «Вписать в жеребьёвку может владелец бота»; текст подтверждения без изменений смысла
 - [ ] T009 [US1] e2e `tests/e2e.test.mjs`: правка 009/010 (админ получает 403 «только владелец», владелец вписывает себя); блок 012 «вписывание»: не открывший → меняется он; все открыли, один готов → меняется неготовый; все готовы → отказ, пары те же; админ — 403
 
 ## Phase 4: User Story 3 — обращения к организатору (P1)

@@ -277,18 +277,21 @@ export function removeFromAssignment(pairsIn, x, isAllowed, rng = Math.random, {
 }
 
 // Вписать нового участника n в уже проведённую жеребьёвку: a→b превращается в a→n→b.
-export function insertIntoAssignment(pairsIn, n, isAllowed, rng = Math.random, { ring = true } = {}) {
+// rank(a) (012) — группа Санты a, у которого сменится подопечный: 0 — лучше всего, 1 — хуже, null — нельзя.
+// Выбор — случайный среди допустимых связок лучшей непустой группы. Без rank — все связки равны (как раньше).
+export function insertIntoAssignment(pairsIn, n, isAllowed, rng = Math.random, { ring = true, rank = null } = {}) {
   const ok = allowedFn(isAllowed);
   const pairs = new Map(pairsIn);
   if (pairs.has(n)) return null;
-  const edges = shuffle([...pairs.entries()], rng);
-  for (const [a, b] of edges) {
+  let best = null;
+  for (const [a, b] of shuffle([...pairs.entries()], rng)) {
+    const r = rank ? rank(a) : 0;
+    if (r === null || r === undefined || (best && r >= best.rank)) continue;
     // a→n→b не создаёт взаимных пар, если a ≠ b (a→b — существующая связка, a ≠ b всегда)
-    if (ok(a, n) && ok(n, b) && !(ring && a === b)) {
-      pairs.set(a, n);
-      pairs.set(n, b);
-      return { pairs, changed: [a, n] };
-    }
+    if (ok(a, n) && ok(n, b) && !(ring && a === b)) best = { a, b, rank: r };
   }
-  return null;
+  if (!best) return null;
+  pairs.set(best.a, n);
+  pairs.set(n, best.b);
+  return { pairs, changed: [best.a, n], santa: best.a, ward: best.b, rank: best.rank };
 }

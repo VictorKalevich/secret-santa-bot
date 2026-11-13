@@ -1011,14 +1011,18 @@
           h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null),
           h('div', { class: 'ds-chips' }, chips)),
         actions));
-      // Вписать себя может только владелец (009/010): админ узнал бы своего подопечного
-      if (!done && s.draw_done && u.registered && !u.in_draw && (u.id !== me.id || me.is_owner)) {
-        const ins = ui.btn('Вписать в жеребьёвку', '', 'ds-btn--sm');
-        ins.addEventListener('click', async () => {
-          if (!(await confirmBox(`Вписать «${u.name}» в жеребьёвку? У одного из участников сменится подопечный — бот его предупредит.`))) return;
-          busy(ins, async () => { await xapi('admin.insert', { id: u.id }); toast('Готово'); await again(); });
-        });
-        list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ins));
+      // Вписывает только владелец (012): админ по отметкам «не открыл» и «готов» понял бы, кто дарит новичку
+      if (!done && s.draw_done && u.registered && !u.in_draw) {
+        if (me.is_owner) {
+          const ins = ui.btn('Вписать в жеребьёвку', '', 'ds-btn--sm');
+          ins.addEventListener('click', async () => {
+            if (!(await confirmBox(`Вписать «${u.name}» в жеребьёвку? Подопечный сменится у одного Санты: у того, кто его ещё не открыл, а если таких нет — у того, чей подарок не готов. Бот его предупредит.`))) return;
+            busy(ins, async () => { await xapi('admin.insert', { id: u.id }); toast('Готово'); await again(); });
+          });
+          list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ins));
+        } else {
+          list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ui.hint('Вписать в жеребьёвку может владелец бота')));
+        }
       }
     }
     nodes.push(

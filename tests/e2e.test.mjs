@@ -971,10 +971,10 @@ test('009: исправления перед выкатом', { timeout: 400000 
       assert.equal(grow.status, 400, 'добавить второго участника эвента в семью нельзя');
       assert.equal((await zapi(helper, 'admin.family.delete', { id: f.id })).ok, true, 'в эвенте один член семьи — удалить можно');
 
-      // вписать себя нельзя
+      // вписать себя нельзя: вписывает только владелец (012)
       const self = await zapi(helper, 'admin.insert', { event: E1, id: helper.id }, true);
-      assert.equal(self.status, 400);
-      assert.match(self.data.error, /Вписать себя нельзя/);
+      assert.equal(self.status, 403);
+      assert.match(self.data.error, /только владелец бота/);
 
       // проверка жеребьёвки без признаков учёта прошлых пар
       const E2 = await newEvent('Снова', crew);
@@ -1310,8 +1310,8 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       await z.say(helper, '/start ' + code);
       await z.say(boss, '/start ' + code);
       const hs = await zapi(helper, 'admin.insert', { event: V4, id: helper.id }, true);
-      assert.equal(hs.status, 400);
-      assert.match(hs.data.error, /Вписать себя нельзя/);
+      assert.equal(hs.status, 403);
+      assert.match(hs.data.error, /Вписывать в жеребьёвку после неё может только владелец бота/);
       await zapi(boss, 'admin.insert', { event: V4, id: boss.id });
       assert.ok((await pairsSql(V4)).has(boss.id), 'владелец вписал себя');
     });
@@ -1336,7 +1336,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
         const r = await zapi(helper, a, body(P2), true);
         if (r.status === 403) deniedAdmin.push(a);
       }
-      for (const a of ['admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete']) {
+      for (const a of ['admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete', 'admin.insert', 'admin.draw.cancel.force']) {
         assert.ok(deniedAdmin.includes(a), `админу отказано: ${a}`);
       }
     });

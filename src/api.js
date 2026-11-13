@@ -491,7 +491,7 @@ async function handleAdmin(action, body, env, me, settings) {
       return {};
 
     case 'admin.participate': {
-      if (ev.draw_done) return fail('После жеребьёвки так нельзя. Попроси другого админа вписать тебя.');
+      if (ev.draw_done) return fail('После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.');
       const log = auditStmt(db, ev.id, me.tg_id, 'participate', body.on ? 'участвует' : 'не участвует');
       if (body.on) await db.batch([addMemberStmt(db, ev, me.tg_id), clearRemovedStmt(db, ev.id, me.tg_id), log]);
       else {
@@ -525,9 +525,9 @@ async function handleAdmin(action, body, env, me, settings) {
     }
 
     case 'admin.insert': {
-      // Вписав себя, админ узнал бы своего подопечного из заранее известной перестановки (009, FR-903).
-      // Владелец пары видит и так (010, FR-1008).
-      if (Number(body.id) === me.tg_id && !isOwner) return fail('Вписать себя нельзя — попроси другого администратора.');
+      // Только владелец (012, FR-1201): админ по отметкам «не открыл подопечного» и «подарок готов» понял бы, у кого
+      // сменился подопечный, — то есть кто дарит новичку. Владелец пары видит и так (010) и может вписать себя.
+      if (!isOwner) return ownerOnly('Вписывать в жеребьёвку после неё');
       const r = await insertMember(env, ev, Number(body.id), me.tg_id);
       return r.ok ? {} : fail(r.error);
     }

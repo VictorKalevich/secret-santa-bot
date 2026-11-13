@@ -159,6 +159,65 @@ test('вписывание с исключениями учитывает пра
   assert.equal(res.pairs.get(3), 9);
 });
 
+// 012: подопечный меняется сначала у тех, кто его ещё не открыл, потом — у тех, чей подарок не готов
+test('вписывание по группам: есть ранг 0 — меняется только он', () => {
+  const ids = [1, 2, 3, 4, 5, 6];
+  const rank = (a) => (a === 2 || a === 5 ? 0 : a === 6 ? null : 1);
+  for (let seed = 1; seed <= 100; seed++) {
+    const r = findAssignment(ids, () => true, seeded(seed));
+    const res = insertIntoAssignment(r.pairs, 99, () => true, seeded(seed + 7), { rank });
+    assert.ok(res);
+    assertValid([...ids, 99], res.pairs, () => true);
+    assert.ok([2, 5].includes(res.santa), `seed ${seed}: сменился ${res.santa}`);
+    assert.equal(res.rank, 0);
+    assert.equal(res.pairs.get(res.santa), 99);
+    assert.equal(res.pairs.get(99), r.pairs.get(res.santa), 'новичку достался прежний подопечный Санты');
+    for (const [a, b] of r.pairs) if (a !== res.santa) assert.equal(res.pairs.get(a), b, 'остальные пары те же');
+  }
+});
+
+test('вписывание по группам: ранга 0 нет — ранг 1, «готовые» не трогаются', () => {
+  const ids = [1, 2, 3, 4, 5, 6];
+  const rank = (a) => (a <= 3 ? null : 1);
+  for (let seed = 1; seed <= 100; seed++) {
+    const r = findAssignment(ids, () => true, seeded(seed));
+    const res = insertIntoAssignment(r.pairs, 99, () => true, seeded(seed * 3), { rank });
+    assert.ok(res);
+    assert.ok(res.santa >= 4, `seed ${seed}: сменился готовый ${res.santa}`);
+    assert.equal(res.rank, 1);
+  }
+});
+
+test('вписывание по группам: у всех подарок готов — нельзя', () => {
+  const r = findAssignment([1, 2, 3, 4], () => true, seeded(5));
+  assert.equal(insertIntoAssignment(r.pairs, 99, () => true, seeded(6), { rank: () => null }), null);
+});
+
+test('вписывание по группам: ранг 0 мешают исключения — берётся ранг 1', () => {
+  const pairs = new Map([[1, 2], [2, 3], [3, 4], [4, 1]]);
+  // ранг 0 — только Санта 1, но новичок 9 не может дарить его подопечному 2
+  const rules = banned([[9, 2]]);
+  const rank = (a) => (a === 1 ? 0 : 1);
+  for (let seed = 1; seed <= 50; seed++) {
+    const res = insertIntoAssignment(pairs, 9, rules, seeded(seed), { rank });
+    assert.ok(res);
+    assert.notEqual(res.santa, 1);
+    assert.equal(res.rank, 1);
+    assertValid([1, 2, 3, 4, 9], res.pairs, rules);
+  }
+});
+
+test('вписывание по группам: кольцевая без взаимных пар', () => {
+  const ids = [1, 2, 3, 4, 5];
+  for (let seed = 1; seed <= 100; seed++) {
+    const r = findAssignment(ids, () => true, seeded(seed));
+    const res = insertIntoAssignment(r.pairs, 99, () => true, seeded(seed + 1), { ring: true, rank: (a) => (a % 2 ? 0 : 1) });
+    assert.ok(res);
+    assert.equal(hasMutual(res.pairs), false);
+    assert.equal(res.santa % 2, 1);
+  }
+});
+
 test('производительность: 40 человек с исключениями — быстро', () => {
   const ids = Array.from({ length: 40 }, (_, i) => i + 1);
   const list = [];

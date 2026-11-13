@@ -49,7 +49,7 @@
 
 | Ранг | Условие для Санты А пары «А → Б» |
 |---|---|
-| 0 | `seen_text IS NULL` и в `messages` нет строк пары А–Б |
+| 0 | `seen_text IS NULL`, в `messages` нет строк пары А–Б, `gift_ready = 0`, `gift_received = 0` |
 | 1 | не ранг 0, `gift_ready = 0`, `gift_received = 0` |
 | — | иначе — не выбирается |
 

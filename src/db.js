@@ -1,8 +1,8 @@
-// Работа с базой D1 (SQLite). Схема 9: эвенты с историей (005) + поля 006–008, 010 (см. migrations/).
+// Работа с базой D1 (SQLite). Схема 10: эвенты с историей (005) + поля 006–008, 010, обращения 012 (см. migrations/).
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
-export const REQUIRED_SCHEMA = 9;
+export const REQUIRED_SCHEMA = 10;
 
 export class SchemaError extends Error {
   constructor(found) {

@@ -154,13 +154,15 @@ const PAIRS_RACE = 'Пары изменились одновременно с э
 // версия та же, что была при чтении пар; остальные операторы выполняются только при новой версии. Два одновременных
 // удаления/вписывания не перепишут пары друг друга: второе ничего не изменит и попросит повторить.
 // До жеребьёвки версии нет: операторы выполняются, только пока жеребьёвка не проведена.
-function pairsVersion(db, ev) {
+// cond — дополнительное условие захвата (SQL с параметрами condArgs), например «Санта ещё не открыл подопечного» (012).
+function pairsVersion(db, ev, cond = '', ...condArgs) {
   if (!ev.draw_done) {
     return { claim: null, guard: 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)', args: [ev.id] };
   }
   const token = randomCode(16);
   return {
-    claim: db.prepare('UPDATE events SET draw_token = ? WHERE id = ? AND draw_done = 1 AND draw_token = ?').bind(token, ev.id, ev.draw_token),
+    claim: db.prepare(`UPDATE events SET draw_token = ? WHERE id = ? AND draw_done = 1 AND draw_token = ?${cond ? ' AND ' + cond : ''}`)
+      .bind(token, ev.id, ev.draw_token, ...condArgs),
     guard: 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)',
     args: [ev.id, token],
   };
@@ -244,18 +246,46 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
   return { ok: true };
 }
 
+// Отказ вписывания — одна общая фраза (012, FR-1202): какая группа пуста и что именно помешало, наружу не сообщается
+export const INSERT_BLOCKED =
+  'Не получается вписать участника, не нарушив правила: подарки уже готовы у всех, кому мог бы смениться подопечный, ' +
+  'или мешают исключения. Можно отменить жеребьёвку в опасной зоне и провести заново.';
+
+// Группа Санты пары p при вписывании (012, FR-1202): 0 — не открыл подопечного и не переписывался с ним;
+// 1 — подарок не готов и не получен; null — не трогать (подарок готов или уже получен).
+export function insertRank(p, talked) {
+  if (!p || p.gift_ready || p.gift_received) return null;
+  return p.seen_text === null && !talked ? 0 : 1;
+}
+
+// Вписывает только владелец (012, FR-1201) — проверка прав в api.js
 export async function insertMember(env, ev, userId, actor = 0) {
   const db = env.DB;
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
   const members = await eventMembers(db, ev.id);
   const u = members.find((x) => x.user_id === userId);
   if (!u || !u.registered) return { ok: false, error: 'Участник не найден.' };
-  const rows = await getPairs(db, ev.id);
+  const [rows, ownEx, famEx, chats] = await Promise.all([
+    getPairs(db, ev.id),
+    getExclusions(db, ev.id),
+    familyExclusions(db, ev, members.map((m) => m.user_id)),
+    db.prepare('SELECT DISTINCT santa, ward FROM messages WHERE event_id = ?').bind(ev.id).all().then((r) => r.results),
+  ]);
   if (rows.some((p) => p.santa === userId)) return { ok: false, error: 'Участник уже в жеребьёвке.' };
-  const ex = [...(await getExclusions(db, ev.id)), ...(await familyExclusions(db, ev, members.map((m) => m.user_id)))];
-  const r = insertIntoAssignment(pairsToMap(rows), userId, buildIsAllowed(ex), Math.random, { ring: !!ev.ring });
-  if (!r) return { ok: false, error: 'Не получается вписать участника, не нарушив исключения.' };
-  const v = pairsVersion(db, ev);
+  const talked = new Set(chats.map((m) => `${m.santa}:${m.ward}`));
+  const bySanta = new Map(rows.map((p) => [p.santa, p]));
+  const rank = (a) => {
+    const p = bySanta.get(a);
+    return insertRank(p, p && talked.has(`${p.santa}:${p.ward}`));
+  };
+  const r = insertIntoAssignment(pairsToMap(rows), userId, buildIsAllowed([...ownEx, ...famEx]), Math.random, { ring: !!ev.ring, rank });
+  if (!r) return { ok: false, error: INSERT_BLOCKED };
+  // Группа выбранного Санты проверяется ещё раз в захвате (research R2): если он только что открыл подопечного или
+  // отметил подарок, пары не меняются — «попробуй ещё раз»
+  const fresh = r.rank === 0 ? ' AND seen_text IS NULL AND NOT EXISTS (SELECT 1 FROM messages WHERE event_id = ? AND santa = ? AND ward = ?)' : '';
+  const v = pairsVersion(db, ev,
+    `EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND santa = ? AND ward = ? AND gift_ready = 0 AND gift_received = 0${fresh})`,
+    ev.id, r.santa, r.ward, ...(fresh ? [ev.id, r.santa, r.ward] : []));
   const [claim] = await db.batch([
     v.claim,
     ...(await applyPairsChange(env, ev, rows, r.pairs, r.changed, members, v)),
