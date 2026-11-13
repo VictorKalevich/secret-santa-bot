@@ -420,7 +420,8 @@ npm run deploy
 ### Резервная копия
 
 - Полная копия базы в файл: `npx wrangler d1 export secret-santa-db --remote --output backup-2026-12-01.sql`.
-  Храните файл в надёжном месте: в нём письма и переписка.
+  Храните файл в надёжном месте: в нём письма и переписка. Файлы `*.sql` вне `migrations/` git не берёт
+  (`.gitignore`), так что копия, сохранённая в папке проекта, не уйдёт в коммит.
 - Откат базы на момент в прошлом (на бесплатном тарифе — до 7 дней): `npx wrangler d1 time-travel info secret-santa-db` покажет точку
   восстановления, `npx wrangler d1 time-travel restore secret-santa-db --timestamp=<время>` — откатит.
 

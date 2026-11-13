@@ -16,3 +16,8 @@ test-results/
 # ОС
 .DS_Store
 Thumbs.db
+
+# Резервные копии базы (wrangler d1 export): в них письма, переписка, пары и адреса.
+# Схема — только миграции, они в git остаются.
+*.sql
+!migrations/*.sql
