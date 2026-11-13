@@ -1,0 +1,65 @@
+diff --git a/src/draw.js b/src/draw.js
+index a75c97c..f5fbe9b 100644
+--- a/src/draw.js
++++ b/src/draw.js
+@@ -9,7 +9,9 @@ function shuffle(arr, rng) {
+   const a = arr.slice();
+   for (let i = a.length - 1; i > 0; i--) {
+     const j = Math.floor(rng() * (i + 1));
+-    [a[i], a[j]] = [a[j], a[i]];
++    const t = a[i];
++    a[i] = a[j];
++    a[j] = t;
+   }
+   return a;
+ }
+@@ -142,7 +144,8 @@ export function findAssignment(ids, isAllowed, rng = Math.random, { ring = true,
+ 
+   const ok = allowedFn(isAllowed);
+   const adj = new Uint8Array(n * n);
+-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) adj[i * n + j] = ok(ids[i], ids[j]) ? 1 : 0;
++  if (typeof isAllowed.fillMatrix === "function") isAllowed.fillMatrix(ids, adj);
++  else for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) adj[i * n + j] = ok(ids[i], ids[j]) ? 1 : 0;
+   const result = (to, singleCycle) => {
+     const pairs = new Map(to.map((r, g) => [ids[g], ids[r]]));
+     return { ok: true, pairs, singleCycle: singleCycle ?? isSingleCycle(pairs) };
+@@ -204,12 +207,37 @@ export function pairRules(bans = [], fixed = []) {
+   }
+   const wardOf = new Map(fixed.map((f) => [f.giver, f.receiver]));
+   const santaOf = new Map(fixed.map((f) => [f.receiver, f.giver]));
+-  return (a, b) => {
++  const rule = (a, b) => {
+     if (wardOf.has(a)) return wardOf.get(a) === b;
+-    if (santaOf.has(b)) return false; // его закреплённый Санта — не a (иначе сработала бы строка выше)
++    if (santaOf.has(b)) return false;
+     const to = banned.get(a);
+     return !(to && to.has(b));
+   };
++  // Та же матрица, что дал бы перебор rule(ids[i], ids[j]) с запретом «самому себе»
++  rule.fillMatrix = (ids, adj) => {
++    const n = ids.length;
++    const at = new Map();
++    for (let i = 0; i < n; i++) at.set(ids[i], i);
++    adj.fill(1);
++    for (const [g, to] of banned) {
++      const i = at.get(g);
++      if (i === undefined) continue;
++      for (const r of to) { const j = at.get(r); if (j !== undefined) adj[i * n + j] = 0; }
++    }
++    for (const r of santaOf.keys()) {
++      const j = at.get(r);
++      if (j !== undefined) for (let i = 0; i < n; i++) adj[i * n + j] = 0;
++    }
++    for (const [g, r] of wardOf) {
++      const i = at.get(g);
++      if (i === undefined) continue;
++      adj.fill(0, i * n, i * n + n);
++      const j = at.get(r);
++      if (j !== undefined) adj[i * n + j] = 1;
++    }
++    for (let i = 0; i < n; i++) adj[i * n + i] = 0;
++  };
++  return rule;
+ }
+ 
+ // Полная жеребьёвка эвента (009, FR-923): все попытки делят один бюджет, а не тратят по полному каждая.

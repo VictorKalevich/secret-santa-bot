@@ -38,6 +38,12 @@ Telegram-бот «Тайный Санта» для небольшой групп
 010 — `specs/010-owner-rights/contracts/api.md`; 012 — `specs/012-insert-cancel-support/contracts/api.md`;
 014 — `specs/014-fixed-pairs/contracts/api.md`.
 
+## План рефакторинга
+
+Рефакторинг архитектуры идёт по плану `docs/refactoring-roadmap.md`: 7 шагов, каждый — отдельная фича Spec Kit,
+начиная с 016. Перед работой над шагом прочитай план и файл шага `docs/refactoring/step-N-….md` — в них
+ограничения, порядок работы и приёмка. Базовые замеры для сравнения «до и после» — `docs/refactoring/baseline.md`.
+
 ## Технологии
 
 - JavaScript ES2022, ES-модули, Cloudflare Workers (workerd); без рантайм-зависимостей и без сборщика.
