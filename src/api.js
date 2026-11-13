@@ -1,7 +1,7 @@
 // JSON API для мини-приложения. Каждый запрос подписан Telegram (initData).
 
 import {
-  getSettings, getUser, updateUser, allUsers, getPairs, pairOfSanta, pairOfWard, getExclusions,
+  getSettings, getUser, updateUser, allUsers, getPairs, pairOfSanta, pairOfWard, getExclusions, getFixedPairs,
   getEvent, allEvents, getMember, eventMembers, addMemberStmt,
   updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt, clearRemovedStmt, supportDeleteStmts,
 } from './db.js';
@@ -25,6 +25,8 @@ const DELIVERY_MAX = 500;
 const EXCLUSIONS_FROZEN =
   'После жеребьёвки исключения не меняются: иначе по заменам участников можно было бы вычислить пары. ' +
   'Чтобы поменять исключения, отмени жеребьёвку (пока никто не открыл подопечного).';
+const FIXED_FROZEN = 'После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.'; // 014
+const RING_ONE_WAY = 'При кольцевой жеребьёвке пару можно закрепить только в одну сторону';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
@@ -382,7 +384,7 @@ async function handleAdmin(action, body, env, me, settings) {
 
   switch (action) {
     case 'admin.state': {
-      const [members, pairs, exclusions, events, cancelable, famRows, requests, removed, users] = await Promise.all([
+      const [members, pairs, exclusions, events, cancelable, famRows, requests, removed, users, fixed] = await Promise.all([
         eventMembers(db, ev.id), getPairs(db, ev.id), getExclusions(db, ev.id), allEvents(db), drawCancelable(db, ev),
         db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id').all().then((r) => r.results),
         db.prepare(
@@ -395,6 +397,8 @@ async function handleAdmin(action, body, env, me, settings) {
             WHERE r.event_id = ? ORDER BY r.removed_at DESC`
         ).bind(ev.id).all().then((r) => r.results),
         allUsers(db),
+        // 014: закреплённые пары — только владельцу; админу они не читаются вовсе
+        isOwner ? getFixedPairs(db, ev.id) : null,
       ]);
       const santas = new Set(pairs.map((p) => p.santa));
       const ready = new Set(pairs.filter((p) => p.gift_ready).map((p) => p.santa));
@@ -431,6 +435,8 @@ async function handleAdmin(action, body, env, me, settings) {
         support: await adminList(db, ev, me, isOwner, users),
         // Исключения образца начинают действовать, когда оба вступят (007, FR-707)
         exclusions: exclusions.filter((e) => memberIds.has(e.giver) && memberIds.has(e.receiver)),
+        // 014: у админа поля нет вовсе (Конституция, принцип I)
+        ...(fixed ? { fixed: fixed.filter((f) => memberIds.has(f.giver) && memberIds.has(f.receiver)) } : {}),
         me_member: members.some((m) => m.user_id === me.tg_id),
         other_events: events.filter((e) => e.id !== ev.id).map((e) => ({ id: e.id, title: e.title, status: e.status })),
         settings: {
@@ -522,6 +528,7 @@ async function handleAdmin(action, body, env, me, settings) {
       else {
         await db.batch([
           db.prepare('DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?)').bind(ev.id, me.tg_id, me.tg_id),
+          db.prepare('DELETE FROM fixed_pairs WHERE event_id = ? AND (giver = ? OR receiver = ?)').bind(ev.id, me.tg_id, me.tg_id), // 014
           db.prepare('DELETE FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, me.tg_id),
           ...supportDeleteStmts(db, ev.id, me.tg_id), // 012: обращения участника в эвенте уходят вместе с участием
           log,
@@ -582,6 +589,47 @@ async function handleAdmin(action, body, env, me, settings) {
       stmts.push(auditIfStmt(db, ev.id, me.tg_id, add ? 'exclusion.add' : 'exclusion.del', names, beforeDraw, ev.id));
       await db.batch(stmts);
       if (!isOwner && (await getEvent(db, ev.id))?.draw_done) return fail(EXCLUSIONS_FROZEN);
+      return {};
+    }
+
+    case 'admin.fixed.add':
+    case 'admin.fixed.del': {
+      // 014: закреплённые пары — будущие пары жеребьёвки; видит и меняет только владелец (админ узнал бы пары).
+      // Только до жеребьёвки — и для владельца: пары действуют лишь при её проведении (research R5).
+      if (!isOwner) return ownerOnly('Закреплять пары');
+      if (ev.draw_done) return fail(FIXED_FROZEN);
+      const giver = Number(body.giver);
+      const receiver = Number(body.receiver);
+      const add = action === 'admin.fixed.add';
+      const links = body.mutual ? [[giver, receiver], [receiver, giver]] : [[giver, receiver]];
+      if (add) {
+        if (!giver || !receiver || giver === receiver) return fail('Выбери двух разных людей');
+        const [members, fixed] = await Promise.all([eventMembers(db, ev.id), getFixedPairs(db, ev.id)]);
+        const byId = new Map(members.filter((m) => m.registered).map((m) => [m.user_id, m]));
+        if (!byId.has(giver) || !byId.has(receiver)) return fail('Закрепить пару можно только между участниками события.');
+        const name = (id) => displayName(byId.get(id));
+        // Кольцевая — без взаимных пар: закрепить можно только в одну сторону
+        if (ev.ring) {
+          if (body.mutual) return fail(RING_ONE_WAY + '.');
+          if (fixed.some((f) => f.giver === receiver && f.receiver === giver)) {
+            return fail(`${RING_ONE_WAY}: «${name(receiver)}» уже дарит «${name(giver)}».`);
+          }
+        }
+        for (const [a, b] of links) {
+          if (fixed.some((f) => f.giver === a && f.receiver === b)) continue; // уже закреплена
+          if (fixed.some((f) => f.giver === a)) return fail(`У «${name(a)}» уже есть закреплённый подопечный — сначала убери ту пару.`);
+          if (fixed.some((f) => f.receiver === b)) return fail(`Санта для «${name(b)}» уже закреплён — сначала убери ту пару.`);
+        }
+      }
+      // Условие повторено в SQL — на случай жеребьёвки в эту же секунду (как у исключений)
+      const beforeDraw = 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
+      const stmts = links.map(([a, b]) => add
+        ? db.prepare(`INSERT OR IGNORE INTO fixed_pairs (event_id, giver, receiver) SELECT ?, ?, ? WHERE ${beforeDraw}`).bind(ev.id, a, b, ev.id)
+        : db.prepare(`DELETE FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ? AND ${beforeDraw}`).bind(ev.id, a, b, ev.id));
+      // Журнал — без имён и подробностей: его видят и админы
+      stmts.push(auditIfStmt(db, ev.id, me.tg_id, add ? 'fixed.add' : 'fixed.del', '', beforeDraw, ev.id));
+      await db.batch(stmts);
+      if ((await getEvent(db, ev.id))?.draw_done) return fail(FIXED_FROZEN);
       return {};
     }
 

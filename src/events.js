@@ -90,6 +90,7 @@ export async function deleteEvent(env, ev, actor = 0) {
     db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM pairs WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
+    db.prepare('DELETE FROM fixed_pairs WHERE event_id = ?').bind(ev.id), // 014
     db.prepare('DELETE FROM members WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
@@ -115,6 +116,7 @@ export async function resetEvent(env, ev, ownerId, actor = ownerId) {
     db.prepare("UPDATE members SET wishlist = '', wishlist_updated_at = 0 WHERE event_id = ?").bind(ev.id),
     db.prepare('DELETE FROM pairs WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
+    db.prepare('DELETE FROM fixed_pairs WHERE event_id = ?').bind(ev.id), // 014
     db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),

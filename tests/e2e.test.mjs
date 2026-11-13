@@ -1336,7 +1336,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
         const r = await zapi(helper, a, body(P2), true);
         if (r.status === 403) deniedAdmin.push(a);
       }
-      for (const a of ['admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete', 'admin.insert', 'admin.draw.cancel.force']) {
+      for (const a of ['admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete', 'admin.insert', 'admin.draw.cancel.force', 'admin.fixed.add', 'admin.fixed.del']) {
         assert.ok(deniedAdmin.includes(a), `админу отказано: ${a}`);
       }
     });
@@ -1745,6 +1745,185 @@ test('012: вписывание по группам, принудительна�
 
       await zapi(boss, 'admin.event.delete', { event: S, confirm: 'УДАЛИТЬ' });
       assert.equal(await count(`SELECT COUNT(*) AS n FROM support_threads WHERE event_id = ${S}`), 0);
+    });
+  } finally {
+    const log = z.log();
+    await z.stop();
+    assertBudget(log);
+  }
+});
+
+// 014: закреплённые пары владельца — только владелец, кольцевая в одну сторону, жеребьёвка их соблюдает, тайна для админов
+test('014: закреплённые пары владельца', { timeout: 400000 }, async (t) => {
+  const z = await startWorld();
+  const zapi = (...a) => z.api(...a);
+  const boss = { id: 1400, name: 'Хозяин', username: 'host014' };
+  const helper = { id: 1401, name: 'Олег', username: 'oleg014' };
+  const anya = { id: 1403, name: 'Аня', username: 'anya014' };
+  const borya = { id: 1404, name: 'Боря', username: 'borya014' };
+  const vera = { id: 1405, name: 'Вера', username: 'vera014' };
+  const gena = { id: 1406, name: 'Гена', username: 'gena014' };
+  const dasha = { id: 1407, name: 'Даша', username: 'dasha014' };
+  const eva = { id: 1408, name: 'Ева', username: 'eva014' };
+  const anya2 = { id: 1409, name: 'Аня', username: 'anya_new014' };
+  const FIXED_BLOCK = 'Мешают закреплённые пары: с ними распределить всех по правилам не получается. Владелец бота может убрать часть закреплённых пар.';
+  const FROZEN = 'После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.';
+  const registered = new Set();
+  const zInvite = async (eid) => /start=(inv_[a-z0-9]+)/.exec((await zapi(boss, 'admin.state', { event: eid })).settings.invite_link)[1];
+  const pairsSql = async (eid) => new Map((await z.query(`SELECT santa, ward FROM pairs WHERE event_id = ${eid}`)).map((r) => [r.santa, r.ward]));
+  const count = async (sql) => (await z.query(sql))[0].n;
+  const fixedCount = (eid) => count(`SELECT COUNT(*) AS n FROM fixed_pairs WHERE event_id = ${eid}`);
+  const join = async (u, code) => {
+    await z.say(u, '/start ' + code);
+    if (!registered.has(u.id)) {
+      await z.say(u, u.name);
+      registered.add(u.id);
+    }
+  };
+  const newEvent = async (title, people) => {
+    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    const code = await zInvite(id);
+    for (const u of people) await join(u, code);
+    return id;
+  };
+  const err = async (u, action, body) => (await zapi(u, action, body, true)).data.error;
+
+  try {
+    await t.test('подготовка: владелец и админ', async () => {
+      const s = await z.setup();
+      await z.say(boss, '/start ' + s.adminCode);
+      await z.say(boss, boss.name);
+      registered.add(boss.id);
+      await newEvent('База-014', [helper]);
+      await zapi(boss, 'admin.role.grant', { id: helper.id });
+    });
+
+    await t.test('закрепление: только владелец, проверки, админ ничего не видит', async () => {
+      const F = await newEvent('Закреп-014', [anya, borya, vera, gena, dasha]);
+      assert.deepEqual((await zapi(boss, 'admin.state', { event: F })).fixed, []);
+      await zapi(boss, 'admin.fixed.add', { event: F, giver: anya.id, receiver: borya.id });
+      await zapi(boss, 'admin.fixed.add', { event: F, giver: anya.id, receiver: borya.id }); // повтор — без изменений
+      assert.deepEqual((await zapi(boss, 'admin.state', { event: F })).fixed, [{ giver: anya.id, receiver: borya.id }]);
+
+      // админ: поля нет, действия запрещены, журнал без имён
+      const st = await zapi(helper, 'admin.state', { event: F });
+      assert.ok(!('fixed' in st), 'у админа нет поля fixed');
+      for (const a of ['admin.fixed.add', 'admin.fixed.del']) {
+        const r = await zapi(helper, a, { event: F, giver: anya.id, receiver: borya.id }, true);
+        assert.equal(r.status, 403);
+        assert.equal(r.data.error, 'Закреплять пары может только владелец бота.');
+      }
+      assert.equal(await fixedCount(F), 1, 'админ ничего не изменил');
+      const audit = (await zapi(helper, 'admin.audit', { event: F })).entries.filter((e) => e.action.startsWith('fixed.'));
+      assert.equal(audit.length, 2);
+      assert.ok(audit.every((e) => !e.details), 'журнал без имён');
+
+      // проверки
+      assert.equal(await err(boss, 'admin.fixed.add', { event: F, giver: vera.id, receiver: vera.id }), 'Выбери двух разных людей');
+      assert.equal(await err(boss, 'admin.fixed.add', { event: F, giver: vera.id, receiver: helper.id }), 'Закрепить пару можно только между участниками события.');
+      assert.equal(await err(boss, 'admin.fixed.add', { event: F, giver: anya.id, receiver: vera.id }), 'У «Аня» уже есть закреплённый подопечный — сначала убери ту пару.');
+      assert.equal(await err(boss, 'admin.fixed.add', { event: F, giver: vera.id, receiver: borya.id }), 'Санта для «Боря» уже закреплён — сначала убери ту пару.');
+      // кольцевая (по умолчанию включена) — только в одну сторону
+      assert.equal(await err(boss, 'admin.fixed.add', { event: F, giver: borya.id, receiver: anya.id }),
+        'При кольцевой жеребьёвке пару можно закрепить только в одну сторону: «Аня» уже дарит «Боря».');
+      assert.equal(await err(boss, 'admin.fixed.add', { event: F, giver: vera.id, receiver: gena.id, mutual: true }),
+        'При кольцевой жеребьёвке пару можно закрепить только в одну сторону.');
+      assert.equal(await fixedCount(F), 1);
+
+      await zapi(boss, 'admin.fixed.del', { event: F, giver: anya.id, receiver: borya.id });
+      assert.equal(await fixedCount(F), 0);
+    });
+
+    await t.test('без кольцевой — в обе стороны; включили кольцевую — жеребьёвка отклонена без имён', async () => {
+      const R = await newEvent('Круг-014', [anya, borya, vera, gena]);
+      await zapi(boss, 'admin.ring', { event: R, on: false });
+      await zapi(boss, 'admin.fixed.add', { event: R, giver: anya.id, receiver: borya.id, mutual: true });
+      assert.equal(await fixedCount(R), 2);
+      await zapi(helper, 'admin.ring', { event: R, on: true }); // админ включает кольцевую как обычно
+      const c = await zapi(helper, 'admin.draw.check', { event: R });
+      assert.equal(c.possible, false);
+      assert.deepEqual(c.problems, [FIXED_BLOCK]);
+      const d = await zapi(helper, 'admin.draw', { event: R }, true);
+      assert.equal(d.status, 400);
+      assert.equal(d.data.error, FIXED_BLOCK);
+
+      await zapi(boss, 'admin.fixed.del', { event: R, giver: anya.id, receiver: borya.id, mutual: true });
+      assert.equal(await fixedCount(R), 0, 'взаимная убрана одним действием');
+      await zapi(boss, 'admin.fixed.add', { event: R, giver: anya.id, receiver: borya.id });
+      await zapi(helper, 'admin.draw', { event: R }); // проводит админ — закреплённая пара всё равно соблюдается
+      const m = await pairsSql(R);
+      assert.equal(m.get(anya.id), borya.id);
+      assert.notEqual(m.get(borya.id), anya.id, 'кольцевая — без взаимных');
+
+      // после жеребьёвки — только чтение, и для владельца
+      assert.equal(await err(boss, 'admin.fixed.add', { event: R, giver: vera.id, receiver: gena.id }), FROZEN);
+      assert.equal(await err(boss, 'admin.fixed.del', { event: R, giver: anya.id, receiver: borya.id }), FROZEN);
+      assert.equal(await fixedCount(R), 1);
+    });
+
+    await t.test('жеребьёвка соблюдает закреплённые пары, они важнее исключений; тупик — причина без имён', async () => {
+      for (let i = 0; i < 3; i++) {
+        const P = await newEvent(`Повтор-014-${i}`, [anya, borya, vera, gena, dasha]);
+        await zapi(helper, 'admin.exclusion.add', { event: P, giver: vera.id, receiver: gena.id, mutual: true });
+        await zapi(boss, 'admin.fixed.add', { event: P, giver: vera.id, receiver: gena.id });
+        await zapi(boss, 'admin.fixed.add', { event: P, giver: gena.id, receiver: anya.id });
+        await zapi(boss, 'admin.draw', { event: P });
+        const m = await pairsSql(P);
+        assert.equal(m.get(vera.id), gena.id);
+        assert.equal(m.get(gena.id), anya.id);
+      }
+      // трое, кольцевая: Аня → Боря закреплено, Вера не дарит Ане — круг невозможен, без закрепления возможен
+      const X = await newEvent('Тупик-014', [anya, borya, vera]);
+      await zapi(boss, 'admin.fixed.add', { event: X, giver: anya.id, receiver: borya.id });
+      await zapi(helper, 'admin.exclusion.add', { event: X, giver: vera.id, receiver: anya.id });
+      const c = await zapi(helper, 'admin.draw.check', { event: X });
+      assert.equal(c.possible, false);
+      assert.deepEqual(c.problems, [FIXED_BLOCK]);
+    });
+
+    await t.test('после жеребьёвки: замены не ломают пару, перенос и удаление участника', async () => {
+      const L = await newEvent('Жизнь-014', [anya, borya, vera, gena, dasha]);
+      await zapi(boss, 'admin.fixed.add', { event: L, giver: anya.id, receiver: borya.id });
+      await zapi(boss, 'admin.draw', { event: L });
+      await zapi(helper, 'admin.remove', { event: L, id: dasha.id });
+      assert.equal((await pairsSql(L)).get(anya.id), borya.id, 'удаление другого не меняет пару');
+      await zapi(boss, 'admin.registration', { event: L, open: true });
+      await join(eva, await zInvite(L));
+      await zapi(boss, 'admin.insert', { event: L, id: eva.id });
+      const m = await pairsSql(L);
+      assert.equal(m.size, 5);
+      assert.equal(m.get(anya.id), borya.id, 'вписывание не меняет пару');
+
+      await join(anya2, await zInvite(L));
+      await zapi(boss, 'admin.transfer', { from: anya.id, to: anya2.id });
+      assert.equal(await count(`SELECT COUNT(*) AS n FROM fixed_pairs WHERE event_id = ${L} AND giver = ${anya2.id} AND receiver = ${borya.id}`), 1);
+      assert.equal(await count(`SELECT COUNT(*) AS n FROM fixed_pairs WHERE giver = ${anya.id} OR receiver = ${anya.id}`), 0);
+
+      await zapi(boss, 'admin.remove', { event: L, id: borya.id });
+      assert.equal(await fixedCount(L), 0, 'ушёл участник — его закреплённые пары удалены');
+    });
+
+    await t.test('отмена жеребьёвки сохраняет, образец не копирует, сброс и удаление события — удаляют', async () => {
+      const C = await newEvent('Отмена-014', [borya, vera, gena, dasha]);
+      await zapi(boss, 'admin.fixed.add', { event: C, giver: vera.id, receiver: gena.id });
+      await zapi(boss, 'admin.draw', { event: C });
+      await zapi(boss, 'admin.draw.cancel', { event: C });
+      assert.equal(await fixedCount(C), 1, 'отмена сохраняет');
+      await zapi(boss, 'admin.fixed.add', { event: C, giver: borya.id, receiver: dasha.id }); // снова можно менять
+      const copy = (await zapi(boss, 'admin.events.create', { title: 'Копия-014', from: C })).event.id;
+      assert.equal(await fixedCount(copy), 0, 'образец не копирует');
+      await zapi(boss, 'admin.reset.full', { event: C, confirm: 'СБРОС' });
+      assert.equal(await fixedCount(C), 0, 'сброс удаляет');
+
+      const D = await newEvent('Удалить-014', [borya, vera, gena]);
+      await zapi(boss, 'admin.fixed.add', { event: D, giver: vera.id, receiver: gena.id });
+      await zapi(boss, 'admin.event.delete', { event: D, confirm: 'УДАЛИТЬ' });
+      assert.equal(await fixedCount(D), 0, 'удаление события удаляет');
+
+      const E = await newEvent('Финиш-014', [borya, vera, gena]);
+      await zapi(boss, 'admin.draw', { event: E });
+      await zapi(boss, 'admin.event.finish', { event: E });
+      assert.match(await err(boss, 'admin.fixed.add', { event: E, giver: vera.id, receiver: gena.id }), /Событие завершено/);
     });
   } finally {
     const log = z.log();

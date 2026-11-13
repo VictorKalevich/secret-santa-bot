@@ -2,17 +2,11 @@
 
 import {
   getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, familyExclusions, familySnapshot,
-  FAMILY_SNAPSHOT_SQL, enqueueIfStmt, auditIfStmt, markRemovedStmt, supportDeleteStmts,
+  FAMILY_SNAPSHOT_SQL, getFixedPairs, fixedSnapshot, FIXED_SNAPSHOT_SQL, enqueueIfStmt, auditIfStmt, markRemovedStmt, supportDeleteStmts,
 } from './db.js';
-import { planDraw, removeFromAssignment, insertIntoAssignment } from './draw.js';
+import { planDraw, pairRules, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, openAppButton, randomCode, displayName } from './format.js';
 import { isFinished } from './events.js';
-
-function buildIsAllowed(exclusions) {
-  const banned = new Set();
-  for (const e of exclusions) banned.add(`${e.giver}:${e.receiver}`);
-  return (a, b) => !banned.has(`${a}:${b}`);
-}
 
 // Пары прошлого эвента с наибольшим числом пар среди этих людей; при равенстве — последнего
 // (для «не повторять пары», FR-510). Так параллельный эвент другой группы не подменяет «свой».
@@ -48,6 +42,8 @@ function describeProblem(p, byId) {
     case 'no_receivers': return `${name(p.id)} не может дарить никому — проверь исключения.`;
     case 'no_givers': return `${name(p.id)} не может достаться никому — проверь исключения.`;
     case 'search_exhausted': return 'Не удалось быстро подобрать распределение — попробуй ещё раз. Если не выйдет, убери часть исключений или выключи кольцевую жеребьёвку.';
+    // 014: без имён — причину видят и админы (и рассылка о неудаче автожеребьёвки), а закреплённые пары знает только владелец
+    case 'fixed_block': return 'Мешают закреплённые пары: с ними распределить всех по правилам не получается. Владелец бота может убрать часть закреплённых пар.';
     default: return 'Слишком много исключений: распределить всех так, чтобы их соблюсти, не получается. Убери часть исключений.';
   }
 }
@@ -64,8 +60,10 @@ export async function checkDraw(env, ev) {
   const prev = ev.avoid_previous ? await previousPairs(db, ev, ids) : [];
   const history = prev.map((p) => ({ giver: p.santa, receiver: p.ward }));
   const ring = !!ev.ring;
-  // 009, FR-923: попытки (с историей, без неё, «мешают ли семьи» — 008, FR-807) делят один бюджет поиска
-  const { familiesBlock, ...res } = planDraw(ids, { own, families, history }, Math.random, { ring });
+  // 014: закреплённые пары владельца (planDraw сам берёт только пары участников жеребьёвки)
+  const fixed = await getFixedPairs(db, ev.id);
+  // 009, FR-923: попытки (с историей, без неё, «мешают ли закреплённые пары и семьи») делят один бюджет поиска
+  const { familiesBlock, ...res } = planDraw(ids, { own, families, history, fixed }, Math.random, { ring });
   const byId = Object.fromEntries(people.map((u) => [u.user_id, u]));
   const sum = (list) => list.reduce((s, x) => s + x, 0);
   return {
@@ -79,6 +77,7 @@ export async function checkDraw(env, ev) {
       members: `${ids.length}:${sum(ids)}`,
       exclusions: `${allEx.length}:${sum(allEx.map((e) => e.giver))}:${sum(allEx.map((e) => e.receiver))}`,
       families: ev.families_on ? familySnapshot(famRows, ids) : '',
+      fixed: fixedSnapshot(fixed), // 014
     },
     // Учтены ли прошлые пары, наружу не сообщается: по этому признаку можно вычислить пары прошлого (009, FR-904)
     emptyWishlists: people.filter((u) => !u.wishlist.trim()).map((u) => u.name),
@@ -110,10 +109,11 @@ export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
                 WHERE m.event_id = ? AND u.registered = 1) = ?
           AND (SELECT COUNT(*) || ':' || COALESCE(SUM(giver), 0) || ':' || COALESCE(SUM(receiver), 0)
                  FROM exclusions WHERE event_id = ?) = ?
-          AND (? = '' OR ${FAMILY_SNAPSHOT_SQL} = ?)`
+          AND (? = '' OR ${FAMILY_SNAPSHOT_SQL} = ?)
+          AND ${FIXED_SNAPSHOT_SQL} = ?`
     ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ev.families_on ? 1 : 0,
       ev.id, check.snapshot.members, ev.id, check.snapshot.exclusions,
-      check.snapshot.families, ev.id, check.snapshot.families),
+      check.snapshot.families, ev.id, check.snapshot.families, ev.id, check.snapshot.fixed),
     db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
   ];
   for (const [santa, ward] of check.res.pairs) {
@@ -223,7 +223,9 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
   if (ev.draw_done) {
     const rows = await getPairs(db, ev.id);
     if (rows.some((p) => p.santa === userId || p.ward === userId)) {
-      const isAllowed = buildIsAllowed([...(await getExclusions(db, ev.id)), ...(await familyExclusions(db, ev, members.map((m) => m.user_id)))]);
+      // 014: закреплённые пары оставшихся не ломаются (пары с уходящим уже не действуют)
+      const fixed = (await getFixedPairs(db, ev.id)).filter((f) => f.giver !== userId && f.receiver !== userId);
+      const isAllowed = pairRules([...(await getExclusions(db, ev.id)), ...(await familyExclusions(db, ev, members.map((m) => m.user_id)))], fixed);
       const r = removeFromAssignment(pairsToMap(rows), userId, isAllowed, Math.random, { ring: !!ev.ring });
       if (!r) {
         return { ok: false, error: 'Не получается убрать участника, не нарушив исключения или кольцевую жеребьёвку. Ослабь исключения.' };
@@ -232,6 +234,7 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
     }
   }
   stmts.push(db.prepare(`DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
+  stmts.push(db.prepare(`DELETE FROM fixed_pairs WHERE event_id = ? AND (giver = ? OR receiver = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
   stmts.push(db.prepare(`DELETE FROM messages WHERE event_id = ? AND (santa = ? OR ward = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
   // 012: обращения участника к организаторам в этом эвенте уходят вместе с ним
   stmts.push(...supportDeleteStmts(db, ev.id, userId, v.guard, ...v.args));
@@ -267,11 +270,12 @@ export async function insertMember(env, ev, userId, actor = 0) {
   const members = await eventMembers(db, ev.id);
   const u = members.find((x) => x.user_id === userId);
   if (!u || !u.registered) return { ok: false, error: 'Участник не найден.' };
-  const [rows, ownEx, famEx, chats] = await Promise.all([
+  const [rows, ownEx, famEx, chats, fixed] = await Promise.all([
     getPairs(db, ev.id),
     getExclusions(db, ev.id),
     familyExclusions(db, ev, members.map((m) => m.user_id)),
     db.prepare('SELECT DISTINCT santa, ward FROM messages WHERE event_id = ?').bind(ev.id).all().then((r) => r.results),
+    getFixedPairs(db, ev.id), // 014: вписывание не разрывает закреплённых пар
   ]);
   if (rows.some((p) => p.santa === userId)) return { ok: false, error: 'Участник уже в жеребьёвке.' };
   const talked = new Set(chats.map((m) => `${m.santa}:${m.ward}`));
@@ -280,7 +284,7 @@ export async function insertMember(env, ev, userId, actor = 0) {
     const p = bySanta.get(a);
     return insertRank(p, p && talked.has(`${p.santa}:${p.ward}`));
   };
-  const r = insertIntoAssignment(pairsToMap(rows), userId, buildIsAllowed([...ownEx, ...famEx]), Math.random, { ring: !!ev.ring, rank });
+  const r = insertIntoAssignment(pairsToMap(rows), userId, pairRules([...ownEx, ...famEx], fixed), Math.random, { ring: !!ev.ring, rank });
   if (!r) return { ok: false, error: INSERT_BLOCKED };
   // Группа выбранного Санты проверяется ещё раз в захвате (research R2): если он только что открыл подопечного или
   // отметил подарок, пары не меняются — «попробуй ещё раз»

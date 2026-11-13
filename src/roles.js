@@ -184,6 +184,10 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
     db.prepare('UPDATE OR IGNORE exclusions SET giver = ? WHERE giver = ?').bind(toId, fromId),
     db.prepare('UPDATE OR IGNORE exclusions SET receiver = ? WHERE receiver = ?').bind(toId, fromId),
     db.prepare('DELETE FROM exclusions WHERE giver = ? OR receiver = ? OR giver = receiver').bind(fromId, fromId),
+    // 014: закреплённые пары владельца (если у нового аккаунта в событии уже своя — остаётся она)
+    db.prepare('UPDATE OR IGNORE fixed_pairs SET giver = ? WHERE giver = ?').bind(toId, fromId),
+    db.prepare('UPDATE OR IGNORE fixed_pairs SET receiver = ? WHERE receiver = ?').bind(toId, fromId),
+    db.prepare('DELETE FROM fixed_pairs WHERE giver = ? OR receiver = ? OR giver = receiver').bind(fromId, fromId),
     // 008: семья и заявки переходят на новый аккаунт (если новый уже в семье — остаётся его семья)
     db.prepare('UPDATE OR IGNORE family_members SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
     db.prepare('DELETE FROM family_members WHERE user_id = ?').bind(fromId),

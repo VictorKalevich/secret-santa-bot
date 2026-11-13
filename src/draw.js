@@ -181,27 +181,51 @@ export function findAssignment(ids, isAllowed, rng = Math.random, { ring = true,
   }
 }
 
-// Полная жеребьёвка эвента (009, FR-923): все попытки делят один бюджет, а не тратят по полному каждая.
-// own — исключения эвента, families — пары «не дарят друг другу» из семей, history — пары прошлого эвента
-// (все — { giver, receiver }). Сначала с историей (половина бюджета), при неудаче — без неё (вторая половина);
-// если мешают семьи, проверка «без семей» — на четверти бюджета. Возвращает результат findAssignment и familiesBlock.
-export function planDraw(ids, { own = [], families = [], history = [] } = {}, rng = Math.random, { ring = true, budget = DEFAULT_BUDGET } = {}) {
-  const rules = (...lists) => {
-    const banned = new Set();
-    for (const list of lists) for (const e of list) banned.add(`${e.giver}:${e.receiver}`);
-    return (a, b) => !banned.has(`${a}:${b}`);
+// Кто кому может дарить (014): bans — запреты { giver, receiver } (исключения, семьи, история), fixed — закреплённые пары
+// владельца. Закреплённая пара важнее запретов: закреплённому Санте можно дарить только своему закреплённому подопечному,
+// а закреплённого подопечного может получить только его закреплённый Санта. Остальное — по запретам.
+export function pairRules(bans = [], fixed = []) {
+  const banned = new Set(bans.map((e) => `${e.giver}:${e.receiver}`));
+  const wardOf = new Map(fixed.map((f) => [f.giver, f.receiver]));
+  const santaOf = new Map(fixed.map((f) => [f.receiver, f.giver]));
+  return (a, b) => {
+    if (wardOf.has(a)) return wardOf.get(a) === b;
+    if (santaOf.has(b)) return false; // его закреплённый Санта — не a (иначе сработала бы строка выше)
+    return !banned.has(`${a}:${b}`);
   };
+}
+
+// Полная жеребьёвка эвента (009, FR-923): все попытки делят один бюджет, а не тратят по полному каждая.
+// own — исключения эвента, families — пары «не дарят друг другу» из семей, history — пары прошлого эвента,
+// fixed — закреплённые пары владельца (014; все — { giver, receiver }). Сначала с историей (половина основного
+// бюджета), при неудаче — без неё (вторая половина). Если мешают закреплённые пары — проверка «без них» на четверти
+// бюджета: тогда одна общая причина fixed_block без имён, иначе причины этой проверки (имена в них не намекают на
+// закреплённых). Если мешают семьи — проверка «без семей» (и без закреплённых) на четверти бюджета.
+// Возвращает результат findAssignment и familiesBlock.
+export function planDraw(ids, { own = [], families = [], history = [], fixed = [] } = {}, rng = Math.random, { ring = true, budget = DEFAULT_BUDGET } = {}) {
+  const set = new Set(ids);
+  const pinned = fixed.filter((f) => set.has(f.giver) && set.has(f.receiver));
+  const fixedBlock = { ok: false, problems: [{ type: 'fixed_block' }], familiesBlock: false };
+  // Взаимная закреплённая пара при кольцевой заведомо невозможна — без поиска
+  if (ring && pinned.some((f) => pinned.some((g) => g.giver === f.receiver && g.receiver === f.giver))) return fixedBlock;
+  const run = (bans, pins, b) => findAssignment(ids, pairRules(bans, pins), rng, { ring, budget: b });
+  const fixedBudget = pinned.length ? budget / 4 : 0;
   const familyBudget = families.length ? budget / 4 : 0;
-  const main = budget - familyBudget;
+  const main = budget - fixedBudget - familyBudget;
   let res;
   if (history.length) {
-    res = findAssignment(ids, rules(own, families, history), rng, { ring, budget: main / 2 });
-    if (!res.ok) res = findAssignment(ids, rules(own, families), rng, { ring, budget: main / 2 });
+    res = run([...own, ...families, ...history], pinned, main / 2);
+    if (!res.ok) res = run([...own, ...families], pinned, main / 2);
   } else {
-    res = findAssignment(ids, rules(own, families), rng, { ring, budget: main });
+    res = run([...own, ...families], pinned, main);
   }
-  const familiesBlock = !res.ok && families.length > 0 &&
-    findAssignment(ids, rules(own), rng, { ring, budget: familyBudget }).ok;
+  if (res.ok) return { ...res, familiesBlock: false };
+  if (pinned.length) {
+    const free = run([...own, ...families], [], fixedBudget);
+    if (free.ok) return fixedBlock;
+    res = free;
+  }
+  const familiesBlock = families.length > 0 && run(own, [], familyBudget).ok;
   return { ...res, familiesBlock };
 }
 

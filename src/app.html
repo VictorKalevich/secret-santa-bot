@@ -1156,6 +1156,67 @@
             addEx));
     }
 
+    // --- закреплённые пары (014): только владелец — админу поле fixed не приходит. Устроено как блок исключений.
+    let syncFixed = null; // перестраивает форму блока после переключения кольцевой
+    // После жеребьёвки блок нужен, только если пары были закреплены (показывается для чтения)
+    if (!done && d.fixed && !(s.draw_done && !d.fixed.length)) {
+      const fxName = (id) => byId[id]?.name || '?';
+      const fxList = h('div', { class: 'ds-card ds-card--flush' });
+      const fxSeen = new Set();
+      const fxPairs = [];
+      for (const f of d.fixed) {
+        const key = f.giver + ':' + f.receiver;
+        if (fxSeen.has(key)) continue;
+        const mutual = d.fixed.some((x) => x.giver === f.receiver && x.receiver === f.giver);
+        fxSeen.add(key);
+        if (mutual) fxSeen.add(f.receiver + ':' + f.giver);
+        fxPairs.push({ ...f, mutual });
+      }
+      if (!fxPairs.length) fxList.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Закреплённых пар нет — жеребьёвка распределит всех случайно.'));
+      for (const f of fxPairs) {
+        fxList.append(h('div', { class: 'ds-list-item' },
+          h('div', { class: 'ds-grow' }, f.mutual
+            ? [h('b', {}, fxName(f.giver)), ' и ', h('b', {}, fxName(f.receiver)), ' дарят друг другу']
+            : [h('b', {}, fxName(f.giver)), ' дарит ', h('b', {}, fxName(f.receiver))]),
+          s.draw_done ? null : h('button', { class: 'ds-icon-btn', title: 'Убрать закреплённую пару', onclick: () => busy(null, async () => { await xapi('admin.fixed.del', f); toast('Закреплённая пара убрана'); await again(); }) }, '✕')));
+      }
+      nodes.push(ui.section('Закреплённые пары'), fxList);
+      if (s.draw_done) {
+        nodes.push(ui.hint('После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.', 'ds-hint--inset'));
+      } else {
+        const fxOpts = (ph) => [h('option', { value: '' }, ph), ...players.map((u) => h('option', { value: u.id }, u.name))];
+        const fxA = h('select', { class: 'ds-input' }, fxOpts('Кто дарит…'));
+        const fxB = h('select', { class: 'ds-input' }, fxOpts('…кому дарит'));
+        const fxMutual = h('input', { type: 'checkbox' });
+        const addFx = ui.btn('Закрепить пару', 'secondary', 'ds-btn--block');
+        addFx.addEventListener('click', () => busy(addFx, async () => {
+          if (!fxA.value || !fxB.value) return toast('Выбери двух людей');
+          if (fxA.value === fxB.value) return toast('Нужны два разных человека');
+          await xapi('admin.fixed.add', { giver: +fxA.value, receiver: +fxB.value, mutual: !s.ring && fxMutual.checked });
+          toast('Пара закреплена');
+          await again();
+        }));
+        const fxForm = ui.card();
+        // При кольцевой — только в одну сторону: флажка «и наоборот» нет, взаимные пары — предупреждение
+        syncFixed = () => {
+          const clash = s.ring ? fxPairs.filter((f) => f.mutual) : [];
+          // replaceChildren, в отличие от h(), вывел бы null текстом — пустые места отбрасываются
+          fxForm.replaceChildren(...[
+            ui.hint('Бот обязательно сведёт этих людей при жеребьёвке. Закреплённая пара важнее исключений и семей. Этот блок видишь только ты: админам закреплённые пары не показываются.' +
+              (s.ring ? ' Кольцевая жеребьёвка включена: пару можно закрепить только в одну сторону.' : '')),
+            clash.length ? h('div', { class: 'ds-notice ds-notice--error' },
+              'При кольцевой жеребьёвке взаимных пар не бывает. Убери (✕) и закрепи в одну сторону: ' +
+              clash.map((f) => fxName(f.giver) + ' и ' + fxName(f.receiver)).join('; ') + '.') : null,
+            fxA, fxB,
+            s.ring ? null : h('label', { class: 'ds-check' }, fxMutual, 'и наоборот (в обе стороны)'),
+            addFx,
+          ].filter(Boolean));
+        };
+        syncFixed();
+        nodes.push(fxForm);
+      }
+    }
+
     // --- жеребьёвка
     const drawCard = ui.card();
     if (!s.draw_done) {
@@ -1163,6 +1224,8 @@
       bindToggle(ring, async (on) => {
         await xapi('admin.ring', { on });
         toast(on ? 'Кольцевая жеребьёвка включена' : 'Кольцевая жеребьёвка выключена');
+        s.ring = on;
+        if (syncFixed) syncFixed(); // 014: флажок «и наоборот» и предупреждение зависят от кольцевой
         await reloadEvent(evId).catch(() => {});
       });
       drawCard.append(ui.toggleRow('🔁 Кольцевая жеребьёвка',
@@ -1453,6 +1516,7 @@
     'event.create': '🎄 Создано событие', 'event.settings': '⚙️ Параметры', registration: '🔓 Регистрация', 'invite.regen': '🔄 Новая ссылка',
     participate: '🙋 Участие организатора', 'member.remove': '🗑 Удалён участник', 'member.insert': '➕ Вписан в жеребьёвку',
     'exclusion.add': '🚧 Исключение добавлено', 'exclusion.del': '✕ Исключение удалено', draw: '🎲 Жеребьёвка',
+    'fixed.add': '📌 Пара закреплена', 'fixed.del': '✕ Закреплённая пара убрана',
     'draw.auto': '🎲 Автожеребьёвка', 'draw.auto.failed': '⚠️ Автожеребьёвка не прошла', 'draw.cancel': '↩️ Жеребьёвка отменена',
     reveal: '🎅 Тайна раскрыта', finish: '🏁 Событие завершено', reset: '🧨 Полный сброс', 'event.delete': '🗑 Событие удалено',
     'wishlist.view': '👁 Открыто письмо', announce: '📣 Объявление', 'remind.unfilled': '⏰ Напоминание о письмах',

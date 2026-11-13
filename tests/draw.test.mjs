@@ -1,7 +1,7 @@
 // Юнит-тесты жеребьёвки (FR-010, FR-011, FR-013, FR-023, FR-024).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findAssignment, planDraw, removeFromAssignment, insertIntoAssignment, diagnose, hasMutual } from '../src/draw.js';
+import { findAssignment, planDraw, pairRules, removeFromAssignment, insertIntoAssignment, diagnose, hasMutual } from '../src/draw.js';
 
 function seeded(seed) {
   let s = seed >>> 0;
@@ -424,4 +424,115 @@ test('planDraw: мешают именно семьи — familiesBlock', () => {
   const r = planDraw([1, 2, 3], { families }, seeded(3), { ring: true });
   assert.equal(r.ok, false);
   assert.equal(r.familiesBlock, true);
+});
+
+// ---------- 014: закреплённые пары владельца ----------
+
+test('pairRules: закреплённый Санта дарит только своему, закреплённого подопечного получает только его Санта', () => {
+  const ok = pairRules([{ giver: 1, receiver: 2 }, { giver: 3, receiver: 4 }], [{ giver: 1, receiver: 2 }, { giver: 5, receiver: 6 }]);
+  assert.equal(ok(1, 2), true, 'закреплённая пара важнее исключения');
+  assert.equal(ok(1, 3), false);
+  assert.equal(ok(2, 6), false, 'у 6 закреплённый Санта — 5');
+  assert.equal(ok(5, 6), true);
+  assert.equal(ok(3, 4), false, 'обычное исключение действует');
+  assert.equal(ok(3, 5), true);
+});
+
+test('planDraw: закреплённые пары всегда в результате (300 прогонов, с кольцевой и без)', () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    const n = 4 + (seed % 14);
+    const ids = Array.from({ length: n }, (_, i) => i + 1);
+    const ring = seed % 2 === 0;
+    // цепочка 3 → 1 → 2 и отдельная пара n → 4 (n ≥ 5); исключения — не мешают
+    const fixed = [{ giver: 3, receiver: 1 }, { giver: 1, receiver: 2 }, ...(n >= 5 ? [{ giver: n, receiver: 4 }] : [])];
+    const own = n >= 6 ? [{ giver: 2, receiver: 5 }, { giver: 5, receiver: 2 }] : [];
+    const r = planDraw(ids, { own, fixed }, seeded(seed), { ring });
+    assert.ok(r.ok, `seed ${seed}: ${JSON.stringify(r.problems)}`);
+    assertValid(ids, r.pairs, pairRules(own, fixed));
+    for (const f of fixed) assert.equal(r.pairs.get(f.giver), f.receiver, `seed ${seed}: ${f.giver}→${f.receiver}`);
+    if (ring) assert.equal(hasMutual(r.pairs), false, `seed ${seed}: кольцевая без взаимных`);
+  }
+});
+
+test('planDraw: закреплённая пара важнее исключений, семей и прошлых пар', () => {
+  for (let seed = 1; seed <= 50; seed++) {
+    const r = planDraw([1, 2, 3, 4, 5], {
+      own: [{ giver: 1, receiver: 2 }],
+      families: [{ giver: 1, receiver: 2 }, { giver: 2, receiver: 1 }],
+      history: [{ giver: 1, receiver: 2 }],
+      fixed: [{ giver: 1, receiver: 2 }],
+    }, seeded(seed), { ring: true });
+    assert.ok(r.ok);
+    assert.equal(r.pairs.get(1), 2);
+    assert.notEqual(r.pairs.get(2), 1, 'семья 2 → 1 соблюдена');
+  }
+});
+
+test('planDraw: взаимная закреплённая пара — при кольцевой отказ fixed_block, без кольцевой — пара на месте', () => {
+  const fixed = [{ giver: 1, receiver: 2 }, { giver: 2, receiver: 1 }];
+  const ring = planDraw([1, 2, 3, 4], { fixed }, seeded(1), { ring: true });
+  assert.equal(ring.ok, false);
+  assert.deepEqual(ring.problems, [{ type: 'fixed_block' }]);
+  assert.equal(ring.familiesBlock, false);
+  const free = planDraw([1, 2, 3, 4], { fixed }, seeded(1), { ring: false });
+  assert.ok(free.ok);
+  assert.equal(free.pairs.get(1), 2);
+  assert.equal(free.pairs.get(2), 1);
+});
+
+test('planDraw: невозможно только из-за закреплённых пар — одна общая причина без имён', () => {
+  // трое, кольцевая: 1 → 2 закреплено, значит круг 1→2→3→1, но 3 не дарит 1; без закрепления есть 1→3→2→1
+  const r = planDraw([1, 2, 3], { own: [{ giver: 3, receiver: 1 }], fixed: [{ giver: 1, receiver: 2 }] }, seeded(5), { ring: true });
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.problems, [{ type: 'fixed_block' }]);
+});
+
+test('planDraw: невозможно и без закреплённых пар — причины считаются без них', () => {
+  // 2 не может дарить никому; 4 может дарить только 3, а 3 закреплён за 1 — эту причину админ не должен увидеть
+  const own = [[2, 1], [2, 3], [2, 4], [4, 1], [4, 2]].map(([giver, receiver]) => ({ giver, receiver }));
+  const r = planDraw([1, 2, 3, 4], { own, fixed: [{ giver: 1, receiver: 3 }] }, seeded(2), { ring: false });
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.problems, [{ type: 'no_receivers', id: 2 }]);
+});
+
+test('planDraw: закреплённая пара с тем, кто не в жеребьёвке, не учитывается', () => {
+  const r = planDraw([1, 2, 3, 4], { fixed: [{ giver: 1, receiver: 99 }, { giver: 98, receiver: 2 }] }, seeded(4), { ring: true });
+  assert.ok(r.ok);
+  assertValid([1, 2, 3, 4], r.pairs, () => true);
+});
+
+test('planDraw: 50 человек и 10 закреплённых пар, кольцевая — находит быстро (< 10 мс)', () => {
+  let worst = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const ids = Array.from({ length: 50 }, (_, i) => i + 1);
+    const fixed = Array.from({ length: 10 }, (_, i) => ({ giver: 2 * i + 1, receiver: 2 * i + 2 }));
+    const families = [[3, 4], [5, 6], [7, 8]].flatMap(([a, b]) => [{ giver: a, receiver: b }, { giver: b, receiver: a }]);
+    const t0 = performance.now();
+    const r = planDraw(ids, { fixed, families }, seeded(seed), { ring: true });
+    worst = Math.max(worst, performance.now() - t0);
+    assert.ok(r.ok);
+    for (const f of fixed) assert.equal(r.pairs.get(f.giver), f.receiver);
+    assert.equal(hasMutual(r.pairs), false);
+  }
+  assert.ok(worst < 10, `заняло ${worst.toFixed(1)} мс`);
+});
+
+test('замены после жеребьёвки не ломают закреплённые пары (100 прогонов)', () => {
+  const ids = [1, 2, 3, 4, 5, 6, 7];
+  const fixed = [{ giver: 1, receiver: 2 }, { giver: 2, receiver: 3 }];
+  const rules = pairRules([], fixed);
+  for (let seed = 1; seed <= 100; seed++) {
+    const ring = seed % 2 === 0;
+    const { pairs } = planDraw(ids, { fixed }, seeded(seed), { ring });
+    const x = 4 + (seed % 4); // удаляем не закреплённого
+    const rem = removeFromAssignment(pairs, x, rules, seeded(seed + 1000), { ring });
+    assert.ok(rem, `seed ${seed}: удаление ${x}`);
+    assert.equal(rem.pairs.get(1), 2);
+    assert.equal(rem.pairs.get(2), 3);
+    const ins = insertIntoAssignment(rem.pairs, 8, rules, seeded(seed + 2000), { ring });
+    assert.ok(ins, `seed ${seed}: вписывание`);
+    assert.equal(ins.pairs.get(1), 2);
+    assert.equal(ins.pairs.get(2), 3);
+    if (ring) assert.equal(hasMutual(ins.pairs), false);
+  }
 });

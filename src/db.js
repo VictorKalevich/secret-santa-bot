@@ -1,8 +1,9 @@
-// Работа с базой D1 (SQLite). Схема 10: эвенты с историей (005) + поля 006–008, 010, обращения 012 (см. migrations/).
+// Работа с базой D1 (SQLite). Схема 11: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014
+// (см. migrations/).
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
-export const REQUIRED_SCHEMA = 10;
+export const REQUIRED_SCHEMA = 11;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -234,6 +235,29 @@ export async function getExclusions(db, eventId) {
   const { results } = await db.prepare('SELECT giver, receiver FROM exclusions WHERE event_id = ?').bind(eventId).all();
   return results;
 }
+
+// Закреплённые пары владельца (014): «giver обязательно дарит receiver». Наружу — только владельцу.
+export async function getFixedPairs(db, eventId) {
+  const { results } = await db.prepare('SELECT giver, receiver FROM fixed_pairs WHERE event_id = ?').bind(eventId).all();
+  return results;
+}
+
+// Снимок закреплённых пар (014, research R6): в отличие от сумм различает перестановку партнёров ({А→Б, В→Г} и
+// {А→Г, В→Б}). Числа меньше 2^53 — одинаково точны в JS и в целых SQLite. Параметр SQL — id эвента.
+const FIXED_MOD = 1000003;
+export function fixedSnapshot(rows) {
+  let g = 0;
+  let r = 0;
+  let mixed = 0;
+  for (const p of rows) {
+    g += p.giver;
+    r += p.receiver;
+    mixed += (p.giver % FIXED_MOD) * (p.receiver % FIXED_MOD);
+  }
+  return `${rows.length}:${g}:${r}:${mixed}`;
+}
+export const FIXED_SNAPSHOT_SQL = `(SELECT COUNT(*) || ':' || COALESCE(SUM(giver), 0) || ':' || COALESCE(SUM(receiver), 0) || ':' ||
+     COALESCE(SUM((giver % ${FIXED_MOD}) * (receiver % ${FIXED_MOD})), 0) FROM fixed_pairs WHERE event_id = ?)`;
 
 // ---------- outbox (очередь сообщений) ----------
 
