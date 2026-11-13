@@ -40,7 +40,7 @@ export async function sendChatMessage(env, ev, fromId, to, rawText, { expectOthe
   if (text.length > MAX_CHARS) {
     return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).` };
   }
-  if (!chatWritable(ev)) return { ok: false, error: 'Эвент завершён больше недели назад: переписка доступна только для чтения.' };
+  if (!chatWritable(ev)) return { ok: false, error: 'Событие завершено больше недели назад: переписка доступна только для чтения.' };
   const pair = await chatPair(db, ev.id, fromId, to);
   if (!pair) return { ok: false, error: to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.' };
   if (expectOther && pair.other !== expectOther) return { ok: false, error: PAIR_CHANGED, pairChanged: true };

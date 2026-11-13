@@ -102,11 +102,11 @@ export async function handleApi(request, env, action) {
 
   // ---------- участник эвента ----------
   const ev = await getEvent(db, body.event);
-  if (!ev) return fail('Эвент не найден.', 404);
+  if (!ev) return fail('Событие не найдено.', 404);
   const member = await getMember(db, ev.id, me.tg_id);
 
   if (action === 'event.get') {
-    if (!member && !me.is_admin) return fail('Ты не участвуешь в этом эвенте.', 403);
+    if (!member && !me.is_admin) return fail('Ты не участвуешь в этом событии.', 403);
     const participants = (await eventMembers(db, ev.id)).filter((m) => m.registered).length;
     const out = {
       ok: true,
@@ -133,11 +133,11 @@ export async function handleApi(request, env, action) {
     return json(out);
   }
 
-  if (!member) return fail('Ты не участвуешь в этом эвенте.', 403);
+  if (!member) return fail('Ты не участвуешь в этом событии.', 403);
 
   switch (action) {
     case 'wishlist.save': {
-      if (isFinished(ev)) return fail('Эвент завершён: письмо теперь только для чтения.');
+      if (isFinished(ev)) return fail('Событие завершено: письмо теперь только для чтения.');
       const text = String(body.text ?? '').replace(/\r\n/g, '\n');
       if (text.length > MAX_CHARS) {
         return fail(`Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).`);
@@ -151,8 +151,8 @@ export async function handleApi(request, env, action) {
 
     case 'delivery.save': {
       // Адрес доставки (008): виден только самому участнику и его Санте
-      if (!ev.delivery_on) return fail('В этом эвенте адрес доставки не нужен.');
-      if (isFinished(ev)) return fail('Эвент завершён: адрес теперь только для чтения.');
+      if (!ev.delivery_on) return fail('В этом событии адрес доставки не нужен.');
+      if (isFinished(ev)) return fail('Событие завершено: адрес теперь только для чтения.');
       const text = cleanText(body.text);
       if (text.length > DELIVERY_MAX) return fail(`Слишком длинно: ${text.length} символов, максимум ${DELIVERY_MAX}.`);
       if (text === member.delivery) return json({ ok: true, updated_at: member.delivery_updated_at });
@@ -188,7 +188,7 @@ export async function handleApi(request, env, action) {
     }
 
     case 'ward.gift': {
-      if (isFinished(ev)) return fail('Эвент завершён: отметка только для чтения.');
+      if (isFinished(ev)) return fail('Событие завершено: отметка только для чтения.');
       const r = await db.prepare('UPDATE pairs SET gift_ready = ? WHERE event_id = ? AND santa = ?').bind(body.ready ? 1 : 0, ev.id, me.tg_id).run();
       if (!r.meta.changes) return fail('У тебя пока нет подопечного.');
       return json({ ok: true });
@@ -196,7 +196,7 @@ export async function handleApi(request, env, action) {
 
     case 'ward.received': {
       // Подопечный отмечает «подарок получен» (007, FR-704). Санта узнаёт об этом только при первой отметке.
-      if (isFinished(ev)) return fail('Эвент завершён: отметка только для чтения.');
+      if (isFinished(ev)) return fail('Событие завершено: отметка только для чтения.');
       const pair = await pairOfWard(db, ev.id, me.tg_id);
       if (!pair) return fail('У тебя пока нет Санты.');
       const on = body.received ? 1 : 0;
@@ -210,7 +210,7 @@ export async function handleApi(request, env, action) {
       if (on && !pair.gift_received_at) {
         // Только если отметку поставил именно этот запрос (защита от двойного нажатия)
         stmts.push(enqueueIfStmt(db, pair.santa, msg(
-          `🎉 Твой подопечный в эвенте ${q(ev)} получил подарок! Спасибо, Санта 🎅`,
+          `🎉 Твой подопечный в событии ${q(ev)} получил подарок! Спасибо, Санта 🎅`,
           { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
         ), 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = ?)', ev.id, me.tg_id, now));
       }
@@ -377,8 +377,8 @@ async function handleAdmin(action, body, env, me, settings) {
 
   // ---------- в пределах эвента ----------
   const ev = await getEvent(db, body.event);
-  if (!ev) return fail('Эвент не найден.', 404);
-  if (isFinished(ev) && !FINISHED_OK.has(action)) return fail('Эвент завершён — менять его уже нельзя (доступны просмотр, раскрытие и удаление).');
+  if (!ev) return fail('Событие не найдено.', 404);
+  if (isFinished(ev) && !FINISHED_OK.has(action)) return fail('Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).');
 
   switch (action) {
     case 'admin.state': {
@@ -460,7 +460,7 @@ async function handleAdmin(action, body, env, me, settings) {
       const clean = (v, n) => String(v ?? '').slice(0, n);
       const date = (v) => (ISO_DATE.test(v || '') ? v : '');
       const title = oneLine(body.title ?? ev.title);
-      if (!title || title.length > 80) return fail('Название эвента — от 1 до 80 символов.');
+      if (!title || title.length > 80) return fail('Название события — от 1 до 80 символов.');
       // Меняются только переданные поля (008): отдельные переключатели не стирают остальные параметры
       const fields = { title };
       const limits = { budget: 100, place: 200, notes: 2000 };
@@ -484,7 +484,7 @@ async function handleAdmin(action, body, env, me, settings) {
       }
       if ('reveal_auto' in body) fields.reveal_auto = body.reveal_auto ? 1 : 0;
       if ('finish_auto' in body) fields.finish_auto = body.finish_auto ? 1 : 0;
-      await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, me.tg_id, 'event.settings', 'параметры эвента')]);
+      await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, me.tg_id, 'event.settings', 'параметры')]);
       return {};
     }
 
@@ -533,10 +533,10 @@ async function handleAdmin(action, body, env, me, settings) {
     case 'admin.remove': {
       const id = Number(body.id);
       if (id === me.tg_id) return fail('Нельзя удалить самого себя — выключи «Я участвую».');
-      if (id === ownerId) return fail('Владельца нельзя удалить из эвента. Сначала он должен передать права владельца.');
+      if (id === ownerId) return fail('Владельца нельзя удалить из события. Сначала он должен передать права владельца.');
       const target = await getUser(db, id);
       if (target?.is_admin && !isOwner) return fail('Удалить администратора может только владелец бота.', 403);
-      if (!(await getMember(db, ev.id, id))) return fail('Человек не участвует в этом эвенте.');
+      if (!(await getMember(db, ev.id, id))) return fail('Человек не участвует в этом событии.');
       // Отметка «удалён организатором» (010): при запрете возврата человек не войдёт по ссылке снова
       const r = await removeMember(env, ev, id, { actor: me.tg_id, mark: true });
       return r.ok ? {} : fail(r.error);
@@ -570,7 +570,7 @@ async function handleAdmin(action, body, env, me, settings) {
       if (add) {
         if (!giver || !receiver || giver === receiver) return fail('Выбери двух разных людей');
         const [g, r] = await Promise.all([getMember(db, ev.id, giver), getMember(db, ev.id, receiver)]);
-        if (!g || !r) return fail('Исключение можно задать только между участниками эвента.');
+        if (!g || !r) return fail('Исключение можно задать только между участниками события.');
       }
       const beforeDraw = isOwner ? '? > 0' : 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
       const change = (a, b) => add
@@ -668,14 +668,14 @@ async function handleAdmin(action, body, env, me, settings) {
 
     case 'admin.event.invite_from': {
       const fromEv = await getEvent(db, body.from);
-      if (!fromEv || fromEv.id === ev.id) return fail('Выбери другой эвент.');
-      if (isFinished(ev)) return fail('Эвент завершён — приглашать в него нельзя.');
+      if (!fromEv || fromEv.id === ev.id) return fail('Выбери другое событие.');
+      if (isFinished(ev)) return fail('Событие завершено — приглашать в него нельзя.');
       const r = await inviteFromEvent(env, ev, fromEv, me.tg_id);
       return r.ok ? { count: r.count } : fail(r.error);
     }
 
     case 'admin.event.delete': {
-      if (!isOwner) return ownerOnly('Удалить эвент');
+      if (!isOwner) return ownerOnly('Удалить событие');
       if (String(body.confirm || '').trim().toUpperCase() !== 'УДАЛИТЬ') return fail('Для удаления введи слово УДАЛИТЬ.');
       const r = await deleteEvent(env, ev, me.tg_id);
       return r.ok ? { notified: r.count } : fail(r.error);

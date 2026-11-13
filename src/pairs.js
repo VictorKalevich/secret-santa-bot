@@ -42,7 +42,7 @@ function describeProblem(p, byId) {
   const name = (id) => byId[id]?.name || 'кто-то';
   switch (p.type) {
     case 'too_few': return 'Нужно хотя бы 2 участника.';
-    case 'ring_too_few': return 'Для кольцевой жеребьёвки нужно минимум 3 участника — или выключи кольцевую в параметрах эвента.';
+    case 'ring_too_few': return 'Для кольцевой жеребьёвки нужно минимум 3 участника — или выключи кольцевую в параметрах.';
     // Это вывод по ограниченному поиску, а не доказательство (009, FR-924) — отсюда «похоже» и «попробуй ещё раз»
     case 'ring_impossible': return 'Похоже, без взаимных пар с такими исключениями не обойтись. Попробуй ещё раз; если не выйдет — убери часть исключений или выключи кольцевую жеребьёвку.';
     case 'no_receivers': return `${name(p.id)} не может дарить никому — проверь исключения.`;
@@ -124,7 +124,7 @@ export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
   }
   for (const u of check.people) {
     stmts.push(enqueueIfStmt(db, u.user_id, msg(
-      `🎄 <b>Жеребьёвка в эвенте ${q(ev)} проведена!</b>\n\nОткрой приложение и загляни во вкладку «Подопечный», чтобы узнать, кому ты даришь подарок. Никому не рассказывай 🤫`,
+      `🎄 <b>Жеребьёвка в событии ${q(ev)} проведена!</b>\n\nОткрой приложение и загляни во вкладку «Подопечный», чтобы узнать, кому ты даришь подарок. Никому не рассказывай 🤫`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Узнать подопечного', { event: ev.id })]] } }
     ), guard, ev.id, token));
   }
@@ -133,7 +133,7 @@ export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
   if (!claim.meta.changes) {
     const cur = await getEvent(db, ev.id);
     if (cur?.draw_done) return { ok: false, error: 'Жеребьёвка уже проведена.' };
-    if (isFinished(cur || ev)) return { ok: false, error: 'Эвент завершён.' };
+    if (isFinished(cur || ev)) return { ok: false, error: 'Событие завершено.' };
     return { ok: false, error: 'Участники, исключения или семьи изменились во время жеребьёвки — попробуй ещё раз.' };
   }
   return { ok: true, count: check.people.length, singleCycle: check.res.singleCycle };
@@ -202,8 +202,8 @@ async function applyPairsChange(env, ev, oldRows, newMap, changed, members, v) {
     const isNew = !oldMap.has(santa);
     stmts.push(enqueueIfStmt(db, santa, msg(
       isNew
-        ? `🎄 <b>Ты в игре!</b> Жеребьёвка эвента ${q(ev)} для тебя проведена — загляни во вкладку «Подопечный» 🤫`
-        : `🔄 Состав эвента ${q(ev)} изменился, и у тебя теперь <b>новый подопечный</b>. Загляни во вкладку «Подопечный».`,
+        ? `🎄 <b>Ты в игре!</b> Жеребьёвка события ${q(ev)} для тебя проведена — загляни во вкладку «Подопечный» 🤫`
+        : `🔄 Состав события ${q(ev)} изменился, и у тебя теперь <b>новый подопечный</b>. Загляни во вкладку «Подопечный».`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Посмотреть', { event: ev.id })]] } }
     ), v.guard, ...v.args));
   }
@@ -216,7 +216,7 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
   const db = env.DB;
   const members = await eventMembers(db, ev.id);
   const target = members.find((m) => m.user_id === userId);
-  if (!target) return { ok: false, error: 'Человек не участвует в этом эвенте.' };
+  if (!target) return { ok: false, error: 'Человек не участвует в этом событии.' };
   const v = pairsVersion(db, ev);
   const when = `AND ${v.guard}`;
   const stmts = v.claim ? [v.claim] : [];
@@ -238,12 +238,12 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
   const removeAt = stmts.length;
   stmts.push(db.prepare(`DELETE FROM members WHERE event_id = ? AND user_id = ? ${when}`).bind(ev.id, userId, ...v.args));
   if (mark) stmts.push(markRemovedStmt(db, ev.id, userId, actor, v.guard, ...v.args));
-  if (notify) stmts.push(enqueueIfStmt(db, userId, msg(`Организатор удалил тебя из эвента ${q(ev)}. Если это ошибка — напиши ему.`), v.guard, ...v.args));
+  if (notify) stmts.push(enqueueIfStmt(db, userId, msg(`Организатор удалил тебя из события ${q(ev)}. Если это ошибка — напиши ему.`), v.guard, ...v.args));
   stmts.push(auditIfStmt(db, ev.id, actor, 'member.remove', displayName(target), v.guard, ...v.args));
   const res = await db.batch(stmts);
   if (!res[removeAt].meta.changes) {
     const still = await db.prepare('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, userId).first();
-    return { ok: false, error: still ? PAIRS_RACE : 'Человек не участвует в этом эвенте.' };
+    return { ok: false, error: still ? PAIRS_RACE : 'Человек не участвует в этом событии.' };
   }
   return { ok: true };
 }
@@ -312,7 +312,7 @@ export async function drawCancelable(db, ev) {
 // Отмена жеребьёвки атомарно (research R3): если кто-то открыл подопечного между проверкой и batch — ничего не меняется
 export async function cancelDraw(env, ev, actor) {
   const db = env.DB;
-  if (isFinished(ev)) return { ok: false, error: 'Эвент завершён — отменить жеребьёвку нельзя.' };
+  if (isFinished(ev)) return { ok: false, error: 'Событие завершено — отменить жеребьёвку нельзя.' };
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
   if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
   const [settings, rows] = await Promise.all([getSettings(db), getPairs(db, ev.id)]);
@@ -325,7 +325,7 @@ export async function cancelDraw(env, ev, actor) {
     ).bind(token, ev.id, ev.draw_token, ev.id, ev.id),
     db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
     ...rows.map((p) => enqueueIfStmt(db, p.santa, msg(
-      `↩️ Организатор <b>отменил жеребьёвку</b> в эвенте ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
+      `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
     ), guard, ev.id, token)),
     auditIfStmt(db, ev.id, actor, 'draw.cancel', `пар удалено: ${rows.length}`, guard, ev.id, token),
@@ -342,7 +342,7 @@ export async function cancelDraw(env, ev, actor) {
 // удаление или другая отмена не дадут второго результата.
 export async function forceCancelDraw(env, ev, actor) {
   const db = env.DB;
-  if (isFinished(ev)) return { ok: false, error: 'Эвент завершён — отменить жеребьёвку нельзя.' };
+  if (isFinished(ev)) return { ok: false, error: 'Событие завершено — отменить жеребьёвку нельзя.' };
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
   if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
   const [settings, rows] = await Promise.all([getSettings(db), getPairs(db, ev.id)]);
@@ -356,7 +356,7 @@ export async function forceCancelDraw(env, ev, actor) {
     db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
     db.prepare(`DELETE FROM messages WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
     ...rows.map((p) => enqueueIfStmt(db, p.santa, msg(
-      `↩️ Организатор <b>отменил жеребьёвку</b> в эвенте ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
+      `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
       'подопечным удалена. Твоё письмо сохранено. Когда будет новая жеребьёвка, бот напишет.',
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
     ), guard, ev.id, token)),

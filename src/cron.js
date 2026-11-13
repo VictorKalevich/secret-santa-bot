@@ -48,7 +48,7 @@ async function notifyWishlistChanges(env) {
     // Без имени подопечного и без текста — превью видно на экране блокировки.
     // 008: изменение адреса доставки — тем же уведомлением, без текста адреса
     const what = r.delivery_on ? 'обновил письмо или адрес доставки' : 'обновил письмо Санте';
-    stmts.push(enqueueStmt(db, r.santa, msg(`📝 Твой подопечный в эвенте ${q(r)} ${what}.`, {
+    stmts.push(enqueueStmt(db, r.santa, msg(`📝 Твой подопечный в событии ${q(r)} ${what}.`, {
       disable_notification: r.notify_mode === 'silent',
       reply_markup: { inline_keyboard: [[openAppButton(settings, '👀 Посмотреть', { event: r.event_id })]] },
     })));
@@ -123,7 +123,7 @@ async function runAutoAction(env, ev, what) {
   await db.batch([
     updateEventStmt(db, ev.id, { draw_auto_date: '' }),
     ...adminRecipients(users).map((u) => enqueueStmt(db, u.tg_id, msg(
-      `⚠️ <b>Автожеребьёвка ${q(ev)} не прошла:</b>\n${escapeHtml(r.error)}\n\nДата автожеребьёвки снята — проведи жеребьёвку вручную в панели эвента.`
+      `⚠️ <b>Автожеребьёвка ${q(ev)} не прошла:</b>\n${escapeHtml(r.error)}\n\nДата автожеребьёвки снята — проведи жеребьёвку вручную в панели события.`
     ))),
     auditStmt(db, ev.id, 0, 'draw.auto.failed', r.error),
   ]);

@@ -10,7 +10,7 @@
 </head>
 <body class="ds-root">
 <header class="ds-hero">
-  <button class="ds-hero__back" id="heroBack" title="Все эвенты" hidden>‹</button>
+  <button class="ds-hero__back" id="heroBack" title="Все события" hidden>‹</button>
   <div class="ds-hero__badge">🎅</div>
   <div class="ds-grow">
     <h1 class="ds-hero__title" id="heroTitle">Тайный Санта</h1>
@@ -277,7 +277,7 @@
   function showError(e, retry) {
     const again = h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => (retry || render)() }, 'Попробовать снова');
     const home = state.view === 'event' && state.me
-      ? h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => { setDirty(false); goHome(); } }, 'К списку эвентов')
+      ? h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => { setDirty(false); goHome(); } }, 'К списку событий')
       : null;
     main.replaceChildren(ui.empty('⚠️', 'Не получилось загрузить', e.message, [again, home]));
   }
@@ -363,15 +363,15 @@
     const mine = state.events.filter((e) => e.member);
     const others = state.events.filter((e) => !e.member);
     const nodes = [];
-    nodes.push(ui.section('Мои эвенты'));
+    nodes.push(ui.section('Мои события'));
     if (mine.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, mine.map(eventRow)));
     else nodes.push(ui.hint(me.is_admin
-      ? 'Ты пока не участвуешь ни в одном эвенте. Создай эвент или вступи в существующий («Админ» → «Я участвую»).'
-      : 'Ты пока не участвуешь ни в одном эвенте. Попроси у организатора пригласительную ссылку.', 'ds-hint--inset'));
+      ? 'Ты пока не участвуешь ни в одном событии. Создай событие или вступи в существующее («Админ» → «Я участвую»).'
+      : 'Ты пока не участвуешь ни в одном событии. Попроси у организатора пригласительную ссылку.', 'ds-hint--inset'));
 
     if (me.is_admin) {
-      if (others.length) nodes.push(ui.section('Другие эвенты'), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
-      const create = ui.btn('＋ Новый эвент', 'festive', 'ds-btn--block');
+      if (others.length) nodes.push(ui.section('Другие события'), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
+      const create = ui.btn('🎄 Создать', 'festive', 'ds-btn--block');
       create.addEventListener('click', () => {
         const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: 'Например: Новый год 2026 — семья' });
         // Образец (007): параметры и исключения прошлого эвента, по желанию — приглашение его участников
@@ -385,15 +385,15 @@
           if (!title.value.trim()) return toast('Напиши название');
           const r = await api('admin.events.create', { title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked });
           closeSheet();
-          toast(r.invited ? `🎄 Эвент создан, приглашения: ${r.invited}` : r.invite_error ? '🎄 Эвент создан. ' + r.invite_error : '🎄 Эвент создан');
+          toast(r.invited ? `🎄 Событие создано, приглашения: ${r.invited}` : r.invite_error ? '🎄 Событие создано. ' + r.invite_error : '🎄 Событие создано');
           await reloadMe();
           await openEvent(r.event.id, 'admin');
         }));
-        const sheet = [ui.hint('У эвента будут свои участники, пригласительная ссылка, письма и жеребьёвка. Можно вести несколько эвентов одновременно.'), title];
+        const sheet = [ui.hint('У события будут свои участники, пригласительная ссылка, письма и жеребьёвка. Можно вести несколько событий одновременно.'), title];
         if (state.events.length) {
           sheet.push(from, inviteRow, ui.hint('Из образца копируются бюджет, место, заметки, правила жеребьёвки и исключения. Даты — нет.'));
         }
-        openSheet('Новый эвент', [...sheet, ok]);
+        openSheet('Новое событие', [...sheet, ok]);
       });
       nodes.push(h('div', { class: 'ds-card' }, create));
       nodes.push(...renderFamiliesSection());
@@ -409,7 +409,7 @@
     }, label)));
     draw();
     nodes.push(ui.section('Уведомления'),
-      ui.card(ui.hint('Когда подопечный меняет письмо (в любом эвенте), бот сообщит об этом — без имени и подробностей.'), seg));
+      ui.card(ui.hint('Когда подопечный меняет письмо (в любом событии), бот сообщит об этом — без имени и подробностей.'), seg));
     main.replaceChildren(...nodes);
   }
 
@@ -424,10 +424,10 @@
           h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, f.name), ui.hint(f.members.map((m) => m.name).join(', '))),
           h('button', { class: 'ds-icon-btn', title: 'Изменить семью', onclick: () => openFamily(d, f) }, '✏️')));
       }
-      const add = ui.btn('＋ Новая семья', 'secondary', 'ds-btn--block');
+      const add = ui.btn('Новая семья', 'secondary', 'ds-btn--block');
       add.addEventListener('click', () => openFamily(d, null));
       box.replaceChildren(ui.section('Семьи'), list,
-        ui.card(ui.hint('Члены одной семьи не дарят друг другу ни в одном эвенте (если в эвенте включено «Учитывать семьи»). Один человек — одна семья.'), add));
+        ui.card(ui.hint('Члены одной семьи не дарят друг другу ни в одном событии (если в событии включено «Учитывать семьи»). Один человек — одна семья.'), add));
     }).catch((e) => box.replaceChildren(ui.section('Семьи'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
     function openFamily(d, f) {
       const name = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: f ? f.name : '', placeholder: 'Например: Ивановы' });
@@ -495,17 +495,17 @@
           grant.addEventListener('click', async () => {
             const u = candidates.find((x) => String(x.id) === sel.value);
             if (!u) return toast('Выбери человека');
-            if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет создавать и вести эвенты. Кто кому дарит, админы не видят.`))) return;
+            if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет создавать и вести события. Кто кому дарит, админы не видят.`))) return;
             busy(grant, async () => { await api('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await goHome(); });
           });
-          parts.push(ui.card(ui.hint('Админы создают и ведут эвенты. Назначать, снимать админов и передавать права владельца (👑) можешь только ты.'), sel, grant));
+          parts.push(ui.card(ui.hint('Админы создают и ведут события. Назначать, снимать админов и передавать права владельца (👑) можешь только ты.'), sel, grant));
         }
       } else {
         parts.push(ui.hint(`Назначать и снимать администраторов может только владелец${d.owner_name ? ' — ' + d.owner_name : ''}.`, 'ds-hint--inset'));
       }
       const log = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
       log.addEventListener('click', () => openAudit(null));
-      parts.push(ui.card(ui.hint('Роли, перенос участия, удалённые эвенты — кто и когда.'), log));
+      parts.push(ui.card(ui.hint('Роли, перенос участия, удалённые события — кто и когда.'), log));
       box.replaceChildren(...parts);
     }).catch((e) => box.replaceChildren(ui.section('Администраторы'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
     return [box];
@@ -568,7 +568,7 @@
     const chat = state.can.chat_write
       ? `Переписка открыта до ${until.getDate()} ${MONTHS[until.getMonth()]}, потом — только чтение.`
       : 'Переписка — только для чтения.';
-    return h('div', { class: 'ds-notice ds-text-sm' }, `🏁 Эвент завершён ${fmtTime(e.finished_at)}. Письмо и отметки — только для чтения. ${chat}`);
+    return h('div', { class: 'ds-notice ds-text-sm' }, `🏁 Событие завершено ${fmtTime(e.finished_at)}. Письмо и отметки — только для чтения. ${chat}`);
   }
 
   // Кнопка «💬 Написать …» с числом непрочитанных
@@ -625,7 +625,7 @@
         toast(m.has_santa ? '✅ Сохранено. Если у Санты включены уведомления, он узнает об этом через несколько минут' : '✅ Письмо сохранено');
       }).then(update));
       nodes.push(ui.card(
-        ui.hint(`Письмо увидит твой Санта в этом эвенте; организатор может открыть его — это записывается в журнал. Менять можно, пока эвент идёт. До ${max} символов — столько помещается в одно сообщение Telegram.`),
+        ui.hint(`Письмо увидит твой Санта в этом событии; организатор может открыть его — это записывается в журнал. Менять можно, пока событие идёт. До ${max} символов — столько помещается в одно сообщение Telegram.`),
         ta, h('div', { class: 'ds-row ds-row--between' }, counter, status), saveBtn));
       requestAnimationFrame(update);
     }
@@ -651,7 +651,7 @@
           toast('📍 Адрес сохранён');
         }).then(updateAddr));
         requestAnimationFrame(updateAddr);
-        nodes.push(ui.card(ui.hint('Подарки в этом эвенте отправляют. Адрес увидит только твой Санта — организатор его не видит.'), addr, saveAddr));
+        nodes.push(ui.card(ui.hint('Подарки в этом событии отправляют. Адрес увидит только твой Санта — организатор его не видит.'), addr, saveAddr));
       }
     }
     if (m.has_santa) {
@@ -746,7 +746,7 @@
     rows.push(['Кольцевая', g.ring ? 'да — взаимных пар нет' : 'нет — взаимные пары возможны']);
     const nodes = [
       finishedNotice(),
-      ui.section('Об эвенте'),
+      ui.section('О событии'),
       h('div', { class: 'ds-card' }, h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
     ];
     if (g.notes) nodes.push(h('div', { class: 'ds-card ds-letter' }, g.notes));
@@ -767,13 +767,13 @@
         status ? h('div', { class: 'ds-text-sm' }, status) : null,
         btn));
     }
-    if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом эвенте — тебе доступна только информация и панель организатора.', 'ds-hint--inset'));
+    if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом событии — тебе доступна только информация и панель организатора.', 'ds-hint--inset'));
     nodes.push(
       ui.section('Как это работает'),
       h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
         h('li', {}, 'Напиши письмо Санте — его увидит тот, кто будет дарить тебе подарок.'),
         h('li', {}, 'После жеребьёвки во вкладке «Подопечный» появится, кому даришь ты.'),
-        h('li', {}, 'После завершения эвента письмо остаётся для чтения, переписка открыта ещё 7 дней. Эвент сохранится в истории.'))));
+        h('li', {}, 'После завершения события письмо остаётся для чтения, переписка открыта ещё 7 дней. Событие сохранится в истории.'))));
     main.replaceChildren(...nodes.filter(Boolean));
   }
 
@@ -880,12 +880,12 @@
       if (!s.draw_done) {
         const partToggle = h('input', { type: 'checkbox', checked: d.me_member });
         bindToggle(partToggle, async (on) => {
-          if (!on && !(await confirmBox('Выйти из эвента? Твоё письмо в этом эвенте будет удалено.'))) return false;
+          if (!on && !(await confirmBox('Выйти из события? Твоё письмо в этом событии будет удалено.'))) return false;
           await xapi('admin.participate', { on });
-          toast(on ? 'Ты участвуешь' : 'Ты только организатор этого эвента');
+          toast(on ? 'Ты участвуешь' : 'Ты только организатор этого события');
           await refresh();
         });
-        regCard.append(ui.toggleRow('Я участвую', 'Выключи, если ты только организатор этого эвента', partToggle, 'ds-divided'));
+        regCard.append(ui.toggleRow('Я участвую', 'Выключи, если ты только организатор этого события', partToggle, 'ds-divided'));
       }
       nodes.push(ui.section('Приглашение'), regCard);
       if (d.requests.length) {
@@ -893,7 +893,7 @@
         for (const r of d.requests) {
           const decide = (approve) => busy(null, async () => {
             await xapi('admin.request.decide', { id: r.id, approve });
-            toast(approve ? `✅ ${r.name} в эвенте` : 'Заявка отклонена');
+            toast(approve ? `✅ ${r.name} в событии` : 'Заявка отклонена');
             await refresh();
           });
           reqList.append(h('div', { class: 'ds-list-item' },
@@ -929,18 +929,18 @@
           remList);
       }
       if (d.other_events.length) {
-        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Из какого эвента…'), ...d.other_events.map((e) => h('option', { value: e.id }, e.title + (e.status === 'finished' ? ' (завершён)' : ''))));
+        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Из какого события…'), ...d.other_events.map((e) => h('option', { value: e.id }, e.title + (e.status === 'finished' ? ' (завершено)' : ''))));
         const inv = ui.btn('📨 Пригласить участников', 'secondary', 'ds-btn--block');
         inv.addEventListener('click', async () => {
-          if (!sel.value) return toast('Выбери эвент');
-          if (!(await confirmBox('Бот пришлёт участникам выбранного эвента (кого ещё нет здесь) сообщение с кнопкой вступления. Отправить?'))) return;
+          if (!sel.value) return toast('Выбери событие');
+          if (!(await confirmBox('Бот пришлёт участникам выбранного события (кого ещё нет здесь) сообщение с кнопкой вступления. Отправить?'))) return;
           busy(inv, async () => { const r = await xapi('admin.event.invite_from', { from: +sel.value }); toast(r.count ? `Приглашения отправлены: ${r.count}` : 'Все уже здесь 👍'); });
         });
         // Закрытая регистрация — значит никто (010): приглашения не рассылаются
         inv.disabled = !s.registration_open;
         nodes.push(ui.card(ui.hint(s.registration_open
-          ? 'Пригласить участников прошлого эвента — например, ту же компанию на следующий год.'
-          : 'Пригласить участников прошлого эвента можно, когда регистрация открыта.'), sel, inv));
+          ? 'Пригласить участников прошлого события — например, ту же компанию на следующий год.'
+          : 'Пригласить участников прошлого события можно, когда регистрация открыта.'), sel, inv));
       }
       // 012: обращения участников — после всего, что касается приглашения, перед объявлением
       nodes.push(...supportNodes());
@@ -952,7 +952,7 @@
       annUpdate();
       annBtn.addEventListener('click', async () => {
         if (!annText.value.trim()) return toast('Напиши текст объявления');
-        if (!(await confirmBox('Бот отправит это объявление всем участникам эвента. Отправить?'))) return;
+        if (!(await confirmBox('Бот отправит это объявление всем участникам события. Отправить?'))) return;
         const text = annText.value;
         busy(annBtn, async () => {
           const r = await xapi('admin.announce', { text });
@@ -992,7 +992,7 @@
           const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
           const ok = ui.btn('Сохранить', '', 'ds-btn--block');
           ok.addEventListener('click', () => busy(ok, async () => { await api('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
-          openSheet('Имя участника', [ui.hint('Имя одно на все эвенты.'), inp, ok]);
+          openSheet('Имя участника', [ui.hint('Имя одно на все события.'), inp, ok]);
         });
         if (canRename) items.push(r);
       }
@@ -1002,10 +1002,10 @@
         items.push(b);
       }
       if (canRemove(u)) {
-        const b = ui.btn('🗑 Удалить из эвента', 'danger', 'ds-btn--block');
+        const b = ui.btn('🗑 Удалить из события', 'danger', 'ds-btn--block');
         b.addEventListener('click', async () => {
           const extra = s.draw_done && u.in_draw ? ' Жеребьёвка будет аккуратно поправлена: у одного-трёх участников сменится подопечный, бот их предупредит.' : '';
-          if (!(await confirmBox(`Удалить «${u.name || 'без имени'}» из эвента «${s.title}»?${extra}`))) return;
+          if (!(await confirmBox(`Удалить «${u.name || 'без имени'}» из события «${s.title}»?${extra}`))) return;
           busy(b, async () => { await xapi('admin.remove', { id: u.id }); closeSheet(); toast('Участник удалён'); await again(); });
         });
         items.push(b);
@@ -1027,12 +1027,12 @@
       go.addEventListener('click', async () => {
         const t = targets.find((x) => String(x.id) === sel.value);
         if (!t) return toast('Выбери новый аккаунт');
-        if (!(await confirmBox(`Перенести участие «${u.name}» на «${t.name}»? Письма, подопечные, Санты и переписка во всех эвентах перейдут на новый аккаунт, старая запись будет удалена.`))) return;
+        if (!(await confirmBox(`Перенести участие «${u.name}» на «${t.name}»? Письма, подопечные, Санты и переписка во всех событиях перейдут на новый аккаунт, старая запись будет удалена.`))) return;
         busy(go, async () => { await api('admin.transfer', { from: u.id, to: t.id }); closeSheet(); toast('🔁 Участие перенесено'); await refresh(); });
       });
       openSheet('Перенести на новый аккаунт', [
-        ui.hint(`Если «${u.name || 'участник'}» потерял доступ к Telegram и вступил в эвент заново с нового аккаунта, выбери его новую запись. ` +
-          'Новый аккаунт получит место старого во всех эвентах: письма, подопечных и Сант, переписку, исключения. Пары остальных не изменятся.'),
+        ui.hint(`Если «${u.name || 'участник'}» потерял доступ к Telegram и вступил в событие заново с нового аккаунта, выбери его новую запись. ` +
+          'Новый аккаунт получит место старого во всех событиях: письма, подопечных и Сант, переписку, исключения. Пары остальных не изменятся.'),
         sel, go]);
     }
 
@@ -1120,7 +1120,7 @@
       const selA = h('select', { class: 'ds-input' }, opts('Кто дарит…'));
       const selB = h('select', { class: 'ds-input' }, opts('…кому НЕ может дарить'));
       const mutual = h('input', { type: 'checkbox', checked: true });
-      const addEx = ui.btn('＋ Добавить исключение', 'secondary', 'ds-btn--block');
+      const addEx = ui.btn('Добавить исключение', 'secondary', 'ds-btn--block');
       addEx.addEventListener('click', () => busy(addEx, async () => {
         if (!selA.value || !selB.value) return toast('Выбери двух людей');
         if (selA.value === selB.value) return toast('Нужны два разных человека');
@@ -1170,7 +1170,7 @@
       if (d.other_events.length) {
         const av = h('input', { type: 'checkbox', checked: s.avoid_previous });
         bindToggle(av, async (on) => { await xapi('admin.avoid_previous', { on }); });
-        drawCard.append(h('label', { class: 'ds-check' }, av, 'Не повторять пары прошлого эвента с этими людьми (если получится)'));
+        drawCard.append(h('label', { class: 'ds-check' }, av, 'Не повторять пары прошлого события с этими людьми (если получится)'));
       }
       const drawBtn = ui.btn('🎲 Провести жеребьёвку', 'festive', 'ds-btn--block');
       const result = h('div');
@@ -1229,12 +1229,12 @@
       drawCard.append(reveal);
     }
     if (!done) {
-      const fin = ui.btn('🏁 Завершить эвент', 'danger', 'ds-btn--block');
+      const fin = ui.btn('🏁 Завершить', 'danger', 'ds-btn--block');
       fin.addEventListener('click', async () => {
-        if (!(await confirmBox('Завершить эвент? Письма и отметки станут только для чтения, регистрация закроется, переписка останется открытой ещё 7 дней. Вернуть эвент в «идёт» нельзя.'))) return;
-        busy(fin, async () => { await xapi('admin.event.finish'); toast('🏁 Эвент завершён'); await refresh(); });
+        if (!(await confirmBox('Завершить событие? Письма и отметки станут только для чтения, регистрация закроется, переписка останется открытой ещё 7 дней. Вернуть событие в «идёт» нельзя.'))) return;
+        busy(fin, async () => { await xapi('admin.event.finish'); toast('🏁 Событие завершено'); await refresh(); });
       });
-      drawCard.append(ui.hint('Когда подарки вручены — заверши эвент: он останется в истории у всех участников.'), fin);
+      drawCard.append(ui.hint('Когда подарки вручены — заверши событие: оно останется в истории у всех участников.'), fin);
     }
     nodes.push(ui.section('Жеребьёвка'), drawCard);
 
@@ -1286,7 +1286,7 @@
       }));
       const field = (label, el) => h('label', { class: 'ds-field' }, h('span', { class: 'ds-field__label' }, label), el);
       nodes.push(
-        ui.section('Параметры эвента'),
+        ui.section('Параметры'),
         ui.card(
           field('Название', f.title),
           field('Бюджет подарка', f.budget),
@@ -1298,7 +1298,7 @@
           ui.hint('Бот сам напомнит: за 2 дня, за день и в день срока письма — тем, у кого его нет; за 2 дня и в день вручения — Сантам без отметки «подарок готов».'),
           f.draw_auto_date ? field('Автожеребьёвка', f.draw_auto_date) : null,
           h('label', { class: 'ds-check' }, checks.reveal_auto, 'Раскрыть Сант на следующий день после вручения'),
-          h('label', { class: 'ds-check' }, checks.finish_auto, 'Завершить эвент через 3 дня после вручения'),
+          h('label', { class: 'ds-check' }, checks.finish_auto, 'Завершить через 3 дня после вручения'),
           noDate,
           ui.hint('Автодействия бот выполняет в час ежедневных напоминаний. Если автожеребьёвка не получится, бот напишет админам.'),
           saveGame));
@@ -1307,7 +1307,7 @@
     // --- журнал (007): по эвенту, доступен и для завершённого
     const logBtn = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
     logBtn.addEventListener('click', () => openAudit(state.evId));
-    nodes.push(ui.section('Журнал'), ui.card(ui.hint('Кто из админов что делал в этом эвенте и что бот сделал сам. Пар и писем в журнале нет.'), logBtn));
+    nodes.push(ui.section('Журнал'), ui.card(ui.hint('Кто из админов что делал в этом событии и что бот сделал сам. Пар и писем в журнале нет.'), logBtn));
 
     // --- служебный просмотр (010): только владелец, вход словом, каждое открытие — в журнал
     if (me.is_owner) {
@@ -1316,7 +1316,7 @@
       nodes.push(
         ui.section('Служебный просмотр'),
         ui.card(ui.hint('Только для владельца бота: кто кому дарит, письма, адреса и переписка — если что-то пошло не так. ' +
-          'Каждое открытие записывается в журнал эвента, его видят все админы.'), vaultBtn));
+          'Каждое открытие записывается в журнал события, его видят все админы.'), vaultBtn));
     }
 
     // --- опасная зона (004/005): только владелец
@@ -1336,33 +1336,33 @@
           keep ? ui.hint(keep) : null,
           inp, go]);
       };
-      const resetBtn = ui.btn('🧨 Полный сброс эвента', 'danger', 'ds-btn--block');
-      resetBtn.addEventListener('click', typed('Полный сброс эвента', [
-        'все участники этого эвента, кроме тебя;',
+      const resetBtn = ui.btn('🧨 Полный сброс', 'danger', 'ds-btn--block');
+      resetBtn.addEventListener('click', typed('Полный сброс', [
+        'все участники этого события, кроме тебя;',
         'письма, пары, исключения, отметки «подарок готов», переписка;',
-        'параметры эвента; пригласительная ссылка станет новой.',
-      ], 'СБРОС', '🧨 Сбросить эвент', 'admin.reset.full', async (r) => { toast(`Эвент сброшен. Удалено: ${r.removed}`); await refresh(); }));
-      const delBtn = ui.btn('🗑 Удалить эвент', 'danger', 'ds-btn--block');
-      delBtn.addEventListener('click', typed('Удалить эвент', [
-        `эвент «${s.title}» целиком — он пропадёт из истории у всех;`,
-        'письма, пары, исключения и переписка этого эвента.',
-      ], 'УДАЛИТЬ', '🗑 Удалить навсегда', 'admin.event.delete', async () => { toast('Эвент удалён'); await goHome(); }));
+        'параметры; пригласительная ссылка станет новой.',
+      ], 'СБРОС', '🧨 Сбросить', 'admin.reset.full', async (r) => { toast(`Событие сброшено. Удалено: ${r.removed}`); await refresh(); }));
+      const delBtn = ui.btn('🗑 Удалить событие', 'danger', 'ds-btn--block');
+      delBtn.addEventListener('click', typed('Удалить событие', [
+        `событие «${s.title}» целиком — оно пропадёт из истории у всех;`,
+        'письма, пары, исключения и переписка этого события.',
+      ], 'УДАЛИТЬ', '🗑 Удалить навсегда', 'admin.event.delete', async () => { toast('Событие удалено'); await goHome(); }));
       // 012: принудительная отмена — в любой момент до раскрытия, даже если подопечных уже открыли
       let forceBtn = null;
       if (s.draw_done && !s.revealed) {
         forceBtn = ui.btn('↩️ Отменить жеребьёвку', 'danger', 'ds-btn--block');
         forceBtn.addEventListener('click', typed('Отменить жеребьёвку', [
-          'кто кому дарит — все пары этого эвента;',
+          'кто кому дарит — все пары этого события;',
           'отметки «подарок готов» и «получил»;',
-          'вся переписка Сант и подопечных в этом эвенте.',
+          'вся переписка Сант и подопечных в этом событии.',
         ], 'ОТМЕНА', '↩️ Отменить жеребьёвку', 'admin.draw.cancel.force', async (r) => { toast(`↩️ Жеребьёвка отменена. Пар удалено: ${r.count}`); await refresh(); },
         'Останутся письма, адреса, участники, исключения и семьи. Регистрация снова откроется, участники получат уведомление.'));
       }
       nodes.push(
         ui.section('Опасная зона'),
         finished()
-          ? ui.card(ui.hint('Завершённый эвент нельзя сбросить — только удалить целиком. Другие эвенты это не затронет.'), delBtn)
-          : ui.card(ui.hint('Другие эвенты это не затронет. Для тестового прогона удобно потом удалить эвент целиком.' +
+          ? ui.card(ui.hint('Завершённое событие нельзя сбросить — только удалить целиком. Другие события это не затронет.'), delBtn)
+          : ui.card(ui.hint('Другие события это не затронет. Для тестового прогона удобно потом удалить событие целиком.' +
             (forceBtn ? ' Отменить жеребьёвку здесь можно, даже если подопечных уже открыли, — пока тайна не раскрыта.' : '')), forceBtn, resetBtn, delBtn));
     }
 
@@ -1379,10 +1379,10 @@
     inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== word; });
     go.addEventListener('click', () => openVault(evId, s, users, meMember));
     openSheet('🔐 Служебный просмотр', [
-      meMember ? h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Ты участник этого эвента. '),
+      meMember ? h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Ты участник этого события. '),
         'В полной таблице пар ты увидишь своего Санту. Лучше смотри по одному участнику и не открывай себя.') : null,
       h('div', { class: 'ds-notice' }, 'Здесь видно, кто кому дарит, письма, адреса и переписку. Каждое открытие участника или всех пар ' +
-        'записывается в журнал эвента — его видят все админы. Статусы участников просмотр не меняет.'),
+        'записывается в журнал события — его видят все админы. Статусы участников просмотр не меняет.'),
       inp, go].filter(Boolean));
   }
 
@@ -1402,7 +1402,7 @@
     const pairsBox = h('div', { class: 'ds-stack' });
     pairsBtn.addEventListener('click', async () => {
       const warn = meMember ? ' Ты участник — увидишь и своего Санту.' : '';
-      if (!(await confirmBox(`Показать все пары эвента «${s.title}»?${warn} Открытие запишется в журнал.`))) return;
+      if (!(await confirmBox(`Показать все пары события «${s.title}»?${warn} Открытие запишется в журнал.`))) return;
       busy(pairsBtn, async () => {
         const r = await vapi('admin.vault.pairs');
         const list = h('div', { class: 'ds-card ds-card--flush' });
@@ -1450,13 +1450,13 @@
 
   // ---------- журнал действий (007) ----------
   const AUDIT_LABELS = {
-    'event.create': '🎄 Создан эвент', 'event.settings': '⚙️ Параметры', registration: '🔓 Регистрация', 'invite.regen': '🔄 Новая ссылка',
+    'event.create': '🎄 Создано событие', 'event.settings': '⚙️ Параметры', registration: '🔓 Регистрация', 'invite.regen': '🔄 Новая ссылка',
     participate: '🙋 Участие организатора', 'member.remove': '🗑 Удалён участник', 'member.insert': '➕ Вписан в жеребьёвку',
     'exclusion.add': '🚧 Исключение добавлено', 'exclusion.del': '✕ Исключение удалено', draw: '🎲 Жеребьёвка',
     'draw.auto': '🎲 Автожеребьёвка', 'draw.auto.failed': '⚠️ Автожеребьёвка не прошла', 'draw.cancel': '↩️ Жеребьёвка отменена',
-    reveal: '🎅 Тайна раскрыта', finish: '🏁 Эвент завершён', reset: '🧨 Полный сброс', 'event.delete': '🗑 Эвент удалён',
+    reveal: '🎅 Тайна раскрыта', finish: '🏁 Событие завершено', reset: '🧨 Полный сброс', 'event.delete': '🗑 Событие удалено',
     'wishlist.view': '👁 Открыто письмо', announce: '📣 Объявление', 'remind.unfilled': '⏰ Напоминание о письмах',
-    'remind.santas': '🎁 Напоминание Сантам', 'invite.from': '📨 Приглашение из эвента', transfer: '🔁 Перенос участия',
+    'remind.santas': '🎁 Напоминание Сантам', 'invite.from': '📨 Приглашение из события', transfer: '🔁 Перенос участия',
     'role.grant': '🛠 Назначен админ', 'role.revoke': '🛠 Снят админ', 'owner.transfer': '👑 Передано владение', 'owner.link': '👑 Владелец по ссылке /setup',
     'family.save': '👪 Семья сохранена', 'family.delete': '👪 Семья удалена', 'request.approve': '✅ Заявка принята', 'request.reject': '❌ Заявка отклонена',
     'member.allow': '↩️ Разрешено вернуться', 'vault.person': '🔐 Служебный просмотр участника', 'vault.pairs': '🔐 Служебный просмотр: все пары',
@@ -1465,7 +1465,7 @@
   };
   function openAudit(eventId) {
     const box = h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…');
-    openSheet(eventId ? 'Журнал эвента' : 'Общий журнал', [box]);
+    openSheet(eventId ? 'Журнал события' : 'Общий журнал', [box]);
     api('admin.audit', eventId ? { event: eventId } : {}).then((d) => {
       const list = h('div', { class: 'ds-card ds-card--flush' });
       if (!d.entries.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Записей пока нет.'));
@@ -1518,7 +1518,7 @@
     const send = ui.btn('Отправить', '', 'ds-composer__send');
     const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
     const composer = h('div', { class: 'ds-composer' }, ta, send);
-    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Эвент завершён больше недели назад — переписка только для чтения.');
+    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — переписка только для чтения.');
     const evId = state.evId;
     // lastId — только из ответа chat.get (009): своё отправленное сообщение его не двигает, иначе ответ собеседника,
     // пришедший в те же секунды (с меньшим id), не загрузился бы никогда
@@ -1632,7 +1632,7 @@
     const c = composerParts('Сообщение организатору…');
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
     const status = ui.hint('');
-    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Эвент завершён больше недели назад — обращения только для чтения.');
+    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — обращения только для чтения.');
     const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block');
     resolve.hidden = true;
     let timer = null;
@@ -1646,7 +1646,7 @@
       resolve.hidden = !open || !d.writable;
       status.textContent = open
         ? (open.assignee_name ? `Обращение ведёт ${open.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.')
-        : 'Сообщение получат организаторы эвента; ответит тот, кто возьмёт обращение. Не пиши, кто твой подопечный.';
+        : 'Сообщение получат организаторы события; ответит тот, кто возьмёт обращение. Не пиши, кто твой подопечный.';
       if (key === sig) return;
       sig = key;
       const nodes = [];
@@ -1784,7 +1784,7 @@
       const d = await reloadMe();
       if (!d.registered) {
         heroSub.textContent = '';
-        main.replaceChildren(ui.empty('🔒', 'Сначала регистрация', 'Перейди по пригласительной ссылке эвента от организатора и напиши боту своё имя. После этого возвращайся сюда.'));
+        main.replaceChildren(ui.empty('🔒', 'Сначала регистрация', 'Перейди по пригласительной ссылке события от организатора и напиши боту своё имя. После этого возвращайся сюда.'));
         return;
       }
       // ?event=…&chat=…|support=… — из кнопок бота; иначе единственный эвент открывается сразу

@@ -93,7 +93,7 @@ export async function grantAdmin(env, id, actor = 0) {
   await db.batch([
     db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ?').bind(id),
     enqueueStmt(db, id, msg(
-      '🛠 <b>Владелец назначил тебя администратором.</b>\n\nТеперь ты можешь создавать эвенты и вести их: приглашения, исключения, жеребьёвка, напоминания. Кто кому дарит, админы не видят.',
+      '🛠 <b>Владелец назначил тебя администратором.</b>\n\nТеперь ты можешь создавать события и вести их: приглашения, исключения, жеребьёвка, напоминания. Кто кому дарит, админы не видят.',
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🛠 Открыть')]] } }
     )),
     ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`),
@@ -115,7 +115,7 @@ export async function revokeAdmin(env, id, actor = 0) {
   await db.batch([
     db.prepare('UPDATE users SET is_admin = 0 WHERE tg_id = ?').bind(id),
     ...returned,
-    enqueueStmt(db, id, msg('Владелец снял с тебя права администратора. Как участник эвентов ты продолжаешь играть как обычно.')),
+    enqueueStmt(db, id, msg('Владелец снял с тебя права администратора. Как участник событий ты продолжаешь играть как обычно.')),
     ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> больше не администратор.`),
     auditStmt(db, 0, actor || ownerId, 'role.revoke', displayName(u)),
   ]);
@@ -149,7 +149,7 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
   for (const m of fromMembers) {
     if (toByEvent.has(m.event_id) && toInDraw.has(m.event_id)) {
       const ev = await getEvent(db, m.event_id);
-      return { ok: false, error: `Новый аккаунт уже участвует в жеребьёвке эвента «${ev?.title || ''}» — выбери другую запись.` };
+      return { ok: false, error: `Новый аккаунт уже участвует в жеребьёвке события «${ev?.title || ''}» — выбери другую запись.` };
     }
   }
   const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
@@ -199,7 +199,7 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
     db.prepare('UPDATE users SET is_admin = ? WHERE tg_id = ?').bind(from.is_admin || to.is_admin ? 1 : 0, toId),
     db.prepare('DELETE FROM users WHERE tg_id = ?').bind(fromId),
     enqueueStmt(db, toId, msg(
-      '🔁 Организатор перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история эвентов сохранены.',
+      '🔁 Организатор перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история событий сохранены.',
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть')]] } }
     )),
     // Перенос не должен быть незаметным (006, FR-602): прежний аккаунт и остальные админы узнают о нём

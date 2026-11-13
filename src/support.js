@@ -8,7 +8,7 @@ import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppBu
 import { chatWritable } from './events.js';
 import { MAX_CHARS } from './chat.js';
 
-const READ_ONLY = 'Эвент завершён больше недели назад: обращения только для чтения.';
+const READ_ONLY = 'Событие завершено больше недели назад: обращения только для чтения.';
 const NOBODY = 'Сейчас некому написать: в боте нет других организаторов.';
 const CLOSED = 'Обращение уже закрыто.';
 const NOT_FOUND = 'Обращение не найдено.';
@@ -107,8 +107,8 @@ export async function sendFromUser(env, ev, me, rawText, retry = true) {
   const sent = `${THREAD} AND status = 'open' AND assignee = ? AND ${MINE_SENT}))`;
   const g = (assignee) => [thread.id, assignee, thread.id, me.tg_id, now];
   const unassigned = created
-    ? { text: `🆘 ${bold(me)} просит помощи в эвенте ${title(ev)}:${body}`, quiet: false }
-    : { text: `💬 ${bold(me)} дополняет обращение (эвент ${title(ev)}):${body}`, quiet: true };
+    ? { text: `🆘 ${bold(me)} просит помощи в событии ${title(ev)}:${body}`, quiet: false }
+    : { text: `💬 ${bold(me)} дополняет обращение (${title(ev)}):${body}`, quiet: true };
   const stmts = [
     db.prepare(`INSERT INTO support_messages (thread_id, sender, from_admin, text, created_at) SELECT ?, ?, 0, ?, ? WHERE ${THREAD} AND status = 'open') RETURNING id, created_at`)
       .bind(thread.id, me.tg_id, t.text, now, thread.id),
@@ -119,7 +119,7 @@ export async function sendFromUser(env, ev, me, rawText, retry = true) {
     ...admins.map((a) => enqueueIfStmt(db, a.tg_id, msg(unassigned.text, {
       disable_notification: unassigned.quiet, reply_markup: adminKeyboard(settings, ev, thread.id, true),
     }), sent, ...g(0))),
-    ...admins.map((a) => enqueueIfStmt(db, a.tg_id, msg(`💬 ${bold(me)} пишет в обращении (эвент ${title(ev)}):${body}`, {
+    ...admins.map((a) => enqueueIfStmt(db, a.tg_id, msg(`💬 ${bold(me)} пишет в обращении (${title(ev)}):${body}`, {
       reply_markup: adminKeyboard(settings, ev, thread.id, false),
     }), sent, ...g(a.tg_id))),
   ];
@@ -145,7 +145,7 @@ export async function closeByUser(env, ev, me) {
     db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'").bind(now, me.tg_id, thread.id),
     // Ответственному (или всем админам, если обращение ничьё) — без звука
     ...adminRecipients(users, [me.tg_id]).map((a) => enqueueIfStmt(db, a.tg_id, msg(
-      `✅ ${bold(me)} закрыл(а) обращение (эвент ${title(ev)}).`, { disable_notification: true }
+      `✅ ${bold(me)} закрыл(а) обращение (${title(ev)}).`, { disable_notification: true }
     ), done, thread.id, now, me.tg_id, a.tg_id)),
     auditIfStmt(db, ev.id, me.tg_id, 'support.close', displayName(me), `${THREAD} AND closed_at = ? AND closed_by = ?)`, thread.id, now, me.tg_id),
   ]);
@@ -239,13 +239,13 @@ function takeStmts(db, settings, users, ev, t, me, now, { participant = true } =
   const stmts = [
     db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = 0").bind(me.tg_id, now, t.id),
     ...adminRecipients(users, [me.tg_id, t.user_id]).map((a) => enqueueIfStmt(db, a.tg_id, msg(
-      `🙋 ${bold(me)} взял(а) обращение ${bold(author)} (эвент ${title(ev)}).`, { disable_notification: true }
+      `🙋 ${bold(me)} взял(а) обращение ${bold(author)} (${title(ev)}).`, { disable_notification: true }
     ), mine, ...g)),
     auditIfStmt(db, ev.id, me.tg_id, 'support.take', displayName(author), mine, ...g),
   ];
   if (participant) {
     stmts.push(enqueueIfStmt(db, t.user_id, msg(
-      `🙋 Твоё обращение в эвенте ${title(ev)} взял(а) ${bold(me)} — ответ придёт сюда.`
+      `🙋 Твоё обращение в событии ${title(ev)} взял(а) ${bold(me)} — ответ придёт сюда.`
     ), mine, ...g));
   }
   return stmts;
@@ -294,7 +294,7 @@ export async function sendFromAdmin(env, ev, me, id, rawText) {
     // Отвечая, организатор видел сообщения участника — помечаем их прочитанными (как в переписке Сант)
     db.prepare(`UPDATE support_messages SET read_at = ? WHERE thread_id = ? AND from_admin = 0 AND read_at = 0 AND ${MINE_SENT})`)
       .bind(now, t.id, t.id, me.tg_id, now),
-    enqueueIfStmt(db, t.user_id, msg(`💬 Организатор ${bold(me)} отвечает (эвент ${title(ev)}):\n\n${escapeHtml(tx.text)}`, {
+    enqueueIfStmt(db, t.user_id, msg(`💬 Организатор ${bold(me)} отвечает (${title(ev)}):\n\n${escapeHtml(tx.text)}`, {
       reply_markup: userKeyboard(settings, ev),
     }), `${MINE_SENT} AND from_admin = 1)`, t.id, me.tg_id, now),
   );
@@ -322,18 +322,18 @@ export async function pass(env, ev, me, isOwner, id, toId) {
   const g = [t.id, to.tg_id, now];
   const stmts = [
     db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = ?").bind(to.tg_id, now, t.id, t.assignee),
-    enqueueIfStmt(db, t.user_id, msg(`↪️ Твоё обращение в эвенте ${title(ev)} теперь ведёт ${bold(to)}.`), done, ...g),
+    enqueueIfStmt(db, t.user_id, msg(`↪️ Твоё обращение в событии ${title(ev)} теперь ведёт ${bold(to)}.`), done, ...g),
     auditIfStmt(db, ev.id, me.tg_id, 'support.pass', `${displayName(author)} → ${displayName(to)}`, done, ...g),
   ];
   if (to.tg_id !== me.tg_id) {
-    stmts.push(enqueueIfStmt(db, to.tg_id, msg(`↪️ ${bold(me)} передал(а) тебе обращение ${bold(author)} (эвент ${title(ev)}).`, {
+    stmts.push(enqueueIfStmt(db, to.tg_id, msg(`↪️ ${bold(me)} передал(а) тебе обращение ${bold(author)} (${title(ev)}).`, {
       reply_markup: adminKeyboard(settings, ev, t.id, false),
     }), done, ...g));
   }
   // Владелец забрал или передал чужое обращение — прежний ответственный узнаёт об этом
   if (prev && prev.tg_id !== me.tg_id) {
     stmts.push(enqueueIfStmt(db, prev.tg_id, msg(
-      `↪️ ${bold(me)} передал(а) обращение ${bold(author)} (эвент ${title(ev)}) — теперь его ведёт ${bold(to)}.`, { disable_notification: true }
+      `↪️ ${bold(me)} передал(а) обращение ${bold(author)} (${title(ev)}) — теперь его ведёт ${bold(to)}.`, { disable_notification: true }
     ), done, ...g));
   }
   const [claim] = await db.batch(stmts);
@@ -356,13 +356,13 @@ export async function closeByAdmin(env, ev, me, isOwner, id) {
   const stmts = [
     db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'").bind(now, me.tg_id, t.id),
     enqueueIfStmt(db, t.user_id, msg(
-      `✅ Организатор ${bold(me)} закрыл(а) твоё обращение в эвенте ${title(ev)}. Если вопрос остался — просто напиши снова.`
+      `✅ Организатор ${bold(me)} закрыл(а) твоё обращение в событии ${title(ev)}. Если вопрос остался — просто напиши снова.`
     ), done, ...g),
     auditIfStmt(db, ev.id, me.tg_id, 'support.close', displayName(author), done, ...g),
   ];
   if (t.assignee && t.assignee !== me.tg_id) {
     stmts.push(enqueueIfStmt(db, t.assignee, msg(
-      `✅ ${bold(me)} закрыл(а) обращение ${bold(author)} (эвент ${title(ev)}).`, { disable_notification: true }
+      `✅ ${bold(me)} закрыл(а) обращение ${bold(author)} (${title(ev)}).`, { disable_notification: true }
     ), done, ...g));
   }
   const [claim] = await db.batch(stmts);
@@ -440,12 +440,12 @@ export async function returnThreadsStmts(db, settings, users, adminId) {
     const ev = { id: t.event_id, title: t.title };
     const author = users.find((u) => u.tg_id === t.user_id);
     for (const a of adminRecipients(users, [adminId, t.user_id])) {
-      stmts.push(enqueueIfStmt(db, a.tg_id, msg(`🔄 Обращение ${bold(author)} (эвент ${title(ev)}) снова ничьё.`, {
+      stmts.push(enqueueIfStmt(db, a.tg_id, msg(`🔄 Обращение ${bold(author)} (${title(ev)}) снова ничьё.`, {
         reply_markup: adminKeyboard(settings, ev, t.id, true),
       }), '1'));
     }
     stmts.push(
-      enqueueIfStmt(db, t.user_id, msg(`🔄 Твоё обращение в эвенте ${title(ev)} снова ждёт ответа организатора.`), '1'),
+      enqueueIfStmt(db, t.user_id, msg(`🔄 Твоё обращение в событии ${title(ev)} снова ждёт ответа организатора.`), '1'),
       auditIfStmt(db, t.event_id, 0, 'support.return', displayName(author), '1'),
     );
   }

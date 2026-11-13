@@ -18,7 +18,7 @@ export const chatWritable = (ev, now = Date.now()) => !isFinished(ev) || now < c
 export async function createEvent(env, title, createdBy, { from = null, invite = false } = {}) {
   const db = env.DB;
   const clean = oneLine(title);
-  if (!clean || clean.length > 80) return { ok: false, error: 'Название эвента — от 1 до 80 символов.' };
+  if (!clean || clean.length > 80) return { ok: false, error: 'Название события — от 1 до 80 символов.' };
   const code = randomCode();
   const t = from || {
     budget: '', place: '', notes: '', ring: 1, avoid_previous: 1, reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0,
@@ -54,7 +54,7 @@ export async function createEvent(env, title, createdBy, { from = null, invite =
 
 export async function finishEvent(env, ev, actor = 0) {
   const db = env.DB;
-  if (isFinished(ev)) return { ok: false, error: 'Эвент уже завершён.' };
+  if (isFinished(ev)) return { ok: false, error: 'Событие уже завершено.' };
   const settings = await getSettings(db);
   const now = Date.now();
   const members = await drawParticipants(db, ev.id);
@@ -67,12 +67,12 @@ export async function finishEvent(env, ev, actor = 0) {
   const [claim] = await db.batch([
     db.prepare("UPDATE events SET status = 'finished', finished_at = ?, registration_open = 0 WHERE id = ? AND status = 'active'").bind(now, ev.id),
     ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(
-      `🏁 <b>Эвент ${q(ev)} завершён.</b> Спасибо за игру!\n\nПисьмо Санте теперь только для чтения. Переписка открыта ещё 7 дней (до ${until}), потом останется для чтения. История эвента сохранится в приложении.`,
+      `🏁 <b>Событие ${q(ev)} завершено.</b> Спасибо за игру!\n\nПисьмо Санте теперь только для чтения. Переписка открыта ещё 7 дней (до ${until}), потом останется для чтения. История события сохранится в приложении.`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '📚 Открыть', { event: ev.id })]] } }
     ), guard, ev.id, now, ev.id)),
     auditIfStmt(db, ev.id, actor, 'finish', '', guard, ev.id, now, ev.id),
   ]);
-  if (!claim.meta.changes) return { ok: false, error: 'Эвент уже завершён.' };
+  if (!claim.meta.changes) return { ok: false, error: 'Событие уже завершено.' };
   return { ok: true };
 }
 
@@ -84,7 +84,7 @@ export async function deleteEvent(env, ev, actor = 0) {
   const members = await eventMembers(db, ev.id);
   const exists = 'EXISTS (SELECT 1 FROM events WHERE id = ?)';
   const res = await db.batch([
-    ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(`🗑 Эвент ${q(ev)} удалён организатором вместе с письмами и перепиской.`), exists, ev.id)),
+    ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(`🗑 Событие ${q(ev)} удалено организатором вместе с письмами и перепиской.`), exists, ev.id)),
     // Журнал эвента остаётся; само удаление — в общем журнале (007)
     auditIfStmt(db, 0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`, exists, ev.id),
     db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
@@ -97,7 +97,7 @@ export async function deleteEvent(env, ev, actor = 0) {
     ...supportDeleteStmts(db, ev.id), // 012: обращения к организаторам
     db.prepare('DELETE FROM events WHERE id = ?').bind(ev.id),
   ]);
-  if (!res.at(-1).meta.changes) return { ok: false, error: 'Эвент уже удалён.' };
+  if (!res.at(-1).meta.changes) return { ok: false, error: 'Событие уже удалено.' };
   return { ok: true, count: members.length };
 }
 
@@ -109,7 +109,7 @@ export async function resetEvent(env, ev, ownerId, actor = ownerId) {
   const inviteCode = randomCode();
   await db.batch([
     ...removed.map((m) => enqueueStmt(db, m.user_id, msg(
-      `🎄 Организатор начал эвент ${q(ev)} заново. Прежние данные удалены. Чтобы участвовать, попроси новую пригласительную ссылку.`
+      `🎄 Организатор начал событие ${q(ev)} заново. Прежние данные удалены. Чтобы участвовать, попроси новую пригласительную ссылку.`
     ))),
     db.prepare('DELETE FROM members WHERE event_id = ? AND user_id != ?').bind(ev.id, ownerId),
     db.prepare("UPDATE members SET wishlist = '', wishlist_updated_at = 0 WHERE event_id = ?").bind(ev.id),
@@ -146,7 +146,7 @@ export async function inviteFromEvent(env, ev, fromEv, actor = 0) {
   const skip = new Set([...members, ...removed].map((m) => m.user_id));
   const people = (await drawParticipants(db, fromEv.id)).filter((m) => !skip.has(m.user_id));
   const stmts = people.map((m) => enqueueStmt(db, m.user_id, msg(
-    `📨 <b>Приглашение в эвент ${q(ev)}</b> — Тайный Санта.\nНажми кнопку, чтобы участвовать.`,
+    `📨 <b>Приглашение на событие ${q(ev)}</b> — Тайный Санта.\nНажми кнопку, чтобы участвовать.`,
     { reply_markup: { inline_keyboard: [[{ text: '🎄 Участвовать', url: link }]] } }
   )));
   stmts.push(auditStmt(db, ev.id, actor, 'invite.from', `из «${fromEv.title}», приглашено: ${people.length}`));
@@ -171,7 +171,7 @@ export async function revealAll(env, ev, actor = 0) {
     db.prepare('UPDATE events SET revealed = ? WHERE id = ? AND revealed = 0 AND draw_done = 1 AND draw_token = ?')
       .bind(mark, ev.id, cur.draw_token),
     ...rows.map((p) => enqueueIfStmt(db, p.ward, msg(
-      `🎅 <b>Тайна раскрыта!</b>\n\nВ эвенте ${q(ev)} твой Тайный Санта — <b>${escapeHtml(byId[p.santa]?.name || '?')}</b>. С праздником! 🎄`
+      `🎅 <b>Тайна раскрыта!</b>\n\nВ событии ${q(ev)} твой Тайный Санта — <b>${escapeHtml(byId[p.santa]?.name || '?')}</b>. С праздником! 🎄`
     ), guard, ev.id, mark)),
     auditIfStmt(db, ev.id, actor, 'reveal', `пар: ${rows.length}`, guard, ev.id, mark),
   ]);
@@ -190,7 +190,7 @@ export async function remindUnfilled(env, ev, actor = 0, extra = []) {
   const deadline = ev.deadline ? ` до <b>${formatDate(ev.deadline)}</b>` : '';
   const stmts = people.map((u) =>
     enqueueStmt(db, u.user_id, msg(
-      `⏰ Напоминание: твоё письмо Санте в эвенте ${q(ev)} пока пустое. Заполни его${deadline}, чтобы Санте было проще выбрать подарок.`,
+      `⏰ Напоминание: твоё письмо Санте в событии ${q(ev)} пока пустое. Заполни его${deadline}, чтобы Санте было проще выбрать подарок.`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] } }
     ))
   );
@@ -208,7 +208,7 @@ export async function remindSantas(env, ev, actor = 0, extra = []) {
   const when = ev.event_date ? ` Вручение — <b>${formatDate(ev.event_date)}</b>.` : '';
   const stmts = rows.map((p) =>
     enqueueStmt(db, p.santa, msg(
-      `🎁 Напоминание для Санты (эвент ${q(ev)}): подарок для подопечного уже готов?${when}\nКогда будет готов — отметь это во вкладке «Подопечный».`,
+      `🎁 Напоминание для Санты (${q(ev)}): подарок для подопечного уже готов?${when}\nКогда будет готов — отметь это во вкладке «Подопечный».`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
     ))
   );
@@ -226,7 +226,7 @@ const ANNOUNCE_MAX = 2000;
 // Объявление всем зарегистрированным участникам эвента (FR-701): хранится и рассылается через outbox
 export async function announce(env, ev, actor, rawText) {
   const db = env.DB;
-  if (isFinished(ev)) return { ok: false, error: 'Эвент завершён — объявления в нём уже не отправить.' };
+  if (isFinished(ev)) return { ok: false, error: 'Событие завершено — объявления в нём уже не отправить.' };
   const text = cleanText(rawText);
   if (!text) return { ok: false, error: 'Напиши текст объявления.' };
   if (text.length > ANNOUNCE_MAX) return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${ANNOUNCE_MAX}.` };
@@ -236,7 +236,7 @@ export async function announce(env, ev, actor, rawText) {
     db.prepare('INSERT INTO announcements (event_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(ev.id, actor, text, now),
     ...people.map((u) => enqueueStmt(db, u.user_id, msg(
       `📣 <b>Объявление · ${q(ev)}</b>\n\n${escapeHtml(text)}`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '📌 Открыть эвент', { event: ev.id })]] } }
+      { reply_markup: { inline_keyboard: [[openAppButton(settings, '📌 Открыть событие', { event: ev.id })]] } }
     ))),
     auditStmt(db, ev.id, actor, 'announce', `получили: ${people.length}`),
   ]);

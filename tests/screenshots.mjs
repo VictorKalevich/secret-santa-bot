@@ -237,7 +237,7 @@ try {
   // Главный экран (005): мои эвенты, другие эвенты, создание эвента, администраторы
   await shot(admin, '00-home');
   await shot(admin, '00-home', { dark: true });
-  await shot(admin, '13-new-event', { fullPage: false, before: (p) => p.locator('.ds-btn', { hasText: 'Новый эвент' }).click() });
+  await shot(admin, '13-new-event', { fullPage: false, before: (p) => p.locator('.ds-btn', { hasText: 'Создать' }).click() });
   await shot(people[1], '16-home-participant');
 
   // До жеребьёвки
@@ -284,7 +284,7 @@ try {
   await shot(admin, '18-audit', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
   await shot(admin, '11-participant-menu', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
   await shot(admin, '12-danger-zone', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
-    await p.locator('.ds-btn', { hasText: 'Полный сброс эвента' }).click();
+    await p.locator('.ds-btn', { hasText: 'Полный сброс' }).click();
     await p.locator('.ds-sheet .ds-input').fill('СБРОС');
   } });
   // 012: принудительная отмена жеребьёвки владельцем (подопечных уже открыли)

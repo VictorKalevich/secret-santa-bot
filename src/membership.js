@@ -29,7 +29,7 @@ async function frozenFamilyEvent(db, changed, family) {
 }
 
 const familyFrozen = (ev) =>
-  `Состав семьи нельзя менять, пока идёт эвент «${ev.title}» с проведённой жеребьёвкой: иначе по заменам участников ` +
+  `Состав семьи нельзя менять, пока идёт событие «${ev.title}» с проведённой жеребьёвкой: иначе по заменам участников ` +
   'можно было бы вычислить пары. Изменения — после его завершения.';
 
 async function familyMembers(db, familyId) {
@@ -113,7 +113,7 @@ export async function joinByInvite(env, ev, user) {
     addMemberStmt(db, ev, user.tg_id),
     clearRemovedStmt(db, ev.id, user.tg_id), // вернулся — больше не в списке удалённых (010)
     ...adminRecipients(users, [user.tg_id]).map((a) => enqueueStmt(db, a.tg_id, msg(
-      `👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к эвенту ${q(ev)}`, { disable_notification: true }
+      `👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к событию ${q(ev)}`, { disable_notification: true }
     ))),
   ]);
   return 'joined';
@@ -137,10 +137,10 @@ async function requestJoin(env, ev, user) {
   const admins = adminRecipients(users, [user.tg_id]);
   if (admins.length) {
     await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(
-      `🙋 <b>${escapeHtml(displayName(user))}</b>${user.username ? ' (@' + escapeHtml(user.username) + ')' : ''} просится в эвент ${q(ev)}.`,
+      `🙋 <b>${escapeHtml(displayName(user))}</b>${user.username ? ' (@' + escapeHtml(user.username) + ')' : ''} хочет участвовать в событии ${q(ev)}.`,
       { reply_markup: { inline_keyboard: [
         [{ text: '✅ Принять', callback_data: `req:${row.id}:a` }, { text: '❌ Отклонить', callback_data: `req:${row.id}:r` }],
-        [openAppButton(settings, '🛠 Открыть эвент', { event: ev.id })],
+        [openAppButton(settings, '🛠 Открыть событие', { event: ev.id })],
       ] } }
     ))));
   }
@@ -154,10 +154,10 @@ export async function decideRequest(env, id, actor, approve) {
   if (!req) return { ok: false, error: 'Заявка не найдена.' };
   if (req.status !== 'pending') return { ok: false, error: 'Заявка уже рассмотрена.' };
   const ev = await getEvent(db, req.event_id);
-  if (!ev) return { ok: false, error: 'Эвент не найден.' };
-  if (approve && isFinished(ev)) return { ok: false, error: 'Эвент завершён — принять в него уже нельзя.' };
+  if (!ev) return { ok: false, error: 'Событие не найдено.' };
+  if (approve && isFinished(ev)) return { ok: false, error: 'Событие завершено — принять в него уже нельзя.' };
   // Закрытая регистрация — значит никто (010, FR-1016): заявка ждёт открытия, отклонить можно
-  const closed = `Регистрация в эвент «${ev.title}» закрыта — открой её, чтобы принять заявку.`;
+  const closed = `Регистрация на событие «${ev.title}» закрыта — открой её, чтобы принять заявку.`;
   if (approve && !ev.registration_open) return { ok: false, error: closed };
   const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
   const person = users.find((u) => u.tg_id === req.user_id);
@@ -176,13 +176,13 @@ export async function decideRequest(env, id, actor, approve) {
   stmts.push(enqueueIfStmt(db, req.user_id, approve
     ? msg(
       ev.draw_done
-        ? `🎉 Тебя приняли в эвент ${q(ev)}! Жеребьёвка уже прошла — организатор впишет тебя, бот пришлёт уведомление. А пока напиши письмо Санте.`
-        : `🎉 Тебя приняли в эвент ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`,
+        ? `🎉 Заявка одобрена — ты в событии ${q(ev)}! Жеребьёвка уже прошла — организатор впишет тебя, бот пришлёт уведомление. А пока напиши письмо Санте.`
+        : `🎉 Заявка одобрена — ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`,
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] } })
-    : msg(`Организатор не одобрил заявку в эвент ${q(ev)}. Если это ошибка — напиши ему.`), guard, ...g));
+    : msg(`Организатор не одобрил заявку на участие в событии ${q(ev)}. Если это ошибка — напиши ему.`), guard, ...g));
   for (const a of adminRecipients(users, [actor, req.user_id])) {
     stmts.push(enqueueIfStmt(db, a.tg_id, msg(
-      `${approve ? '✅' : '❌'} <b>${escapeHtml(displayName(by))}</b> ${approve ? 'принял(а)' : 'отклонил(а)'} заявку <b>${escapeHtml(displayName(person))}</b> в эвент ${q(ev)}.`,
+      `${approve ? '✅' : '❌'} <b>${escapeHtml(displayName(by))}</b> ${approve ? 'принял(а)' : 'отклонил(а)'} заявку <b>${escapeHtml(displayName(person))}</b> на участие в событии ${q(ev)}.`,
       { disable_notification: true }
     ), guard, ...g));
   }
