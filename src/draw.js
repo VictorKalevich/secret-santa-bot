@@ -21,7 +21,7 @@ function allowedFn(isAllowed) {
 // ---------- бюджет вычислений (006) ----------
 // Бесплатный тариф Cloudflare даёт ~10 мс CPU на запрос, а время в Workers во время вычислений не идёт.
 // Поэтому поиск ограничен числом элементарных шагов: при исчерпании — понятный отказ «попробуй ещё раз».
-// 150 000 шагов ≈ 1–3 мс в Node (см. tests/draw.test.mjs, замер).
+// 150 000 шагов ≈ 1–3 мс в Node, первый (холодный) вызов — до ~8 мс на ноутбуке от батареи (см. tests/draw.test.mjs).
 export const DEFAULT_BUDGET = 150000;
 const EXHAUSTED = Symbol('budget exhausted');
 
@@ -30,7 +30,12 @@ function spend(counter, n) {
   if (counter.left < 0) throw EXHAUSTED;
 }
 
-const range = (n) => Array.from({ length: n }, (_, i) => i);
+// Простой цикл: Array.from с функцией в V8 в разы медленнее, а range вызывается в каждой попытке поиска (015)
+function range(n) {
+  const a = [];
+  for (let i = 0; i < n; i++) a.push(i);
+  return a;
+}
 
 // Дальше участники — индексы 0..n−1, допустимость — матрица adj (adj[i*n+j] = 1, если i может дарить j).
 
@@ -76,7 +81,12 @@ function findCycle(n, adj, rng, counter) {
 
 // Случайное совершенное паросочетание (алгоритм Куна), O(n·E). Любая перестановка без «самому себе».
 function findMatching(n, adj, rng, counter) {
-  const lists = range(n).map((g) => shuffle(range(n).filter((r) => adj[g * n + r] === 1), rng));
+  const lists = [];
+  for (let g = 0; g < n; g++) {
+    const list = [];
+    for (let r = 0; r < n; r++) if (adj[g * n + r] === 1) list.push(r);
+    lists.push(shuffle(list, rng));
+  }
   spend(counter, n * n);
   const matchR = new Int32Array(n).fill(-1); // receiver -> giver
   function tryKuhn(g, seen) {
@@ -185,13 +195,20 @@ export function findAssignment(ids, isAllowed, rng = Math.random, { ring = true,
 // владельца. Закреплённая пара важнее запретов: закреплённому Санте можно дарить только своему закреплённому подопечному,
 // а закреплённого подопечного может получить только его закреплённый Санта. Остальное — по запретам.
 export function pairRules(bans = [], fixed = []) {
-  const banned = new Set(bans.map((e) => `${e.giver}:${e.receiver}`));
+  // Запреты — Map<кто, Set<кому>>, без строк-ключей на каждую проверку (015); id везде числа (из D1)
+  const banned = new Map();
+  for (const e of bans) {
+    let to = banned.get(e.giver);
+    if (!to) banned.set(e.giver, (to = new Set()));
+    to.add(e.receiver);
+  }
   const wardOf = new Map(fixed.map((f) => [f.giver, f.receiver]));
   const santaOf = new Map(fixed.map((f) => [f.receiver, f.giver]));
   return (a, b) => {
     if (wardOf.has(a)) return wardOf.get(a) === b;
     if (santaOf.has(b)) return false; // его закреплённый Санта — не a (иначе сработала бы строка выше)
-    return !banned.has(`${a}:${b}`);
+    const to = banned.get(a);
+    return !(to && to.has(b));
   };
 }
 

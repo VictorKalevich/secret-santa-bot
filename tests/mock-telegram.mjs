@@ -40,7 +40,9 @@ export function startMockTelegram(port = 0) {
         else if (brokenUtf16(params)) reply = { ok: false, error_code: 400, description: 'Bad Request: strings must be encoded in UTF-8' };
         else result = { message_id: messageId++, chat: { id: params.chat_id }, text: params.text };
       }
-      res.writeHead(reply ? reply.error_code : 200, { 'content-type': 'application/json' });
+      // connection: close (015) — без переиспользования соединений: Node закрывает простаивающее keep-alive соединение
+      // через 5 с, и локальный workerd изредка отправлял запрос в уже закрытое («Network connection lost»)
+      res.writeHead(reply ? reply.error_code : 200, { 'content-type': 'application/json', connection: 'close' });
       res.end(JSON.stringify(reply || { ok: true, result }));
     });
   });
