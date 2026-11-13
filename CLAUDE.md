@@ -30,10 +30,12 @@ Telegram-бот «Тайный Санта» для небольшой групп
 | `011-ui-polish` | `specs/011-ui-polish/` | реализовано: «Как это работает» — 3 пункта, системные элементы в схеме темы (`--ds-color-scheme`), шторка блокирует прокрутку страницы (`ds-root--locked`) |
 | `012-insert-cancel-support` | `specs/012-insert-cancel-support/` | реализовано: вписывание после жеребьёвки — только владелец, Санта по группам (не открыл → не готов → отказ); принудительная отмена жеребьёвки (владелец, «ОТМЕНА»); обращения участника к организаторам (взять/передать/закрыть) |
 | `013-event-wording` | `specs/013-event-wording/` | реализовано: в текстах для людей «событие» вместо «эвент» (название отдельно — без слова, иначе «событие» в нужном падеже), короткие подписи («🎄 Создать», «Параметры», «Полный сброс»…), кнопки без «＋» |
+| `014-fixed-pairs` | `specs/014-fixed-pairs/` | реализовано: закреплённые пары владельца «кто кому дарит» (блок под «Исключениями», при кольцевой — в одну сторону, важнее исключений, только до жеребьёвки; админы не видят) |
 
 С 005 почти все действия привязаны к эвенту (`event_id`); актуальный контракт API — `specs/005-events-history/contracts/events.md`
 (контракты 001–004 описывают поведение внутри одного эвента); изменения 006 — `specs/006-fixes/contracts/api-changes.md`; 007 — `specs/007-admin-tools/contracts/api.md`; 008 — `specs/008-delivery-families-requests/contracts/api.md`; 009 — `specs/009-fix-refactor/contracts/api-changes.md`;
-010 — `specs/010-owner-rights/contracts/api.md`; 012 — `specs/012-insert-cancel-support/contracts/api.md`.
+010 — `specs/010-owner-rights/contracts/api.md`; 012 — `specs/012-insert-cancel-support/contracts/api.md`;
+014 — `specs/014-fixed-pairs/contracts/api.md`.
 
 ## Технологии
 
@@ -89,15 +91,18 @@ npm run deploy       # выкат в Cloudflare
   - `src/budget.js` — счётчик внешних запросов на вызов (`metered`, `budgetLeft`, `reportBudget` → лог `budget exceeded`).
   - `src/telegram.js` — Bot API (с таймаутом и учётом в счётчике), проверка `initData`.
 - `src/draw.js` — чистые функции жеребьёвки (тестируются в Node); поиск ограничен бюджетом шагов (`DEFAULT_BUDGET`,
-  лимит CPU); `planDraw` — все попытки одной проверки (история, без истории, «мешают семьи») делят один бюджет;
-  `insertIntoAssignment(…, { rank })` — случайная связка внутри лучшей группы рангов (012).
+  лимит CPU); `planDraw` — все попытки одной проверки (история, без истории, «мешают закреплённые пары», «мешают
+  семьи») делят один бюджет; `pairRules(bans, fixed)` (014) — общее правило «кто кому может дарить» для жеребьёвки и
+  замен: закреплённая пара важнее запретов; `insertIntoAssignment(…, { rank })` — случайная связка внутри лучшей группы
+  рангов (012).
 - `src/cron.js` — шаги изолированы (`step`: уведомления → ежедневное → отправка очереди); уведомления об изменениях
   писем, автодействия расписания (`dueAutoAction`/`runAutoAction`) и напоминания — не больше одного тяжёлого действия за вызов.
-- `migrations/` — схема D1 (сейчас 10): `0001_initial.sql` (схема 005), `0002_fixes.sql` (`users.blocked_at`,
+- `migrations/` — схема D1 (сейчас 11): `0001_initial.sql` (схема 005), `0002_fixes.sql` (`users.blocked_at`,
   `outbox.locked_until`, `events.draw_token`), `0003_admin_tools.sql` (`announcements`, `audit`, поля расписания
   эвента, `pairs.gift_received`), `0004_delivery_families_requests.sql` (`members.delivery`, `families`,
   `family_members`, `join_requests`, параметры эвента `delivery_on`/`families_on`/`approval`), `0005_owner_rights.sql`
-  (`events.rejoin`, `removed_members`), `0006_support.sql` (`support_threads`, `support_messages`). Отметка «ссылка владельца использована» — `settings.owner_link_used` (без
+  (`events.rejoin`, `removed_members`), `0006_support.sql` (`support_threads`, `support_messages`), `0007_fixed_pairs.sql` (`fixed_pairs` — закреплённые пары
+  владельца, 014). Отметка «ссылка владельца использована» — `settings.owner_link_used` (без
   миграции). Код таблицы не создаёт и не удаляет: `checkSchema` требует `REQUIRED_SCHEMA`.
   Новая схема → новый файл миграции + `REQUIRED_SCHEMA` в `src/db.js`.
 - `src/db.js` — проверка схемы и запросы; `supportDeleteStmts`/`supportTransferStmts` — обращения при удалении
@@ -121,6 +126,11 @@ npm run deploy       # выкат в Cloudflare
    ответственный и владелец (остальным — кто, статус, ответственный, даты). Писать — ответственный (ничьё берётся
    ответом); владелец — после передачи себе. Список и журнал — без текстов. Вписывать после жеребьёвки и принудительно
    отменять её — только владелец (иначе админ вычислил бы пары по смене статусов).
+   **Закреплённые пары (014, Конституция 2.3.0)** — `fixed_pairs`: видит и меняет только владелец (поле `fixed` в
+   `admin.state` — только ему, `admin.fixed.*` — 403 админу), только до жеребьёвки; журнал `fixed.add/del` без имён;
+   причина отказа жеребьёвки `fixed_block` — без имён, остальные причины считаются без закреплённых пар. `admin.ring`
+   их не проверяет (отказ выдал бы админу их наличие). Уходят с человеком, переносятся с участием, сбрасываются со
+   событием; образец их не копирует; снимок — в условии записи жеребьёвки (`FIXED_SNAPSHOT_SQL`).
    **Эвенты.** Данные одного эвента не влияют на другой. Завершённый эвент (`status='finished'`) — только чтение,
    кроме переписки в течение `CHAT_GRACE_MS` (7 суток); завершение необратимо, сброс завершённого запрещён.
    Кольцевая (`events.ring`) — без взаимных пар, в т.ч. при заменах (`src/draw.js`).
