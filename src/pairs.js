@@ -2,7 +2,7 @@
 
 import {
   getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, familyExclusions, familySnapshot,
-  FAMILY_SNAPSHOT_SQL, enqueueIfStmt, auditIfStmt, markRemovedStmt,
+  FAMILY_SNAPSHOT_SQL, enqueueIfStmt, auditIfStmt, markRemovedStmt, supportDeleteStmts,
 } from './db.js';
 import { planDraw, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, openAppButton, randomCode, displayName } from './format.js';
@@ -233,6 +233,8 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
   }
   stmts.push(db.prepare(`DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
   stmts.push(db.prepare(`DELETE FROM messages WHERE event_id = ? AND (santa = ? OR ward = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
+  // 012: обращения участника к организаторам в этом эвенте уходят вместе с ним
+  stmts.push(...supportDeleteStmts(db, ev.id, userId, v.guard, ...v.args));
   const removeAt = stmts.length;
   stmts.push(db.prepare(`DELETE FROM members WHERE event_id = ? AND user_id = ? ${when}`).bind(ev.id, userId, ...v.args));
   if (mark) stmts.push(markRemovedStmt(db, ev.id, userId, actor, v.guard, ...v.args));
@@ -330,5 +332,41 @@ export async function cancelDraw(env, ev, actor) {
   ];
   const [claim] = await db.batch(stmts);
   if (!claim.meta.changes) return { ok: false, error: 'Отменить нельзя: кто-то уже открыл подопечного или началась переписка.' };
+  return { ok: true, count: rows.length };
+}
+
+// ---------- принудительная отмена жеребьёвки (012) ----------
+
+// Владелец отменяет жеребьёвку в любой момент до раскрытия (research R4): пары, отметки и переписка Сант эвента
+// удаляются, письма остаются, регистрация открывается. Захват — по версии пар (draw_token): одновременное вписывание,
+// удаление или другая отмена не дадут второго результата.
+export async function forceCancelDraw(env, ev, actor) {
+  const db = env.DB;
+  if (isFinished(ev)) return { ok: false, error: 'Эвент завершён — отменить жеребьёвку нельзя.' };
+  if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
+  if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
+  const [settings, rows] = await Promise.all([getSettings(db), getPairs(db, ev.id)]);
+  const token = 'force:' + randomCode(12);
+  const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)';
+  const [claim] = await db.batch([
+    db.prepare(
+      `UPDATE events SET draw_done = 0, draw_at = 0, draw_token = ?, registration_open = 1, draw_auto_date = ''
+        WHERE id = ? AND draw_done = 1 AND draw_token = ? AND revealed = 0 AND status = 'active'`
+    ).bind(token, ev.id, ev.draw_token),
+    db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
+    db.prepare(`DELETE FROM messages WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
+    ...rows.map((p) => enqueueIfStmt(db, p.santa, msg(
+      `↩️ Организатор <b>отменил жеребьёвку</b> в эвенте ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
+      'подопечным удалена. Твоё письмо сохранено. Когда будет новая жеребьёвка, бот напишет.',
+      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
+    ), guard, ev.id, token)),
+    auditIfStmt(db, ev.id, actor, 'draw.cancel.force', `пар удалено: ${rows.length}`, guard, ev.id, token),
+  ]);
+  if (!claim.meta.changes) {
+    const cur = await getEvent(db, ev.id);
+    if (!cur?.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
+    if (cur.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
+    return { ok: false, error: PAIRS_RACE };
+  }
   return { ok: true, count: rows.length };
 }

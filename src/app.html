@@ -224,6 +224,7 @@
   const state = {
     me: null, events: [], limits: { chars: 4000 }, view: 'home', nav: 0, drafts: {}, wardCache: null,
     evId: null, ev: null, member: null, can: {}, tab: 'my', dirty: false, wardNameShown: false,
+    support: null, supportAdmin: null, // 012: обращения — участнику его статус, админу — ничьи и непрочитанные
   };
   const main = document.getElementById('main');
   const heroTitle = document.getElementById('heroTitle');
@@ -266,6 +267,8 @@
     state.ev = d.event;
     state.can = d.can;
     state.announcements = d.announcements || [];
+    state.support = d.support || null;
+    state.supportAdmin = d.support_admin || null;
     return d;
   }
 
@@ -305,7 +308,7 @@
     if (nav === state.nav) render();
   }
 
-  async function openEvent(id, tab, chat) {
+  async function openEvent(id, tab, chat, support) {
     const nav = ++state.nav;
     state.view = 'event';
     state.evId = id;
@@ -314,15 +317,21 @@
     state.wardNameShown = false;
     syncBack();
     showLoader();
-    try { await reloadEvent(id); } catch (e) { if (nav === state.nav) showError(e, () => openEvent(id, tab, chat)); return; }
+    try { await reloadEvent(id); } catch (e) { if (nav === state.nav) showError(e, () => openEvent(id, tab, chat, support)); return; }
     if (nav !== state.nav) return;
     const m = state.member;
     // Админу «Подопечный» по умолчанию не открывается: просмотр подопечного запрещает отмену жеребьёвки (009)
+    // 012: из кнопок бота «💬 Открыть» — обращение участника (support=my) или обращение в панели админа (support=<id>)
+    const supportThread = state.me.is_admin && /^\d+$/.test(support || '') ? Number(support) : 0;
+    if (support === 'my' && m) tab = 'info';
+    if (supportThread) tab = 'admin';
     state.tab = tab || (state.me.is_admin ? (m ? 'my' : 'admin')
       : m ? (state.ev.draw_done && m.has_ward && m.wishlist.trim() ? 'ward' : 'my') : 'info');
     render();
     if (chat === 'santa' && m && m.has_santa) openChat('santa');
     if (chat === 'ward' && m && m.has_ward) openChat('ward');
+    if (support === 'my' && m) openSupport();
+    if (supportThread) openSupportThread(supportThread, id, () => (state.evId === id && state.tab === 'admin' ? render() : undefined));
   }
 
   // Системная кнопка «Назад» Telegram (009): закрывает шторку, на экране эвента — возврат к списку
@@ -519,6 +528,9 @@
     const u = (state.member && state.member.unread) || {};
     if (id === 'my') return state.dirty || u.from_santa > 0;
     if (id === 'ward') return u.from_ward > 0;
+    // 012: непрочитанный ответ организатора; у админа — ничьи обращения и новые сообщения во взятых им
+    if (id === 'info') return !!(state.support && state.support.unread > 0);
+    if (id === 'admin') return !!(state.supportAdmin && state.supportAdmin.waiting + state.supportAdmin.unread > 0);
     return false;
   }
 
@@ -743,6 +755,18 @@
         h('div', { class: 'ds-letter' }, a.text),
         ui.hint(`📣 ${a.author_name} · ${fmtTime(a.created_at)}`))));
     }
+    // 012: обращение к организатору — участнику эвента, если есть кому написать
+    const sup = state.support;
+    if (state.member && sup && (sup.available || sup.open || sup.unread)) {
+      const btn = ui.btn(state.can.chat_write ? '💬 Написать организатору' : '💬 Обращения к организатору', 'secondary', 'ds-btn--block');
+      if (sup.unread) btn.append(h('span', { class: 'ds-badge' }, String(sup.unread)));
+      btn.addEventListener('click', () => openSupport());
+      const status = sup.open ? (sup.assignee_name ? `Твоё обращение ведёт ${sup.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.') : '';
+      nodes.push(ui.section('Нужна помощь?'), ui.card(
+        ui.hint('Вопрос по игре или что-то не работает? Напиши организатору — ответ придёт в чат бота и сюда. Не пиши, кто твой подопечный: организаторы не должны знать пары.'),
+        status ? h('div', { class: 'ds-text-sm' }, status) : null,
+        btn));
+    }
     if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом эвенте — тебе доступна только информация и панель организатора.', 'ds-hint--inset'));
     nodes.push(
       ui.section('Как это работает'),
@@ -783,6 +807,31 @@
       await again();
     };
     const nodes = [finishedNotice()];
+
+    // --- обращения участников (012): без текстов; переписка — в шторке обращения
+    const supportNodes = () => {
+      const sup = d.support || { threads: [] };
+      const openCount = sup.threads.filter((t) => t.status === 'open').length;
+      const list = h('div', { class: 'ds-card ds-card--flush' });
+      if (!sup.threads.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Обращений пока нет.'));
+      for (const t of sup.threads) {
+        const chip = t.status !== 'open' ? ui.chip('✅ закрыто')
+          : !t.assignee ? ui.chip('🆕 ждёт ответа', 'warning')
+          : t.assignee === me.id ? ui.chip('🙋 ведёшь ты', 'success') : ui.chip('🙋 ведёт ' + t.assignee_name);
+        list.append(h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openSupportThread(t.id, evId, again) },
+          h('div', { class: 'ds-grow' },
+            h('div', { class: 'ds-list-item__title' }, t.name || 'без имени'),
+            h('div', { class: 'ds-chips' }, chip),
+            ui.hint(fmtTime(t.last_at))),
+          t.unread ? h('span', { class: 'ds-badge' }, String(t.unread)) : null,
+          h('span', { class: 'ds-list-item__chevron' }, '›')));
+      }
+      return [
+        ui.section(openCount ? `Обращения · ${openCount}` : 'Обращения'),
+        ui.hint('Участники пишут организатору из вкладки «Инфо». Переписку взятого обращения видят тот, кто его ведёт, и владелец.', 'ds-hint--inset'),
+        list,
+      ];
+    };
 
     // --- приглашение (только для идущего эвента)
     if (!done) {
@@ -893,6 +942,8 @@
           ? 'Пригласить участников прошлого эвента — например, ту же компанию на следующий год.'
           : 'Пригласить участников прошлого эвента можно, когда регистрация открыта.'), sel, inv));
       }
+      // 012: обращения участников — после всего, что касается приглашения, перед объявлением
+      nodes.push(...supportNodes());
       // --- объявление (007); черновик переживает перерисовку панели (009)
       const annText = ui.textarea({ placeholder: 'Например: собираемся 28 декабря в 18:00, бюджет до 50 BYN', rows: 2, maxlength: 2000, value: drafts.announce || '' });
       const annBtn = ui.btn('📣 Отправить всем', 'secondary', 'ds-btn--block');
@@ -912,6 +963,8 @@
       });
       nodes.push(ui.section('Объявление'),
         ui.card(ui.hint('Сообщение всем участникам от бота. Оно останется во вкладке «Инфо».'), annText, annBtn));
+    } else {
+      nodes.push(...supportNodes()); // завершённый эвент: обращения — на том же месте, перед участниками
     }
 
     // --- меню участника (004)
@@ -1268,7 +1321,8 @@
 
     // --- опасная зона (004/005): только владелец
     if (me.is_owner) {
-      const typed = (title, lines, word, label, action, after) => () => {
+      // keep (012) — что останется (необязательно): отдельной строкой под списком удаляемого
+      const typed = (title, lines, word, label, action, after, keep = '') => () => {
         const inp = h('input', { class: 'ds-input', type: 'text', placeholder: `Введи слово ${word}`, autocomplete: 'off' });
         const go = ui.btn(label, 'danger', 'ds-btn--block');
         go.disabled = true;
@@ -1279,6 +1333,7 @@
         });
         openSheet(title, [
           h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Будет удалено без возможности восстановления:'), h('ul', { class: 'ds-bullets' }, lines.map((l) => h('li', {}, l)))),
+          keep ? ui.hint(keep) : null,
           inp, go]);
       };
       const resetBtn = ui.btn('🧨 Полный сброс эвента', 'danger', 'ds-btn--block');
@@ -1292,11 +1347,23 @@
         `эвент «${s.title}» целиком — он пропадёт из истории у всех;`,
         'письма, пары, исключения и переписка этого эвента.',
       ], 'УДАЛИТЬ', '🗑 Удалить навсегда', 'admin.event.delete', async () => { toast('Эвент удалён'); await goHome(); }));
+      // 012: принудительная отмена — в любой момент до раскрытия, даже если подопечных уже открыли
+      let forceBtn = null;
+      if (s.draw_done && !s.revealed) {
+        forceBtn = ui.btn('↩️ Отменить жеребьёвку', 'danger', 'ds-btn--block');
+        forceBtn.addEventListener('click', typed('Отменить жеребьёвку', [
+          'кто кому дарит — все пары этого эвента;',
+          'отметки «подарок готов» и «получил»;',
+          'вся переписка Сант и подопечных в этом эвенте.',
+        ], 'ОТМЕНА', '↩️ Отменить жеребьёвку', 'admin.draw.cancel.force', async (r) => { toast(`↩️ Жеребьёвка отменена. Пар удалено: ${r.count}`); await refresh(); },
+        'Останутся письма, адреса, участники, исключения и семьи. Регистрация снова откроется, участники получат уведомление.'));
+      }
       nodes.push(
         ui.section('Опасная зона'),
         finished()
           ? ui.card(ui.hint('Завершённый эвент нельзя сбросить — только удалить целиком. Другие эвенты это не затронет.'), delBtn)
-          : ui.card(ui.hint('Другие эвенты это не затронет. Для тестового прогона удобно потом удалить эвент целиком.'), resetBtn, delBtn));
+          : ui.card(ui.hint('Другие эвенты это не затронет. Для тестового прогона удобно потом удалить эвент целиком.' +
+            (forceBtn ? ' Отменить жеребьёвку здесь можно, даже если подопечных уже открыли, — пока тайна не раскрыта.' : '')), forceBtn, resetBtn, delBtn));
     }
 
     main.replaceChildren(...nodes.filter(Boolean));
@@ -1393,6 +1460,8 @@
     'role.grant': '🛠 Назначен админ', 'role.revoke': '🛠 Снят админ', 'owner.transfer': '👑 Передано владение', 'owner.link': '👑 Владелец по ссылке /setup',
     'family.save': '👪 Семья сохранена', 'family.delete': '👪 Семья удалена', 'request.approve': '✅ Заявка принята', 'request.reject': '❌ Заявка отклонена',
     'member.allow': '↩️ Разрешено вернуться', 'vault.person': '🔐 Служебный просмотр участника', 'vault.pairs': '🔐 Служебный просмотр: все пары',
+    'draw.cancel.force': '↩️ Жеребьёвка отменена владельцем', 'support.open': '🆘 Новое обращение', 'support.take': '🙋 Обращение взято',
+    'support.pass': '↪️ Обращение передано', 'support.close': '✅ Обращение закрыто', 'support.return': '🔄 Обращение снова ничьё',
   };
   function openAudit(eventId) {
     const box = h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…');
@@ -1528,6 +1597,182 @@
     timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
   }
 
+  // ---------- обращения к организатору (012) ----------
+  // Поле ответа со счётчиком — как в переписке Санты
+  function composerParts(placeholder) {
+    const max = state.limits.chars;
+    const ta = ui.textarea({ class: 'ds-input ds-composer__input', rows: 1, placeholder });
+    const send = ui.btn('Отправить', '', 'ds-composer__send');
+    const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
+    const composer = h('div', { class: 'ds-composer' }, ta, send);
+    const update = () => {
+      const n = ta.value.length;
+      counter.hidden = n < max - 500;
+      counter.textContent = `${n} / ${max}`;
+      counter.classList.toggle('ds-counter--over', n > max);
+      send.disabled = !ta.value.trim() || n > max;
+    };
+    ta.addEventListener('input', update);
+    update();
+    const clear = (text) => { if (ta.value === text) { ta.value = ''; ta.style.height = 'auto'; } update(); };
+    // Скрытое поле не измерить: высота, посчитанная до показа, обрезала бы его — пересчитываем при показе
+    const show = (on) => {
+      const was = composer.hidden;
+      composer.hidden = !on;
+      if (on && was) { ta.style.height = 'auto'; if (ta.value) ta.style.height = ta.scrollHeight + 2 + 'px'; }
+    };
+    return { ta, send, counter, composer, update, clear, show };
+  }
+  const supportBubble = (m) => h('div', { class: 'ds-chat__msg ' + (m.mine ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
+    m.text, h('div', { class: 'ds-chat__meta' }, (m.mine || !m.author ? '' : m.author + ' · ') + fmtTime(m.created_at)));
+
+  // Участник: все его обращения в эвенте одной перепиской; закрытые отделены служебной строкой
+  function openSupport() {
+    const evId = state.evId;
+    const c = composerParts('Сообщение организатору…');
+    const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
+    const status = ui.hint('');
+    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Эвент завершён больше недели назад — обращения только для чтения.');
+    const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block');
+    resolve.hidden = true;
+    let timer = null;
+    let sig = '';
+    const load = async () => {
+      const d = await api('support.get', { event: evId });
+      const open = d.threads.find((t) => t.status === 'open');
+      const key = JSON.stringify(d.threads.map((t) => [t.id, t.status, t.assignee_name, t.messages.length]));
+      c.show(d.writable && (d.available || !!open));
+      closedNote.hidden = d.writable;
+      resolve.hidden = !open || !d.writable;
+      status.textContent = open
+        ? (open.assignee_name ? `Обращение ведёт ${open.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.')
+        : 'Сообщение получат организаторы эвента; ответит тот, кто возьмёт обращение. Не пиши, кто твой подопечный.';
+      if (key === sig) return;
+      sig = key;
+      const nodes = [];
+      for (const t of d.threads) {
+        nodes.push(...t.messages.map(supportBubble));
+        if (t.status !== 'open') nodes.push(h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто · ' + fmtTime(t.closed_at)));
+      }
+      list.replaceChildren(...(nodes.length ? nodes : [h('div', { class: 'ds-chat__empty' }, d.available
+        ? 'Здесь пока пусто. Напиши, что случилось, — организаторы получат сообщение в чате бота.'
+        : 'Сейчас некому написать: в боте нет других организаторов.')]));
+      list.scrollTop = list.scrollHeight;
+    };
+    c.send.addEventListener('click', () => busy(c.send, async () => {
+      const text = c.ta.value;
+      await api('support.send', { event: evId, text });
+      c.clear(text);
+      haptic('success');
+      await load().catch(() => {});
+    }).then(c.update));
+    resolve.addEventListener('click', async () => {
+      if (!(await confirmBox('Закрыть обращение? Если вопрос появится снова — просто напиши.'))) return;
+      busy(resolve, async () => { await api('support.close', { event: evId }); toast('✅ Обращение закрыто'); await load(); });
+    });
+    openSheet('Организатору', [status, list, c.composer, c.counter, closedNote, resolve], {
+      full: true,
+      beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть?')),
+      onClose: async () => {
+        clearInterval(timer);
+        const nav = state.nav;
+        await reloadEvent(evId).catch(() => {});
+        if (nav !== state.nav || state.evId !== evId) return;
+        if (state.dirty) renderTabs();
+        else if (state.tab === 'ward') { renderHero(); renderTabs(); renderWard({ cached: true }); }
+        else render();
+      },
+    });
+    load().catch((e) => toast('⚠️ ' + e.message));
+    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
+  }
+
+  // Админ: одно обращение. Переписка — если её можно видеть (ничьё, своё, владелец); действия — взять, передать, закрыть
+  function openSupportThread(id, evId, after) {
+    const me = state.me;
+    const c = composerParts('Ответ участнику…');
+    c.composer.hidden = true;
+    const head = h('div', { class: 'ds-stack' });
+    const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
+    let timer = null;
+    let sig = '';
+    const act = (btn, fn, done) => busy(btn, async () => { await fn(); if (done) toast(done); sig = ''; await load(); });
+    const load = async () => {
+      let d;
+      try { d = await api('admin.support.get', { event: evId, thread: id }); }
+      catch (e) {
+        clearInterval(timer);
+        head.replaceChildren();
+        list.replaceChildren(h('div', { class: 'ds-chat__empty' }, e.message));
+        return;
+      }
+      const t = d.thread;
+      const key = JSON.stringify([t.status, t.assignee, t.writable, d.messages.map((m) => m.id)]);
+      if (key === sig) return;
+      sig = key;
+      const titleEl = sheetEl && sheetEl.querySelector('.ds-sheet__title');
+      if (titleEl) titleEl.textContent = 'Обращение: ' + t.name;
+      const open = t.status === 'open';
+      const lead = t.assignee === me.id || me.is_owner;
+      const parts = [ui.hint(!open
+        ? `Обращение закрыто ${fmtTime(t.closed_at)}${t.closed_by_name ? ' — ' + t.closed_by_name : ''}.`
+        : !t.assignee ? (t.user_id === me.id ? 'Это твоё обращение — ответят другие организаторы.' : 'Обращение ждёт ответа. Возьми его — или просто ответь, и оно станет твоим.')
+        : t.assignee === me.id ? 'Обращение ведёшь ты.' : `Обращение ведёт ${t.assignee_name}.`)];
+      const row = h('div', { class: 'ds-row ds-row--wrap' });
+      if (open && !t.assignee && t.user_id !== me.id) {
+        const takeBtn = ui.btn('🙋 Взять', 'secondary', 'ds-btn--sm');
+        takeBtn.addEventListener('click', () => act(takeBtn, () => api('admin.support.take', { event: evId, thread: id }), '🙋 Обращение твоё'));
+        row.append(takeBtn);
+      }
+      if (open && lead) {
+        const closeBtn = ui.btn('✅ Закрыть обращение', 'secondary', 'ds-btn--sm');
+        closeBtn.addEventListener('click', async () => {
+          if (!(await confirmBox(`Закрыть обращение «${t.name}»? Участник получит уведомление и сможет написать снова.`))) return;
+          act(closeBtn, () => api('admin.support.close', { event: evId, thread: id }), '✅ Обращение закрыто');
+        });
+        row.append(closeBtn);
+      }
+      if (row.children.length) parts.push(row);
+      if (open && lead && d.admins.length) {
+        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Передать администратору…'),
+          ...d.admins.map((a) => h('option', { value: a.id }, a.id === me.id ? a.name + ' (себе)' : a.name)));
+        const passBtn = ui.btn('↪️ Передать', 'secondary', 'ds-btn--sm');
+        passBtn.addEventListener('click', () => {
+          if (!sel.value) return toast('Выбери, кому передать');
+          act(passBtn, () => api('admin.support.pass', { event: evId, thread: id, to: Number(sel.value) }), '↪️ Обращение передано');
+        });
+        parts.push(h('div', { class: 'ds-row' }, h('div', { class: 'ds-grow' }, sel), passBtn));
+      }
+      head.replaceChildren(...parts);
+      c.show(t.writable);
+      if (!t.writable) c.counter.hidden = true;
+      list.replaceChildren(...(d.messages.length ? d.messages.map(supportBubble) : [h('div', { class: 'ds-chat__empty' }, 'Сообщений нет.')]),
+        ...(open ? [] : [h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто')]));
+      list.scrollTop = list.scrollHeight;
+    };
+    c.send.addEventListener('click', () => busy(c.send, async () => {
+      const text = c.ta.value;
+      await api('admin.support.send', { event: evId, thread: id, text });
+      c.clear(text);
+      haptic('success');
+      sig = '';
+      await load();
+    }).then(c.update));
+    openSheet('Обращение', [head, list, c.composer, c.counter], {
+      full: true,
+      beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Ответ не отправлен. Закрыть?')),
+      onClose: async () => {
+        clearInterval(timer);
+        await reloadEvent(evId).catch(() => {});
+        if (state.evId !== evId) return;
+        renderTabs();
+        if (after) await after();
+      },
+    });
+    load().catch((e) => toast('⚠️ ' + e.message));
+    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
+  }
+
   // ---------- старт ----------
   async function start() {
     if (!initData) {
@@ -1542,11 +1787,11 @@
         main.replaceChildren(ui.empty('🔒', 'Сначала регистрация', 'Перейди по пригласительной ссылке эвента от организатора и напиши боту своё имя. После этого возвращайся сюда.'));
         return;
       }
-      // ?event=…&chat=… — из кнопок бота; иначе единственный эвент открывается сразу
+      // ?event=…&chat=…|support=… — из кнопок бота; иначе единственный эвент открывается сразу
       const params = new URLSearchParams(location.search);
       const want = Number(params.get('event'));
       const target = state.events.find((e) => e.id === want);
-      if (target) return openEvent(target.id, null, params.get('chat'));
+      if (target) return openEvent(target.id, null, params.get('chat'), params.get('support'));
       const mine = state.events.filter((e) => e.member);
       if (!state.me.is_admin && state.events.length === 1 && mine.length === 1) return openEvent(mine[0].id);
       state.view = 'home';

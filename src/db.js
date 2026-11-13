@@ -301,3 +301,34 @@ export function auditIfStmt(db, eventId, actor, action, details, guard, ...args)
     .prepare(`INSERT INTO audit (event_id, actor, action, details, created_at) SELECT ?, ?, ?, ?, ? WHERE ${guard}`)
     .bind(eventId || 0, actor || 0, action, String(details).slice(0, 500), Date.now(), ...args);
 }
+
+// ---------- обращения к организатору (012) ----------
+
+// Удалить обращения эвента (userId — только этого участника) вместе с сообщениями; guard — как в enqueueIfStmt.
+// Сообщения удаляются первыми: их выбирают по обращениям.
+export function supportDeleteStmts(db, eventId, userId = 0, guard = '1', ...args) {
+  const who = userId ? ' AND user_id = ?' : '';
+  const ids = userId ? [eventId, userId] : [eventId];
+  return [
+    db.prepare(`DELETE FROM support_messages WHERE thread_id IN (SELECT id FROM support_threads WHERE event_id = ?${who}) AND ${guard}`)
+      .bind(...ids, ...args),
+    db.prepare(`DELETE FROM support_threads WHERE event_id = ?${who} AND ${guard}`).bind(...ids, ...args),
+  ];
+}
+
+// Перенос участия fromId → toId (012, FR-1221): обращения, ответственный и автор сообщений переходят на новый аккаунт.
+// Открытое обращение старого закрывается, если у нового в том же эвенте уже есть открытое (одно открытое на эвент).
+export function supportTransferStmts(db, fromId, toId) {
+  return [
+    db.prepare(
+      `UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = 0
+        WHERE user_id = ? AND status = 'open'
+          AND event_id IN (SELECT event_id FROM support_threads WHERE user_id = ? AND status = 'open')`
+    ).bind(Date.now(), fromId, toId),
+    db.prepare('UPDATE support_threads SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
+    db.prepare('UPDATE support_threads SET assignee = ? WHERE assignee = ?').bind(toId, fromId),
+    // Сам себе не отвечает: такое обращение снова ничьё
+    db.prepare('UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = user_id').bind(),
+    db.prepare('UPDATE support_messages SET sender = ? WHERE sender = ?').bind(toId, fromId),
+  ];
+}

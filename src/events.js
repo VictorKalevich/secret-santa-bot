@@ -2,7 +2,7 @@
 
 import {
   getSettings, getEvent, eventMembers, drawParticipants, getPairs, allUsers, enqueueStmt, enqueueIfStmt, updateEventStmt,
-  auditStmt, auditIfStmt,
+  auditStmt, auditIfStmt, supportDeleteStmts,
 } from './db.js';
 import { msg, q, escapeHtml, formatDate, formatMs, openAppButton, inviteLink, randomCode, oneLine, cleanText } from './format.js';
 
@@ -94,6 +94,7 @@ export async function deleteEvent(env, ev, actor = 0) {
     db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM removed_members WHERE event_id = ?').bind(ev.id),
+    ...supportDeleteStmts(db, ev.id), // 012: обращения к организаторам
     db.prepare('DELETE FROM events WHERE id = ?').bind(ev.id),
   ]);
   if (!res.at(-1).meta.changes) return { ok: false, error: 'Эвент уже удалён.' };
@@ -118,6 +119,7 @@ export async function resetEvent(env, ev, ownerId, actor = ownerId) {
     db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
     db.prepare('DELETE FROM removed_members WHERE event_id = ?').bind(ev.id),
+    ...supportDeleteStmts(db, ev.id), // 012: обращения к организаторам
     db.prepare("UPDATE members SET delivery = '', delivery_updated_at = 0 WHERE event_id = ?").bind(ev.id),
     updateEventStmt(db, ev.id, {
       status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,

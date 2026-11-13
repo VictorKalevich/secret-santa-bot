@@ -304,6 +304,8 @@ select.ds-input {
 }
 .ds-chat__meta { margin-top: var(--ds-space-0-5); text-align: right; font-size: var(--ds-text-xs); opacity: var(--ds-opacity-meta); }
 .ds-chat__empty { margin: auto; padding: var(--ds-space-8) var(--ds-space-5); text-align: center; color: var(--ds-color-text-muted); }
+/* Служебная строка в переписке (012): «Обращение закрыто», «Ведёт: Имя» — по центру, мелко, приглушённо */
+.ds-chat__note { align-self: center; max-width: var(--ds-bubble-max-w); padding: var(--ds-space-1) var(--ds-space-3); text-align: center; font-size: var(--ds-text-xs); color: var(--ds-color-text-muted); }
 
 /* ========== Поле ввода сообщения ========== */
 .ds-composer {

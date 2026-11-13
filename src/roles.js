@@ -1,10 +1,11 @@
 // Роли (002): владелец и администраторы; перенос участия на новый аккаунт (004 → 005: во всех эвентах).
 
 import {
-  getSettings, setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, auditStmt,
+  getSettings, setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, auditStmt, supportTransferStmts,
 } from './db.js';
 import { msg, escapeHtml, openAppButton, displayName, adminRecipients } from './format.js';
 import { derivedSecret } from './telegram.js';
+import { returnThreadsStmts } from './support.js';
 
 // Сообщение остальным админам (без звука) — кроме перечисленных
 function otherAdminsNotice(db, users, exclude, text) {
@@ -109,8 +110,11 @@ export async function revokeAdmin(env, id, actor = 0) {
   const ownerId = await resolveOwner(db, settings, users);
   if (!u || !u.is_admin) return { ok: false, error: 'Он(а) не администратор.' };
   if (id === ownerId) return { ok: false, error: 'Нельзя снять права владельца. Сначала передай владение другому.' };
+  // 012: обращения, которые он вёл, снова ничьи — остальные админы получают их с кнопкой «Взять»
+  const returned = await returnThreadsStmts(db, settings, users, id);
   await db.batch([
     db.prepare('UPDATE users SET is_admin = 0 WHERE tg_id = ?').bind(id),
+    ...returned,
     enqueueStmt(db, id, msg('Владелец снял с тебя права администратора. Как участник эвентов ты продолжаешь играть как обычно.')),
     ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> больше не администратор.`),
     auditStmt(db, 0, actor || ownerId, 'role.revoke', displayName(u)),
@@ -190,6 +194,8 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
     db.prepare('DELETE FROM removed_members WHERE user_id = ?').bind(fromId),
     // …кроме эвентов, где новый аккаунт теперь участник: участник не может быть «удалённым»
     db.prepare('DELETE FROM removed_members WHERE user_id = ? AND event_id IN (SELECT event_id FROM members WHERE user_id = ?)').bind(toId, toId),
+    // 012: обращения к организаторам (автор, ответственный, сообщения)
+    ...supportTransferStmts(db, fromId, toId),
     db.prepare('UPDATE users SET is_admin = ? WHERE tg_id = ?').bind(from.is_admin || to.is_admin ? 1 : 0, toId),
     db.prepare('DELETE FROM users WHERE tg_id = ?').bind(fromId),
     enqueueStmt(db, toId, msg(

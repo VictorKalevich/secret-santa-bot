@@ -3,7 +3,7 @@
 import {
   getSettings, getUser, updateUser, allUsers, getPairs, pairOfSanta, pairOfWard, getExclusions,
   getEvent, allEvents, getMember, eventMembers, addMemberStmt,
-  updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt, clearRemovedStmt,
+  updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt, clearRemovedStmt, supportDeleteStmts,
 } from './db.js';
 import { validateInitData } from './telegram.js';
 import { msg, q, openAppButton, inviteLink, randomCode, displayName, cleanText, oneLine, ISO_DATE } from './format.js';
@@ -11,11 +11,15 @@ import {
   isFinished, chatUntil, chatWritable, createEvent, finishEvent, deleteEvent, resetEvent, inviteFromEvent,
   revealAll, remindUnfilled, remindSantas, announce,
 } from './events.js';
-import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, drawCancelable } from './pairs.js';
+import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw, drawCancelable } from './pairs.js';
 import { MAX_CHARS, chatPair, sendChatMessage, unreadCounts, unreadByEvent } from './chat.js';
 import { resolveOwner, grantAdmin, revokeAdmin, transferOwnership, transferAccount } from './roles.js';
 import { saveFamily, deleteFamily, decideRequest } from './membership.js';
 import { vaultPerson, vaultPairs } from './vault.js';
+import {
+  participantView, sendFromUser, closeByUser, adminList, adminThread, take, sendFromAdmin, pass, closeByAdmin,
+  supportCounts, supportUnreadByEvent,
+} from './support.js';
 
 const DELIVERY_MAX = 500;
 const EXCLUSIONS_FROZEN =
@@ -64,12 +68,12 @@ export async function handleApi(request, env, action) {
     const ownerId = me.is_admin ? await resolveOwner(db, settings) : null;
     const { results: mine } = await db.prepare('SELECT event_id FROM members WHERE user_id = ?').bind(me.tg_id).all();
     const memberOf = new Set(mine.map((r) => r.event_id));
-    const unread = await unreadByEvent(db, me.tg_id);
+    const [unread, supUnread] = await Promise.all([unreadByEvent(db, me.tg_id), supportUnreadByEvent(db, me)]);
     const events = (await allEvents(db))
       .filter((e) => me.is_admin || memberOf.has(e.id))
       .map((e) => ({
         id: e.id, title: e.title, status: e.status, finished_at: e.finished_at, event_date: e.event_date,
-        draw_done: !!e.draw_done, member: memberOf.has(e.id), unread: unread[e.id] || 0,
+        draw_done: !!e.draw_done, member: memberOf.has(e.id), unread: (unread[e.id] || 0) + (supUnread[e.id] || 0),
       }));
     return json({
       ok: true,
@@ -124,6 +128,8 @@ export async function handleApi(request, env, action) {
       };
       out.can = { edit_letter: !isFinished(ev), chat_write: chatWritable(ev) };
     }
+    // 012: обращения — участнику его статус, админу — ничьи и непрочитанные (для точек на вкладках)
+    Object.assign(out, await supportCounts(db, ev, me, { member: !!member, admin: !!me.is_admin }));
     return json(out);
   }
 
@@ -243,6 +249,20 @@ export async function handleApi(request, env, action) {
         messages: results.map((m) => ({ id: m.id, mine: m.sender === pair.me, text: m.text, created_at: m.created_at })),
       });
     }
+
+    // ---------- обращения к организатору (012) ----------
+    case 'support.get':
+      return json({ ok: true, ...(await participantView(env, ev, me)) });
+
+    case 'support.send': {
+      const r = await sendFromUser(env, ev, me, body.text);
+      return r.ok ? json({ ok: true, thread: r.thread, message: r.message }) : fail(r.error, r.status);
+    }
+
+    case 'support.close': {
+      const r = await closeByUser(env, ev, me);
+      return r.ok ? json({ ok: true }) : fail(r.error, r.status);
+    }
   }
   return fail('Неизвестное действие', 404);
 }
@@ -254,6 +274,8 @@ export async function handleApi(request, env, action) {
 const FINISHED_OK = new Set([
   'admin.state', 'admin.wishlist', 'admin.reveal', 'admin.event.delete', 'admin.event.invite_from', 'admin.audit',
   'admin.vault.person', 'admin.vault.pairs',
+  // 012: обращения — чтение всегда, изменения — пока открыта переписка (проверка внутри support.js)
+  'admin.support.get', 'admin.support.take', 'admin.support.send', 'admin.support.pass', 'admin.support.close',
 ]);
 
 async function handleAdmin(action, body, env, me, settings) {
@@ -360,7 +382,7 @@ async function handleAdmin(action, body, env, me, settings) {
 
   switch (action) {
     case 'admin.state': {
-      const [members, pairs, exclusions, events, cancelable, famRows, requests, removed] = await Promise.all([
+      const [members, pairs, exclusions, events, cancelable, famRows, requests, removed, users] = await Promise.all([
         eventMembers(db, ev.id), getPairs(db, ev.id), getExclusions(db, ev.id), allEvents(db), drawCancelable(db, ev),
         db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id').all().then((r) => r.results),
         db.prepare(
@@ -372,6 +394,7 @@ async function handleAdmin(action, body, env, me, settings) {
           `SELECT r.user_id, r.removed_at, u.name, u.username FROM removed_members r JOIN users u ON u.tg_id = r.user_id
             WHERE r.event_id = ? ORDER BY r.removed_at DESC`
         ).bind(ev.id).all().then((r) => r.results),
+        allUsers(db),
       ]);
       const santas = new Set(pairs.map((p) => p.santa));
       const ready = new Set(pairs.filter((p) => p.gift_ready).map((p) => p.santa));
@@ -404,6 +427,8 @@ async function handleAdmin(action, body, env, me, settings) {
         }, {})).filter((f) => f.members.length >= 2),
         requests: requests.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, username: r.username, created_at: r.created_at })),
         removed: removed.map((r) => ({ id: r.user_id, name: r.name, username: r.username, removed_at: r.removed_at })),
+        // 012: обращения — без текстов; переписка — отдельным запросом admin.support.get
+        support: await adminList(db, ev, me, isOwner, users),
         // Исключения образца начинают действовать, когда оба вступят (007, FR-707)
         exclusions: exclusions.filter((e) => memberIds.has(e.giver) && memberIds.has(e.receiver)),
         me_member: members.some((m) => m.user_id === me.tg_id),
@@ -498,6 +523,7 @@ async function handleAdmin(action, body, env, me, settings) {
         await db.batch([
           db.prepare('DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?)').bind(ev.id, me.tg_id, me.tg_id),
           db.prepare('DELETE FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, me.tg_id),
+          ...supportDeleteStmts(db, ev.id, me.tg_id), // 012: обращения участника в эвенте уходят вместе с участием
           log,
         ]);
       }
@@ -580,6 +606,31 @@ async function handleAdmin(action, body, env, me, settings) {
     case 'admin.draw.cancel': {
       const r = await cancelDraw(env, ev, me.tg_id);
       return r.ok ? { count: r.count } : fail(r.error);
+    }
+
+    case 'admin.draw.cancel.force': {
+      // 012, FR-1205: в любой момент до раскрытия — только владелец (участвующий админ переигрывал бы жеребьёвку)
+      if (!isOwner) return ownerOnly('Принудительно отменить жеребьёвку');
+      if (String(body.confirm || '').trim().toUpperCase() !== 'ОТМЕНА') return fail('Для отмены введи слово ОТМЕНА.');
+      const r = await forceCancelDraw(env, ev, me.tg_id);
+      return r.ok ? { count: r.count } : fail(r.error);
+    }
+
+    // ---------- обращения к организатору (012) ----------
+    case 'admin.support.get':
+    case 'admin.support.take':
+    case 'admin.support.send':
+    case 'admin.support.pass':
+    case 'admin.support.close': {
+      const id = Number(body.thread) || 0;
+      const r = action === 'admin.support.get' ? await adminThread(env, ev, me, isOwner, id)
+        : action === 'admin.support.take' ? await take(env, ev, me, id)
+        : action === 'admin.support.send' ? await sendFromAdmin(env, ev, me, id, body.text)
+        : action === 'admin.support.pass' ? await pass(env, ev, me, isOwner, id, body.to)
+        : await closeByAdmin(env, ev, me, isOwner, id);
+      if (!r.ok) return fail(r.error, r.status);
+      if (action === 'admin.support.get') return { thread: r.thread, messages: r.messages, admins: r.admins };
+      return action === 'admin.support.send' ? { message: r.message } : {};
     }
 
     case 'admin.announce': {

@@ -269,11 +269,28 @@ try {
   await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ' });
   await shot(people[0], '08-admin-as-regular-admin', { event: A, tab: 'Админ' });
   await shot(admin, '08b-admin-not-member', { event: B, tab: 'Админ' });
+  // 012: вопрос организатору — «Инфо» → «Нужна помощь?», переписка участника, раздел «Обращения», шторка обращения
+  await w.api(people[2], 'support.send', { event: A, text: 'Не могу найти, где отметить, что подарок готов 🙈' });
+  const sup = await w.api(people[3], 'support.send', { event: A, text: 'Можно поменять адрес доставки после жеребьёвки?' });
+  await w.api(people[0], 'admin.support.send', { event: A, thread: sup.thread, text: 'Да, во вкладке «Письмо» — Санта сразу увидит новый адрес.' });
+  await shot(people[3], '24-info-support', { event: A, tab: 'Инфо' });
+  const openMySupport = (p) => p.locator('.ds-btn', { hasText: 'Написать организатору' }).click();
+  await shot(people[3], '25-support-chat', { event: A, fullPage: false, tab: 'Инфо', before: openMySupport });
+  await shot(people[3], '25-support-chat', { event: A, fullPage: false, tab: 'Инфо', dark: true, before: openMySupport });
+  await shot(admin, '26-admin-support', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-section-title', { hasText: 'Обращения' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -140); }) });
+  const openThread = (name) => (p) => p.locator('.ds-list-item--link', { hasText: name }).click();
+  await shot(admin, '27-support-thread', { event: A, fullPage: false, tab: 'Админ', before: openThread('Олег') });
+  await shot(admin, '27-support-thread-free', { event: A, fullPage: false, tab: 'Админ', before: openThread('Аня') });
   await shot(admin, '18-audit', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
   await shot(admin, '11-participant-menu', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
   await shot(admin, '12-danger-zone', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
     await p.locator('.ds-btn', { hasText: 'Полный сброс эвента' }).click();
     await p.locator('.ds-sheet .ds-input').fill('СБРОС');
+  } });
+  // 012: принудительная отмена жеребьёвки владельцем (подопечных уже открыли)
+  await shot(admin, '28-force-cancel', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
+    await p.locator('.ds-btn--danger', { hasText: 'Отменить жеребьёвку' }).click();
+    await p.locator('.ds-sheet .ds-input').fill('ОТМЕНА');
   } });
   // 010: служебный просмотр владельца — вход словом, участник, все пары; журнал с открытиями
   const vaultIn = async (p) => {

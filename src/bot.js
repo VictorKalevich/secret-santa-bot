@@ -10,6 +10,7 @@ import { isFinished, chatWritable } from './events.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { resolveOwner, setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
 import { joinByInvite, decideRequest, rejoinBlocked } from './membership.js';
+import { sendFromUser, sendFromAdmin, take, supportAvailable } from './support.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта и организатор.';
@@ -19,6 +20,9 @@ const STALE_INVITE = 'Эта пригласительная ссылка уст�
 const REMOVED = (ev) => `Организатор удалил тебя из эвента ${q(ev)} — вернуться по ссылке нельзя. Если это ошибка — напиши ему.`;
 // Режим ответа в переписку: msg_<ward|santa>:<эвент>[:<собеседник>:<время нажатия>] (старый формат — без двух последних)
 const REPLY_MODE = /^msg_(ward|santa):(\d+)(?::(\d+):(\d+))?$/;
+// 012: ответ в обращение — участник пишет в эвент (sup_u:<эвент>:<мс>), админ — в обращение (sup_a:<id>:<мс>)
+const SUPPORT_MODE = /^sup_(u|a):(\d+):(\d+)$/;
+const inReplyMode = (pending) => REPLY_MODE.test(pending) || SUPPORT_MODE.test(pending);
 const REPLY_WINDOW_MS = 60 * 60 * 1000;
 
 // Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913).
@@ -121,8 +125,8 @@ export async function handleUpdate(update, env) {
     }
   };
 
-  // Любая команда выключает режим ответа в переписку (009, FR-916): текст после неё не уйдёт собеседнику
-  if (user && text.startsWith('/') && REPLY_MODE.test(user.pending)) {
+  // Любая команда выключает режим ответа в переписку (009, FR-916) и в обращение (012): текст после неё не уйдёт собеседнику
+  if (user && text.startsWith('/') && inReplyMode(user.pending)) {
     await updateUser(db, from.id, { pending: '' });
     user.pending = '';
   }
@@ -260,6 +264,28 @@ export async function handleUpdate(update, env) {
     return reply(res.pairChanged ? res.error : '❌ ' + res.error);
   }
 
+  // ---------- ответ в обращение к организатору (012) ----------
+  const sm = SUPPORT_MODE.exec(user.pending);
+  if (sm) {
+    await updateUser(db, from.id, { pending: '' });
+    if (!text) return sendMenu(user);
+    if (Date.now() - Number(sm[3]) > REPLY_WINDOW_MS) {
+      return reply('⌛ Время ответа истекло — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз и пришли его снова.');
+    }
+    if (sm[1] === 'u') {
+      const ev = await getEvent(db, sm[2]);
+      if (!ev || !(await getMember(db, ev.id, from.id))) return reply('❌ Ты не участвуешь в этом эвенте.');
+      const res = await sendFromUser(env, ev, user, text);
+      return reply(res.ok ? '✅ Отправлено организатору. Ответ придёт сюда.' : '❌ ' + res.error);
+    }
+    if (!user.is_admin) return reply('❌ Отвечать на обращения могут только администраторы.');
+    const t = await db.prepare('SELECT event_id FROM support_threads WHERE id = ?').bind(Number(sm[2])).first();
+    const ev = t ? await getEvent(db, t.event_id) : null;
+    if (!ev) return reply('❌ Обращение не найдено.');
+    const res = await sendFromAdmin(env, ev, user, Number(sm[2]), text);
+    return reply(res.ok ? '✅ Отправлено участнику.' : `❌ ${res.error} Сообщение не отправлено.`);
+  }
+
   return sendMenu(user);
 }
 
@@ -284,7 +310,7 @@ async function handleCallback(cq, env, call) {
     const toWard = mm[1] === 'ward';
     // Нажатие отклонено — прежний режим ответа тоже выключается: текст не уйдёт туда, куда человек уже не целится
     const refuse = async (text) => {
-      if (REPLY_MODE.test(user.pending)) await updateUser(db, from.id, { pending: '' });
+      if (inReplyMode(user.pending)) await updateUser(db, from.id, { pending: '' });
       return answer(text);
     };
     const ev = await getEvent(db, mm[2]);
@@ -302,6 +328,50 @@ async function handleCallback(cq, env, call) {
         : `✍️ Напиши сообщение своему Санте (эвент ${q(ev)}) — я передам его. Санта знает, кто ты, а ты его — нет.`) +
       `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`
     ));
+  }
+
+  // ---------- обращения к организатору (012) ----------
+  const sp = /^sup:(take|a|u):(\d+)$/.exec(data);
+  if (sp) {
+    const refuse = async (text) => {
+      if (inReplyMode(user.pending)) await updateUser(db, from.id, { pending: '' });
+      return answer(text);
+    };
+    const prompt = (text) => send(msg(text + `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`));
+    const settings = await getSettings(db);
+    if (sp[1] === 'u') {
+      const ev = await getEvent(db, sp[2]);
+      if (!ev || !(await getMember(db, ev.id, from.id))) return refuse('Ты не участвуешь в этом эвенте.');
+      if (!chatWritable(ev)) return refuse('Эвент завершён больше недели назад — обращения только для чтения.');
+      if (!supportAvailable(await allUsers(db), from.id)) return refuse('Сейчас некому написать: в боте нет других организаторов.');
+      await updateUser(db, from.id, { pending: `sup_u:${ev.id}:${Date.now()}` });
+      await answer();
+      return prompt(`✍️ Напиши сообщение организатору (эвент ${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
+    }
+    if (!user.is_admin) return refuse('Только для администратора.');
+    const t = await db.prepare('SELECT * FROM support_threads WHERE id = ?').bind(Number(sp[2])).first();
+    const ev = t ? await getEvent(db, t.event_id) : null;
+    if (!ev) return refuse('Обращение не найдено.');
+    const author = await getUser(db, t.user_id);
+    const name = escapeHtml(author?.name || 'участник');
+    if (sp[1] === 'take') {
+      const r = await take(env, ev, user, t.id);
+      if (!r.ok) return refuse(r.error);
+      await answer('🙋 Обращение твоё');
+      return send(msg(`🙋 Обращение <b>${name}</b> (эвент ${q(ev)}) теперь ведёшь ты. Ответь кнопкой ниже или в приложении.`, {
+        reply_markup: { inline_keyboard: [[
+          { text: '↩️ Ответить', callback_data: `sup:a:${t.id}` },
+          openAppButton(settings, '💬 Открыть', { event: ev.id, support: t.id }),
+        ]] },
+      }));
+    }
+    if (t.status !== 'open') return refuse('Обращение уже закрыто.');
+    if (t.user_id === from.id) return refuse('Это твоё обращение — отвечать на него будут другие организаторы.');
+    if (t.assignee && t.assignee !== from.id) return refuse(`Обращение ведёт ${(await getUser(db, t.assignee))?.name || 'другой админ'}.`);
+    if (!chatWritable(ev)) return refuse('Эвент завершён больше недели назад — обращения только для чтения.');
+    await updateUser(db, from.id, { pending: `sup_a:${t.id}:${Date.now()}` });
+    await answer();
+    return prompt(`✍️ Напиши ответ <b>${name}</b> (обращение, эвент ${q(ev)}).` + (t.assignee ? '' : ' Ответив, ты возьмёшь обращение себе.'));
   }
 
   // Решение по заявке на вступление (008): кнопки в сообщении админу
