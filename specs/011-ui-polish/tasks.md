@@ -82,6 +82,19 @@ description: "Задачи 011: «Как это работает», тёмная
   цвета `currentColor`, позиция `right var(--ds-space-3)` (= отступ текста слева), `padding-right` под «галочку»
 - [X] T017 [US4] `tests/design-system.test.mjs` и `design-system/README.md`: проверка и описание правила
 
+## Phase 8: User Story 5 и 6 — поле даты: отступ и «Сбросить» (P2, добавлено 2026-11-13)
+
+- [X] T018 [US5] `design-system/tokens.css`: `--ds-date-icon-bleed` (поля рисунка внутри значка календаря, 2px)
+- [X] T019 [US5] `design-system/components.css`: `.ds-input[type="date"]` — `appearance: none`, `text-align: start`,
+  `min-height` как у текстового поля; значок календаря без `padding`, справа `-var(--ds-date-icon-bleed)`; внутренние
+  отступы Chromium и отступ значения iOS/Android — ноль
+- [X] T020 [US6] `src/app.html`: `ui.date` + `closeOnReset` (пустое значение без клавиатуры → `blur()`); три поля даты
+  «Параметров эвента» — через `ui.date`
+- [X] T021 [US5] [US6] `tests/design-system.test.mjs`: правило поля даты и `ui.date` во всех полях даты;
+  `tests/screenshots.mjs`: `checkDateFields` — отступ значка (±1 px), высота, «Сбросить» снимает фокус, Backspace — нет
+- [X] T022 [P] `design-system/README.md`: строка «Поля» и правило про поле даты
+- [X] T023 `npm test`, `npm run screenshots`, `npm run test:e2e`
+
 ## Dependencies & Execution Order
 
 - T001 — первым (конституция до кода).

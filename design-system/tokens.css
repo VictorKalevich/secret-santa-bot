@@ -110,6 +110,7 @@
   --ds-size-letter-min: 220px;
   --ds-select-arrow: 5px;          /* половина «галочки» выпадающего списка: вся — 10 × 5 */
   --ds-select-arrow-stroke: 0.8px; /* половина толщины линии «галочки» */
+  --ds-date-icon-bleed: 2px;       /* поля рисунка внутри системного значка календаря: на столько значок выходит за край */
   --ds-sheet-max-h: 88vh;
   --ds-toast-max-w: 90vw;
   --ds-border-thin: 1px;

@@ -100,3 +100,25 @@ test('стрелка выпадающего списка с отступом с�
   assert.match(block[1], /padding-right:\s*calc\(var\(--ds-space-3\)/);
   assert.match(css, /\.ds-input\s*\{[^}]*padding:\s*var\(--ds-space-3\)/, 'отступ текста слева — --ds-space-3');
 });
+
+test('поле даты: значок на отступе поля, «Сбросить» закрывает календарь (011)', () => {
+  const css = stripComments(components);
+  const block = css.match(/\.ds-input\[type="date"\]\s*\{([^}]*)\}/);
+  assert.ok(block, 'нет правила .ds-input[type="date"]');
+  assert.match(block[1], /appearance:\s*none/);
+  assert.match(block[1], /text-align:\s*start/);
+  assert.match(block[1], /min-height:\s*calc\(2 \* var\(--ds-space-3\) \+ var\(--ds-leading-base\) \* 1em\)/);
+  const icon = css.match(/\.ds-input::-webkit-calendar-picker-indicator\s*\{([^}]*)\}/);
+  assert.ok(icon, 'нет правила значка календаря');
+  assert.match(icon[1], /padding:\s*0/);
+  assert.match(icon[1], /margin:\s*0 calc\(-1 \* var\(--ds-date-icon-bleed\)\) 0 var\(--ds-space-2\)/);
+  assert.match(css, /\.ds-input::-webkit-date-and-time-value\s*\{[^}]*margin:\s*0[^}]*text-align:\s*start/);
+  // все поля даты приложения — через ui.date (закрытие календаря по «Сбросить»)
+  assert.equal((app.match(/type: 'date'/g) || []).length, 1, 'поле даты создаётся только в ui.date');
+  assert.match(app, /date: \(value\) => closeOnReset\(h\('input', \{ class: 'ds-input', type: 'date', value \}\)\)/);
+  const fn = app.match(/function closeOnReset\([\s\S]*?\n {2}\}/)[0];
+  assert.match(fn, /addEventListener\('keydown'/);
+  assert.match(fn, /addEventListener\('input', onClear\)/);
+  assert.match(fn, /addEventListener\('change', onClear\)/);
+  assert.match(fn, /el\.blur\(\)/);
+});

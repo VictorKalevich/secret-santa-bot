@@ -67,7 +67,22 @@
       h('div', { class: 'ds-text-muted' }, text), action || null),
     chip: (text, kind) => h('span', { class: 'ds-chip' + (kind ? ' ds-chip--' + kind : '') }, text),
     textarea: (attrs) => autosize(h('textarea', { class: 'ds-input', ...attrs })),
+    date: (value) => closeOnReset(h('input', { class: 'ds-input', type: 'date', value })),
   };
+
+  // Поле даты (011): «Сбросить» в системном календаре очищает поле и закрывает календарь (iOS сам его не закрывает).
+  // Календарь закрывается вместе с фокусом поля. Очистка с клавиатуры (ПК: Backspace по частям даты) фокус не снимает.
+  function closeOnReset(el) {
+    let keyAt = 0;
+    el.addEventListener('keydown', () => { keyAt = Date.now(); });
+    const onClear = () => {
+      if (el.value || Date.now() - keyAt < 1000 || document.activeElement !== el) return;
+      setTimeout(() => el.blur(), 0);
+    };
+    el.addEventListener('input', onClear);
+    el.addEventListener('change', onClear);
+    return el;
+  }
 
   async function api(action, body) {
     let res;
@@ -1174,13 +1189,13 @@
       const f = {
         title: h('input', { class: 'ds-input', type: 'text', value: val('title'), maxlength: 80 }),
         budget: h('input', { class: 'ds-input', type: 'text', value: val('budget'), placeholder: 'например, до 50 BYN', maxlength: 100 }),
-        event_date: h('input', { class: 'ds-input', type: 'date', value: val('event_date') }),
+        event_date: ui.date(val('event_date')),
         place: h('input', { class: 'ds-input', type: 'text', value: val('place'), placeholder: 'например, у Маши дома', maxlength: 200 }),
-        deadline: h('input', { class: 'ds-input', type: 'date', value: val('deadline') }),
+        deadline: ui.date(val('deadline')),
         notes: ui.textarea({ value: val('notes'), placeholder: 'Любые правила и детали для всех', rows: 2, maxlength: 2000 }),
       };
       // Расписание (007): автожеребьёвка (до жеребьёвки), авто-раскрытие и автозавершение
-      if (!s.draw_done) f.draw_auto_date = h('input', { class: 'ds-input', type: 'date', value: val('draw_auto_date') });
+      if (!s.draw_done) f.draw_auto_date = ui.date(val('draw_auto_date'));
       const checks = {
         delivery_on: h('input', { type: 'checkbox', checked: val('delivery_on') }),
         reveal_auto: h('input', { type: 'checkbox', checked: val('reveal_auto') }),

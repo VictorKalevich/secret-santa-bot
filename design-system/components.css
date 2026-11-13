@@ -145,6 +145,20 @@ select.ds-input {
   background-position: right calc(var(--ds-space-3) + var(--ds-select-arrow)) center, right var(--ds-space-3) center;
   background-repeat: no-repeat;
 }
+/* Поле даты (011): рисунок календаря справа на --ds-space-3 — как «галочка» списка и текст слева; высота как у
+ * текстового поля. Chromium (ПК) даёт значку свой padding, а сам рисунок внутри значка — с полями
+ * (--ds-date-icon-bleed); полю — внутренние отступы сверху и снизу. iOS/Android оставляют значению отступ справа под
+ * системную стрелку и ставят его по центру; без значения поле на iOS схлопывается — отсюда min-height. */
+.ds-input[type="date"] {
+  appearance: none; cursor: pointer; text-align: start;
+  min-height: calc(2 * var(--ds-space-3) + var(--ds-leading-base) * 1em);
+}
+.ds-input::-webkit-datetime-edit,
+.ds-input::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+.ds-input::-webkit-date-and-time-value { margin: 0; text-align: start; }
+.ds-input::-webkit-calendar-picker-indicator {
+  margin: 0 calc(-1 * var(--ds-date-icon-bleed)) 0 var(--ds-space-2); padding: 0; cursor: pointer;
+}
 .ds-input--letter { min-height: var(--ds-size-letter-min); line-height: var(--ds-leading-relaxed); }
 .ds-field { display: block; }
 .ds-field__label { display: block; margin: 0 0 var(--ds-space-1) var(--ds-space-0-5); font-size: var(--ds-text-sm); color: var(--ds-color-text-muted); }

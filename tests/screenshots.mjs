@@ -166,6 +166,52 @@ try {
     else console.log(`✔ шторка держит прокрутку (страница ${y1}, шторка прокручена на ${sheetScrolled})`);
   }
 
+  // 011: поле даты — рисунок календаря справа на отступе поля (как «галочка» списка), высота как у текстового поля;
+  // «Сбросить» в календаре (очистка без клавиатуры) закрывает календарь — снимает фокус; стирание с клавиатуры — нет
+  async function checkDateFields(user, event) {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.route('https://telegram.org/**', (r) => r.abort());
+    await page.goto(`${w.base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
+    await page.waitForSelector('.ds-tabs:not([hidden])');
+    await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+    await page.waitForSelector('input.ds-input[type="date"]');
+    const problems = [];
+    const dates = page.locator('input.ds-input[type="date"]');
+    const count = await dates.count();
+    if (count !== 3) problems.push(`полей даты ${count}, ожидалось 3 (вручение, письмо до, автожеребьёвка)`);
+    const textH = await page.locator('input.ds-input[type="text"]').first().evaluate((e) => e.getBoundingClientRect().height);
+    const cdp = await page.context().newCDPSession(page);
+    const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    const indicators = [];
+    (function walk(n) {
+      if (n.attributes?.includes('-webkit-calendar-picker-indicator')) indicators.push(n.nodeId);
+      for (const k of [...(n.children || []), ...(n.shadowRoots || [])]) walk(k);
+    })(root);
+    const bleed = 2; // --ds-date-icon-bleed
+    for (let i = 0; i < count; i++) {
+      const box = await dates.nth(i).evaluate((e) => { const r = e.getBoundingClientRect(); return { right: r.right, h: r.height }; });
+      if (Math.abs(box.h - textH) > 0.5) problems.push(`поле даты ${i + 1}: высота ${box.h}, у текстового поля ${textH}`);
+      const { model } = await cdp.send('DOM.getBoxModel', { nodeId: indicators[i] });
+      const inset = box.right - model.border[2] + bleed; // рисунок отстоит от края значка на bleed
+      if (Math.abs(inset - 12) > 1) problems.push(`поле даты ${i + 1}: значок календаря на ${inset} px от края, ожидалось 12`);
+    }
+    const focused = (i) => dates.nth(i).evaluate((e) => document.activeElement === e);
+    // дата вручения заполнена: Backspace стирает день → значение пустое, но фокус остаётся
+    await dates.nth(0).focus();
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(100);
+    if (await dates.nth(0).inputValue()) problems.push('Backspace не очистил дату вручения — проверка клавиатуры не сработала');
+    if (!(await focused(0))) problems.push('стирание с клавиатуры сняло фокус с поля даты');
+    // «Сбросить»: календарь сам ставит пустое значение и шлёт input/change (без нажатий клавиш)
+    await dates.nth(2).focus();
+    await dates.nth(2).evaluate((e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); });
+    await page.waitForTimeout(100);
+    if (await focused(2)) problems.push('«Сбросить» не закрыл календарь: поле осталось в фокусе');
+    await page.close();
+    if (problems.length) colorProblems.push(...problems.map((x) => 'дата: ' + x));
+    else console.log('✔ поля даты: значок на отступе поля, высота как у текста, «Сбросить» закрывает календарь');
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -254,6 +300,7 @@ try {
   await w.api(admin, 'admin.game', { event: B, rejoin: false });
   await w.api(admin, 'admin.remove', { event: B, id: people[1].id });
   await shot(admin, '22-removed-list', { event: B, tab: 'Админ' });
+  await checkDateFields(admin, B);
   await shot(people[0], '02-my-letter', { event: A, dark: true });
   await shot(people[2], '05-ward-hidden', { event: A, tab: 'Подопечный', dark: true });
   await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ', dark: true });
