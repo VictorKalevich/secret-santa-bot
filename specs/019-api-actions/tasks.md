@@ -237,7 +237,7 @@ tests/draw-golden.test.mjs` — зелёные; `npm run bench:draw` ×2 — б�
   138 тестов: 136 прошли, 2 todo; 0,72–0,76 с, 5 прогонов
 - [X] T045 `npm run test:e2e` — 8 сценариев зелёные, журнал без `budget exceeded`
   8 сценариев, 69 тестов, 185 с, budget exceeded нет
-- [ ] T046 Слияние в `main` (`--ff-only`), `git push` ветки и `main`; `git branch -a --no-merged main` пуст
+- [X] T046 Слияние в `main` (`--ff-only`), `git push` ветки и `main`; `git branch -a --no-merged main` пуст
 
 ---
 
