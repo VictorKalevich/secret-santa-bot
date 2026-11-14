@@ -117,6 +117,7 @@
         <button class="ds-btn ds-btn--sm">Маленькая</button>
         <button class="ds-btn ds-btn--secondary ds-btn--sm">📋 Копировать</button>
         <button class="ds-icon-btn">👁</button><button class="ds-icon-btn">✏️</button><button class="ds-icon-btn">🗑</button>
+        <button class="ds-icon-btn" disabled title="Недоступна — идёт запрос">🗑</button>
       </div>
     </div>
 
@@ -151,6 +152,12 @@
         <button class="ds-segmented__item ds-segmented__item--on">🔔 Звук</button>
         <button class="ds-segmented__item">🔕 Тихо</button>
         <button class="ds-segmented__item">🚫 Выкл</button>
+      </div>
+      <div class="ds-hint">Недоступны — пока сохраняется выбор:</div>
+      <div class="ds-segmented">
+        <button class="ds-segmented__item ds-segmented__item--on" disabled>🔔 Звук</button>
+        <button class="ds-segmented__item" disabled>🔕 Тихо</button>
+        <button class="ds-segmented__item" disabled>🚫 Выкл</button>
       </div>
     </div>
 

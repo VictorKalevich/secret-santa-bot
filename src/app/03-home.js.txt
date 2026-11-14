@@ -189,7 +189,7 @@
     const seg = h('div', { class: 'ds-segmented' });
     const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
       class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
-      onclick: () => busy(null, async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast('Сохранено'); }),
+      onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast('Сохранено'); }),
     }, label)));
     draw();
     nodes.push(ui.section('Уведомления'),
@@ -257,11 +257,11 @@
           actions.append(
             h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: async () => {
               if (!(await confirmBox(`Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать админов сможет только новый владелец.`))) return;
-              busy(null, async () => { await api('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await goHome(); });
+              busy([...actions.children], async () => { await api('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await goHome(); });
             } }, '👑'),
             h('button', { class: 'ds-icon-btn', title: 'Снять права администратора', onclick: async () => {
               if (!(await confirmBox(`Снять права администратора с «${u.name}»?`))) return;
-              busy(null, async () => { await api('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await goHome(); });
+              busy([...actions.children], async () => { await api('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await goHome(); });
             } }, '✕'));
         }
         list.append(h('div', { class: 'ds-list-item' },

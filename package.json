@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "wrangler dev --test-scheduled --port 8787",
     "deploy": "wrangler deploy",
-    "test": "node --test tests/draw.test.mjs tests/design-system.test.mjs tests/app-parts.test.mjs tests/unit.test.mjs tests/wording.test.mjs tests/d1-sqlite.test.mjs tests/world.test.mjs tests/secrecy.test.mjs tests/rights.test.mjs tests/atomic.test.mjs tests/queries.test.mjs tests/draw-golden.test.mjs tests/data-registry.test.mjs tests/api-refusals.test.mjs tests/api-table.test.mjs tests/claims.test.mjs tests/snapshots.test.mjs tests/api-doc.test.mjs",
+    "test": "node --test tests/draw.test.mjs tests/design-system.test.mjs tests/app-parts.test.mjs tests/unit.test.mjs tests/wording.test.mjs tests/d1-sqlite.test.mjs tests/world.test.mjs tests/secrecy.test.mjs tests/rights.test.mjs tests/atomic.test.mjs tests/queries.test.mjs tests/draw-golden.test.mjs tests/data-registry.test.mjs tests/api-refusals.test.mjs tests/api-table.test.mjs tests/claims.test.mjs tests/snapshots.test.mjs tests/api-doc.test.mjs tests/app-buttons.test.mjs",
     "test:e2e": "node --test tests/e2e.test.mjs",
     "test:all": "npm test && npm run test:e2e",
     "bench:draw": "node tests/bench/bench-draw.mjs",

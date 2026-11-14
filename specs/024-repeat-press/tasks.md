@@ -98,14 +98,14 @@
 
 **Independent Test**: `node --test tests/app-buttons.test.mjs`.
 
-- [ ] T011 [P] [US4] `tests/app-buttons.test.mjs`: склейка приложения (`tests/support/app-source.mjs`) — нет
+- [X] T011 [P] [US4] `tests/app-buttons.test.mjs`: склейка приложения (`tests/support/app-source.mjs`) — нет
   `busy(null` и `busy(undefined`, место нарушения — часть и строка (`where`); «от противного» — искусственный текст с
   `busy(null, …)` даёт нарушение; `package.json` — файл в скрипт `test`. Запустить — 6 нарушений
-- [ ] T012 [US4] `src/app/02-core.js.txt`: `busy(btn, fn)` — `btn` кнопка, список или `null` (все блокируются и
+- [X] T012 [US4] `src/app/02-core.js.txt`: `busy(btn, fn)` — `btn` кнопка, список или `null` (все блокируются и
   разблокируются); `src/app/03-home.js.txt`: режимы уведомлений — все кнопки переключателя, строка администратора —
   обе кнопки; `src/app/05-admin.js.txt`: заявка — обе кнопки, удаление исключения и закреплённой пары —
   `e.currentTarget`. T011 — зелёный
-- [ ] T013 [US4] `design-system/components.css`: `.ds-icon-btn:disabled, .ds-segmented__item:disabled { opacity:
+- [X] T013 [US4] `design-system/components.css`: `.ds-icon-btn:disabled, .ds-segmented__item:disabled { opacity:
   var(--ds-opacity-disabled); cursor: default; }`; `design-system/preview.html` — недоступная круглая кнопка и пункт
   переключателя; `design-system/README.md` — строка о состоянии; `tests/design-system.test.mjs` зелёный
 

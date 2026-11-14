@@ -113,18 +113,21 @@
       if (d.requests.length) {
         const reqList = h('div', { class: 'ds-card ds-card--flush' });
         for (const r of d.requests) {
-          const decide = (approve) => busy(null, async () => {
+          // Обе кнопки заявки недоступны, пока идёт решение (024)
+          const pick = h('div', { class: 'ds-row ds-row--tight' });
+          const decide = (approve) => busy([...pick.children], async () => {
             await xapi('admin.request.decide', { id: r.id, approve });
             toast(approve ? `✅ ${r.name} в событии` : 'Заявка отклонена');
             await refresh();
           });
+          pick.append(
+            h('button', { class: 'ds-icon-btn', title: 'Принять', onclick: () => decide(true) }, '✅'),
+            h('button', { class: 'ds-icon-btn', title: 'Отклонить', onclick: () => decide(false) }, '❌'));
           reqList.append(h('div', { class: 'ds-list-item' },
             h('div', { class: 'ds-grow' },
               h('div', { class: 'ds-list-item__title' }, r.name || 'без имени', r.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + r.username) : null),
               ui.hint(fmtTime(r.created_at))),
-            h('div', { class: 'ds-row ds-row--tight' },
-              h('button', { class: 'ds-icon-btn', title: 'Принять', onclick: () => decide(true) }, '✅'),
-              h('button', { class: 'ds-icon-btn', title: 'Отклонить', onclick: () => decide(false) }, '❌'))));
+            pick));
         }
         nodes.push(ui.section(`Заявки · ${d.requests.length}`),
           s.registration_open ? null : ui.hint('Регистрация закрыта — принять заявку можно, когда откроешь её. Отклонить можно сейчас.', 'ds-hint--inset'),
@@ -336,7 +339,7 @@
           h('div', { class: 'ds-grow' }, e.mutual
             ? [h('b', {}, a), ' и ', h('b', {}, b), ' не дарят друг другу']
             : [h('b', {}, a), ' не дарит ', h('b', {}, b)]),
-          exFrozen ? null : h('button', { class: 'ds-icon-btn', title: 'Удалить исключение', onclick: () => busy(null, async () => { await xapi('admin.exclusion.del', e); await again(); }) }, '✕')));
+          exFrozen ? null : h('button', { class: 'ds-icon-btn', title: 'Удалить исключение', onclick: (ev) => busy(ev.currentTarget, async () => { await xapi('admin.exclusion.del', e); await again(); }) }, '✕')));
       }
       const opts = (ph) => [h('option', { value: '' }, ph), ...players.map((u) => h('option', { value: u.id }, u.name))];
       const selA = h('select', { class: 'ds-input' }, opts('Кто дарит…'));
@@ -400,7 +403,7 @@
           h('div', { class: 'ds-grow' }, f.mutual
             ? [h('b', {}, fxName(f.giver)), ' и ', h('b', {}, fxName(f.receiver)), ' дарят друг другу']
             : [h('b', {}, fxName(f.giver)), ' дарит ', h('b', {}, fxName(f.receiver))]),
-          s.draw_done ? null : h('button', { class: 'ds-icon-btn', title: 'Убрать закреплённую пару', onclick: () => busy(null, async () => { await xapi('admin.fixed.del', f); toast('Закреплённая пара убрана'); await again(); }) }, '✕')));
+          s.draw_done ? null : h('button', { class: 'ds-icon-btn', title: 'Убрать закреплённую пару', onclick: (ev) => busy(ev.currentTarget, async () => { await xapi('admin.fixed.del', f); toast('Закреплённая пара убрана'); await again(); }) }, '✕')));
       }
       nodes.push(ui.section('Закреплённые пары'), fxList);
       if (s.draw_done) {

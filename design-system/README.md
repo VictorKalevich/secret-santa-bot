@@ -51,12 +51,12 @@
 | Шапка | `ds-hero`, `__badge`, `__title`, `__subtitle`, `__back` | верх экрана; `__back` — «‹» к списку эвентов |
 | Вкладки | `ds-tabs`, `ds-tab` (+`--active`), `ds-tab__icon`, `ds-tab__label`, `ds-tab__dot` | 2–4 равные вкладки «иконка + короткая подпись»; точка — несохранённые изменения |
 | Секция и карточка | `ds-section-title`, `ds-card` (+`--flush`) | группировка содержимого |
-| Кнопки | `ds-btn` (+`--block`, `--secondary`, `--danger`, `--festive`, `--on-festive`, `--sm`), `ds-icon-btn` | одно основное действие на карточку; `festive` — только жеребьёвка |
+| Кнопки | `ds-btn` (+`--block`, `--secondary`, `--danger`, `--festive`, `--on-festive`, `--sm`), `ds-icon-btn` | одно основное действие на карточку; `festive` — только жеребьёвка; `:disabled` — бледная, пока идёт запрос (у `ds-icon-btn` — с 024) |
 | Поля | `ds-input` (+`--letter`), `ds-field`, `ds-field__label`, `ds-check`, `ds-counter` (+`--over`) | ввод текста, выбор, флажки, счётчик слов; `<select class="ds-input">` сам получает «галочку» с отступом справа как у текста слева; `<input type="date" class="ds-input">` — значок календаря на том же отступе, высота как у текстового поля |
 | Список | `ds-list-item` (+`--sub`, `--link`), `ds-list-item__title`, `ds-list-item__chevron` | участники, исключения, эвенты (внутри `ds-card--flush`); `--link` + `›` — строка открывает экран |
 | Метки | `ds-chips`, `ds-chip` (+`--success`, `--warning`) | статусы участников |
 | Переключатель | `ds-switch` + `input` + `ds-switch__track` | вкл/выкл настройки; `input:disabled` — бледный, только чтение |
-| Сегменты | `ds-segmented`, `ds-segmented__item` (+`--on`) | выбор одного из 2–4 вариантов |
+| Сегменты | `ds-segmented`, `ds-segmented__item` (+`--on`) | выбор одного из 2–4 вариантов; `:disabled` — бледные, пока сохраняется выбор |
 | Подопечный | `ds-ward-card`, `__label`, `__name` (+`--hidden`) | главный экран Санты |
 | Письмо | `ds-letter`, `ds-diff-add`, `ds-diff-del` | текст письма и подсветка изменений |
 | Пустое состояние | `ds-empty`, `__icon`, `__title`, `__action` | нет данных / ошибка |

@@ -123,6 +123,8 @@
   border: 0; border-radius: var(--ds-radius-md);
   background: var(--ds-color-fill); font-size: var(--ds-text-base);
 }
+/* Недоступна (024): пока идёт запрос — как у ds-btn */
+.ds-icon-btn:disabled { opacity: var(--ds-opacity-disabled); cursor: default; }
 
 /* ========== Поля ввода ========== */
 .ds-input {
@@ -213,6 +215,7 @@ select.ds-input {
   border-radius: var(--ds-radius-sm); padding: var(--ds-space-2) var(--ds-space-1); font-size: var(--ds-text-md);
 }
 .ds-segmented__item--on { background: var(--ds-color-surface); font-weight: var(--ds-weight-semibold); box-shadow: var(--ds-shadow-sm); }
+.ds-segmented__item:disabled { opacity: var(--ds-opacity-disabled); cursor: default; }
 
 /* ========== Карточка подопечного ========== */
 .ds-ward-card {

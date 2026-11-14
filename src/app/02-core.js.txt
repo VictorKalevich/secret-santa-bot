@@ -94,11 +94,14 @@
       resolve(window.confirm(text));
     });
   }
+  // Пока идёт запрос, кнопка недоступна — второе нажатие не уходит вторым запросом. btn — кнопка или список кнопок
+  // (024: все кнопки ряда, если любая из них запускает тот же запрос); без кнопки не вызывать (тест app-buttons).
   async function busy(btn, fn) {
-    if (btn) btn.disabled = true;
+    const btns = [].concat(btn || []);
+    for (const b of btns) b.disabled = true;
     try { return await fn(); }
     catch (e) { haptic('error'); toast('⚠️ ' + e.message); }
-    finally { if (btn) btn.disabled = false; }
+    finally { for (const b of btns) b.disabled = false; }
   }
   // Переключатель с немедленным сохранением (009): пока идёт запрос — недоступен; при ошибке (или если fn вернула
   // false — например, отказ в подтверждении) возвращается в прежнее положение.
