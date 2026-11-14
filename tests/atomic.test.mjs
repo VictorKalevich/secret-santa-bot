@@ -1,9 +1,11 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 19 проверок «один результат» — обычные (три из них — дефекты, исправленные в шаге 3, 018); 2 известных дефекта —
-// todo с номером шага, который их чинит
-// (docs/refactoring-roadmap.md, «Исправления внутри шагов»): шаг снимает пометку. Случаи без захвата (объявление,
-// напоминание, сброс, роли, двойное сохранение семьи) — решения владельца, здесь их нет (baseline.md, раздел 4).
+// 26 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
+// узнаётся по прежнему состоянию, а не по времени, 020). Известный дефект — todo с номером шага, который его чинит
+// (docs/refactoring-roadmap.md, «Исправления внутри шагов»): шаг снимает пометку; сейчас таких нет. Случаи без захвата
+// (объявление, напоминание, сброс, роли, двойное сохранение семьи) — решения владельца, здесь их нет (baseline.md,
+// раздел 4).
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
@@ -139,7 +141,7 @@ describe('атомарность: до жеребьёвки', () => {
     assert.equal(z.audit('member.remove'), 1, 'записей журнала');
     assert.equal(z.sent(z.people[0], 'удалил тебя'), 1, 'уведомлений удалённому');
   });
-  it('admin.exclusion.add ×2 — одна запись журнала (будет исправлено в шаге 5)', { todo: 'шаг 5' }, async () => {
+  it('admin.exclusion.add ×2 — одна запись журнала (исправлено в шаге 5, 020)', async () => {
     await z.twice(adm, 'admin.exclusion.add', { event: z.ev.id, giver: z.people[1].id, receiver: z.people[2].id });
     assert.equal(z.w.query('SELECT COUNT(*) AS n FROM exclusions WHERE event_id = ?', z.ev.id)[0].n, 1, 'исключение одно');
     assert.equal(z.audit('exclusion.add'), 1, 'записей журнала');
@@ -234,6 +236,72 @@ describe('атомарность: заявки и обращения', () => {
   });
 });
 
+// Двойное нажатие одним человеком в одну миллисекунду (020): время и автор у двух вызовов совпадают, поэтому «свой»
+// захват узнаётся по прежнему состоянию (уведомления и журнал — перед изменением), а не по метке времени
+describe('атомарность: один человек дважды в одну миллисекунду', () => {
+  const once = { sameMoment: true };
+
+  describe('обращения', () => {
+    let z;
+    let th;
+    before(async () => {
+      z = await world();
+      await z.w.api(z.people[0], 'support.send', { event: z.ev.id, text: 'Помогите' });
+      th = z.w.query('SELECT id FROM support_threads')[0].id;
+    });
+
+    it('admin.support.take ×2 — одно уведомление и одна запись журнала', async () => {
+      const rs = await z.twice(adm, 'admin.support.take', { event: z.ev.id, thread: th }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.match(rs.find((r) => r.status === 400).data.error, /^Обращение уже взял\(а\) /);
+      assert.equal(z.audit('support.take'), 1, 'записей журнала');
+      assert.equal(z.sent(z.people[0], 'взял(а)'), 1, 'участнику');
+      assert.equal(z.sent(adm2, 'взял(а) обращение'), 1, 'другому админу');
+      assert.equal(z.sent(boss, 'взял(а) обращение'), 1, 'владельцу');
+    });
+    it('admin.support.pass ×2 владельцем — одно уведомление каждому и одна запись журнала', async () => {
+      const rs = await z.twice(boss, 'admin.support.pass', { event: z.ev.id, thread: th, to: adm2.id }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(rs.find((r) => r.status === 400).data.error, 'Обращение изменилось одновременно с этим действием — обнови экран и попробуй ещё раз.');
+      assert.equal(z.audit('support.pass'), 1, 'записей журнала');
+      assert.equal(z.sent(z.people[0], 'теперь ведёт'), 1, 'участнику');
+      assert.equal(z.sent(adm2, 'передал(а) тебе обращение'), 1, 'новому ответственному');
+      assert.equal(z.sent(adm, 'теперь его ведёт'), 1, 'прежнему ответственному');
+    });
+    it('admin.support.close ×2 ответственным — одно уведомление и одна запись журнала', async () => {
+      const rs = await z.twice(adm2, 'admin.support.close', { event: z.ev.id, thread: th }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(rs.find((r) => r.status === 400).data.error, 'Обращение уже закрыто.');
+      assert.equal(z.audit('support.close'), 1, 'записей журнала');
+      assert.equal(z.sent(z.people[0], 'закрыл(а) твоё обращение'), 1, 'участнику');
+    });
+    it('support.close ×2 участником — одно уведомление каждому админу и одна запись журнала', async () => {
+      await z.w.api(z.people[1], 'support.send', { event: z.ev.id, text: 'И мне' });
+      const log = z.audit('support.close');
+      const rs = await z.twice(z.people[1], 'support.close', { event: z.ev.id }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(rs.find((r) => r.status === 400).data.error, 'Открытого обращения нет.');
+      assert.equal(z.audit('support.close'), log + 1, 'записей журнала');
+      for (const a of [boss, adm, adm2]) assert.equal(z.sent(a, 'закрыл(а) обращение ('), 1, 'админу ' + a.name);
+    });
+  });
+
+  it('admin.request.decide «принять» ×2 — одно сообщение человеку, одно админам, одна запись журнала', async () => {
+    const z = await world({ approval: true });
+    const guest = { id: 888, name: 'Гость', username: 'guest' };
+    await z.w.say(guest, '/start ' + z.code);
+    await z.w.say(guest, guest.name);
+    const req = z.w.query('SELECT id FROM join_requests WHERE user_id = ?', guest.id)[0];
+    const rs = await z.twice(adm, 'admin.request.decide', { event: z.ev.id, id: req.id, approve: true }, once);
+    assert.deepEqual(sorted(rs), [200, 400]);
+    assert.equal(rs.find((r) => r.status === 400).data.error, 'Заявка уже рассмотрена.');
+    assert.equal(z.sent(guest, 'Заявка одобрена'), 1, 'человеку');
+    assert.equal(z.audit('request.approve'), 1, 'записей журнала');
+    for (const a of [boss, adm2]) assert.equal(z.sent(a, 'принял(а) заявку'), 1, 'админу ' + a.name);
+    assert.equal(z.w.query('SELECT COUNT(*) AS n FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, guest.id)[0].n, 1, 'участник');
+  });
+});
+
 describe('атомарность: перенос участия', () => {
   it('admin.transfer ×2, новый аккаунт уже в событии — его участие не пропадает', async () => {
     const z = await world();
@@ -259,7 +327,7 @@ describe('атомарность: ссылка владельца и «пода�
     await w.together([() => w.say(a, '/start ' + s.adminCode), () => w.say(b, '/start ' + s.adminCode)]);
     assert.equal(w.query('SELECT COUNT(*) AS n FROM users WHERE is_admin = 1')[0].n, 1);
   });
-  it('ward.received ×2 в одну миллисекунду — одно сообщение Санте (будет исправлено в шаге 5)', { todo: 'шаг 5' }, async () => {
+  it('ward.received ×2 в одну миллисекунду — одно сообщение Санте (исправлено в шаге 5, 020)', async () => {
     const z = await world({ draw: true });
     const p = z.w.query('SELECT santa, ward FROM pairs WHERE event_id = ? LIMIT 1', z.ev.id)[0];
     const all = [boss, adm, adm2, ...z.people];

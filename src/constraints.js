@@ -3,6 +3,7 @@
 
 import { getEvent, memberQuery, drawMembersQuery, fixedPairsQuery, auditIfStmt } from './db.js';
 import { displayName } from './format.js';
+import { atomic } from './claim.js';
 
 const EXCLUSIONS_FROZEN =
   'После жеребьёвки исключения не меняются: иначе по заменам участников можно было бы вычислить пары. ' +
@@ -28,18 +29,23 @@ export async function changeExclusions(ctx, ev, { add, giver: rawGiver, receiver
     const r = await ctx.read({ g: memberQuery(db, ev.id, giver), r: memberQuery(db, ev.id, receiver) });
     if (!r.g.length || !r.r.length) return no('Исключение можно задать только между участниками события.');
   }
-  const beforeDraw = isOwner ? '? > 0' : 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
-  const change = (a, b) => add
-    ? db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ?, ?, ? WHERE ${beforeDraw}`).bind(ev.id, a, b, ev.id)
-    : db.prepare(`DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ? AND ${beforeDraw}`).bind(ev.id, a, b, ev.id);
-  const stmts = [change(giver, receiver)];
-  if (mutual) stmts.push(change(receiver, giver));
+  const beforeDraw = atomic(db, isOwner ? '? > 0' : 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)', ev.id);
+  const links = mutual ? [[giver, receiver], [receiver, giver]] : [[giver, receiver]];
   // Имена для журнала — из уже прочитанного списка пользователей (019)
   const users = await ctx.users();
   const nameOf = (id) => displayName(users.find((u) => u.tg_id === id));
   const names = `${nameOf(giver)} ${mutual ? '↔' : '→'} ${nameOf(receiver)}`;
-  stmts.push(auditIfStmt(db, ev.id, me.tg_id, add ? 'exclusion.add' : 'exclusion.del', names, beforeDraw, ev.id));
-  await db.batch(stmts);
+  // Журнал — по прежнему состоянию, перед изменением (020): пока хотя бы одной добавляемой строки нет (удаляемая —
+  // есть). Второй из двух одновременных вызовов видит изменение первого и записи не пишет.
+  const row = 'EXISTS (SELECT 1 FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ?)';
+  beforeDraw
+    .and(links.map(() => (add ? `NOT ${row}` : row)).join(' OR '), ...links.flatMap(([a, b]) => [ev.id, a, b]))
+    .audit(ev.id, me.tg_id, add ? 'exclusion.add' : 'exclusion.del', names);
+  for (const [a, b] of links) {
+    if (add) beforeDraw.select('INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ?, ?, ?', ev.id, a, b);
+    else beforeDraw.where('DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ?', ev.id, a, b);
+  }
+  await beforeDraw.run();
   // Повторное чтение события — намеренно: жеребьёвка могла пройти в ту же секунду
   if (!isOwner && (await getEvent(db, ev.id))?.draw_done) return no(EXCLUSIONS_FROZEN);
   return { ok: true };

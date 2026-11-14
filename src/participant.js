@@ -3,8 +3,8 @@
 
 import {
   eventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, participantCountQuery, announcementsQuery, getUser, getMember,
-  enqueueIfStmt,
 } from './db.js';
+import { atomic } from './claim.js';
 import { msg, q, appKeyboard, cleanText } from './format.js';
 import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
@@ -139,26 +139,25 @@ export async function setGiftReady(ctx, ev, ready) {
 }
 
 // Подопечный отмечает «подарок получен» (007, FR-704). Санта узнаёт об этом только при первой отметке.
+// Защита от двойного нажатия (020): сообщение — перед отметкой и только пока отметки нет. Второй вызов (даже в ту же
+// миллисекунду) видит отметку первого и ничего не рассылает.
 export async function setGiftReceived(ctx, ev, received) {
   const { db, me } = ctx;
   const pair = await pairOfWard(db, ev.id, me.tg_id);
   if (!pair) return no('У тебя пока нет Санты.');
   const on = received ? 1 : 0;
-  const now = Date.now();
-  const stmts = [
-    db.prepare(
-      `UPDATE pairs SET gift_received = ?, gift_received_at = CASE WHEN ? = 1 AND gift_received_at = 0 THEN ? ELSE gift_received_at END
-        WHERE event_id = ? AND ward = ?`
-    ).bind(on, on, now, ev.id, me.tg_id),
-  ];
+  const a = atomic(db, 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = 0)', ev.id, me.tg_id);
   if (on && !pair.gift_received_at) {
     const settings = await ctx.settings();
-    // Только если отметку поставил именно этот запрос (защита от двойного нажатия)
-    stmts.push(enqueueIfStmt(db, pair.santa, msg(
+    a.enqueue(pair.santa, msg(
       `🎉 Твой подопечный в событии ${q(ev)} получил подарок! Спасибо, Санта 🎅`,
       appKeyboard(settings, '🎁 Открыть', { event: ev.id })
-    ), 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = ?)', ev.id, me.tg_id, now));
+    ));
   }
-  await db.batch(stmts);
+  a.claim(db.prepare(
+    `UPDATE pairs SET gift_received = ?, gift_received_at = CASE WHEN ? = 1 AND gift_received_at = 0 THEN ? ELSE gift_received_at END
+      WHERE event_id = ? AND ward = ?`
+  ).bind(on, on, Date.now(), ev.id, me.tg_id));
+  await a.run();
   return { ok: true };
 }

@@ -6,6 +6,7 @@ import {
 } from './db.js';
 import { msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine } from './format.js';
 import { isFinished } from './status.js';
+import { atomic } from './claim.js';
 
 // ---------- семьи ----------
 
@@ -226,32 +227,28 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
   const person = users.find((u) => u.tg_id === req.user_id);
   const by = users.find((u) => u.tg_id === actor);
   const status = approve ? 'approved' : 'rejected';
-  const now = Date.now();
-  const guard = 'EXISTS (SELECT 1 FROM join_requests WHERE id = ? AND status = ? AND decided_by = ? AND decided_at = ?)';
-  const g = [req.id, status, actor, now];
-  // Принять — только пока регистрация открыта (условие повторено в захвате: её могли закрыть в эту же секунду)
-  const open = approve ? "AND EXISTS (SELECT 1 FROM events WHERE id = ? AND registration_open = 1 AND status = 'active')" : '';
-  const stmts = [
-    db.prepare(`UPDATE join_requests SET status = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending' ${open}`)
-      .bind(status, actor, now, req.id, ...(approve ? [ev.id] : [])),
-  ];
-  if (approve) stmts.push(addMemberStmt(db, ev, req.user_id, guard, ...g), clearRemovedStmt(db, ev.id, req.user_id, guard, ...g));
-  stmts.push(enqueueIfStmt(db, req.user_id, approve
+  // По прежнему состоянию (020): участие, сообщения и журнал — пока заявка ждёт решения, а чтобы принять, — ещё и пока
+  // регистрация открыта и событие идёт (её могли закрыть в эту же секунду); само решение — последним, с тем же условием.
+  // Второй вызов (даже того же админа в ту же миллисекунду) видит заявку уже рассмотренной и ничего не рассылает.
+  const pending = atomic(db, "EXISTS (SELECT 1 FROM join_requests WHERE id = ? AND status = 'pending')", req.id);
+  const p = approve ? pending.and("EXISTS (SELECT 1 FROM events WHERE id = ? AND registration_open = 1 AND status = 'active')", ev.id) : pending;
+  if (approve) p.add(addMemberStmt(db, ev, req.user_id, ...p.guard), clearRemovedStmt(db, ev.id, req.user_id, ...p.guard));
+  p.enqueue(req.user_id, approve
     ? msg(
       ev.draw_done
         ? `🎉 Заявка одобрена — ты в событии ${q(ev)}! Жеребьёвка уже прошла — организатор впишет тебя, бот пришлёт уведомление. А пока напиши письмо Санте.`
         : `🎉 Заявка одобрена — ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`,
       appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }))
-    : msg(requestRejected(ev)), guard, ...g));
+    : msg(requestRejected(ev)));
   for (const a of adminRecipients(users, [actor, req.user_id])) {
-    stmts.push(enqueueIfStmt(db, a.tg_id, msg(
+    p.enqueue(a.tg_id, msg(
       `${approve ? '✅' : '❌'} <b>${escapeHtml(displayName(by))}</b> ${approve ? 'принял(а)' : 'отклонил(а)'} заявку <b>${escapeHtml(displayName(person))}</b> на участие в событии ${q(ev)}.`,
       { disable_notification: true }
-    ), guard, ...g));
+    ));
   }
-  stmts.push(auditIfStmt(db, ev.id, actor, approve ? 'request.approve' : 'request.reject', displayName(person), guard, ...g));
-  const [claim] = await db.batch(stmts);
-  if (!claim.meta.changes) {
+  p.audit(ev.id, actor, approve ? 'request.approve' : 'request.reject', displayName(person));
+  p.claim(p.where('UPDATE join_requests SET status = ?, decided_by = ?, decided_at = ? WHERE id = ?', status, actor, Date.now(), req.id));
+  if (!(await p.run()).won) {
     const cur = approve ? await getEvent(db, ev.id) : null;
     return { ok: false, error: cur && !cur.registration_open ? closed : 'Заявка уже рассмотрена.' };
   }

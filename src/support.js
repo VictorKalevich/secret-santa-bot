@@ -1,9 +1,12 @@
 // Обращения участника к организаторам (012). Обращение привязано к эвенту и участнику; ведёт его один админ
 // (assignee, 0 — ничьё). Переписку видят: участник; ничьё — все админы; взятое — ответственный и владелец (R7).
-// Каждое изменение — один batch: первый оператор меняет обращение по условию прежнего состояния, уведомления и журнал —
-// по условию «изменение сделал этот вызов» (research R6). Сообщения людям — только через outbox.
+// Каждое изменение — один batch помощника atomic (020): уведомления и журнал стоят перед изменением и проверяют прежнее
+// состояние, которое изменение отменяет (обращение открыто, ничьё, его ведёт …); изменение — последним, по нему узнаётся
+// исход. Второй из одновременных вызовов (даже того же человека в ту же миллисекунду) видит уже изменённое обращение и
+// ничего не рассылает. Сообщения людям — только через outbox.
 
 import { getUser, enqueueIfStmt, auditIfStmt } from './db.js';
+import { atomic } from './claim.js';
 import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppButton, cleanText } from './format.js';
 import { chatWritable } from './status.js';
 import { MAX_CHARS, tooLong } from './chat.js';
@@ -42,10 +45,11 @@ async function threadOf(db, eventId, id) {
   return threadQuery(db, eventId, id).first();
 }
 
-// Условие «обращение id в состоянии …» для операторов batch
-const THREAD = 'EXISTS (SELECT 1 FROM support_threads WHERE id = ?';
-// Условие «сообщение (обращение, отправитель, время) записано этим вызовом»; закрывающая скобка — у вызывающего
-const MINE_SENT = 'EXISTS (SELECT 1 FROM support_messages WHERE thread_id = ? AND sender = ? AND created_at = ?';
+// Условия «обращение id …» для операторов batch (020: выражения целиком, скобки закрыты)
+const OPEN = "EXISTS (SELECT 1 FROM support_threads WHERE id = ? AND status = 'open')"; // открыто
+const LED_BY = 'EXISTS (SELECT 1 FROM support_threads WHERE id = ? AND assignee = ?)'; // ведёт assignee (0 — ничьё)
+// Ведёт assignee или ничьё (закрытие участником: уведомить ответственного или, если ничьё, — каждого админа)
+const LED_BY_OR_FREE = 'EXISTS (SELECT 1 FROM support_threads WHERE id = ? AND (assignee = 0 OR assignee = ?))';
 
 // ---------- участник ----------
 
@@ -90,8 +94,8 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
   const t = checkText(rawText);
   if (t.error) return fail(t.error);
   if (!chatWritable(ev)) return fail(READ_ONLY);
-  const OPEN = "SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'";
-  const r = await ctx.read({ open: db.prepare(OPEN).bind(ev.id, me.tg_id), users: true, settings: true });
+  const MY_OPEN = "SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'";
+  const r = await ctx.read({ open: db.prepare(MY_OPEN).bind(ev.id, me.tg_id), users: true, settings: true });
   const { settings, users } = r;
   const admins = adminRecipients(users, [me.tg_id]);
   if (!admins.length) return fail(NOBODY);
@@ -104,34 +108,34 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
       .first();
     created = !!thread;
     // Одновременно открыли из другого окна — пишем в него
-    if (!thread) thread = await db.prepare("SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'").bind(ev.id, me.tg_id).first();
+    if (!thread) thread = await db.prepare(MY_OPEN).bind(ev.id, me.tg_id).first();
     if (!thread) return fail('Не получилось отправить — попробуй ещё раз.');
   }
   const now = Date.now();
   const body = '\n\n' + escapeHtml(t.text);
-  // Уведомление — только если сообщение записано этим вызовом и обращение в нужном состоянии (ничьё / у ответственного)
-  const sent = `${THREAD} AND status = 'open' AND assignee = ? AND ${MINE_SENT}))`;
-  const g = (assignee) => [thread.id, assignee, thread.id, me.tg_id, now];
   const unassigned = created
     ? { text: `🆘 ${bold(me)} просит помощи в событии ${title(ev)}:${body}`, quiet: false }
     : { text: `💬 ${bold(me)} дополняет обращение (${title(ev)}):${body}`, quiet: true };
-  const stmts = [
-    db.prepare(`INSERT INTO support_messages (thread_id, sender, from_admin, text, created_at) SELECT ?, ?, 0, ?, ? WHERE ${THREAD} AND status = 'open') RETURNING id, created_at`)
-      .bind(thread.id, me.tg_id, t.text, now, thread.id),
-    // Отвечая, участник видел ответы организатора — помечаем их прочитанными
-    db.prepare(`UPDATE support_messages SET read_at = ? WHERE thread_id = ? AND from_admin = 1 AND read_at = 0 AND ${MINE_SENT} AND from_admin = 0)`)
-      .bind(now, thread.id, thread.id, me.tg_id, now),
-    // Ничьё — всем админам; взятое — только ответственному (кто именно — решает состояние на момент записи)
-    ...admins.map((a) => enqueueIfStmt(db, a.tg_id, msg(unassigned.text, {
+  // Всё — пока обращение открыто, то есть ровно тогда, когда запишется и само сообщение (оно — последним, 020)
+  const open = atomic(db, OPEN, thread.id);
+  // Отвечая, участник видел ответы организатора — помечаем их прочитанными
+  open.where('UPDATE support_messages SET read_at = ? WHERE thread_id = ? AND from_admin = 1 AND read_at = 0', now, thread.id);
+  // Ничьё — всем админам; взятое — только ответственному (кто именно — решает состояние на момент записи)
+  for (const a of admins) {
+    open.and(LED_BY, thread.id, 0).enqueue(a.tg_id, msg(unassigned.text, {
       disable_notification: unassigned.quiet, reply_markup: adminKeyboard(settings, ev, thread.id, true),
-    }), sent, ...g(0))),
-    ...admins.map((a) => enqueueIfStmt(db, a.tg_id, msg(`💬 ${bold(me)} пишет в обращении (${title(ev)}):${body}`, {
+    }));
+  }
+  for (const a of admins) {
+    open.and(LED_BY, thread.id, a.tg_id).enqueue(a.tg_id, msg(`💬 ${bold(me)} пишет в обращении (${title(ev)}):${body}`, {
       reply_markup: adminKeyboard(settings, ev, thread.id, false),
-    }), sent, ...g(a.tg_id))),
-  ];
-  if (created) stmts.push(auditIfStmt(db, ev.id, me.tg_id, 'support.open', displayName(me), `${THREAD} AND status = 'open')`, thread.id));
-  const [inserted] = await db.batch(stmts);
-  const row = inserted.results[0];
+    }));
+  }
+  if (created) open.audit(ev.id, me.tg_id, 'support.open', displayName(me));
+  open.claim(db.prepare(`INSERT INTO support_messages (thread_id, sender, from_admin, text, created_at) SELECT ?, ?, 0, ?, ? WHERE ${open.sql} RETURNING id, created_at`)
+    .bind(thread.id, me.tg_id, t.text, now, ...open.args));
+  const { claim } = await open.run();
+  const row = claim.results[0];
   if (!row) {
     // Обращение закрыли между чтением и записью — следующее сообщение открывает новое
     return retry ? sendFromUser(ctx, ev, rawText, false) : fail('Не получилось отправить — попробуй ещё раз.');
@@ -145,17 +149,15 @@ export async function closeByUser(ctx, ev) {
   const thread = await db.prepare("SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'").bind(ev.id, me.tg_id).first();
   if (!thread) return fail('Открытого обращения нет.');
   const users = await ctx.users();
-  const now = Date.now();
-  const done = `${THREAD} AND status = 'closed' AND closed_at = ? AND closed_by = ? AND (assignee = 0 OR assignee = ?))`;
-  const res = await db.batch([
-    db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'").bind(now, me.tg_id, thread.id),
-    // Ответственному (или всем админам, если обращение ничьё) — без звука
-    ...adminRecipients(users, [me.tg_id]).map((a) => enqueueIfStmt(db, a.tg_id, msg(
-      `✅ ${bold(me)} закрыл(а) обращение (${title(ev)}).`, { disable_notification: true }
-    ), done, thread.id, now, me.tg_id, a.tg_id)),
-    auditIfStmt(db, ev.id, me.tg_id, 'support.close', displayName(me), `${THREAD} AND closed_at = ? AND closed_by = ?)`, thread.id, now, me.tg_id),
-  ]);
-  if (!res[0].meta.changes) return fail('Открытого обращения нет.');
+  // Уведомления и журнал — пока обращение открыто, закрытие — последним (020)
+  const open = atomic(db, OPEN, thread.id);
+  // Ответственному (или всем админам, если обращение ничьё) — без звука
+  for (const a of adminRecipients(users, [me.tg_id])) {
+    open.and(LED_BY_OR_FREE, thread.id, a.tg_id).enqueue(a.tg_id, msg(`✅ ${bold(me)} закрыл(а) обращение (${title(ev)}).`, { disable_notification: true }));
+  }
+  open.audit(ev.id, me.tg_id, 'support.close', displayName(me));
+  open.claim(db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'").bind(Date.now(), me.tg_id, thread.id));
+  if (!(await open.run()).won) return fail('Открытого обращения нет.');
   return { ok: true };
 }
 
@@ -204,7 +206,8 @@ export async function adminThread(ctx, ev, id) {
   const tid = Number(id) || 0;
   const r = await ctx.read({
     thread: threadQuery(db, ev.id, tid),
-    messages: db.prepare(`SELECT * FROM support_messages WHERE thread_id = ? AND ${THREAD} AND event_id = ?) ORDER BY id`).bind(tid, tid, ev.id),
+    messages: db.prepare('SELECT * FROM support_messages WHERE thread_id = ? AND EXISTS (SELECT 1 FROM support_threads WHERE id = ? AND event_id = ?) ORDER BY id')
+      .bind(tid, tid, ev.id),
     users: true,
   });
   const t = r.thread[0];
@@ -242,26 +245,22 @@ export async function adminThread(ctx, ev, id) {
   };
 }
 
-// Операторы «взять ничьё обращение t» (первый — захват). participant: уведомить участника (не нужно, если он
-// сразу получит ответ с именем организатора).
-function takeStmts(db, settings, users, ev, t, me, now, { participant = true } = {}) {
+// Взять ничьё обращение t (020): уведомления и журнал — в пакет free (условие «обращение открыто и ничьё»), перед
+// захватом; возвращает сам захват — его ставит вызывающий. participant: уведомить участника (не нужно, если он сразу
+// получит ответ с именем организатора).
+function takeInto(free, db, users, ev, t, me, { participant = true } = {}) {
   const author = users.find((u) => u.tg_id === t.user_id);
-  const mine = `${THREAD} AND assignee = ? AND taken_at = ?)`;
-  const g = [t.id, me.tg_id, now];
-  const stmts = [
-    db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = 0").bind(me.tg_id, now, t.id),
-    ...adminRecipients(users, [me.tg_id, t.user_id]).map((a) => enqueueIfStmt(db, a.tg_id, msg(
-      `🙋 ${bold(me)} взял(а) обращение ${bold(author)} (${title(ev)}).`, { disable_notification: true }
-    ), mine, ...g)),
-    auditIfStmt(db, ev.id, me.tg_id, 'support.take', displayName(author), mine, ...g),
-  ];
-  if (participant) {
-    stmts.push(enqueueIfStmt(db, t.user_id, msg(
-      `🙋 Твоё обращение в событии ${title(ev)} взял(а) ${bold(me)} — ответ придёт сюда.`
-    ), mine, ...g));
+  for (const a of adminRecipients(users, [me.tg_id, t.user_id])) {
+    free.enqueue(a.tg_id, msg(`🙋 ${bold(me)} взял(а) обращение ${bold(author)} (${title(ev)}).`, { disable_notification: true }));
   }
-  return stmts;
+  free.audit(ev.id, me.tg_id, 'support.take', displayName(author));
+  if (participant) free.enqueue(t.user_id, msg(`🙋 Твоё обращение в событии ${title(ev)} взял(а) ${bold(me)} — ответ придёт сюда.`));
+  return db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = 0")
+    .bind(me.tg_id, Date.now(), t.id);
 }
+
+// Пакет «обращение t открыто и его ведёт assignee» (0 — ничьё)
+const ledBy = (db, t, assignee) => atomic(db, OPEN, t.id).and(LED_BY, t.id, assignee);
 
 async function taken(db, t) {
   const cur = await db.prepare('SELECT * FROM support_threads WHERE id = ?').bind(t.id).first();
@@ -279,9 +278,10 @@ export async function take(ctx, ev, id) {
   if (t.assignee === me.tg_id) return { ok: true, thread: t };
   if (t.assignee) return taken(db, t);
   if (!chatWritable(ev)) return fail(READ_ONLY);
-  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
-  const [claim] = await db.batch(takeStmts(db, settings, users, ev, t, me, Date.now()));
-  if (!claim.meta.changes) return taken(db, t);
+  const users = await ctx.users();
+  const free = ledBy(db, t, 0);
+  free.claim(takeInto(free, db, users, ev, t, me));
+  if (!(await free.run()).won) return taken(db, t);
   return { ok: true, thread: { ...t, assignee: me.tg_id } };
 }
 
@@ -298,20 +298,24 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   if (t.assignee && t.assignee !== me.tg_id) return fail(`Обращение ведёт ${displayName(users.find((u) => u.tg_id === t.assignee))}.`);
   const now = Date.now();
-  const stmts = t.assignee ? [] : takeStmts(db, settings, users, ev, t, me, now, { participant: false });
-  const at = stmts.length;
-  stmts.push(
-    db.prepare(`INSERT INTO support_messages (thread_id, sender, from_admin, text, created_at) SELECT ?, ?, 1, ?, ? WHERE ${THREAD} AND status = 'open' AND assignee = ?) RETURNING id, created_at`)
-      .bind(t.id, me.tg_id, tx.text, now, t.id, me.tg_id),
-    // Отвечая, организатор видел сообщения участника — помечаем их прочитанными (как в переписке Сант)
-    db.prepare(`UPDATE support_messages SET read_at = ? WHERE thread_id = ? AND from_admin = 0 AND read_at = 0 AND ${MINE_SENT})`)
-      .bind(now, t.id, t.id, me.tg_id, now),
-    enqueueIfStmt(db, t.user_id, msg(`💬 Организатор ${bold(me)} отвечает (${title(ev)}):\n\n${escapeHtml(tx.text)}`, {
-      reply_markup: userKeyboard(settings, ev),
-    }), `${MINE_SENT} AND from_admin = 1)`, t.id, me.tg_id, now),
-  );
-  const res = await db.batch(stmts);
-  const row = res[at].results[0];
+  // Ничьё берётся этим ответом: уведомления о взятии — пока обращение ничьё, затем взятие (020)
+  const open = atomic(db, OPEN, t.id);
+  if (!t.assignee) {
+    const free = open.and(LED_BY, t.id, 0);
+    free.add(takeInto(free, db, users, ev, t, me, { participant: false }));
+  }
+  // Ответ, уведомление участнику и «прочитано» — пока обращение открыто и его ведёт отвечающий: то же условие, что у
+  // записи ответа, которая идёт последней
+  const mine = open.and(LED_BY, t.id, me.tg_id);
+  mine.enqueue(t.user_id, msg(`💬 Организатор ${bold(me)} отвечает (${title(ev)}):\n\n${escapeHtml(tx.text)}`, {
+    reply_markup: userKeyboard(settings, ev),
+  }));
+  // Отвечая, организатор видел сообщения участника — помечаем их прочитанными (как в переписке Сант)
+  mine.where('UPDATE support_messages SET read_at = ? WHERE thread_id = ? AND from_admin = 0 AND read_at = 0', now, t.id);
+  mine.claim(db.prepare(`INSERT INTO support_messages (thread_id, sender, from_admin, text, created_at) SELECT ?, ?, 1, ?, ? WHERE ${mine.sql} RETURNING id, created_at`)
+    .bind(t.id, me.tg_id, tx.text, now, ...mine.args));
+  const { claim } = await open.run();
+  const row = claim.results[0];
   if (!row) return t.assignee ? fail(CLOSED) : taken(db, t);
   return { ok: true, message: { id: row.id, mine: true, from_admin: true, author: displayName(me), text: tx.text, created_at: row.created_at } };
 }
@@ -329,27 +333,24 @@ export async function pass(ctx, ev, id, toId) {
   if (to.tg_id === t.assignee) return fail(`Обращение и так ведёт ${displayName(to)}.`);
   const author = users.find((u) => u.tg_id === t.user_id);
   const prev = users.find((u) => u.tg_id === t.assignee);
-  const now = Date.now();
-  const done = `${THREAD} AND assignee = ? AND taken_at = ?)`;
-  const g = [t.id, to.tg_id, now];
-  const stmts = [
-    db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = ?").bind(to.tg_id, now, t.id, t.assignee),
-    enqueueIfStmt(db, t.user_id, msg(`↪️ Твоё обращение в событии ${title(ev)} теперь ведёт ${bold(to)}.`), done, ...g),
-    auditIfStmt(db, ev.id, me.tg_id, 'support.pass', `${displayName(author)} → ${displayName(to)}`, done, ...g),
-  ];
+  // Уведомления и журнал — пока обращение открыто и его ведёт прежний ответственный; передача — последней (020)
+  const before = ledBy(db, t, t.assignee);
+  before.enqueue(t.user_id, msg(`↪️ Твоё обращение в событии ${title(ev)} теперь ведёт ${bold(to)}.`));
+  before.audit(ev.id, me.tg_id, 'support.pass', `${displayName(author)} → ${displayName(to)}`);
   if (to.tg_id !== me.tg_id) {
-    stmts.push(enqueueIfStmt(db, to.tg_id, msg(`↪️ ${bold(me)} передал(а) тебе обращение ${bold(author)} (${title(ev)}).`, {
+    before.enqueue(to.tg_id, msg(`↪️ ${bold(me)} передал(а) тебе обращение ${bold(author)} (${title(ev)}).`, {
       reply_markup: adminKeyboard(settings, ev, t.id, false),
-    }), done, ...g));
+    }));
   }
   // Владелец забрал или передал чужое обращение — прежний ответственный узнаёт об этом
   if (prev && prev.tg_id !== me.tg_id) {
-    stmts.push(enqueueIfStmt(db, prev.tg_id, msg(
+    before.enqueue(prev.tg_id, msg(
       `↪️ ${bold(me)} передал(а) обращение ${bold(author)} (${title(ev)}) — теперь его ведёт ${bold(to)}.`, { disable_notification: true }
-    ), done, ...g));
+    ));
   }
-  const [claim] = await db.batch(stmts);
-  if (!claim.meta.changes) return fail('Обращение изменилось одновременно с этим действием — обнови экран и попробуй ещё раз.');
+  before.claim(db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = ?")
+    .bind(to.tg_id, Date.now(), t.id, t.assignee));
+  if (!(await before.run()).won) return fail('Обращение изменилось одновременно с этим действием — обнови экран и попробуй ещё раз.');
   return { ok: true };
 }
 
@@ -362,23 +363,18 @@ export async function closeByAdmin(ctx, ev, id) {
   if (!chatWritable(ev)) return fail(READ_ONLY);
   const users = await ctx.users();
   const author = users.find((u) => u.tg_id === t.user_id);
-  const now = Date.now();
-  const done = `${THREAD} AND closed_at = ? AND closed_by = ?)`;
-  const g = [t.id, now, me.tg_id];
-  const stmts = [
-    db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'").bind(now, me.tg_id, t.id),
-    enqueueIfStmt(db, t.user_id, msg(
-      `✅ Организатор ${bold(me)} закрыл(а) твоё обращение в событии ${title(ev)}. Если вопрос остался — просто напиши снова.`
-    ), done, ...g),
-    auditIfStmt(db, ev.id, me.tg_id, 'support.close', displayName(author), done, ...g),
-  ];
+  // Уведомления и журнал — пока обращение открыто, закрытие — последним (020)
+  const open = atomic(db, OPEN, t.id);
+  open.enqueue(t.user_id, msg(
+    `✅ Организатор ${bold(me)} закрыл(а) твоё обращение в событии ${title(ev)}. Если вопрос остался — просто напиши снова.`
+  ));
+  open.audit(ev.id, me.tg_id, 'support.close', displayName(author));
   if (t.assignee && t.assignee !== me.tg_id) {
-    stmts.push(enqueueIfStmt(db, t.assignee, msg(
-      `✅ ${bold(me)} закрыл(а) обращение ${bold(author)} (${title(ev)}).`, { disable_notification: true }
-    ), done, ...g));
+    open.enqueue(t.assignee, msg(`✅ ${bold(me)} закрыл(а) обращение ${bold(author)} (${title(ev)}).`, { disable_notification: true }));
   }
-  const [claim] = await db.batch(stmts);
-  if (!claim.meta.changes) return fail(CLOSED);
+  open.claim(db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'")
+    .bind(Date.now(), me.tg_id, t.id));
+  if (!(await open.run()).won) return fail(CLOSED);
   return { ok: true };
 }
 
