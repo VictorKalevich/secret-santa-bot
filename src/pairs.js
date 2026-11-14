@@ -4,7 +4,8 @@ import {
   getEvent, drawMembersQuery, pairsQuery, pairLinksQuery, exclusionsQuery, familyRowsQuery, fixedPairsQuery, enqueueIfStmt, auditIfStmt,
   markRemovedStmt, memberDataDeleteStmts,
 } from './db.js';
-import { familyExclusions, familySnapshot, FAMILY_SNAPSHOT_SQL, fixedSnapshot, FIXED_SNAPSHOT_SQL } from './constraints.js';
+import { familyExclusions } from './constraints.js';
+import { drawSnapshot, snapshotGuard } from './snapshots.js';
 import { planDraw, pairRules, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, appKeyboard, randomCode, displayName, NO_DRAW, PAIRS_RACE } from './format.js';
 import { isFinished } from './status.js';
@@ -74,20 +75,14 @@ export async function checkDraw(ctx, ev) {
   // 009, FR-923: попытки (с историей, без неё, «мешают ли закреплённые пары и семьи») делят один бюджет поиска
   const { familiesBlock, ...res } = planDraw(ids, { own, families, history, fixed }, Math.random, { ring });
   const byId = Object.fromEntries(people.map((u) => [u.user_id, u]));
-  const sum = (list) => list.reduce((s, x) => s + x, 0);
   return {
     people,
     byId,
     res,
     ring,
-    // Снимок того, по чему считались пары (009, FR-922; семьи — 010, FR-1019): runDraw записывает пары, только если
-    // он не изменился. Семьи сравниваются, только если правило семей включено.
-    snapshot: {
-      members: `${ids.length}:${sum(ids)}`,
-      exclusions: `${allEx.length}:${sum(allEx.map((e) => e.giver))}:${sum(allEx.map((e) => e.receiver))}`,
-      families: ev.families_on ? familySnapshot(famRows, ids) : '',
-      fixed: fixedSnapshot(fixed), // 014
-    },
+    // Снимок того, по чему считались пары (009, FR-922; семьи — 010, FR-1019; закреплённые пары — 014): runDraw
+    // записывает пары, только если он не изменился. По уже прочитанным строкам, без запросов (020: src/snapshots.js).
+    snapshot: drawSnapshot(ev, { ids, exclusions: allEx, families: famRows, fixed }),
     // Учтены ли прошлые пары, наружу не сообщается: по этому признаку можно вычислить пары прошлого (009, FR-904)
     emptyWishlists: people.filter((u) => u.wishlist_blank).map((u) => u.name),
     problems: res.ok ? [] : [
@@ -109,20 +104,12 @@ export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
   // 009, FR-922: захват — только если участники, исключения и параметры те же, что при расчёте пар.
   const token = randomCode(16);
   const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)';
+  const same = snapshotGuard(ev.id, check.snapshot);
   const stmts = [
     db.prepare(
       `UPDATE events SET draw_done = 1, draw_at = ?, draw_token = ?, registration_open = 0, revealed = 0
-        WHERE id = ? AND draw_done = 0 AND status = 'active' AND ring = ? AND families_on = ?
-          AND (SELECT COUNT(*) || ':' || COALESCE(SUM(m.user_id), 0)
-                 FROM members m JOIN users u ON u.tg_id = m.user_id
-                WHERE m.event_id = ? AND u.registered = 1) = ?
-          AND (SELECT COUNT(*) || ':' || COALESCE(SUM(giver), 0) || ':' || COALESCE(SUM(receiver), 0)
-                 FROM exclusions WHERE event_id = ?) = ?
-          AND (? = '' OR ${FAMILY_SNAPSHOT_SQL} = ?)
-          AND ${FIXED_SNAPSHOT_SQL} = ?`
-    ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ev.families_on ? 1 : 0,
-      ev.id, check.snapshot.members, ev.id, check.snapshot.exclusions,
-      check.snapshot.families, ev.id, check.snapshot.families, ev.id, check.snapshot.fixed),
+        WHERE id = ? AND draw_done = 0 AND status = 'active' AND ring = ? AND families_on = ? AND ${same.sql}`
+    ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ev.families_on ? 1 : 0, ...same.args),
     db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
   ];
   for (const [santa, ward] of check.res.pairs) {

@@ -1,5 +1,5 @@
-// Правила пар (019): исключения «кто кому не дарит», закреплённые пары владельца (014), семьи как исключения (008) и
-// снимки этих правил для условия записи жеребьёвки (009/010/014). Жеребьёвка и замены — src/pairs.js.
+// Правила пар (019): исключения «кто кому не дарит», закреплённые пары владельца (014), семьи как исключения (008).
+// Снимки этих правил для условия записи жеребьёвки — src/snapshots.js (020); жеребьёвка и замены — src/pairs.js.
 
 import { getEvent, memberQuery, drawMembersQuery, fixedPairsQuery, auditIfStmt } from './db.js';
 import { displayName } from './format.js';
@@ -92,7 +92,7 @@ export async function changeFixed(ctx, ev, { add, giver: rawGiver, receiver: raw
   return { ok: true };
 }
 
-// ---------- семьи как исключения (008) и снимки правил ----------
+// ---------- семьи как исключения (008) ----------
 
 // Пары «не дарят друг другу» между членами одной семьи среди ids — если в эвенте включено правило семей.
 // rows — строки «человек — семья» (familyRowsQuery), прочитанные вызывающим в его пакете чтений (019).
@@ -111,41 +111,3 @@ export function familyExclusions(ev, ids, rows) {
   }
   return out;
 }
-
-// Снимок семей участников (010, FR-1019): «число:Σ(человек×семья):Σ(семья)» по строкам семей людей ids.
-// То же выражение считает SQL в условии записи жеребьёвки (FAMILY_SNAPSHOT_SQL) — пары пишутся, только если семьи те же.
-export function familySnapshot(rows, ids) {
-  const set = new Set(ids);
-  let count = 0;
-  let mixed = 0;
-  let fams = 0;
-  for (const r of rows) {
-    if (!set.has(r.user_id)) continue;
-    count += 1;
-    mixed += r.user_id * r.family_id;
-    fams += r.family_id;
-  }
-  return `${count}:${mixed}:${fams}`;
-}
-
-// Параметр — id эвента; учитываются зарегистрированные участники (как в жеребьёвке)
-export const FAMILY_SNAPSHOT_SQL = `(SELECT COUNT(*) || ':' || COALESCE(SUM(fm.user_id * fm.family_id), 0) || ':' || COALESCE(SUM(fm.family_id), 0)
-   FROM family_members fm
-  WHERE fm.user_id IN (SELECT m.user_id FROM members m JOIN users u ON u.tg_id = m.user_id WHERE m.event_id = ? AND u.registered = 1))`;
-
-// Снимок закреплённых пар (014, research R6): в отличие от сумм различает перестановку партнёров ({А→Б, В→Г} и
-// {А→Г, В→Б}). Числа меньше 2^53 — одинаково точны в JS и в целых SQLite. Параметр SQL — id эвента.
-const FIXED_MOD = 1000003;
-export function fixedSnapshot(rows) {
-  let g = 0;
-  let r = 0;
-  let mixed = 0;
-  for (const p of rows) {
-    g += p.giver;
-    r += p.receiver;
-    mixed += (p.giver % FIXED_MOD) * (p.receiver % FIXED_MOD);
-  }
-  return `${rows.length}:${g}:${r}:${mixed}`;
-}
-export const FIXED_SNAPSHOT_SQL = `(SELECT COUNT(*) || ':' || COALESCE(SUM(giver), 0) || ':' || COALESCE(SUM(receiver), 0) || ':' ||
-     COALESCE(SUM((giver % ${FIXED_MOD}) * (receiver % ${FIXED_MOD})), 0) FROM fixed_pairs WHERE event_id = ?)`;

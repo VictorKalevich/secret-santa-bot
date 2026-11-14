@@ -119,9 +119,10 @@ test('бюджет: запросы к Telegram учитываются, пост�
   assert.equal(env.meter.enqueued, true);
 });
 
-// 010, FR-1019: снимок семей — то же выражение считает SQL в условии записи жеребьёвки
+// 010, FR-1019: снимок семей — то же выражение считает SQL в условии записи жеребьёвки (паритет — snapshots.test.mjs)
 test('снимок семей: порядок не важен, смена семьи меняет снимок, не-участники не влияют', async () => {
-  const { familySnapshot } = await import('../src/constraints.js');
+  const { SNAPSHOTS } = await import('../src/snapshots.js');
+  const familySnapshot = (families, ids) => SNAPSHOTS.families.js({ ids, families });
   const ids = [101, 102, 103, 104];
   const rows = [{ user_id: 101, family_id: 1 }, { user_id: 102, family_id: 1 }, { user_id: 103, family_id: 2 }, { user_id: 900, family_id: 2 }];
   const base = familySnapshot(rows, ids);

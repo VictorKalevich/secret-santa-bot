@@ -106,23 +106,23 @@ P2). Перед каждым коммитом — `npm test`.
 
 ### Tests for User Story 2
 
-- [ ] T009 [US2] Создать `tests/snapshots.test.mjs`, сначала — гонка: событие до жеребьёвки с исключениями {А→Б, В→Г};
+- [X] T009 [US2] Создать `tests/snapshots.test.mjs`, сначала — гонка: событие до жеребьёвки с исключениями {А→Б, В→Г};
   `world.beforeWrite('UPDATE events SET draw_done = 1', …)` переставляет их на {А→Г, В→Б} прямым SQL; `admin.draw` —
   400 «Участники, исключения или семьи изменились во время жеребьёвки — попробуй ещё раз.», пар нет. Запустить на
   текущем коде — падает (жеребьёвка записывается). Добавить файл в скрипт `test` в `package.json` после T011
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Создать `src/snapshots.js` по `data-model.md`: `SNAPSHOTS.{members, exclusions, families, fixed}` с
+- [X] T010 [US2] Создать `src/snapshots.js` по `data-model.md`: `SNAPSHOTS.{members, exclusions, families, fixed}` с
   `js(data)` (`data = { ids, exclusions, families, fixed }`) и `sql` (один параметр — id события); суммы по модулю 2^52
   (JS — на каждом шаге), произведения — сомножители по модулю 1000003; одна функция «связи» для исключений и закреплённых
   пар; `drawSnapshot(ev, data)` (семьи — `''`, если правило выключено) и `snapshotGuard(eventId, snap)` → `{ sql, args }`
   (семьи — `(? = '' OR <sql> = ?)`)
-- [ ] T011 [US2] Дописать `tests/snapshots.test.mjs`: паритет — на случайных данных с зерном (несколько прогонов: 40–80
+- [X] T011 [US2] Дописать `tests/snapshots.test.mjs`: паритет — на случайных данных с зерном (несколько прогонов: 40–80
   человек, часть не зарегистрирована, люди семей вне события, идентификаторы до 2^52, исключения, закреплённые пары)
   `js(data)` = `SELECT <sql>` для каждого из четырёх снимков; «от противного» — перестановка партнёров в исключениях меняет
   снимок в JS и в SQL; пустые данные — `0:…`; добавить файл в `package.json`
-- [ ] T012 [US2] `src/pairs.js`: `checkDraw` — снимок из `drawSnapshot` по уже прочитанным строкам (без новых запросов);
+- [X] T012 [US2] `src/pairs.js`: `checkDraw` — снимок из `drawSnapshot` по уже прочитанным строкам (без новых запросов);
   `runDraw` — условие снимка из `snapshotGuard`; `src/constraints.js` — снимки удалены (остаётся `familyExclusions`);
   `tests/unit.test.mjs` — `familySnapshot` → `SNAPSHOTS.families.js({ ids, families: rows })` из `src/snapshots.js`
   (ожидания те же)
