@@ -2,6 +2,7 @@
 // состоянию» на настоящем SQLite. Ниже — проверка исходников: в src/ нет фрагментов SQL с незакрытой скобкой (FR-2011).
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createMigratedD1 } from './support/d1-sqlite.mjs';
 import { atomic, closedParens } from '../src/claim.js';
 
@@ -77,5 +78,108 @@ describe('помощник захватов', () => {
     assert.equal((await once()).won, false);
     assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM outbox WHERE chat_id = 5').get().n, 1);
     assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM audit WHERE action = 'flag.set'").get().n, 1);
+  });
+});
+
+// ---------- исходники: фрагменты SQL со скобками закрыты (FR-2011) ----------
+
+// Строковые литералы исходника JS: в кавычках и шаблоны (выражение ${…} — «?», литералы внутри него — отдельно).
+// Комментарии и регулярные выражения пропускаются.
+const REGEX_AFTER_WORD = /(?:^|[^\w$])(return|typeof|case|in|of|void|delete|throw|new|else|yield|await)$/;
+export function stringLiterals(src) {
+  const out = [];
+  let i = 0;
+  let prev = ''; // последний значимый символ кода: отличает регулярное выражение от деления
+  const escaped = (s) => {
+    i += 2;
+    return s + src[i - 1];
+  };
+  const quoted = (q) => {
+    let s = '';
+    for (i++; i < src.length && src[i] !== q;) s = src[i] === '\\' ? escaped(s) : s + src[i++];
+    i++;
+    return s;
+  };
+  const template = () => {
+    let s = '';
+    for (i++; i < src.length && src[i] !== '`';) {
+      if (src[i] === '\\') s = escaped(s);
+      else if (src[i] === '$' && src[i + 1] === '{') {
+        i += 2;
+        code('}');
+        i++;
+        s += '?';
+      } else s += src[i++];
+    }
+    i++;
+    return s;
+  };
+  const regexHere = () => {
+    if (!prev || '(,=:[!&|?{};+-*%<>~^'.includes(prev)) return true;
+    return /[\w$]/.test(prev) && REGEX_AFTER_WORD.test(src.slice(Math.max(0, i - 12), i).trimEnd());
+  };
+  const skipRegex = () => {
+    let cls = false;
+    for (i++; i < src.length && (cls || src[i] !== '/'); i++) {
+      if (src[i] === '\\') i++;
+      else if (src[i] === '[') cls = true;
+      else if (src[i] === ']') cls = false;
+    }
+    for (i++; /[a-z]/.test(src[i] || ''); i++);
+  };
+  // Код до непарного end (или до конца файла)
+  function code(end) {
+    let depth = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (c === end && depth === 0) return;
+      if (c === '/' && src[i + 1] === '/') {
+        while (i < src.length && src[i] !== '\n') i++;
+      } else if (c === '/' && src[i + 1] === '*') {
+        i = src.indexOf('*/', i + 2) + 2;
+      } else if (c === "'" || c === '"' || c === '`') {
+        out.push(c === '`' ? template() : quoted(c));
+        prev = 'x';
+      } else if (c === '/' && regexHere()) {
+        skipRegex();
+        prev = 'x';
+      } else {
+        if (c === '{') depth++;
+        if (c === '}') depth--;
+        if (!/\s/.test(c)) prev = c;
+        i++;
+      }
+    }
+  }
+  code(null);
+  return out;
+}
+
+const SQL_WORDS = /\b(SELECT|INSERT|UPDATE|DELETE|EXISTS|WHERE)\b/;
+const unclosedSql = (src) => stringLiterals(src).filter((s) => SQL_WORDS.test(s) && !closedParens(s));
+
+describe('исходники: фрагменты SQL со скобками закрыты', () => {
+  it('разбор литералов: кавычки, шаблоны с вложенными ${…}; комментарии и регулярные выражения пропускаются', () => {
+    const src = [
+      "const a = 'x(' + \"y\\\"\"; // 'комментарий (",
+      "/* 'и этот (' */ const r = /'(/g; const t = `a ${f(`b (${c})`, { k: 1 })} d`;",
+      "const n = m / 2 / k; function g() { return /\\)'/.test(s); } const z = 'k';",
+    ].join('\n');
+    assert.deepEqual(stringLiterals(src), ['x(', 'y"', 'b (?)', 'a ? d', 'k']);
+  });
+
+  it('от противного: фрагмент с незакрытой скобкой находится — и в шаблоне', () => {
+    assert.deepEqual(unclosedSql("const THREAD = 'EXISTS (SELECT 1 FROM t WHERE id = ?';"), ['EXISTS (SELECT 1 FROM t WHERE id = ?']);
+    assert.deepEqual(unclosedSql('const q = `UPDATE t SET a = 1 WHERE id = ? AND (${x}`;'), ['UPDATE t SET a = 1 WHERE id = ? AND (?']);
+    assert.deepEqual(unclosedSql("const ok = 'EXISTS (SELECT 1 FROM t WHERE id = ?)'; const text = 'Нажми (кнопку';"), []);
+  });
+
+  it('в src/*.js у каждого литерала со словами SQL скобки сбалансированы', () => {
+    const dir = new URL('../src/', import.meta.url);
+    const bad = [];
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.js'))) {
+      for (const s of unclosedSql(readFileSync(new URL(f, dir), 'utf8'))) bad.push(`${f}: ${s}`);
+    }
+    assert.deepEqual(bad, []);
   });
 });

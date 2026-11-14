@@ -138,26 +138,26 @@ P2). Перед каждым коммитом — `npm test`.
 **Independent Test**: все проверки одновременных вызовов шагов 1–4 зелёные без правки ожиданий; статическая проверка
 зелёная
 
-- [ ] T013 [US3] `src/pairs.js`: `runDraw` — построитель «`draw_token` = новый», захват первым, удаление пар (`where`),
+- [X] T013 [US3] `src/pairs.js`: `runDraw` — построитель «`draw_token` = новый», захват первым, удаление пар (`where`),
   вставки (`select`), рассылка, журнал; `pairsVersion` → `{ a, version }` (версия уже в списке; до жеребьёвки — условие
   `draw_done = 0`, версии нет; дополнительное условие захвата — в скобках и с проверкой `closedParens`);
   `applyPairsChange(ctx, ev, a, …)` пишет в построитель; `removeMember` — `and` «ещё участник», уведомление, журнал,
   отметка, `memberDataDeleteStmts(...guard)`, захват — строка участника (последней); `insertMember` — захват — версия,
   журнал последним
-- [ ] T014 [US3] `src/pairs.js`: `undoDraw(ctx, ev, actor, { tag, cond, condArgs, chats, text, action, lost })` — общие
+- [X] T014 [US3] `src/pairs.js`: `undoDraw(ctx, ev, actor, { tag, cond, condArgs, chats, text, action, lost })` — общие
   проверки и порядок, тексты отказов прежние; `cancelDraw` (`CANCEL_COND`, переписка остаётся, постоянный отказ) и
   `forceCancelDraw` (переписка удаляется, отказ по повторному чтению события) — обёртки с прежними сигнатурами
-- [ ] T015 [P] [US3] `src/events.js`: `revealAll` (отметка раскрытия), `finishEvent` (захват первым, рассылка, запись
+- [X] T015 [P] [US3] `src/events.js`: `revealAll` (отметка раскрытия), `finishEvent` (захват первым, рассылка, запись
   `finish` — последней), `deleteEvent` (уведомления, журнал, `eventDataDeleteStmts(...guard)`, захват — строка события,
   последней) — через `atomic`
-- [ ] T016 [P] [US3] `src/membership.js`, `participate` (выход): построитель «`draw_done = 0`», журнал — первым и
+- [X] T016 [P] [US3] `src/membership.js`, `participate` (выход): построитель «`draw_done = 0`», журнал — первым и
   захватом, затем `memberDataDeleteStmts(...guard)`; `src/roles.js`, `transferAccount`: построитель «старая запись
   существует», уведомления, журнал, `personTransferStmts(...guard)`, захват — последний оператор
-- [ ] T017 [US3] `tests/claims.test.mjs`: статическая проверка — разбор литералов `src/*.js` (кавычки, шаблоны с
+- [X] T017 [US3] `tests/claims.test.mjs`: статическая проверка — разбор литералов `src/*.js` (кавычки, шаблоны с
   вложенными `${…}`, без комментариев и регулярных выражений); литералы со словами SQL — скобки сбалансированы;
   «от противного» — синтетический фрагмент `'EXISTS (SELECT 1 FROM t WHERE id = ?'` находится; вручную проверить, что на
   `src/support.js` из `main` находятся `THREAD` и `MINE_SENT`
-- [ ] T018 [US3] Убедиться, что `enqueueIfStmt`/`auditIfStmt` вне `src/claim.js` остались только в не-атомарных местах
+- [X] T018 [US3] Убедиться, что `enqueueIfStmt`/`auditIfStmt` вне `src/claim.js` остались только в не-атомарных местах
   (`src/chat.js` — «пара жива», `returnThreadsStmts`, `otherAdminsNotice` без условия) и `src/constraints.js` (`changeFixed`,
   сборка прежняя по R9)
 

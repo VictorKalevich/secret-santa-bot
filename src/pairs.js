@@ -1,10 +1,11 @@
 // Пары эвента: проверка и проведение жеребьёвки, отмена, удаление и вписывание участника после жеребьёвки.
 
 import {
-  getEvent, drawMembersQuery, pairsQuery, pairLinksQuery, exclusionsQuery, familyRowsQuery, fixedPairsQuery, enqueueIfStmt, auditIfStmt,
+  getEvent, drawMembersQuery, pairsQuery, pairLinksQuery, exclusionsQuery, familyRowsQuery, fixedPairsQuery,
   markRemovedStmt, memberDataDeleteStmts,
 } from './db.js';
 import { familyExclusions } from './constraints.js';
+import { atomic, closedParens } from './claim.js';
 import { drawSnapshot, snapshotGuard } from './snapshots.js';
 import { planDraw, pairRules, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, appKeyboard, randomCode, displayName, NO_DRAW, PAIRS_RACE } from './format.js';
@@ -99,34 +100,29 @@ export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
   const settings = await ctx.settings();
   const check = await checkDraw(ctx, ev);
   if (!check.res.ok) return { ok: false, error: check.problems.join('\n') };
-  // Атомарно (006, FR-607): batch D1 — одна транзакция. Первый оператор «занимает» жеребьёвку своим токеном;
-  // остальные записи выполняются, только если токен в эвенте — наш. Вторая одновременная жеребьёвка ничего не запишет.
+  // Атомарно (006, FR-607; 020 — src/claim.js): захват первым «занимает» жеребьёвку своим токеном; остальные записи
+  // выполняются, только если токен в эвенте — наш. Вторая одновременная жеребьёвка ничего не запишет.
   // 009, FR-922: захват — только если участники, исключения и параметры те же, что при расчёте пар.
   const token = randomCode(16);
-  const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)';
   const same = snapshotGuard(ev.id, check.snapshot);
-  const stmts = [
-    db.prepare(
-      `UPDATE events SET draw_done = 1, draw_at = ?, draw_token = ?, registration_open = 0, revealed = 0
-        WHERE id = ? AND draw_done = 0 AND status = 'active' AND ring = ? AND families_on = ? AND ${same.sql}`
-    ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ev.families_on ? 1 : 0, ...same.args),
-    db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
-  ];
+  const mine = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)', ev.id, token);
+  mine.claim(db.prepare(
+    `UPDATE events SET draw_done = 1, draw_at = ?, draw_token = ?, registration_open = 0, revealed = 0
+      WHERE id = ? AND draw_done = 0 AND status = 'active' AND ring = ? AND families_on = ? AND ${same.sql}`
+  ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ev.families_on ? 1 : 0, ...same.args));
+  mine.where('DELETE FROM pairs WHERE event_id = ?', ev.id);
   for (const [santa, ward] of check.res.pairs) {
-    stmts.push(
-      db.prepare(`INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) SELECT ?, ?, ?, NULL, ?, 0 WHERE ${guard}`)
-        .bind(ev.id, santa, ward, lastUpdate(check.byId[ward]), ev.id, token)
-    );
+    mine.select('INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) SELECT ?, ?, ?, NULL, ?, 0',
+      ev.id, santa, ward, lastUpdate(check.byId[ward]));
   }
   for (const u of check.people) {
-    stmts.push(enqueueIfStmt(db, u.user_id, msg(
+    mine.enqueue(u.user_id, msg(
       `🎄 <b>Жеребьёвка в событии ${q(ev)} проведена!</b>\n\nОткрой приложение и загляни во вкладку «Подопечный», чтобы узнать, кому ты даришь подарок. Никому не рассказывай 🤫`,
       appKeyboard(settings, '🎁 Узнать подопечного', { event: ev.id })
-    ), guard, ev.id, token));
+    ));
   }
-  stmts.push(auditIfStmt(db, ev.id, actor, action, `участников: ${check.people.length}`, guard, ev.id, token));
-  const [claim] = await db.batch(stmts);
-  if (!claim.meta.changes) {
+  mine.audit(ev.id, actor, action, `участников: ${check.people.length}`);
+  if (!(await mine.run()).won) {
     const cur = await getEvent(db, ev.id);
     if (cur?.draw_done) return { ok: false, error: 'Жеребьёвка уже проведена.' };
     if (isFinished(cur || ev)) return { ok: false, error: 'Событие завершено.' };
@@ -149,59 +145,52 @@ function pairsToMap(rows) {
 // удаления/вписывания не перепишут пары друг друга: второе ничего не изменит и попросит повторить.
 // До жеребьёвки версии нет: операторы выполняются, только пока жеребьёвка не проведена.
 // cond — дополнительное условие захвата (SQL с параметрами condArgs), например «Санта ещё не открыл подопечного» (012).
+// Возвращает построитель a (020, src/claim.js) и оператор версии version — он уже первый в пакете (до жеребьёвки — null).
 function pairsVersion(db, ev, cond = '', ...condArgs) {
   if (!ev.draw_done) {
-    return { claim: null, guard: 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)', args: [ev.id] };
+    return { a: atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)', ev.id), version: null };
   }
+  if (cond && !closedParens(cond)) throw new Error(`pairsVersion: условие с незакрытой скобкой: ${cond}`);
   const token = randomCode(16);
-  return {
-    claim: db.prepare(`UPDATE events SET draw_token = ? WHERE id = ? AND draw_done = 1 AND draw_token = ?${cond ? ' AND ' + cond : ''}`)
-      .bind(token, ev.id, ev.draw_token, ...condArgs),
-    guard: 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)',
-    args: [ev.id, token],
-  };
+  const a = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)', ev.id, token);
+  const version = a.add(
+    db.prepare(`UPDATE events SET draw_token = ? WHERE id = ? AND draw_done = 1 AND draw_token = ?${cond ? ` AND (${cond})` : ''}`)
+      .bind(token, ev.id, ev.draw_token, ...condArgs)
+  );
+  return { a, version };
 }
 
-// Применяем изменённое распределение эвента: переписываем только изменившиеся пары (все операторы — при версии v).
-async function applyPairsChange(ctx, ev, oldRows, newMap, changed, members, v) {
-  const db = ctx.db;
+// Применяем изменённое распределение эвента: переписываем только изменившиеся пары (все операторы — в построитель a,
+// при его условии — версии пар).
+async function applyPairsChange(ctx, ev, a, oldRows, newMap, changed, members) {
   const settings = await ctx.settings();
   const oldMap = pairsToMap(oldRows);
   const byId = Object.fromEntries(members.map((u) => [u.user_id, u]));
-  const when = `AND ${v.guard}`;
-  const stmts = [];
   for (const santa of oldMap.keys()) {
-    if (!newMap.has(santa)) stmts.push(db.prepare(`DELETE FROM pairs WHERE event_id = ? AND santa = ? ${when}`).bind(ev.id, santa, ...v.args));
+    if (!newMap.has(santa)) a.where('DELETE FROM pairs WHERE event_id = ? AND santa = ?', ev.id, santa);
   }
   // Переписка исчезнувших пар удаляется: новая пара начинает разговор с чистого листа (003, FR-308)
   for (const [santa, ward] of oldMap) {
-    if (newMap.get(santa) !== ward) {
-      stmts.push(db.prepare(`DELETE FROM messages WHERE event_id = ? AND santa = ? AND ward = ? ${when}`).bind(ev.id, santa, ward, ...v.args));
-    }
+    if (newMap.get(santa) !== ward) a.where('DELETE FROM messages WHERE event_id = ? AND santa = ? AND ward = ?', ev.id, santa, ward);
   }
   for (const [santa, ward] of newMap) {
-    if (oldMap.get(santa) !== ward && oldMap.has(santa)) {
-      stmts.push(db.prepare(`DELETE FROM pairs WHERE event_id = ? AND santa = ? ${when}`).bind(ev.id, santa, ...v.args));
-    }
+    if (oldMap.get(santa) !== ward && oldMap.has(santa)) a.where('DELETE FROM pairs WHERE event_id = ? AND santa = ?', ev.id, santa);
   }
   for (const [santa, ward] of newMap) {
     if (oldMap.get(santa) !== ward) {
-      stmts.push(
-        db.prepare(`INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) SELECT ?, ?, ?, NULL, ?, 0 WHERE ${v.guard}`)
-          .bind(ev.id, santa, ward, lastUpdate(byId[ward]), ...v.args)
-      );
+      a.select('INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) SELECT ?, ?, ?, NULL, ?, 0',
+        ev.id, santa, ward, lastUpdate(byId[ward]));
     }
   }
   for (const santa of changed) {
     const isNew = !oldMap.has(santa);
-    stmts.push(enqueueIfStmt(db, santa, msg(
+    a.enqueue(santa, msg(
       isNew
         ? `🎄 <b>Ты в игре!</b> Жеребьёвка события ${q(ev)} для тебя проведена — загляни во вкладку «Подопечный» 🤫`
         : `🔄 Состав события ${q(ev)} изменился, и у тебя теперь <b>новый подопечный</b>. Загляни во вкладку «Подопечный».`,
       appKeyboard(settings, '🎁 Посмотреть', { event: ev.id })
-    ), v.guard, ...v.args));
+    ));
   }
-  return stmts;
 }
 
 // Убрать человека из эвента (после жеребьёвки — с минимальной перестройкой пар).
@@ -220,8 +209,7 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
   const { members } = read;
   const target = members.find((m) => m.user_id === userId);
   if (!target) return { ok: false, error: 'Человек не участвует в этом событии.' };
-  const v = pairsVersion(db, ev);
-  const stmts = v.claim ? [v.claim] : [];
+  const { a } = pairsVersion(db, ev);
   if (ev.draw_done) {
     const rows = read.pairs;
     if (rows.some((p) => p.santa === userId || p.ward === userId)) {
@@ -232,21 +220,19 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
       if (!r) {
         return { ok: false, error: 'Не получается убрать участника, не нарушив исключения или кольцевую жеребьёвку. Ослабь исключения.' };
       }
-      stmts.push(...(await applyPairsChange(ctx, ev, rows, r.pairs, r.changed, members, v)));
+      await applyPairsChange(ctx, ev, a, rows, r.pairs, r.changed, members);
     }
   }
   // Остальное — только пока человек ещё участник (018): до жеребьёвки версии пар нет, и без этого второй из двух
   // одновременных вызовов повторил бы уведомление, запись журнала и отметку. Строка участника удаляется последней.
-  const g = `${v.guard} AND EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)`;
-  const ga = [...v.args, ev.id, userId];
-  if (notify) stmts.push(enqueueIfStmt(db, userId, msg(`Организатор удалил тебя из события ${q(ev)}. Если это ошибка — напиши ему.`), g, ...ga));
-  stmts.push(auditIfStmt(db, ev.id, actor, 'member.remove', displayName(target), g, ...ga));
-  if (mark) stmts.push(markRemovedStmt(db, ev.id, userId, actor, g, ...ga));
+  const g = a.and('EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)', ev.id, userId);
+  if (notify) g.enqueue(userId, msg(`Организатор удалил тебя из события ${q(ev)}. Если это ошибка — напиши ему.`));
+  g.audit(ev.id, actor, 'member.remove', displayName(target));
+  if (mark) g.add(markRemovedStmt(db, ev.id, userId, actor, ...g.guard));
   // Исключения, закреплённые пары, переписка и обращения участника — по списку REGISTRY (018); строка участника —
   // последней: по ней узнаём исход
-  stmts.push(...memberDataDeleteStmts(db, ev.id, userId, g, ...ga));
-  const res = await db.batch(stmts);
-  if (!res.at(-1).meta.changes) {
+  g.claim(g.add(...memberDataDeleteStmts(db, ev.id, userId, ...g.guard)));
+  if (!(await g.run()).won) {
     const still = await db.prepare('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, userId).first();
     return { ok: false, error: still ? PAIRS_RACE : 'Человек не участвует в этом событии.' };
   }
@@ -294,19 +280,17 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
   // Группа выбранного Санты проверяется ещё раз в захвате (research R2): если он только что открыл подопечного или
   // отметил подарок, пары не меняются — «попробуй ещё раз»
   const fresh = r.rank === 0 ? ' AND seen_text IS NULL AND NOT EXISTS (SELECT 1 FROM messages WHERE event_id = ? AND santa = ? AND ward = ?)' : '';
-  const v = pairsVersion(db, ev,
+  const { a, version } = pairsVersion(db, ev,
     `EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND santa = ? AND ward = ? AND gift_ready = 0 AND gift_received = 0${fresh})`,
     ev.id, r.santa, r.ward, ...(fresh ? [ev.id, r.santa, r.ward] : []));
-  const [claim] = await db.batch([
-    v.claim,
-    ...(await applyPairsChange(ctx, ev, rows, r.pairs, r.changed, members, v)),
-    auditIfStmt(db, ev.id, actor, 'member.insert', displayName(u), v.guard, ...v.args),
-  ]);
-  if (!claim.meta.changes) return { ok: false, error: PAIRS_RACE };
+  await applyPairsChange(ctx, ev, a, rows, r.pairs, r.changed, members);
+  a.audit(ev.id, actor, 'member.insert', displayName(u));
+  a.claim(version);
+  if (!(await a.run()).won) return { ok: false, error: PAIRS_RACE };
   return { ok: true };
 }
 
-// ---------- отмена жеребьёвки (007) ----------
+// ---------- отмена жеребьёвки (007) и принудительная отмена (012) ----------
 
 // Можно ли отменить жеребьёвку (FR-708): никто не открыл подопечного и переписки нет
 const CANCEL_COND =
@@ -318,64 +302,56 @@ export function cancelableQuery(db, ev) {
   return db.prepare(`SELECT ${CANCEL_COND} AS ok`).bind(ev.id, ev.id);
 }
 
-// Отмена жеребьёвки атомарно (research R3): если кто-то открыл подопечного между проверкой и batch — ничего не меняется
-export async function cancelDraw(ctx, ev, actor) {
+// Обе отмены (020, research R5): захват — по версии пар (draw_token) и «не раскрыта, идёт» + cond; пары удаляются,
+// при chats — и переписка Сант эвента; письма остаются, регистрация открывается. Одновременное вписывание, удаление
+// или другая отмена не дадут второго результата. lost() — текст отказа, если захват не состоялся.
+async function undoDraw(ctx, ev, actor, { tag, cond = '', condArgs = [], chats = false, text, action, lost }) {
   const db = ctx.db;
   if (isFinished(ev)) return { ok: false, error: 'Событие завершено — отменить жеребьёвку нельзя.' };
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
   if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
   const { settings, rows } = await ctx.read({ rows: pairLinksQuery(db, ev.id), settings: true });
-  const token = 'cancel:' + randomCode(12);
-  const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)';
-  const stmts = [
-    db.prepare(
-      `UPDATE events SET draw_done = 0, draw_at = 0, draw_token = ?, registration_open = 1, draw_auto_date = ''
-        WHERE id = ? AND draw_done = 1 AND draw_token = ? AND revealed = 0 AND status = 'active' AND ${CANCEL_COND}`
-    ).bind(token, ev.id, ev.draw_token, ev.id, ev.id),
-    db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
-    ...rows.map((p) => enqueueIfStmt(db, p.santa, msg(
-      `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
-      appKeyboard(settings, '🎁 Открыть', { event: ev.id })
-    ), guard, ev.id, token)),
-    auditIfStmt(db, ev.id, actor, 'draw.cancel', `пар удалено: ${rows.length}`, guard, ev.id, token),
-  ];
-  const [claim] = await db.batch(stmts);
-  if (!claim.meta.changes) return { ok: false, error: 'Отменить нельзя: кто-то уже открыл подопечного или началась переписка.' };
+  if (cond && !closedParens(cond)) throw new Error(`undoDraw: условие с незакрытой скобкой: ${cond}`);
+  const token = tag + randomCode(12);
+  const undone = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)', ev.id, token);
+  undone.claim(db.prepare(
+    `UPDATE events SET draw_done = 0, draw_at = 0, draw_token = ?, registration_open = 1, draw_auto_date = ''
+      WHERE id = ? AND draw_done = 1 AND draw_token = ? AND revealed = 0 AND status = 'active'${cond ? ` AND (${cond})` : ''}`
+  ).bind(token, ev.id, ev.draw_token, ...condArgs));
+  undone.where('DELETE FROM pairs WHERE event_id = ?', ev.id);
+  if (chats) undone.where('DELETE FROM messages WHERE event_id = ?', ev.id);
+  for (const p of rows) undone.enqueue(p.santa, msg(text, appKeyboard(settings, '🎁 Открыть', { event: ev.id })));
+  undone.audit(ev.id, actor, action, `пар удалено: ${rows.length}`);
+  if (!(await undone.run()).won) return { ok: false, error: await lost() };
   return { ok: true, count: rows.length };
 }
 
-// ---------- принудительная отмена жеребьёвки (012) ----------
+// Отмена атомарно (research R3 012): если кто-то открыл подопечного между проверкой и batch — ничего не меняется
+export async function cancelDraw(ctx, ev, actor) {
+  return undoDraw(ctx, ev, actor, {
+    tag: 'cancel:',
+    cond: CANCEL_COND,
+    condArgs: [ev.id, ev.id],
+    text: `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
+    action: 'draw.cancel',
+    lost: async () => 'Отменить нельзя: кто-то уже открыл подопечного или началась переписка.',
+  });
+}
 
-// Владелец отменяет жеребьёвку в любой момент до раскрытия (research R4): пары, отметки и переписка Сант эвента
-// удаляются, письма остаются, регистрация открывается. Захват — по версии пар (draw_token): одновременное вписывание,
-// удаление или другая отмена не дадут второго результата.
+// Владелец отменяет жеребьёвку в любой момент до раскрытия (research R4 012): пары, отметки и переписка Сант эвента
+// удаляются, письма остаются, регистрация открывается.
 export async function forceCancelDraw(ctx, ev, actor) {
-  const db = ctx.db;
-  if (isFinished(ev)) return { ok: false, error: 'Событие завершено — отменить жеребьёвку нельзя.' };
-  if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
-  if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
-  const { settings, rows } = await ctx.read({ rows: pairLinksQuery(db, ev.id), settings: true });
-  const token = 'force:' + randomCode(12);
-  const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)';
-  const [claim] = await db.batch([
-    db.prepare(
-      `UPDATE events SET draw_done = 0, draw_at = 0, draw_token = ?, registration_open = 1, draw_auto_date = ''
-        WHERE id = ? AND draw_done = 1 AND draw_token = ? AND revealed = 0 AND status = 'active'`
-    ).bind(token, ev.id, ev.draw_token),
-    db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
-    db.prepare(`DELETE FROM messages WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
-    ...rows.map((p) => enqueueIfStmt(db, p.santa, msg(
-      `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
+  return undoDraw(ctx, ev, actor, {
+    tag: 'force:',
+    chats: true,
+    text: `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
       'подопечным удалена. Твоё письмо сохранено. Когда будет новая жеребьёвка, бот напишет.',
-      appKeyboard(settings, '🎁 Открыть', { event: ev.id })
-    ), guard, ev.id, token)),
-    auditIfStmt(db, ev.id, actor, 'draw.cancel.force', `пар удалено: ${rows.length}`, guard, ev.id, token),
-  ]);
-  if (!claim.meta.changes) {
-    const cur = await getEvent(db, ev.id);
-    if (!cur?.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
-    if (cur.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
-    return { ok: false, error: PAIRS_RACE };
-  }
-  return { ok: true, count: rows.length };
+    action: 'draw.cancel.force',
+    lost: async () => {
+      const cur = await getEvent(ctx.db, ev.id);
+      if (!cur?.draw_done) return 'Жеребьёвка не проведена.';
+      if (cur.revealed) return 'Тайна уже раскрыта — отменить жеребьёвку нельзя.';
+      return PAIRS_RACE;
+    },
+  });
 }

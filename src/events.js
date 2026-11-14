@@ -1,12 +1,13 @@
 // Жизненный цикл эвента: создание, завершение, удаление, сброс, приглашения, раскрытие тайны, напоминания, объявления.
 
 import {
-  getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt, enqueueIfStmt,
-  updateEventStmt, auditStmt, auditIfStmt, eventDataDeleteStmts,
+  getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt,
+  updateEventStmt, auditStmt, eventDataDeleteStmts,
 } from './db.js';
 import { msg, q, escapeHtml, formatDate, formatMs, appKeyboard, inviteLink, randomCode, oneLine, cleanText, ISO_DATE, NO_DRAW, PAIRS_RACE } from './format.js';
 
 import { CHAT_GRACE_MS, isFinished } from './status.js';
+import { atomic } from './claim.js';
 
 // from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
 // invite — разослать участникам образца приглашение в новый эвент.
@@ -56,17 +57,18 @@ export async function finishEvent(ctx, ev, actor = 0) {
   // Атомарно (009, FR-920): завершает только первый из одновременных вызовов (админ и cron) — остальные ничего не рассылают
   // Часы Workers у одновременных запросов могут совпасть до миллисекунды, поэтому «наш» захват узнаём ещё и по
   // отсутствию записи журнала 'finish': завершение необратимо, такая запись у эвента одна и пишется последней.
-  const guard = `EXISTS (SELECT 1 FROM events WHERE id = ? AND status = 'finished' AND finished_at = ?)
-    AND NOT EXISTS (SELECT 1 FROM audit WHERE event_id = ? AND action = 'finish')`;
-  const [claim] = await db.batch([
-    db.prepare("UPDATE events SET status = 'finished', finished_at = ?, registration_open = 0 WHERE id = ? AND status = 'active'").bind(now, ev.id),
-    ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(
+  // Захват — первым, рассылка — после, запись 'finish' — последней (020, src/claim.js).
+  const finished = atomic(db, `EXISTS (SELECT 1 FROM events WHERE id = ? AND status = 'finished' AND finished_at = ?)
+    AND NOT EXISTS (SELECT 1 FROM audit WHERE event_id = ? AND action = 'finish')`, ev.id, now, ev.id);
+  finished.claim(db.prepare("UPDATE events SET status = 'finished', finished_at = ?, registration_open = 0 WHERE id = ? AND status = 'active'").bind(now, ev.id));
+  for (const m of members) {
+    finished.enqueue(m.user_id, msg(
       `🏁 <b>Событие ${q(ev)} завершено.</b> Спасибо за игру!\n\nПисьмо Санте теперь только для чтения. Переписка открыта ещё 7 дней (до ${until}), потом останется для чтения. История события сохранится в приложении.`,
       appKeyboard(settings, '📚 Открыть', { event: ev.id })
-    ), guard, ev.id, now, ev.id)),
-    auditIfStmt(db, ev.id, actor, 'finish', '', guard, ev.id, now, ev.id),
-  ]);
-  if (!claim.meta.changes) return { ok: false, error: 'Событие уже завершено.' };
+    ));
+  }
+  finished.audit(ev.id, actor, 'finish');
+  if (!(await finished.run()).won) return { ok: false, error: 'Событие уже завершено.' };
   return { ok: true };
 }
 
@@ -76,15 +78,13 @@ export async function finishEvent(ctx, ev, actor = 0) {
 export async function deleteEvent(ctx, ev, actor = 0) {
   const db = ctx.db;
   const members = await rowsOf(memberIdsQuery(db, ev.id));
-  const exists = 'EXISTS (SELECT 1 FROM events WHERE id = ?)';
-  const res = await db.batch([
-    ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(`🗑 Событие ${q(ev)} удалено организатором вместе с письмами и перепиской.`), exists, ev.id)),
-    // Журнал эвента остаётся; само удаление — в общем журнале (007)
-    auditIfStmt(db, 0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`, exists, ev.id),
-    // Данные эвента — по списку REGISTRY (018), строка эвента — последней
-    ...eventDataDeleteStmts(db, ev.id, {}, exists, ev.id),
-  ]);
-  if (!res.at(-1).meta.changes) return { ok: false, error: 'Событие уже удалено.' };
+  const exists = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ?)', ev.id);
+  for (const m of members) exists.enqueue(m.user_id, msg(`🗑 Событие ${q(ev)} удалено организатором вместе с письмами и перепиской.`));
+  // Журнал эвента остаётся; само удаление — в общем журнале (007)
+  exists.audit(0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`);
+  // Данные эвента — по списку REGISTRY (018), строка эвента — последней: она и есть захват
+  exists.claim(exists.add(...eventDataDeleteStmts(db, ev.id, {}, ...exists.guard)));
+  if (!(await exists.run()).won) return { ok: false, error: 'Событие уже удалено.' };
   return { ok: true, count: members.length };
 }
 
@@ -147,16 +147,16 @@ export async function revealAll(ctx, ev, actor = 0) {
   // revealed хранит уникальную отметку этого раскрытия (для условий ниже); везде читается как «да/нет».
   // Случайная, а не время: часы Workers у одновременных запросов могут совпасть.
   const mark = 1 + Math.floor(Math.random() * 2 ** 52);
-  const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND revealed = ?)';
-  const [claim] = await db.batch([
-    db.prepare('UPDATE events SET revealed = ? WHERE id = ? AND revealed = 0 AND draw_done = 1 AND draw_token = ?')
-      .bind(mark, ev.id, cur.draw_token),
-    ...rows.map((p) => enqueueIfStmt(db, p.ward, msg(
+  const shown = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND revealed = ?)', ev.id, mark);
+  shown.claim(db.prepare('UPDATE events SET revealed = ? WHERE id = ? AND revealed = 0 AND draw_done = 1 AND draw_token = ?')
+    .bind(mark, ev.id, cur.draw_token));
+  for (const p of rows) {
+    shown.enqueue(p.ward, msg(
       `🎅 <b>Тайна раскрыта!</b>\n\nВ событии ${q(ev)} твой Тайный Санта — <b>${escapeHtml(byId[p.santa]?.name || '?')}</b>. С праздником! 🎄`
-    ), guard, ev.id, mark)),
-    auditIfStmt(db, ev.id, actor, 'reveal', `пар: ${rows.length}`, guard, ev.id, mark),
-  ]);
-  if (!claim.meta.changes) {
+    ));
+  }
+  shown.audit(ev.id, actor, 'reveal', `пар: ${rows.length}`);
+  if (!(await shown.run()).won) {
     const now = await getEvent(db, ev.id);
     return { ok: false, error: now?.revealed ? 'Тайна уже раскрыта.' : PAIRS_RACE };
   }

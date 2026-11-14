@@ -1,7 +1,7 @@
 // Участие в эвентах (008): семьи — постоянные группы исключений, заявки на вступление с одобрением.
 
 import {
-  getEvent, addMemberStmt, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt, clearRemovedStmt, isRemoved,
+  getEvent, addMemberStmt, enqueueStmt, auditStmt, clearRemovedStmt, isRemoved,
   memberDataDeleteStmts,
 } from './db.js';
 import { msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine } from './format.js';
@@ -125,12 +125,10 @@ export async function participate(ctx, ev, on, actor) {
   // Выход — только пока жеребьёвка не проведена, проверено в момент записи (018): иначе одновременная жеребьёвка
   // оставила бы в парах человека вне события. Данные участия (исключения, закреплённые пары, обращения) — по
   // списку REGISTRY; исход — по записи журнала под тем же условием (не участник тоже получает успешный ответ).
-  const beforeDraw = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)';
-  const [log] = await db.batch([
-    auditIfStmt(db, ev.id, actor, 'participate', 'не участвует', beforeDraw, ev.id),
-    ...memberDataDeleteStmts(db, ev.id, actor, beforeDraw, ev.id),
-  ]);
-  return log.meta.changes ? { ok: true } : { ok: false, error: AFTER_DRAW };
+  const beforeDraw = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)', ev.id);
+  beforeDraw.claim(beforeDraw.audit(ev.id, actor, 'participate', 'не участвует'));
+  beforeDraw.add(...memberDataDeleteStmts(db, ev.id, actor, ...beforeDraw.guard));
+  return (await beforeDraw.run()).won ? { ok: true } : { ok: false, error: AFTER_DRAW };
 }
 
 // Разрешить удалённому организатором вернуться по ссылке (010)
