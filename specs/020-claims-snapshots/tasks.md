@@ -26,7 +26,7 @@ P2). Перед каждым коммитом — `npm test`.
 
 **Purpose**: замеры «до» для сравнения в конце
 
-- [ ] T001 Снять замеры «до» на `main` (`7c5e774`): `npm test` (138 тестов, 136 прошли, 2 `todo`), `npm run bench:draw` ×2,
+- [X] T001 Снять замеры «до» на `main` (`7c5e774`): `npm test` (138 тестов, 136 прошли, 2 `todo`), `npm run bench:draw` ×2,
   `node tests/bench/queries.mjs`; записать в `specs/020-claims-snapshots/research.md` (R10)
 
 ---
@@ -35,7 +35,7 @@ P2). Перед каждым коммитом — `npm test`.
 
 **Purpose**: помощник захватов — им пользуются все истории
 
-- [ ] T002 Создать `src/claim.js`: `closedParens(sql)` (баланс скобок без учёта строк в одинарных кавычках) и
+- [X] T002 Создать `src/claim.js`: `closedParens(sql)` (баланс скобок без учёта строк в одинарных кавычках) и
   `atomic(db, cond, ...args)` по `data-model.md` — поля `sql` (`(cond)`), `args`, `guard` (`[sql, ...args]`); методы
   `and(more, ...moreArgs)`, `enqueue(chatId, payload)` (через `enqueueIfStmt`), `audit(eventId, actor, action, details)`
   (через `auditIfStmt`), `where(sql, ...params)` (`sql AND (cond)`), `select(sql, ...params)` (`sql WHERE (cond)`),
@@ -43,7 +43,7 @@ P2). Перед каждым коммитом — `npm test`.
   `{ won, claim, results }` (`won` — `meta.changes > 0` или вернувшаяся строка; без захвата — `null`); методы добавления
   возвращают оператор; общий список операторов у всех построителей из `and()`; незакрытая скобка в `cond`/`more` —
   `Error`
-- [ ] T003 Создать `tests/claims.test.mjs` (помощник): порядок операторов = порядок вызовов; `and` склеивает условия и
+- [X] T003 Создать `tests/claims.test.mjs` (помощник): порядок операторов = порядок вызовов; `and` склеивает условия и
   параметры; `claim` уже добавленного оператора не дублирует его; второй `claim` — ошибка; незакрытая скобка — ошибка;
   на настоящем SQLite (`createMigratedD1`) пакет «по прежнему состоянию» (уведомление перед захватом) при повторе не
   пишет второго уведомления и даёт `won = false`; добавить файл в скрипт `test` в `package.json`
