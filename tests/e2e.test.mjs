@@ -1318,8 +1318,9 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
 
     await t.test('владелец может всё, что админ (автотест по всем действиям admin.*)', async () => {
       const src = fs.readFileSync(new URL('../src/api.js', import.meta.url), 'utf8');
-      const actions = [...new Set([...src.matchAll(/case '(admin\.[a-z.]+)'/g)].map((m) => m[1]))];
-      assert.ok(actions.length >= 35, `найдено действий: ${actions.length}`);
+      // 016: с «_» в имени (admin.avoid_previous, admin.event.invite_from); ровно 46 — потерю действия видно сразу
+      const actions = [...new Set([...src.matchAll(/case '(admin\.[a-z._]+)'/g)].map((m) => m[1]))];
+      assert.equal(actions.length, 46, `найдено действий: ${actions.length}`);
       // Минимальное тело: без слов подтверждения и без людей — опасные действия получают отказ по данным, а не по правам
       const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
       const P1 = (await zapi(boss, 'admin.events.create', { title: 'Права владельца' })).event.id;
