@@ -1,9 +1,11 @@
 // Один список данных события и человека (018, specs/018-data-registry/): тест схемы — REGISTRY сверяется со схемой из
 // миграций в обе стороны (новая таблица или колонка с событием или человеком роняет тест, пока её не описали), и
 // построители операторов. Тест «после действия не остаётся строк» — ниже, на «мире» (US3).
-import { describe, it, test } from 'node:test';
+import { describe, it, test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMigratedD1 } from './support/d1-sqlite.mjs';
+import { startWorld, restoreFetch } from './support/world.mjs';
+import { seeded } from './support/draw-cases.mjs';
 import {
   REGISTRY, MEMBER, ACTOR, ACTOR_MOVED, RECIPIENT, SELF, NOT_PERSON, columnsWith,
   eventDataDeleteStmts, memberDataDeleteStmts, personTransferStmts, mergeMembership,
@@ -200,4 +202,221 @@ test('построители работают на настоящей схеме
   await db.batch(memberDataDeleteStmts(db, 7, 200));
   await db.batch(eventDataDeleteStmts(db, 7));
   assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM events').get().n, 0);
+});
+
+// ---------- после действия не остаётся строк (US3) ----------
+// «Богатый мир»: событие A (адрес нужен, владелец участвует, жеребьёвка проведена), событие B (с одобрением заявок),
+// событие C (p1 удалён организатором). Поиск строк идёт по REGISTRY — все колонки события и человека (полноту списка
+// проверяет тест схемы выше); что может остаться — по таблице «что делает сейчас» файла шага (data-model.md).
+
+const boss = { id: 9001, name: 'Владелец', username: 'boss' };
+const adm = { id: 9002, name: 'Админ', username: 'adm' };
+const fresh = { id: 777, name: 'Новый аккаунт', username: 'fresh' };
+const P = Array.from({ length: 6 }, (_, i) => ({ id: 101 + i, name: 'Игрок' + (i + 1), username: 'p' + (i + 1) }));
+const [p1, p2, p3, p4, p5, p6] = P;
+// Что остаётся у человека всегда — явно, по файлу шага (не по ролям списка, чтобы тест не доверял самому списку):
+// ссылки «кто сделал» и получатель сообщения в очереди
+const STAYS = [
+  'announcements.author', 'audit.actor', 'events.created_by', 'families.created_by', 'join_requests.decided_by',
+  'outbox.chat_id', 'removed_members.removed_by', 'support_threads.closed_by',
+];
+
+test('остатки по файлу шага совпадают с ролями «кто сделал» и «получатель» в списке', () => {
+  const fromRegistry = Object.entries(REGISTRY).flatMap(([t, s]) => columnsWith(s, ACTOR, RECIPIENT).map((c) => `${t}.${c}`));
+  assert.deepEqual(fromRegistry.sort(), [...STAYS].sort());
+});
+
+// Случайные числа — с зерном: удаление после жеребьёвки перестраивает пары случайно, тест не должен зависеть от удачи
+async function seededRun(fn) {
+  const real = Math.random;
+  Math.random = seeded(18);
+  try {
+    return await fn();
+  } finally {
+    Math.random = real;
+  }
+}
+
+async function rich() {
+  const w = await startWorld();
+  const s = await w.setup();
+  await w.say(boss, '/start ' + s.adminCode);
+  await w.say(boss, boss.name);
+  const create = async (title) => (await w.api(boss, 'admin.events.create', { title })).event.id;
+  const codeOf = async (id) => /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: id })).settings.invite_link)[1];
+  const [A, B, C] = [await create('Альфа'), await create('Бета'), await create('Гамма')];
+
+  // A: адрес доставки, владелец участвует, админ и 6 игроков по ссылке
+  await w.api(boss, 'admin.game', { event: A, delivery_on: true });
+  await w.api(boss, 'admin.participate', { event: A, on: true });
+  const codeA = await codeOf(A);
+  for (const u of [adm, ...P]) {
+    await w.say(u, '/start ' + codeA);
+    await w.say(u, u.name);
+  }
+  await w.api(boss, 'admin.role.grant', { id: adm.id });
+
+  // B: с одобрением — новый аккаунт, p1 и p2 приняты, заявка p3 ждёт
+  await w.api(boss, 'admin.game', { event: B, approval: true });
+  const codeB = await codeOf(B);
+  await w.say(fresh, '/start ' + codeB);
+  await w.say(fresh, fresh.name);
+  for (const u of [p1, p2, p3]) await w.say(u, '/start ' + codeB);
+  for (const r of w.query('SELECT id, user_id FROM join_requests WHERE event_id = ?', B)) {
+    if (r.user_id !== p3.id) await w.api(adm, 'admin.request.decide', { event: B, id: r.id, approve: true });
+  }
+
+  // C: p1 вступил и удалён организатором
+  await w.say(p1, '/start ' + (await codeOf(C)));
+  await w.api(adm, 'admin.remove', { event: C, id: p1.id });
+
+  // Письма и адреса
+  for (const u of [boss, p1, p2]) {
+    await w.api(u, 'wishlist.save', { event: A, text: 'письмо ' + u.name });
+    await w.api(u, 'delivery.save', { event: A, text: 'адрес ' + u.name });
+  }
+  await w.api(p1, 'wishlist.save', { event: B, text: 'письмо в Бете' });
+  // Исключения, закреплённая пара, семья
+  await w.api(adm, 'admin.exclusion.add', { event: A, giver: p1.id, receiver: p2.id });
+  await w.api(adm, 'admin.exclusion.add', { event: B, giver: p2.id, receiver: p1.id });
+  await w.api(boss, 'admin.fixed.add', { event: A, giver: p3.id, receiver: p1.id });
+  await w.api(boss, 'admin.fixed.add', { event: A, giver: p2.id, receiver: p5.id });
+  await w.api(boss, 'admin.family.save', { name: 'Семья', members: [p1.id, p4.id] });
+  // Обращения: у p1 — закрытое им самим (с ответом админа) и новое открытое; у p2 — в A и в B
+  await w.api(p1, 'support.send', { event: A, text: 'вопрос' });
+  const th = w.query('SELECT id FROM support_threads WHERE user_id = ?', p1.id)[0].id;
+  await w.api(adm, 'admin.support.take', { event: A, thread: th });
+  await w.api(adm, 'admin.support.send', { event: A, thread: th, text: 'ответ' });
+  await w.api(p1, 'support.close', { event: A });
+  await w.api(p1, 'support.send', { event: A, text: 'ещё вопрос' });
+  await w.api(p2, 'support.send', { event: A, text: 'вопрос p2' });
+  await w.api(p2, 'support.send', { event: B, text: 'вопрос p2 в Бете' });
+  // Объявление, удалённый организатором, жеребьёвка, переписка пар
+  await w.api(adm, 'admin.announce', { event: A, text: 'Всем привет' });
+  await w.api(adm, 'admin.remove', { event: A, id: p6.id });
+  await w.api(adm, 'admin.draw', { event: A });
+  for (const u of [p1, p2]) {
+    await w.api(u, 'ward.get', { event: A });
+    await w.api(u, 'message.send', { event: A, to: 'ward', text: 'привет подопечному' });
+  }
+  const santaOfP1 = w.query('SELECT santa FROM pairs WHERE event_id = ? AND ward = ?', A, p1.id)[0].santa;
+  await w.api([boss, adm, ...P].find((u) => u.id === santaOfP1), 'message.send', { event: A, to: 'ward', text: 'привет, p1' });
+  return { w, A, B, C };
+}
+
+// Строки события: таблица → число (по колонке события или через родителя)
+function eventRows(w, id) {
+  const out = {};
+  for (const [t, s] of Object.entries(REGISTRY)) {
+    const parent = s.via && REGISTRY[s.via.parent];
+    const where = s.event ? `${s.event} = ?` : parent?.event ? `${s.via.column} IN (SELECT id FROM ${s.via.parent} WHERE ${parent.event} = ?)` : '';
+    if (!where) continue;
+    const n = w.query(`SELECT COUNT(*) AS n FROM ${t} WHERE ${where}`, id)[0].n;
+    if (n) out[t] = n;
+  }
+  return out;
+}
+
+// Строки, чей родитель (via) исчез
+function orphans(w) {
+  const out = {};
+  for (const [t, s] of Object.entries(REGISTRY)) {
+    if (!s.via) continue;
+    const n = w.query(`SELECT COUNT(*) AS n FROM ${t} WHERE ${s.via.column} NOT IN (SELECT id FROM ${s.via.parent})`)[0].n;
+    if (n) out[t] = n;
+  }
+  return out;
+}
+
+// Где встречается человек: «таблица.колонка» → роль; event — только строки этого события
+function personRows(w, id, event = 0) {
+  const out = {};
+  for (const [t, s] of Object.entries(REGISTRY)) {
+    const parent = s.via && REGISTRY[s.via.parent];
+    let scope = '';
+    if (event) {
+      if (s.event) scope = ` AND ${s.event} = ${Number(event)}`;
+      else if (parent?.event) scope = ` AND ${s.via.column} IN (SELECT id FROM ${s.via.parent} WHERE ${parent.event} = ${Number(event)})`;
+      else continue;
+    }
+    for (const [c, role] of Object.entries(s.people || {})) {
+      if (role !== NOT_PERSON && w.query(`SELECT COUNT(*) AS n FROM ${t} WHERE ${c} = ?${scope}`, id)[0].n) out[`${t}.${c}`] = role;
+    }
+  }
+  return out;
+}
+const kept = (rows) => Object.keys(rows).filter((k) => !STAYS.includes(k)).sort();
+
+describe('после действия не остаётся строк события и человека', () => {
+  after(restoreFetch);
+
+  it('удаление события: остаётся только журнал события; другие события не затронуты', () => seededRun(async () => {
+    const { w, A, B, C } = await rich();
+    const others = [eventRows(w, A), eventRows(w, C)];
+    assert.ok(Object.keys(eventRows(w, B)).length >= 5, 'в B были данные');
+    await w.api(boss, 'admin.event.delete', { event: B, confirm: 'УДАЛИТЬ' });
+    assert.deepEqual(Object.keys(eventRows(w, B)), ['audit']);
+    assert.deepEqual(orphans(w), {});
+    assert.deepEqual([eventRows(w, A), eventRows(w, C)], others);
+    assert.equal(w.query("SELECT COUNT(*) AS n FROM audit WHERE event_id = 0 AND action = 'event.delete'")[0].n, 1);
+  }));
+
+  it('полный сброс: строка события по умолчанию, участие владельца без письма и адреса, журнал', () => seededRun(async () => {
+    const { w, A, B, C } = await rich();
+    const others = [eventRows(w, B), eventRows(w, C)];
+    const code = w.query('SELECT invite_code FROM events WHERE id = ?', A)[0].invite_code;
+    await w.api(boss, 'admin.reset.full', { event: A, confirm: 'СБРОС' });
+    assert.deepEqual(Object.keys(eventRows(w, A)).sort(), ['audit', 'events', 'members']);
+    assert.deepEqual(w.query('SELECT user_id, wishlist, wishlist_updated_at, delivery, delivery_updated_at FROM members WHERE event_id = ?', A),
+      [{ user_id: boss.id, wishlist: '', wishlist_updated_at: 0, delivery: '', delivery_updated_at: 0 }]);
+    const ev = w.query('SELECT * FROM events WHERE id = ?', A)[0];
+    assert.equal(ev.draw_done, 0);
+    assert.equal(ev.delivery_on, 0);
+    assert.equal(ev.registration_open, 1);
+    assert.notEqual(ev.invite_code, code);
+    assert.deepEqual(orphans(w), {});
+    assert.deepEqual([eventRows(w, B), eventRows(w, C)], others);
+  }));
+
+  it('удаление участника после жеребьёвки: в событии — только отметка «удалён»; пары остальных целы', () => seededRun(async () => {
+    const { w, A, B } = await rich();
+    assert.ok(kept(personRows(w, p2.id, A)).length >= 6, 'у p2 в A были данные');
+    await w.api(adm, 'admin.remove', { event: A, id: p2.id });
+    assert.deepEqual(kept(personRows(w, p2.id, A)), ['removed_members.user_id']);
+    assert.deepEqual(orphans(w), {});
+    // Каждый участник A дарит и получает ровно один раз
+    const ids = w.query('SELECT user_id FROM members WHERE event_id = ? ORDER BY user_id', A).map((r) => r.user_id);
+    assert.deepEqual(w.query('SELECT santa FROM pairs WHERE event_id = ? ORDER BY santa', A).map((r) => r.santa), ids);
+    assert.deepEqual(w.query('SELECT ward FROM pairs WHERE event_id = ? ORDER BY ward', A).map((r) => r.ward), ids);
+    assert.ok(personRows(w, p2.id, B)['members.user_id'], 'участие в B осталось');
+  }));
+
+  it('удаление участника до жеребьёвки: в событии — только отметка «удалён» и прошлая заявка', () => seededRun(async () => {
+    const { w, A, B } = await rich();
+    assert.ok(kept(personRows(w, p2.id, B)).length >= 4, 'у p2 в B были данные');
+    await w.api(adm, 'admin.remove', { event: B, id: p2.id });
+    assert.deepEqual(kept(personRows(w, p2.id, B)), ['join_requests.user_id', 'removed_members.user_id']);
+    assert.deepEqual(orphans(w), {});
+    assert.ok(personRows(w, p2.id, A)['members.user_id'], 'участие в A осталось');
+  }));
+
+  it('перенос: старый аккаунт остаётся только в ссылках «кто сделал» и в очереди; данные — у нового', () => seededRun(async () => {
+    const { w, A, B, C } = await rich();
+    const before = kept(personRows(w, p1.id));
+    assert.ok(before.length >= 12, 'у p1 были данные почти во всех таблицах');
+    await w.api(boss, 'admin.transfer', { from: p1.id, to: fresh.id });
+    const left = personRows(w, p1.id);
+    assert.deepEqual(kept(left), [], 'у старого аккаунта — только «кто сделал» и очередь');
+    assert.ok(left['support_threads.closed_by'], 'закрытое им обращение подписано старым аккаунтом');
+    // Всё, что было у старого как у участника, теперь у нового
+    const now = kept(personRows(w, fresh.id));
+    for (const k of before) if (k !== 'users.tg_id') assert.ok(now.includes(k), k);
+    // B: одно участие, письмо старого (у нового пустое); A: письмо и адрес старого; C: отметка «удалён» перешла
+    assert.deepEqual(w.query('SELECT user_id, wishlist FROM members WHERE event_id = ? AND user_id IN (?, ?)', B, p1.id, fresh.id),
+      [{ user_id: fresh.id, wishlist: 'письмо в Бете' }]);
+    assert.deepEqual(w.query('SELECT wishlist, delivery FROM members WHERE event_id = ? AND user_id = ?', A, fresh.id),
+      [{ wishlist: 'письмо ' + p1.name, delivery: 'адрес ' + p1.name }]);
+    assert.equal(w.query('SELECT COUNT(*) AS n FROM removed_members WHERE event_id = ? AND user_id = ?', C, fresh.id)[0].n, 1);
+    assert.deepEqual(orphans(w), {});
+  }));
 });
