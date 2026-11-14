@@ -2,11 +2,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { APP } from './support/app-source.mjs';
 
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const tokens = read('design-system/tokens.css');
 const components = read('design-system/components.css');
-const app = read('src/app.html');
+const app = APP; // склейка частей src/app/ — та же страница, что отдаёт Worker (021)
 const preview = read('design-system/preview.html');
 
 const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -38,11 +39,11 @@ test('все var(--ds-*) в компонентах определены в то�
 
 test('приложение не содержит своих стилей: только встраиваемая дизайн-система', () => {
   const styles = [...app.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1].trim());
-  assert.deepEqual(styles, ['/*@design-system*/'], 'в app.html допускается только плейсхолдер дизайн-системы');
+  assert.deepEqual(styles, ['/*@design-system*/'], 'в приложении допускается только плейсхолдер дизайн-системы');
   assert.ok(!/\sstyle=/.test(app), 'атрибуты style= запрещены');
   assert.ok(!/[{,]\s*['"]?style['"]?\s*:/.test(app), 'style в h()-атрибутах запрещён');
-  assert.ok(!RAW_COLOR.test(app.replace(/<script src=[^>]+><\/script>/, '')), 'сырые цвета в app.html запрещены');
-  assert.ok(!RAW_PX.test(app), 'сырые px в app.html запрещены');
+  assert.ok(!RAW_COLOR.test(app.replace(/<script src=[^>]+><\/script>/, '')), 'сырые цвета в приложении запрещены');
+  assert.ok(!RAW_PX.test(app), 'сырые px в приложении запрещены');
 });
 
 test('все классы ds-* из приложения существуют в компонентах', () => {

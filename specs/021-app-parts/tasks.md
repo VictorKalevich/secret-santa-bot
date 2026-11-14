@@ -79,13 +79,13 @@ description: "Task list for 021-app-parts"
 
 **Independent Test**: «от противного» — `style=` в части 5, «эвент» в части 5, «＋» в части 4 роняют тесты (T011)
 
-- [ ] T008 [P] [US2] `tests/design-system.test.mjs`: `const app = APP` (из `./support/app-source.mjs`) вместо
+- [X] T008 [P] [US2] `tests/design-system.test.mjs`: `const app = APP` (из `./support/app-source.mjs`) вместо
   `read('src/app.html')`; проверки те же; тексты сообщений «app.html» → «приложении» / «частях приложения»
-- [ ] T009 [P] [US2] `tests/wording.test.mjs`: проверка «эвент» — файлы `src/*.js` (теперь и `src/app-page.js`) и
+- [X] T009 [P] [US2] `tests/wording.test.mjs`: проверка «эвент» — файлы `src/*.js` (теперь и `src/app-page.js`) и
   склейка `APP` одним текстом; место нарушения в склейке — `where(n)`; проверка «＋» — по склейке, место — `where(n)`
-- [ ] T010 [US2] Удалить `src/app.html` (`git rm`); `grep -rn "app\.html" src tests` — только комментарии об истории
+- [X] T010 [US2] Удалить `src/app.html` (`git rm`); `grep -rn "app\.html" src tests` — только комментарии об истории
   (или ничего)
-- [ ] T011 [US2] «От противного» (quickstart, раздел 6, первые три строки): по одной правке, `npm test` падает в нужном
+- [X] T011 [US2] «От противного» (quickstart, раздел 6, первые три строки): по одной правке, `npm test` падает в нужном
   тесте с нужным местом, откат `git checkout -- src/app`; затем `npm test` зелёный
 
 **Checkpoint**: коммит «021 US2: design-system and wording checks on the assembled page, src/app.html removed»
