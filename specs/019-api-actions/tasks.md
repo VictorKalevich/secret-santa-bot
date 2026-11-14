@@ -28,14 +28,14 @@ contracts/api-actions.md, quickstart.md); шаг 4 плана рефактори
   тестов, 128 прошли, 2 `todo`, 0 упали; `npm run bench:draw` ×2, медианы холодный / тёплый, мс: 50 — 0,96–1,00 / 0,06;
   100 — 1,97–2,00 / 0,19–0,20; 150 — 2,97–3,02 / 0,45; 200 — 3,69–3,76 / 0,73–0,74; `node tests/bench/queries.mjs` =
   таблица `BASELINE` в `tests/queries.test.mjs`
-- [ ] T002 Эталон отказов **до изменения `src/`** (research R3): `tests/support/refusals-scenario.mjs` — мир (владелец,
+- [X] T002 Эталон отказов **до изменения `src/`** (research R3): `tests/support/refusals-scenario.mjs` — мир (владелец,
   админ, участник, посторонний, незнакомец; идущее событие E, завершённые F без адреса и FD с адресом, несуществующее
   999999), список 59 действий явно в порядке прежних `case` + `admin.nope`, `nope`, ситуации `stranger`, `outsider`,
   `member`, `admin` (свежее событие на каждое действие), `missing`, `finished`, `finished-admin`, `finished-delivery`;
   тела `{ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 }`; запись `{ status, error }` (`error` — `null` при
   успехе). `tests/fixtures/make-api-refusals.mjs` пишет `tests/fixtures/api-refusals.json` (`{ actions, cases }`);
   `tests/api-refusals.test.mjs` — сценарий = эталон (`deepEqual`); файл — в скрипт `test` в `package.json`
-- [ ] T003 Снять эталон на неизменённом коде, `npm test`; коммит «019 refusals fixture: …» (только тесты и эталон)
+- [X] T003 Снять эталон на неизменённом коде, `npm test`; коммит «019 refusals fixture: …» (только тесты и эталон)
 
 ---
 

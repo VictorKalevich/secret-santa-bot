@@ -1,0 +1,4565 @@
+{
+ "actions": [
+  "me",
+  "notify.set",
+  "event.get",
+  "wishlist.save",
+  "delivery.save",
+  "ward.get",
+  "ward.gift",
+  "ward.received",
+  "message.send",
+  "chat.get",
+  "support.get",
+  "support.send",
+  "support.close",
+  "admin.events.create",
+  "admin.families",
+  "admin.family.save",
+  "admin.family.delete",
+  "admin.audit",
+  "admin.users",
+  "admin.rename",
+  "admin.transfer",
+  "admin.role.grant",
+  "admin.role.revoke",
+  "admin.owner.transfer",
+  "admin.state",
+  "admin.wishlist",
+  "admin.game",
+  "admin.ring",
+  "admin.registration",
+  "admin.invite.regen",
+  "admin.avoid_previous",
+  "admin.participate",
+  "admin.remove",
+  "admin.removed.allow",
+  "admin.insert",
+  "admin.exclusion.add",
+  "admin.exclusion.del",
+  "admin.fixed.add",
+  "admin.fixed.del",
+  "admin.draw.check",
+  "admin.draw",
+  "admin.draw.cancel",
+  "admin.draw.cancel.force",
+  "admin.support.get",
+  "admin.support.take",
+  "admin.support.send",
+  "admin.support.pass",
+  "admin.support.close",
+  "admin.announce",
+  "admin.request.decide",
+  "admin.remind.unfilled",
+  "admin.remind.santas",
+  "admin.reveal",
+  "admin.event.finish",
+  "admin.event.invite_from",
+  "admin.event.delete",
+  "admin.vault.person",
+  "admin.vault.pairs",
+  "admin.reset.full"
+ ],
+ "cases": {
+  "stranger me": {
+   "status": 200,
+   "error": null
+  },
+  "stranger notify.set": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger event.get": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger wishlist.save": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger delivery.save": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger ward.get": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger ward.gift": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger ward.received": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger message.send": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger chat.get": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger support.get": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger support.send": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger support.close": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.events.create": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.families": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.family.save": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.family.delete": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.audit": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.users": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.rename": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.transfer": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.role.grant": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.role.revoke": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.owner.transfer": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.state": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.wishlist": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.game": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.ring": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.registration": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.invite.regen": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.avoid_previous": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.participate": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.remove": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.removed.allow": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.insert": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.exclusion.add": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.exclusion.del": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.fixed.add": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.fixed.del": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.draw.check": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.draw": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.draw.cancel": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.support.get": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.support.take": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.support.send": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.support.pass": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.support.close": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.announce": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.request.decide": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.remind.unfilled": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.remind.santas": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.reveal": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.event.finish": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.event.invite_from": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.event.delete": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.vault.person": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.vault.pairs": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.reset.full": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger admin.nope": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "stranger nope": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "outsider me": {
+   "status": 200,
+   "error": null
+  },
+  "outsider notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "outsider event.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider wishlist.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider delivery.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider ward.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider ward.gift": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider ward.received": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider message.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider chat.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider support.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider support.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider support.close": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "outsider admin.events.create": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.families": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.family.save": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.family.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.audit": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.users": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.rename": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.role.grant": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.role.revoke": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.owner.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.state": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.wishlist": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.game": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.ring": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.registration": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.invite.regen": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.avoid_previous": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.participate": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.remove": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.removed.allow": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.insert": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.exclusion.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.exclusion.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.fixed.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.fixed.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.draw.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.draw": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.draw.cancel": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.support.get": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.support.take": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.support.send": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.support.pass": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.support.close": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.announce": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.request.decide": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.remind.unfilled": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.remind.santas": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.reveal": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.event.finish": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.event.invite_from": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.event.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.vault.person": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.vault.pairs": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.reset.full": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider admin.nope": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "outsider nope": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "member me": {
+   "status": 200,
+   "error": null
+  },
+  "member notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "member event.get": {
+   "status": 200,
+   "error": null
+  },
+  "member wishlist.save": {
+   "status": 200,
+   "error": null
+  },
+  "member delivery.save": {
+   "status": 400,
+   "error": "В этом событии адрес доставки не нужен."
+  },
+  "member ward.get": {
+   "status": 200,
+   "error": null
+  },
+  "member ward.gift": {
+   "status": 400,
+   "error": "У тебя пока нет подопечного."
+  },
+  "member ward.received": {
+   "status": 400,
+   "error": "У тебя пока нет Санты."
+  },
+  "member message.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "member chat.get": {
+   "status": 200,
+   "error": null
+  },
+  "member support.get": {
+   "status": 200,
+   "error": null
+  },
+  "member support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "member support.close": {
+   "status": 400,
+   "error": "Открытого обращения нет."
+  },
+  "member admin.events.create": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.families": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.family.save": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.family.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.audit": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.users": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.rename": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.role.grant": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.role.revoke": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.owner.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.state": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.wishlist": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.game": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.ring": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.registration": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.invite.regen": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.avoid_previous": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.participate": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.remove": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.removed.allow": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.insert": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.exclusion.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.exclusion.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.fixed.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.fixed.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.draw.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.draw": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.draw.cancel": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.support.get": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.support.take": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.support.send": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.support.pass": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.support.close": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.announce": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.request.decide": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.remind.unfilled": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.remind.santas": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.reveal": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.event.finish": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.event.invite_from": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.event.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.vault.person": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.vault.pairs": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.reset.full": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member admin.nope": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "member nope": {
+   "status": 404,
+   "error": "Неизвестное действие"
+  },
+  "admin me": {
+   "status": 200,
+   "error": null
+  },
+  "admin notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "admin event.get": {
+   "status": 200,
+   "error": null
+  },
+  "admin wishlist.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin delivery.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin ward.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin ward.gift": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin ward.received": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin message.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin chat.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin support.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin support.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin support.close": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "admin admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "admin admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "admin admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "admin admin.audit": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "admin admin.transfer": {
+   "status": 403,
+   "error": "Переносить участие на новый аккаунт может только владелец бота."
+  },
+  "admin admin.role.grant": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "admin admin.role.revoke": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "admin admin.owner.transfer": {
+   "status": 403,
+   "error": "Передать права владельца может только владелец бота."
+  },
+  "admin admin.state": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.wishlist": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "admin admin.game": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.ring": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.registration": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.invite.regen": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.avoid_previous": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.participate": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.remove": {
+   "status": 400,
+   "error": "Человек не участвует в этом событии."
+  },
+  "admin admin.removed.allow": {
+   "status": 400,
+   "error": "Этого человека нет среди удалённых."
+  },
+  "admin admin.insert": {
+   "status": 403,
+   "error": "Вписывать в жеребьёвку после неё может только владелец бота."
+  },
+  "admin admin.exclusion.add": {
+   "status": 400,
+   "error": "Выбери двух разных людей"
+  },
+  "admin admin.exclusion.del": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.fixed.add": {
+   "status": 403,
+   "error": "Закреплять пары может только владелец бота."
+  },
+  "admin admin.fixed.del": {
+   "status": 403,
+   "error": "Закреплять пары может только владелец бота."
+  },
+  "admin admin.draw.check": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.draw": {
+   "status": 400,
+   "error": "Нужно хотя бы 2 участника."
+  },
+  "admin admin.draw.cancel": {
+   "status": 400,
+   "error": "Жеребьёвка не проведена."
+  },
+  "admin admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Принудительно отменить жеребьёвку может только владелец бота."
+  },
+  "admin admin.support.get": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "admin admin.support.take": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "admin admin.support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "admin admin.support.pass": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "admin admin.support.close": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "admin admin.announce": {
+   "status": 400,
+   "error": "Напиши текст объявления."
+  },
+  "admin admin.request.decide": {
+   "status": 400,
+   "error": "Заявка не найдена."
+  },
+  "admin admin.remind.unfilled": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.remind.santas": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "admin admin.reveal": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "admin admin.event.finish": {
+   "status": 200,
+   "error": null
+  },
+  "admin admin.event.invite_from": {
+   "status": 400,
+   "error": "Выбери другое событие."
+  },
+  "admin admin.event.delete": {
+   "status": 403,
+   "error": "Удалить событие может только владелец бота."
+  },
+  "admin admin.vault.person": {
+   "status": 403,
+   "error": "Служебный просмотр доступен только владельцу бота."
+  },
+  "admin admin.vault.pairs": {
+   "status": 403,
+   "error": "Служебный просмотр доступен только владельцу бота."
+  },
+  "admin admin.reset.full": {
+   "status": 403,
+   "error": "Полный сброс может только владелец бота."
+  },
+  "admin admin.nope": {
+   "status": 404,
+   "error": "Неизвестное действие"
+  },
+  "admin nope": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner me": {
+   "status": 200,
+   "error": null
+  },
+  "owner notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "owner event.get": {
+   "status": 200,
+   "error": null
+  },
+  "owner wishlist.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner delivery.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner ward.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner ward.gift": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner ward.received": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner message.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner chat.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner support.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner support.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner support.close": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "owner admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "owner admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "owner admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "owner admin.audit": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "owner admin.transfer": {
+   "status": 400,
+   "error": "Выбери две разные записи."
+  },
+  "owner admin.role.grant": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "owner admin.role.revoke": {
+   "status": 400,
+   "error": "Он(а) не администратор."
+  },
+  "owner admin.owner.transfer": {
+   "status": 400,
+   "error": "Передать владение можно только зарегистрированному человеку."
+  },
+  "owner admin.state": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.wishlist": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "owner admin.game": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.ring": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.registration": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.invite.regen": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.avoid_previous": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.participate": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.remove": {
+   "status": 400,
+   "error": "Человек не участвует в этом событии."
+  },
+  "owner admin.removed.allow": {
+   "status": 400,
+   "error": "Этого человека нет среди удалённых."
+  },
+  "owner admin.insert": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "owner admin.exclusion.add": {
+   "status": 400,
+   "error": "Выбери двух разных людей"
+  },
+  "owner admin.exclusion.del": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.fixed.add": {
+   "status": 400,
+   "error": "Выбери двух разных людей"
+  },
+  "owner admin.fixed.del": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.draw.check": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.draw": {
+   "status": 400,
+   "error": "Нужно хотя бы 2 участника."
+  },
+  "owner admin.draw.cancel": {
+   "status": 400,
+   "error": "Жеребьёвка не проведена."
+  },
+  "owner admin.draw.cancel.force": {
+   "status": 400,
+   "error": "Для отмены введи слово ОТМЕНА."
+  },
+  "owner admin.support.get": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "owner admin.support.take": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "owner admin.support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "owner admin.support.pass": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "owner admin.support.close": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "owner admin.announce": {
+   "status": 400,
+   "error": "Напиши текст объявления."
+  },
+  "owner admin.request.decide": {
+   "status": 400,
+   "error": "Заявка не найдена."
+  },
+  "owner admin.remind.unfilled": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.remind.santas": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "owner admin.reveal": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "owner admin.event.finish": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.event.invite_from": {
+   "status": 400,
+   "error": "Выбери другое событие."
+  },
+  "owner admin.event.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "owner admin.vault.person": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "owner admin.vault.pairs": {
+   "status": 200,
+   "error": null
+  },
+  "owner admin.reset.full": {
+   "status": 400,
+   "error": "Для полного сброса введи слово СБРОС."
+  },
+  "owner admin.nope": {
+   "status": 404,
+   "error": "Неизвестное действие"
+  },
+  "owner nope": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "missing-owner me": {
+   "status": 200,
+   "error": null
+  },
+  "missing-owner notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "missing-owner event.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner wishlist.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner delivery.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner ward.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner ward.gift": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner ward.received": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner message.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner chat.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "missing-owner admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "missing-owner admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "missing-owner admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "missing-owner admin.audit": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "missing-owner admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "missing-owner admin.transfer": {
+   "status": 400,
+   "error": "Выбери две разные записи."
+  },
+  "missing-owner admin.role.grant": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "missing-owner admin.role.revoke": {
+   "status": 400,
+   "error": "Он(а) не администратор."
+  },
+  "missing-owner admin.owner.transfer": {
+   "status": 400,
+   "error": "Передать владение можно только зарегистрированному человеку."
+  },
+  "missing-owner admin.state": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.wishlist": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.game": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.ring": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.registration": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.invite.regen": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.avoid_previous": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.participate": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.remove": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.removed.allow": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.insert": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.exclusion.add": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.exclusion.del": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.fixed.add": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.fixed.del": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.draw.check": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.draw": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.draw.cancel": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.draw.cancel.force": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.support.take": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.support.pass": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.announce": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.request.decide": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.remind.unfilled": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.remind.santas": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.reveal": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.event.finish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.event.invite_from": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.event.delete": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.vault.person": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.vault.pairs": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.reset.full": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner admin.nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-owner nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin me": {
+   "status": 200,
+   "error": null
+  },
+  "missing-admin notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "missing-admin event.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin wishlist.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin delivery.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin ward.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin ward.gift": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin ward.received": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin message.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin chat.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "missing-admin admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "missing-admin admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "missing-admin admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "missing-admin admin.audit": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "missing-admin admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "missing-admin admin.transfer": {
+   "status": 403,
+   "error": "Переносить участие на новый аккаунт может только владелец бота."
+  },
+  "missing-admin admin.role.grant": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "missing-admin admin.role.revoke": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "missing-admin admin.owner.transfer": {
+   "status": 403,
+   "error": "Передать права владельца может только владелец бота."
+  },
+  "missing-admin admin.state": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.wishlist": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.game": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.ring": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.registration": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.invite.regen": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.avoid_previous": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.participate": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.remove": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.removed.allow": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.insert": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.exclusion.add": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.exclusion.del": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.fixed.add": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.fixed.del": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.draw.check": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.draw": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.draw.cancel": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.draw.cancel.force": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.support.take": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.support.pass": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.announce": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.request.decide": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.remind.unfilled": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.remind.santas": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.reveal": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.event.finish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.event.invite_from": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.event.delete": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.vault.person": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.vault.pairs": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.reset.full": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin admin.nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-admin nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member me": {
+   "status": 200,
+   "error": null
+  },
+  "missing-member notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "missing-member event.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member wishlist.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member delivery.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member ward.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member ward.gift": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member ward.received": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member message.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member chat.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "missing-member admin.events.create": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.families": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.family.save": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.family.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.audit": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.users": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.rename": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.role.grant": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.role.revoke": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.owner.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.state": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.wishlist": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.game": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.ring": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.registration": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.invite.regen": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.avoid_previous": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.participate": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.remove": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.removed.allow": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.insert": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.exclusion.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.exclusion.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.fixed.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.fixed.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.draw.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.draw": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.draw.cancel": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.support.get": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.support.take": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.support.send": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.support.pass": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.support.close": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.announce": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.request.decide": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.remind.unfilled": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.remind.santas": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.reveal": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.event.finish": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.event.invite_from": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.event.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.vault.person": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.vault.pairs": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.reset.full": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member admin.nope": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "missing-member nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner me": {
+   "status": 200,
+   "error": null
+  },
+  "none-owner notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "none-owner event.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner wishlist.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner delivery.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner ward.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner ward.gift": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner ward.received": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner message.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner chat.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "none-owner admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "none-owner admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "none-owner admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "none-owner admin.audit": {
+   "status": 200,
+   "error": null
+  },
+  "none-owner admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "none-owner admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "none-owner admin.transfer": {
+   "status": 400,
+   "error": "Выбери две разные записи."
+  },
+  "none-owner admin.role.grant": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "none-owner admin.role.revoke": {
+   "status": 400,
+   "error": "Он(а) не администратор."
+  },
+  "none-owner admin.owner.transfer": {
+   "status": 400,
+   "error": "Передать владение можно только зарегистрированному человеку."
+  },
+  "none-owner admin.state": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.wishlist": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.game": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.ring": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.registration": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.invite.regen": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.avoid_previous": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.participate": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.remove": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.removed.allow": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.insert": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.exclusion.add": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.exclusion.del": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.fixed.add": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.fixed.del": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.draw.check": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.draw": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.draw.cancel": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.draw.cancel.force": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.support.take": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.support.pass": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.announce": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.request.decide": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.remind.unfilled": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.remind.santas": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.reveal": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.event.finish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.event.invite_from": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.event.delete": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.vault.person": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.vault.pairs": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.reset.full": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner admin.nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-owner nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin me": {
+   "status": 200,
+   "error": null
+  },
+  "none-admin notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "none-admin event.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin wishlist.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin delivery.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin ward.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin ward.gift": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin ward.received": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin message.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin chat.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "none-admin admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "none-admin admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "none-admin admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "none-admin admin.audit": {
+   "status": 200,
+   "error": null
+  },
+  "none-admin admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "none-admin admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "none-admin admin.transfer": {
+   "status": 403,
+   "error": "Переносить участие на новый аккаунт может только владелец бота."
+  },
+  "none-admin admin.role.grant": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "none-admin admin.role.revoke": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "none-admin admin.owner.transfer": {
+   "status": 403,
+   "error": "Передать права владельца может только владелец бота."
+  },
+  "none-admin admin.state": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.wishlist": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.game": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.ring": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.registration": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.invite.regen": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.avoid_previous": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.participate": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.remove": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.removed.allow": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.insert": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.exclusion.add": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.exclusion.del": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.fixed.add": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.fixed.del": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.draw.check": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.draw": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.draw.cancel": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.draw.cancel.force": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.support.take": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.support.pass": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.announce": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.request.decide": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.remind.unfilled": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.remind.santas": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.reveal": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.event.finish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.event.invite_from": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.event.delete": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.vault.person": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.vault.pairs": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.reset.full": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin admin.nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-admin nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member me": {
+   "status": 200,
+   "error": null
+  },
+  "none-member notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "none-member event.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member wishlist.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member delivery.save": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member ward.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member ward.gift": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member ward.received": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member message.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member chat.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member support.get": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member support.send": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member support.close": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "none-member admin.events.create": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.families": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.family.save": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.family.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.audit": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.users": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.rename": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.role.grant": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.role.revoke": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.owner.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.state": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.wishlist": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.game": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.ring": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.registration": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.invite.regen": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.avoid_previous": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.participate": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.remove": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.removed.allow": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.insert": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.exclusion.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.exclusion.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.fixed.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.fixed.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.draw.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.draw": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.draw.cancel": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.support.get": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.support.take": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.support.send": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.support.pass": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.support.close": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.announce": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.request.decide": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.remind.unfilled": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.remind.santas": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.reveal": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.event.finish": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.event.invite_from": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.event.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.vault.person": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.vault.pairs": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.reset.full": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member admin.nope": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "none-member nope": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "finished-owner me": {
+   "status": 200,
+   "error": null
+  },
+  "finished-owner notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "finished-owner event.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-owner wishlist.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner delivery.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner ward.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner ward.gift": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner ward.received": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner message.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner chat.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner support.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner support.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner support.close": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-owner admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "finished-owner admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "finished-owner admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "finished-owner admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "finished-owner admin.audit": {
+   "status": 200,
+   "error": null
+  },
+  "finished-owner admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "finished-owner admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "finished-owner admin.transfer": {
+   "status": 400,
+   "error": "Выбери две разные записи."
+  },
+  "finished-owner admin.role.grant": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "finished-owner admin.role.revoke": {
+   "status": 400,
+   "error": "Он(а) не администратор."
+  },
+  "finished-owner admin.owner.transfer": {
+   "status": 400,
+   "error": "Передать владение можно только зарегистрированному человеку."
+  },
+  "finished-owner admin.state": {
+   "status": 200,
+   "error": null
+  },
+  "finished-owner admin.wishlist": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "finished-owner admin.game": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.ring": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.registration": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.invite.regen": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.avoid_previous": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.participate": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.remove": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.removed.allow": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.insert": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.exclusion.add": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.exclusion.del": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.fixed.add": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.fixed.del": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.draw.check": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.draw": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.draw.cancel": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.draw.cancel.force": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.support.get": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-owner admin.support.take": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-owner admin.support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-owner admin.support.pass": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-owner admin.support.close": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-owner admin.announce": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.request.decide": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.remind.unfilled": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.remind.santas": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.reveal": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "finished-owner admin.event.finish": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.event.invite_from": {
+   "status": 400,
+   "error": "Выбери другое событие."
+  },
+  "finished-owner admin.event.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "finished-owner admin.vault.person": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "finished-owner admin.vault.pairs": {
+   "status": 200,
+   "error": null
+  },
+  "finished-owner admin.reset.full": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner admin.nope": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-owner nope": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin me": {
+   "status": 200,
+   "error": null
+  },
+  "finished-admin notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "finished-admin event.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-admin wishlist.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin delivery.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin ward.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin ward.gift": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin ward.received": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin message.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin chat.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin support.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin support.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin support.close": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-admin admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "finished-admin admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "finished-admin admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "finished-admin admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "finished-admin admin.audit": {
+   "status": 200,
+   "error": null
+  },
+  "finished-admin admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "finished-admin admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "finished-admin admin.transfer": {
+   "status": 403,
+   "error": "Переносить участие на новый аккаунт может только владелец бота."
+  },
+  "finished-admin admin.role.grant": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "finished-admin admin.role.revoke": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "finished-admin admin.owner.transfer": {
+   "status": 403,
+   "error": "Передать права владельца может только владелец бота."
+  },
+  "finished-admin admin.state": {
+   "status": 200,
+   "error": null
+  },
+  "finished-admin admin.wishlist": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "finished-admin admin.game": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.ring": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.registration": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.invite.regen": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.avoid_previous": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.participate": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.remove": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.removed.allow": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.insert": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.exclusion.add": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.exclusion.del": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.fixed.add": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.fixed.del": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.draw.check": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.draw": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.draw.cancel": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.draw.cancel.force": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.support.get": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-admin admin.support.take": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-admin admin.support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-admin admin.support.pass": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-admin admin.support.close": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-admin admin.announce": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.request.decide": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.remind.unfilled": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.remind.santas": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.reveal": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "finished-admin admin.event.finish": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.event.invite_from": {
+   "status": 400,
+   "error": "Выбери другое событие."
+  },
+  "finished-admin admin.event.delete": {
+   "status": 403,
+   "error": "Удалить событие может только владелец бота."
+  },
+  "finished-admin admin.vault.person": {
+   "status": 403,
+   "error": "Служебный просмотр доступен только владельцу бота."
+  },
+  "finished-admin admin.vault.pairs": {
+   "status": 403,
+   "error": "Служебный просмотр доступен только владельцу бота."
+  },
+  "finished-admin admin.reset.full": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin admin.nope": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-admin nope": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-member me": {
+   "status": 200,
+   "error": null
+  },
+  "finished-member notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "finished-member event.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-member wishlist.save": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "finished-member delivery.save": {
+   "status": 400,
+   "error": "В этом событии адрес доставки не нужен."
+  },
+  "finished-member ward.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-member ward.gift": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
+  },
+  "finished-member ward.received": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
+  },
+  "finished-member message.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-member chat.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-member support.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-member support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-member support.close": {
+   "status": 400,
+   "error": "Открытого обращения нет."
+  },
+  "finished-member admin.events.create": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.families": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.family.save": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.family.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.audit": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.users": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.rename": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.role.grant": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.role.revoke": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.owner.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.state": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.wishlist": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.game": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.ring": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.registration": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.invite.regen": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.avoid_previous": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.participate": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.remove": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.removed.allow": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.insert": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.exclusion.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.exclusion.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.fixed.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.fixed.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.draw.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.draw": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.draw.cancel": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.support.get": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.support.take": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.support.send": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.support.pass": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.support.close": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.announce": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.request.decide": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.remind.unfilled": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.remind.santas": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.reveal": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.event.finish": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.event.invite_from": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.event.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.vault.person": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.vault.pairs": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.reset.full": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member admin.nope": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-member nope": {
+   "status": 404,
+   "error": "Неизвестное действие"
+  },
+  "finished-delivery-member me": {
+   "status": 200,
+   "error": null
+  },
+  "finished-delivery-member notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "finished-delivery-member event.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-delivery-member wishlist.save": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "finished-delivery-member delivery.save": {
+   "status": 400,
+   "error": "Событие завершено: адрес теперь только для чтения."
+  },
+  "finished-delivery-member ward.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-delivery-member ward.gift": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
+  },
+  "finished-delivery-member ward.received": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
+  },
+  "finished-delivery-member message.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-delivery-member chat.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-delivery-member support.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-delivery-member support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-delivery-member support.close": {
+   "status": 400,
+   "error": "Открытого обращения нет."
+  },
+  "finished-delivery-member admin.events.create": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.families": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.family.save": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.family.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.audit": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.users": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.rename": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.role.grant": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.role.revoke": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.owner.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.state": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.wishlist": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.game": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.ring": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.registration": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.invite.regen": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.avoid_previous": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.participate": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.remove": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.removed.allow": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.insert": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.exclusion.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.exclusion.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.fixed.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.fixed.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.draw.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.draw": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.draw.cancel": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.support.get": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.support.take": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.support.send": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.support.pass": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.support.close": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.announce": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.request.decide": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.remind.unfilled": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.remind.santas": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.reveal": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.event.finish": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.event.invite_from": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.event.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.vault.person": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.vault.pairs": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.reset.full": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member admin.nope": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-delivery-member nope": {
+   "status": 404,
+   "error": "Неизвестное действие"
+  },
+  "finished-old-owner me": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-owner notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "finished-old-owner event.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-owner wishlist.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner delivery.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner ward.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner ward.gift": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner ward.received": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner message.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner chat.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner support.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner support.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner support.close": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-owner admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "finished-old-owner admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-owner admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "finished-old-owner admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "finished-old-owner admin.audit": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-owner admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-owner admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "finished-old-owner admin.transfer": {
+   "status": 400,
+   "error": "Выбери две разные записи."
+  },
+  "finished-old-owner admin.role.grant": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "finished-old-owner admin.role.revoke": {
+   "status": 400,
+   "error": "Он(а) не администратор."
+  },
+  "finished-old-owner admin.owner.transfer": {
+   "status": 400,
+   "error": "Передать владение можно только зарегистрированному человеку."
+  },
+  "finished-old-owner admin.state": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-owner admin.wishlist": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "finished-old-owner admin.game": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.ring": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.registration": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.invite.regen": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.avoid_previous": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.participate": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.remove": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.removed.allow": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.insert": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.exclusion.add": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.exclusion.del": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.fixed.add": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.fixed.del": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.draw.check": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.draw": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.draw.cancel": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.draw.cancel.force": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.support.get": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-old-owner admin.support.take": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-old-owner admin.support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-old-owner admin.support.pass": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-old-owner admin.support.close": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-old-owner admin.announce": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.request.decide": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.remind.unfilled": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.remind.santas": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.reveal": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "finished-old-owner admin.event.finish": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.event.invite_from": {
+   "status": 400,
+   "error": "Выбери другое событие."
+  },
+  "finished-old-owner admin.event.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "finished-old-owner admin.vault.person": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "finished-old-owner admin.vault.pairs": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-owner admin.reset.full": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner admin.nope": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-owner nope": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin me": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-admin notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "finished-old-admin event.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-admin wishlist.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin delivery.save": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin ward.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin ward.gift": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin ward.received": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin message.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin chat.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin support.get": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin support.send": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin support.close": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-admin admin.events.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "finished-old-admin admin.families": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-admin admin.family.save": {
+   "status": 400,
+   "error": "Название семьи — от 1 до 40 символов."
+  },
+  "finished-old-admin admin.family.delete": {
+   "status": 400,
+   "error": "Семья не найдена."
+  },
+  "finished-old-admin admin.audit": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-admin admin.users": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-admin admin.rename": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "finished-old-admin admin.transfer": {
+   "status": 403,
+   "error": "Переносить участие на новый аккаунт может только владелец бота."
+  },
+  "finished-old-admin admin.role.grant": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "finished-old-admin admin.role.revoke": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец бота."
+  },
+  "finished-old-admin admin.owner.transfer": {
+   "status": 403,
+   "error": "Передать права владельца может только владелец бота."
+  },
+  "finished-old-admin admin.state": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-admin admin.wishlist": {
+   "status": 400,
+   "error": "Участник не найден"
+  },
+  "finished-old-admin admin.game": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.ring": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.registration": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.invite.regen": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.avoid_previous": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.participate": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.remove": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.removed.allow": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.insert": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.exclusion.add": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.exclusion.del": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.fixed.add": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.fixed.del": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.draw.check": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.draw": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.draw.cancel": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.draw.cancel.force": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.support.get": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-old-admin admin.support.take": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-old-admin admin.support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-old-admin admin.support.pass": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-old-admin admin.support.close": {
+   "status": 404,
+   "error": "Обращение не найдено."
+  },
+  "finished-old-admin admin.announce": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.request.decide": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.remind.unfilled": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.remind.santas": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.reveal": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "finished-old-admin admin.event.finish": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.event.invite_from": {
+   "status": 400,
+   "error": "Выбери другое событие."
+  },
+  "finished-old-admin admin.event.delete": {
+   "status": 403,
+   "error": "Удалить событие может только владелец бота."
+  },
+  "finished-old-admin admin.vault.person": {
+   "status": 403,
+   "error": "Служебный просмотр доступен только владельцу бота."
+  },
+  "finished-old-admin admin.vault.pairs": {
+   "status": 403,
+   "error": "Служебный просмотр доступен только владельцу бота."
+  },
+  "finished-old-admin admin.reset.full": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin admin.nope": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "finished-old-admin nope": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "finished-old-member me": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-member notify.set": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "finished-old-member event.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-member wishlist.save": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "finished-old-member delivery.save": {
+   "status": 400,
+   "error": "В этом событии адрес доставки не нужен."
+  },
+  "finished-old-member ward.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-member ward.gift": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
+  },
+  "finished-old-member ward.received": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
+  },
+  "finished-old-member message.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-old-member chat.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-member support.get": {
+   "status": 200,
+   "error": null
+  },
+  "finished-old-member support.send": {
+   "status": 400,
+   "error": "Пустое сообщение."
+  },
+  "finished-old-member support.close": {
+   "status": 400,
+   "error": "Событие завершено больше недели назад: обращения только для чтения."
+  },
+  "finished-old-member admin.events.create": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.families": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.family.save": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.family.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.audit": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.users": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.rename": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.role.grant": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.role.revoke": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.owner.transfer": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.state": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.wishlist": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.game": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.ring": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.registration": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.invite.regen": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.avoid_previous": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.participate": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.remove": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.removed.allow": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.insert": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.exclusion.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.exclusion.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.fixed.add": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.fixed.del": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.draw.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.draw": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.draw.cancel": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.draw.cancel.force": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.support.get": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.support.take": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.support.send": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.support.pass": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.support.close": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.announce": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.request.decide": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.remind.unfilled": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.remind.santas": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.reveal": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.event.finish": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.event.invite_from": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.event.delete": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.vault.person": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.vault.pairs": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.reset.full": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member admin.nope": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "finished-old-member nope": {
+   "status": 404,
+   "error": "Неизвестное действие"
+  },
+  "extra invite_from-finished-owner": {
+   "status": 400,
+   "error": "Событие завершено — приглашать в него нельзя."
+  },
+  "extra invite_from-finished-admin": {
+   "status": 400,
+   "error": "Событие завершено — приглашать в него нельзя."
+  },
+  "extra invite_from-same": {
+   "status": 400,
+   "error": "Выбери другое событие."
+  },
+  "extra cancel.force-word": {
+   "status": 400,
+   "error": "Жеребьёвка не проведена."
+  },
+  "extra cancel.force-word-admin": {
+   "status": 403,
+   "error": "Принудительно отменить жеребьёвку может только владелец бота."
+  },
+  "extra reset.full-word": {
+   "status": 200,
+   "error": null
+  },
+  "extra reset.full-word-finished": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "extra event.delete-word": {
+   "status": 200,
+   "error": null
+  },
+  "extra event.delete-word-admin": {
+   "status": 403,
+   "error": "Удалить событие может только владелец бота."
+  },
+  "extra rename-owner-by-admin": {
+   "status": 403,
+   "error": "Переименовать администратора может только владелец бота."
+  },
+  "extra rename-self-admin": {
+   "status": 200,
+   "error": null
+  },
+  "extra rename-admin-by-owner": {
+   "status": 200,
+   "error": null
+  },
+  "extra remove-owner": {
+   "status": 400,
+   "error": "Владельца нельзя удалить из события. Сначала он должен передать права владельца."
+  },
+  "extra remove-self": {
+   "status": 400,
+   "error": "Нельзя удалить самого себя — выключи «Я участвую»."
+  },
+  "extra remove-not-member": {
+   "status": 400,
+   "error": "Человек не участвует в этом событии."
+  },
+  "extra transfer-owner-record": {
+   "status": 400,
+   "error": "Запись владельца не переносится: владелец восстанавливает доступ по новой ссылке владельца (смена ADMIN_SECRET → страница /setup)."
+  },
+  "extra transfer-to-admin": {
+   "status": 400,
+   "error": "Переносить участие на аккаунт администратора нельзя."
+  },
+  "extra audit-event-zero": {
+   "status": 200,
+   "error": null
+  },
+  "extra audit-event-finished": {
+   "status": 200,
+   "error": null
+  },
+  "extra delivery-finished": {
+   "status": 400,
+   "error": "Событие завершено: адрес теперь только для чтения."
+  },
+  "extra wishlist-finished": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "extra event.get-admin": {
+   "status": 200,
+   "error": null
+  },
+  "extra ward.get-admin": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "extra notify.set-stranger": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "extra notify.set-bad": {
+   "status": 400,
+   "error": "bad mode"
+  },
+  "extra GET": {
+   "status": 405,
+   "error": "method"
+  },
+  "extra forged": {
+   "status": 401,
+   "error": "Не удалось проверить вход. Открой приложение заново из чата с ботом."
+  }
+ }
+}
