@@ -87,10 +87,10 @@ description: "Task list for 016-fast-tests"
 
 **Independent Test**: `node --test tests/queries.test.mjs` зелёный; лишнее чтение в любом действии роняет его.
 
-- [ ] T022 [US3] `tests/support/queries-scenario.mjs` из `docs/refactoring/prototypes/queries.mjs`: `runQueriesScenario()` → `{ rows: [{ name, db, tg, sql }], world, ms }`, утверждения сценария (14 человек в жеребьёвке, закреплённая пара соблюдена, админ без `fixed`, раскрытие ×2 — `[200, 400]`) сохраняются (R10)
-- [ ] T023 [US3] `tests/queries.test.mjs`: таблица базовых чисел (46 строк = `baseline.md`, раздел 3), для каждой строки `db ≤ базовое`, `tg = базовое`, набор имён совпадает; в `world.log()` нет `budget exceeded`; отдельный мир — жеребьёвка на 40 участников: `db + tg ≤ 50`, часть очереди осталась, следующий `cron()` её отправляет (FR-1610) (depends on T022)
-- [ ] T024 [P] [US3] `tests/bench/queries.mjs`: печать таблицы «действие / к базе / к Telegram» и, с аргументом `sql`, текста запросов (как прототип) (depends on T022)
-- [ ] T025 [US3] `package.json`: `tests/queries.test.mjs` в скрипт `test`
+- [X] T022 [US3] `tests/support/queries-scenario.mjs` из `docs/refactoring/prototypes/queries.mjs`: `runQueriesScenario()` → `{ rows: [{ name, db, tg, sql }], world, ms }`, утверждения сценария (14 человек в жеребьёвке, закреплённая пара соблюдена, админ без `fixed`, раскрытие ×2 — `[200, 400]`) сохраняются (R10)
+- [X] T023 [US3] `tests/queries.test.mjs`: таблица базовых чисел (46 строк = `baseline.md`, раздел 3), для каждой строки `db ≤ базовое`, `tg = базовое`, набор имён совпадает; в `world.log()` нет `budget exceeded`; отдельный мир — жеребьёвка на 40 участников: `db + tg ≤ 50`, часть очереди осталась, следующий `cron()` её отправляет (FR-1610) (depends on T022)
+- [X] T024 [P] [US3] `tests/bench/queries.mjs`: печать таблицы «действие / к базе / к Telegram» и, с аргументом `sql`, текста запросов (как прототип) (depends on T022)
+- [X] T025 [US3] `package.json`: `tests/queries.test.mjs` в скрипт `test`
 
 **Checkpoint**: US3 готова.
 
