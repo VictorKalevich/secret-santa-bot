@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runRefusals } from './support/refusals-scenario.mjs';
 import { restoreFetch } from './support/world.mjs';
+import { ACTIONS } from '../src/api.js';
 
 after(restoreFetch);
 
@@ -14,6 +15,7 @@ const golden = JSON.parse(readFileSync(new URL('./fixtures/api-refusals.json', i
 test('отказы API: каждый код и текст — как в эталоне', async () => {
   const now = await runRefusals();
   assert.deepEqual(now.actions, golden.actions);
+  assert.deepEqual(Object.keys(ACTIONS), golden.actions, 'таблица действий — те же 59 действий в прежнем порядке');
   const diff = [];
   for (const key of new Set([...Object.keys(golden.cases), ...Object.keys(now.cases)])) {
     const a = JSON.stringify(golden.cases[key]);

@@ -1,757 +1,391 @@
 // JSON API для мини-приложения. Каждый запрос подписан Telegram (initData).
+// 019: каждое действие — строка таблицы ACTIONS (роль, нужно ли событие, что в завершённом событии, текст отказа
+// владельца, слово подтверждения, обработчик); общие проверки — один конвейер в handleApi до обработчика, в прежнем
+// порядке. Предметная логика и SQL — в модулях; здесь — разбор запроса, таблица и ответ. Контракт —
+// specs/019-api-actions/contracts/api-actions.md.
 
-import {
-  getSettings, getUser, updateUser, allUsers, getPairs, pairOfSanta, pairOfWard, getExclusions, getFixedPairs,
-  getEvent, allEvents, getMember, eventMembers, addMemberStmt,
-  updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt, clearRemovedStmt, memberDataDeleteStmts,
-} from './db.js';
+import { getUser, updateUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
-import { msg, q, openAppButton, inviteLink, randomCode, displayName, cleanText, oneLine, ISO_DATE } from './format.js';
+import { inviteLink, oneLine } from './format.js';
+import { isFinished, publicEvent } from './status.js';
+import { openContext } from './context.js';
 import {
-  isFinished, chatUntil, chatWritable, createEvent, finishEvent, deleteEvent, resetEvent, inviteFromEvent,
-  revealAll, remindUnfilled, remindSantas, announce,
+  createEvent, finishEvent, deleteEvent, resetEvent, inviteFromEvent, revealAll, remindUnfilled, remindSantas, announce,
+  saveEventSettings, setRing, setRegistration, regenInvite, setAvoidPrevious,
 } from './events.js';
-import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw, drawCancelable } from './pairs.js';
-import { MAX_CHARS, chatPair, sendChatMessage, unreadCounts, unreadByEvent } from './chat.js';
-import { resolveOwner, grantAdmin, revokeAdmin, transferOwnership, transferAccount } from './roles.js';
-import { saveFamily, deleteFamily, decideRequest } from './membership.js';
+import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw } from './pairs.js';
+import { sendChatMessage, chatHistory } from './chat.js';
+import { grantAdmin, revokeAdmin, transferOwnership, transferAccount } from './roles.js';
+import { saveFamily, deleteFamily, decideRequest, familiesList, participate, allowRemoved } from './membership.js';
 import { vaultPerson, vaultPairs } from './vault.js';
 import {
-  participantView, sendFromUser, closeByUser, adminList, adminThread, take, sendFromAdmin, pass, closeByAdmin,
-  supportCounts, supportUnreadByEvent,
+  participantView, sendFromUser, closeByUser, adminThread, take, sendFromAdmin, pass, closeByAdmin,
 } from './support.js';
+import { homeView, eventView, saveWishlist, saveDelivery, wardView, setGiftReady, setGiftReceived } from './participant.js';
+import { adminState, memberLetter, usersList } from './panel.js';
+import { changeExclusions, changeFixed } from './constraints.js';
 
-const DELIVERY_MAX = 500;
-const EXCLUSIONS_FROZEN =
-  'После жеребьёвки исключения не меняются: иначе по заменам участников можно было бы вычислить пары. ' +
-  'Чтобы поменять исключения, отмени жеребьёвку (пока никто не открыл подопечного).';
-const FIXED_FROZEN = 'После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.'; // 014
-const RING_ONE_WAY = 'При кольцевой жеребьёвке пару можно закрепить только в одну сторону';
+// ---------- роли и общие отказы ----------
+
+// ANY — любой с подписью; USER — зарегистрированный; VIEWER — участник события или админ; MEMBER — участник события;
+// ADMIN — админ; OWNER — владелец бота (с текстом отказа в поле owner)
+export const ROLES = Object.freeze({ ANY: 'any', USER: 'user', VIEWER: 'viewer', MEMBER: 'member', ADMIN: 'admin', OWNER: 'owner' });
+const { ANY, USER, VIEWER, MEMBER, ADMIN, OWNER } = ROLES;
+
+// Завершённый эвент — только просмотр, раскрытие, удаление и приглашение его участников в новый. Сброс запрещён: он
+// вернул бы эвент в «идёт», а завершение необратимо (FR-506).
+const CLOSED = 'Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).';
+const onlyOwner = (what) => `${what} может только владелец бота.`;
+const ROLES_OWNER = onlyOwner('Назначать и снимать администраторов');
+const VAULT_OWNER = 'Служебный просмотр доступен только владельцу бота.';
+const LETTER_CLOSED = 'Событие завершено: письмо теперь только для чтения.';
+const MARK_CLOSED = 'Событие завершено: отметка только для чтения.';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
 const fail = (error, status = 400) => json({ ok: false, error }, status);
 
-function publicEvent(ev) {
-  return {
-    id: ev.id,
-    title: ev.title,
-    status: ev.status,
-    finished_at: ev.finished_at,
-    chat_until: chatUntil(ev),
-    budget: ev.budget,
-    event_date: ev.event_date,
-    place: ev.place,
-    deadline: ev.deadline,
-    notes: ev.notes,
-    draw_done: !!ev.draw_done,
-    revealed: !!ev.revealed,
-    ring: !!ev.ring,
-    delivery_on: !!ev.delivery_on, // 008
-    approval: !!ev.approval,
-    rejoin: !!ev.rejoin, // 010: удалённые организатором могут вернуться по ссылке
-  };
+// Отказ обработчика: тот же ответ, что fail
+class Refusal {
+  constructor(error, status = 400) {
+    this.error = error;
+    this.status = status;
+  }
 }
+const refuse = (error, status) => new Refusal(error, status);
+// Результат модуля { ok, ...данные } / { ok: false, error, status? } → данные ответа или отказ
+const out = (r, pick = ({ ok, ...data }) => data) => (r.ok ? pick(r) : refuse(r.error, r.status));
+const none = () => ({});
+const confirmed = (body, word) => String(body.confirm || '').trim().toUpperCase() === word;
+
+// ---------- таблица действий ----------
+// Порядок строк — порядок прежних `case` (автотест e2e «владелец ⊇ админ» выполняет действия по очереди на одном
+// событии). У действия события поле finished обязательно: true — разрешено в завершённом (чтение, свой отказ или
+// проверка переписки внутри); строка — отказ 400 этим текстом. Условные права (зависят от данных) — в обработчиках.
+
+export const ACTIONS = {
+  // ---------- участник ----------
+  me: { role: ANY, run: (ctx) => homeView(ctx) },
+  'notify.set': {
+    role: USER,
+    async run(ctx, body) {
+      if (!['sound', 'silent', 'off'].includes(body.mode)) return refuse('bad mode');
+      await updateUser(ctx.db, ctx.me.tg_id, { notify_mode: body.mode });
+      return {};
+    },
+  },
+  'event.get': { role: VIEWER, event: true, finished: true, run: (ctx, body, ev, member) => eventView(ctx, ev, member) },
+  'wishlist.save': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await saveWishlist(ctx, ev, member, body.text)) },
+  // Свой порядок отказов: «адрес не нужен» раньше «завершено» (в модуле)
+  'delivery.save': { role: MEMBER, event: true, finished: true, run: async (ctx, body, ev, member) => out(await saveDelivery(ctx, ev, member, body.text)) },
+  'ward.get': { role: MEMBER, event: true, finished: true, run: (ctx, body, ev) => wardView(ctx, ev) },
+  'ward.gift': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReady(ctx, ev, body.ready)) },
+  'ward.received': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReceived(ctx, ev, body.received)) },
+  // Переписка в завершённом — 7 суток (chat.js)
+  'message.send': {
+    role: MEMBER,
+    event: true,
+    finished: true,
+    async run(ctx, body, ev) {
+      const r = await sendChatMessage(ctx.env, ev, ctx.me.tg_id, body.to === 'santa' ? 'santa' : 'ward', body.text);
+      return r.ok ? { message: r.message } : refuse(r.error);
+    },
+  },
+  'chat.get': {
+    role: MEMBER,
+    event: true,
+    finished: true,
+    run: (ctx, body, ev) => chatHistory(ctx, ev, body.with === 'santa' ? 'santa' : 'ward', Number(body.after) || 0),
+  },
+  // ---------- обращения к организатору (012): изменения — пока открыта переписка (support.js) ----------
+  'support.get': { role: MEMBER, event: true, finished: true, run: (ctx, body, ev) => participantView(ctx.env, ev, ctx.me) },
+  'support.send': {
+    role: MEMBER,
+    event: true,
+    finished: true,
+    run: async (ctx, body, ev) => out(await sendFromUser(ctx.env, ev, ctx.me, body.text), (r) => ({ thread: r.thread, message: r.message })),
+  },
+  'support.close': { role: MEMBER, event: true, finished: true, run: async (ctx, body, ev) => out(await closeByUser(ctx.env, ev, ctx.me), none) },
+
+  // ---------- администратор: общие (без события) ----------
+  'admin.events.create': {
+    role: ADMIN,
+    async run(ctx, body) {
+      let from = null;
+      if (body.from) {
+        from = await getEvent(ctx.db, body.from);
+        if (!from) return refuse('Образец не найден.');
+      }
+      const r = await createEvent(ctx.env, body.title, ctx.me.tg_id, { from, invite: !!body.invite });
+      return out(r, () => ({ event: publicEvent(r.event), invited: r.invited, invite_error: r.inviteError }));
+    },
+  },
+  // Семьи (008) — общие для бота; адресов и пар здесь нет
+  'admin.families': { role: ADMIN, run: (ctx) => familiesList(ctx) },
+  // Владелец видит пары и так — заморозка семей против вычисления пар на него не действует (010, FR-1008)
+  'admin.family.save': {
+    role: ADMIN,
+    run: async (ctx, body) => out(await saveFamily(ctx.env, ctx.me.tg_id, { id: body.id, name: body.name, members: body.members }, { owner: await ctx.isOwner() }), none),
+  },
+  'admin.family.delete': {
+    role: ADMIN,
+    run: async (ctx, body) => out(await deleteFamily(ctx.env, ctx.me.tg_id, body.id, { owner: await ctx.isOwner() }), none),
+  },
+  // Без поля event — общий журнал, с ним — журнал события (несуществующее — 404)
+  'admin.audit': { role: ADMIN, event: 'given', finished: true, run: async (ctx, body, ev) => ({ entries: await getAudit(ctx.db, ev ? ev.id : 0) }) },
+  'admin.users': { role: ADMIN, run: (ctx) => usersList(ctx) },
+  'admin.rename': {
+    role: ADMIN,
+    async run(ctx, body) {
+      const name = oneLine(body.name);
+      if (!name || name.length > 40) return refuse('Имя должно быть от 1 до 40 символов');
+      const target = await getUser(ctx.db, Number(body.id));
+      if (!target) return refuse('Участник не найден');
+      // Администраторов и владельца переименовывает только владелец; себя — любой админ (006, FR-613)
+      const ownerId = await ctx.ownerId();
+      if ((target.is_admin || target.tg_id === ownerId) && target.tg_id !== ctx.me.tg_id && !(await ctx.isOwner())) {
+        return refuse('Переименовать администратора может только владелец бота.', 403);
+      }
+      await updateUser(ctx.db, target.tg_id, { name });
+      return {};
+    },
+  },
+  // Иначе админ перенёс бы участие игрока на свой второй, не-админский аккаунт и увидел его пары (010, FR-1001)
+  'admin.transfer': {
+    role: OWNER,
+    owner: onlyOwner('Переносить участие на новый аккаунт'),
+    async run(ctx, body) {
+      const ownerId = await ctx.ownerId();
+      const from = Number(body.from);
+      if (from === ownerId) {
+        return refuse('Запись владельца не переносится: владелец восстанавливает доступ по новой ссылке владельца (смена ADMIN_SECRET → страница /setup).');
+      }
+      const to = Number(body.to);
+      const toUser = await getUser(ctx.db, to);
+      // Иначе админ получил бы чужие пары и переписку (Конституция, принцип I; 006, FR-601)
+      if (toUser?.is_admin || to === ownerId) return refuse('Переносить участие на аккаунт администратора нельзя.');
+      return out(await transferAccount(ctx.env, from, to, ctx.me.tg_id), (r) => ({ events: r.events }));
+    },
+  },
+  'admin.role.grant': { role: OWNER, owner: ROLES_OWNER, run: async (ctx, body) => out(await grantAdmin(ctx.env, Number(body.id), ctx.me.tg_id), none) },
+  'admin.role.revoke': { role: OWNER, owner: ROLES_OWNER, run: async (ctx, body) => out(await revokeAdmin(ctx.env, Number(body.id), ctx.me.tg_id), none) },
+  'admin.owner.transfer': {
+    role: OWNER,
+    owner: onlyOwner('Передать права владельца'),
+    run: async (ctx, body) => out(await transferOwnership(ctx.env, ctx.me.tg_id, Number(body.id)), none),
+  },
+
+  // ---------- администратор: в пределах события ----------
+  'admin.state': { role: ADMIN, event: true, finished: true, run: (ctx, body, ev) => adminState(ctx, ev) },
+  'admin.wishlist': { role: ADMIN, event: true, finished: true, run: async (ctx, body, ev) => out(await memberLetter(ctx, ev, body.id)) },
+  'admin.game': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await saveEventSettings(ctx, ev, body, ctx.me.tg_id), none) },
+  'admin.ring': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await setRing(ctx, ev, body.on, ctx.me.tg_id), none) },
+  'admin.registration': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await setRegistration(ctx, ev, body.open, ctx.me.tg_id), none) },
+  'admin.invite.regen': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await regenInvite(ctx, ev, ctx.me.tg_id), none) },
+  'admin.avoid_previous': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await setAvoidPrevious(ctx, ev, body.on, ctx.me.tg_id), none) },
+  'admin.participate': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await participate(ctx, ev, body.on, ctx.me.tg_id), none) },
+  'admin.remove': {
+    role: ADMIN,
+    event: true,
+    finished: CLOSED,
+    async run(ctx, body, ev) {
+      const { db, me } = ctx;
+      const id = Number(body.id);
+      if (id === me.tg_id) return refuse('Нельзя удалить самого себя — выключи «Я участвую».');
+      if (id === (await ctx.ownerId())) return refuse('Владельца нельзя удалить из события. Сначала он должен передать права владельца.');
+      const target = await getUser(db, id);
+      if (target?.is_admin && !(await ctx.isOwner())) return refuse('Удалить администратора может только владелец бота.', 403);
+      if (!(await getMember(db, ev.id, id))) return refuse('Человек не участвует в этом событии.');
+      // Отметка «удалён организатором» (010): при запрете возврата человек не войдёт по ссылке снова
+      return out(await removeMember(ctx.env, ev, id, { actor: me.tg_id, mark: true }), none);
+    },
+  },
+  'admin.removed.allow': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await allowRemoved(ctx, ev, body.id, ctx.me.tg_id), none) },
+  // Только владелец (012, FR-1201): админ по отметкам «не открыл подопечного» и «подарок готов» понял бы, у кого
+  // сменился подопечный, — то есть кто дарит новичку. Владелец пары видит и так (010) и может вписать себя.
+  'admin.insert': {
+    role: OWNER,
+    owner: onlyOwner('Вписывать в жеребьёвку после неё'),
+    event: true,
+    finished: CLOSED,
+    run: async (ctx, body, ev) => out(await insertMember(ctx.env, ev, Number(body.id), ctx.me.tg_id), none),
+  },
+  // После жеребьёвки — только владелец (заморозка в модуле, 009/010)
+  'admin.exclusion.add': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeExclusions(ctx, ev, { add: true, ...pair(body) }), none) },
+  'admin.exclusion.del': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeExclusions(ctx, ev, { add: false, ...pair(body) }), none) },
+  // 014: закреплённые пары — будущие пары жеребьёвки; видит и меняет только владелец (админ узнал бы пары)
+  'admin.fixed.add': { role: OWNER, owner: onlyOwner('Закреплять пары'), event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeFixed(ctx, ev, { add: true, ...pair(body) }), none) },
+  'admin.fixed.del': { role: OWNER, owner: onlyOwner('Закреплять пары'), event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeFixed(ctx, ev, { add: false, ...pair(body) }), none) },
+  'admin.draw.check': {
+    role: ADMIN,
+    event: true,
+    finished: CLOSED,
+    async run(ctx, body, ev) {
+      if (ev.draw_done) return refuse('Жеребьёвка уже проведена.');
+      const c = await checkDraw(ctx.env, ev);
+      // Без признаков учёта прошлых пар: по ним можно было бы вычислить чужие пары прошлого года (009, FR-904)
+      return { possible: c.res.ok, count: c.people.length, ring: c.ring, problems: c.problems, empty_wishlists: c.emptyWishlists };
+    },
+  },
+  'admin.draw': {
+    role: ADMIN,
+    event: true,
+    finished: CLOSED,
+    run: async (ctx, body, ev) => out(await runDraw(ctx.env, ev, { actor: ctx.me.tg_id }), (r) => ({ count: r.count, single_cycle: r.singleCycle })),
+  },
+  'admin.draw.cancel': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await cancelDraw(ctx.env, ev, ctx.me.tg_id), count) },
+  // 012, FR-1205: в любой момент до раскрытия — только владелец (участвующий админ переигрывал бы жеребьёвку)
+  'admin.draw.cancel.force': {
+    role: OWNER,
+    owner: onlyOwner('Принудительно отменить жеребьёвку'),
+    event: true,
+    finished: CLOSED,
+    confirm: ['ОТМЕНА', 'Для отмены введи слово ОТМЕНА.'],
+    run: async (ctx, body, ev) => out(await forceCancelDraw(ctx.env, ev, ctx.me.tg_id), count),
+  },
+  // ---------- обращения к организатору (012): чтение всегда, изменения — пока открыта переписка (support.js) ----------
+  'admin.support.get': {
+    role: ADMIN,
+    event: true,
+    finished: true,
+    run: async (ctx, body, ev) => out(await adminThread(ctx.env, ev, ctx.me, await ctx.isOwner(), thread(body)),
+      (r) => ({ thread: r.thread, messages: r.messages, admins: r.admins })),
+  },
+  'admin.support.take': { role: ADMIN, event: true, finished: true, run: async (ctx, body, ev) => out(await take(ctx.env, ev, ctx.me, thread(body)), none) },
+  'admin.support.send': {
+    role: ADMIN,
+    event: true,
+    finished: true,
+    run: async (ctx, body, ev) => out(await sendFromAdmin(ctx.env, ev, ctx.me, thread(body), body.text), (r) => ({ message: r.message })),
+  },
+  'admin.support.pass': {
+    role: ADMIN,
+    event: true,
+    finished: true,
+    run: async (ctx, body, ev) => out(await pass(ctx.env, ev, ctx.me, await ctx.isOwner(), thread(body), body.to), none),
+  },
+  'admin.support.close': {
+    role: ADMIN,
+    event: true,
+    finished: true,
+    run: async (ctx, body, ev) => out(await closeByAdmin(ctx.env, ev, ctx.me, await ctx.isOwner(), thread(body)), none),
+  },
+  'admin.announce': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await announce(ctx.env, ev, ctx.me.tg_id, body.text), count) },
+  'admin.request.decide': {
+    role: ADMIN,
+    event: true,
+    finished: CLOSED,
+    run: async (ctx, body, ev) => out(await decideRequest(ctx.env, body.id, ctx.me.tg_id, !!body.approve, { inEvent: ev }), none),
+  },
+  'admin.remind.unfilled': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => count(await remindUnfilled(ctx.env, ev, ctx.me.tg_id)) },
+  'admin.remind.santas': {
+    role: ADMIN,
+    event: true,
+    finished: CLOSED,
+    async run(ctx, body, ev) {
+      if (!ev.draw_done) return refuse('Жеребьёвка ещё не проведена.');
+      return count(await remindSantas(ctx.env, ev, ctx.me.tg_id));
+    },
+  },
+  // Повторно имена не рассылаются (006, FR-610), в том числе при одновременных вызовах (009)
+  'admin.reveal': { role: ADMIN, event: true, finished: true, run: async (ctx, body, ev) => out(await revealAll(ctx.env, ev, ctx.me.tg_id), count) },
+  'admin.event.finish': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await finishEvent(ctx.env, ev, ctx.me.tg_id), none) },
+  // Разрешено в завершённом ради своего порядка отказов: «Выбери другое событие.» раньше «приглашать нельзя»
+  'admin.event.invite_from': {
+    role: ADMIN,
+    event: true,
+    finished: true,
+    async run(ctx, body, ev) {
+      const fromEv = await getEvent(ctx.db, body.from);
+      if (!fromEv || fromEv.id === ev.id) return refuse('Выбери другое событие.');
+      if (isFinished(ev)) return refuse('Событие завершено — приглашать в него нельзя.');
+      return out(await inviteFromEvent(ctx.env, ev, fromEv, ctx.me.tg_id), count);
+    },
+  },
+  'admin.event.delete': {
+    role: OWNER,
+    owner: onlyOwner('Удалить событие'),
+    event: true,
+    finished: true,
+    confirm: ['УДАЛИТЬ', 'Для удаления введи слово УДАЛИТЬ.'],
+    run: async (ctx, body, ev) => out(await deleteEvent(ctx.env, ev, ctx.me.tg_id), (r) => ({ notified: r.count })),
+  },
+  // ---------- служебный просмотр владельца (010, FR-1009–FR-1013): только чтение ----------
+  'admin.vault.person': {
+    role: OWNER,
+    owner: VAULT_OWNER,
+    event: true,
+    finished: true,
+    run: async (ctx, body, ev) => out(await vaultPerson(ctx.env, ev, Number(body.id) || 0, ctx.me.tg_id)),
+  },
+  'admin.vault.pairs': { role: OWNER, owner: VAULT_OWNER, event: true, finished: true, run: async (ctx, body, ev) => out(await vaultPairs(ctx.env, ev, ctx.me.tg_id)) },
+  'admin.reset.full': {
+    role: OWNER,
+    owner: onlyOwner('Полный сброс'),
+    event: true,
+    finished: CLOSED,
+    confirm: ['СБРОС', 'Для полного сброса введи слово СБРОС.'],
+    async run(ctx, body, ev) {
+      const r = await resetEvent(ctx.env, ev, await ctx.ownerId(), ctx.me.tg_id);
+      return { removed: r.removed, invite_link: inviteLink(await ctx.settings(), { invite_code: r.inviteCode }) };
+    },
+  },
+};
+
+function pair(body) {
+  return { giver: body.giver, receiver: body.receiver, mutual: body.mutual };
+}
+function thread(body) {
+  return Number(body.thread) || 0;
+}
+function count(r) {
+  return { count: r.count };
+}
+
+// Неизвестное действие идёт тем же путём, что известное: админа — до события и «завершено», участника — до участия
+const unknown = () => refuse('Неизвестное действие', 404);
+const UNKNOWN_ADMIN = { role: ADMIN, event: true, finished: CLOSED, run: unknown };
+const UNKNOWN = { role: MEMBER, event: true, finished: true, run: unknown };
+
+const respond = (data) => (data instanceof Refusal ? fail(data.error, data.status) : json({ ok: true, ...data }));
+
+// ---------- конвейер проверок ----------
 
 export async function handleApi(request, env, action) {
   if (request.method !== 'POST') return fail('method', 405);
   const tgUser = await validateInitData(request.headers.get('x-init-data'), env.BOT_TOKEN);
   if (!tgUser) return fail('Не удалось проверить вход. Открой приложение заново из чата с ботом.', 401);
   const body = await request.json().catch(() => ({}));
-  const db = env.DB;
-  const me = await getUser(db, tgUser.id);
-  const settings = await getSettings(db);
+  const ctx = await openContext(env, tgUser.id); // пользователь и настройки — одним пакетом
+  const { db, me } = ctx;
   // Человек открыл приложение — значит, бот у него не заблокирован (006, FR-609)
   if (me?.blocked_at) await updateUser(db, me.tg_id, { blocked_at: 0 });
 
-  if (action === 'me') {
-    if (!me || !me.registered) return json({ ok: true, registered: false });
-    const ownerId = me.is_admin ? await resolveOwner(db, settings) : null;
-    const { results: mine } = await db.prepare('SELECT event_id FROM members WHERE user_id = ?').bind(me.tg_id).all();
-    const memberOf = new Set(mine.map((r) => r.event_id));
-    const [unread, supUnread] = await Promise.all([unreadByEvent(db, me.tg_id), supportUnreadByEvent(db, me)]);
-    const events = (await allEvents(db))
-      .filter((e) => me.is_admin || memberOf.has(e.id))
-      .map((e) => ({
-        id: e.id, title: e.title, status: e.status, finished_at: e.finished_at, event_date: e.event_date,
-        draw_done: !!e.draw_done, member: memberOf.has(e.id), unread: (unread[e.id] || 0) + (supUnread[e.id] || 0),
-      }));
-    return json({
-      ok: true,
-      registered: true,
-      me: { id: me.tg_id, name: me.name, is_admin: !!me.is_admin, is_owner: !!me.is_admin && ownerId === me.tg_id, notify_mode: me.notify_mode },
-      events,
-      limits: { chars: MAX_CHARS },
-    });
-  }
-
-  if (!me || !me.registered) return fail('Сначала зарегистрируйся по пригласительной ссылке.', 403);
-
-  if (action === 'notify.set') {
-    if (!['sound', 'silent', 'off'].includes(body.mode)) return fail('bad mode');
-    await updateUser(db, me.tg_id, { notify_mode: body.mode });
-    return json({ ok: true });
-  }
-
-  // ---------- администратор ----------
-  if (action.startsWith('admin.')) {
+  const admin = action.startsWith('admin.');
+  const row = Object.hasOwn(ACTIONS, action) ? ACTIONS[action] : admin ? UNKNOWN_ADMIN : UNKNOWN;
+  if (row.role !== ANY && (!me || !me.registered)) return fail('Сначала зарегистрируйся по пригласительной ссылке.', 403);
+  if (admin) {
     if (!me.is_admin) return fail('Только для администратора.', 403);
-    const result = await handleAdmin(action, body, env, me, settings);
-    if (result instanceof Response) return result;
-    return json({ ok: true, ...result });
+    // Владелец — сразу: если он в настройках недействителен, назначается самый ранний админ (не откладывать запись)
+    await ctx.ownerId();
   }
+  const owner = async () => !row.owner || (await ctx.isOwner());
 
-  // ---------- участник эвента ----------
+  if (!(row.event === true || (row.event === 'given' && body.event))) {
+    if (!(await owner())) return fail(row.owner, 403);
+    return respond(await row.run(ctx, body));
+  }
   const ev = await getEvent(db, body.event);
   if (!ev) return fail('Событие не найдено.', 404);
-  const member = await getMember(db, ev.id, me.tg_id);
-
-  if (action === 'event.get') {
-    if (!member && !me.is_admin) return fail('Ты не участвуешь в этом событии.', 403);
-    const participants = (await eventMembers(db, ev.id)).filter((m) => m.registered).length;
-    const out = {
-      ok: true,
-      event: { ...publicEvent(ev), participants },
-      announcements: await getAnnouncements(db, ev.id), // 007, FR-701
-      member: null,
-      can: { edit_letter: false, chat_write: false },
-    };
-    if (member) {
-      const [pair, wardPair] = await Promise.all([pairOfSanta(db, ev.id, me.tg_id), pairOfWard(db, ev.id, me.tg_id)]);
-      out.member = {
-        wishlist: member.wishlist,
-        wishlist_updated_at: member.wishlist_updated_at,
-        has_ward: !!pair,
-        has_santa: !!wardPair,
-        gift_received: !!wardPair?.gift_received, // 007, FR-704
-        delivery: member.delivery, // 008: свой адрес доставки
-        unread: pair || wardPair ? await unreadCounts(db, ev.id, me.tg_id) : { from_ward: 0, from_santa: 0 },
-      };
-      out.can = { edit_letter: !isFinished(ev), chat_write: chatWritable(ev) };
-    }
-    // 012: обращения — участнику его статус, админу — ничьи и непрочитанные (для точек на вкладках)
-    Object.assign(out, await supportCounts(db, ev, me, { member: !!member, admin: !!me.is_admin }));
-    return json(out);
+  let member = null;
+  if (!admin) {
+    member = await getMember(db, ev.id, me.tg_id);
+    if (!member && !(row.role === VIEWER && me.is_admin)) return fail('Ты не участвуешь в этом событии.', 403);
   }
-
-  if (!member) return fail('Ты не участвуешь в этом событии.', 403);
-
-  switch (action) {
-    case 'wishlist.save': {
-      if (isFinished(ev)) return fail('Событие завершено: письмо теперь только для чтения.');
-      const text = String(body.text ?? '').replace(/\r\n/g, '\n');
-      if (text.length > MAX_CHARS) {
-        return fail(`Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).`);
-      }
-      if (text === member.wishlist) return json({ ok: true, updated_at: member.wishlist_updated_at });
-      const now = Date.now();
-      await db.prepare('UPDATE members SET wishlist = ?, wishlist_updated_at = ? WHERE event_id = ? AND user_id = ?')
-        .bind(text, now, ev.id, me.tg_id).run();
-      return json({ ok: true, updated_at: now });
-    }
-
-    case 'delivery.save': {
-      // Адрес доставки (008): виден только самому участнику и его Санте
-      if (!ev.delivery_on) return fail('В этом событии адрес доставки не нужен.');
-      if (isFinished(ev)) return fail('Событие завершено: адрес теперь только для чтения.');
-      const text = cleanText(body.text);
-      if (text.length > DELIVERY_MAX) return fail(`Слишком длинно: ${text.length} символов, максимум ${DELIVERY_MAX}.`);
-      if (text === member.delivery) return json({ ok: true, updated_at: member.delivery_updated_at });
-      const now = Date.now();
-      await db.prepare('UPDATE members SET delivery = ?, delivery_updated_at = ? WHERE event_id = ? AND user_id = ?')
-        .bind(text, now, ev.id, me.tg_id).run();
-      return json({ ok: true, updated_at: now });
-    }
-
-    case 'ward.get': {
-      if (!ev.draw_done) return json({ ok: true, state: 'no_draw' });
-      const pair = await pairOfSanta(db, ev.id, me.tg_id);
-      if (!pair) return json({ ok: true, state: 'waiting' });
-      const [ward, wardMember] = await Promise.all([getUser(db, pair.ward), getMember(db, ev.id, pair.ward)]);
-      if (!ward || !wardMember) return json({ ok: true, state: 'waiting' });
-      const prev = pair.seen_text;
-      if (prev !== wardMember.wishlist) {
-        await db.prepare('UPDATE pairs SET seen_text = ? WHERE event_id = ? AND santa = ?').bind(wardMember.wishlist, ev.id, me.tg_id).run();
-      }
-      return json({
-        ok: true,
-        state: 'ok',
-        ward: {
-          name: ward.name,
-          wishlist: wardMember.wishlist,
-          updated_at: wardMember.wishlist_updated_at,
-          ...(ev.delivery_on ? { delivery: wardMember.delivery } : {}), // 008: адрес — только Санте
-        },
-        previous: prev === null || prev === wardMember.wishlist ? null : prev,
-        first_view: prev === null,
-        gift_ready: !!pair.gift_ready,
-      });
-    }
-
-    case 'ward.gift': {
-      if (isFinished(ev)) return fail('Событие завершено: отметка только для чтения.');
-      const r = await db.prepare('UPDATE pairs SET gift_ready = ? WHERE event_id = ? AND santa = ?').bind(body.ready ? 1 : 0, ev.id, me.tg_id).run();
-      if (!r.meta.changes) return fail('У тебя пока нет подопечного.');
-      return json({ ok: true });
-    }
-
-    case 'ward.received': {
-      // Подопечный отмечает «подарок получен» (007, FR-704). Санта узнаёт об этом только при первой отметке.
-      if (isFinished(ev)) return fail('Событие завершено: отметка только для чтения.');
-      const pair = await pairOfWard(db, ev.id, me.tg_id);
-      if (!pair) return fail('У тебя пока нет Санты.');
-      const on = body.received ? 1 : 0;
-      const now = Date.now();
-      const stmts = [
-        db.prepare(
-          `UPDATE pairs SET gift_received = ?, gift_received_at = CASE WHEN ? = 1 AND gift_received_at = 0 THEN ? ELSE gift_received_at END
-            WHERE event_id = ? AND ward = ?`
-        ).bind(on, on, now, ev.id, me.tg_id),
-      ];
-      if (on && !pair.gift_received_at) {
-        // Только если отметку поставил именно этот запрос (защита от двойного нажатия)
-        stmts.push(enqueueIfStmt(db, pair.santa, msg(
-          `🎉 Твой подопечный в событии ${q(ev)} получил подарок! Спасибо, Санта 🎅`,
-          { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
-        ), 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = ?)', ev.id, me.tg_id, now));
-      }
-      await db.batch(stmts);
-      return json({ ok: true });
-    }
-
-    case 'message.send': {
-      const to = body.to === 'santa' ? 'santa' : 'ward';
-      const r = await sendChatMessage(env, ev, me.tg_id, to, body.text);
-      return r.ok ? json({ ok: true, message: r.message }) : fail(r.error);
-    }
-
-    case 'chat.get': {
-      const withWhom = body.with === 'santa' ? 'santa' : 'ward';
-      const pair = await chatPair(db, ev.id, me.tg_id, withWhom);
-      if (!pair) return json({ ok: true, state: 'no_pair' });
-      const after = Number(body.after) || 0;
-      const sql = after
-        ? db.prepare('SELECT id, sender, text, created_at FROM messages WHERE event_id = ? AND santa = ? AND ward = ? AND id > ? ORDER BY id LIMIT 300')
-            .bind(ev.id, pair.santa, pair.ward, after)
-        : db.prepare('SELECT id, sender, text, created_at FROM messages WHERE event_id = ? AND santa = ? AND ward = ? ORDER BY id DESC LIMIT 300')
-            .bind(ev.id, pair.santa, pair.ward);
-      const { results } = await sql.all();
-      if (!after) results.reverse();
-      if (results.some((m) => m.sender !== pair.me)) {
-        await db.prepare('UPDATE messages SET read_at = ? WHERE event_id = ? AND santa = ? AND ward = ? AND sender != ? AND read_at = 0')
-          .bind(Date.now(), ev.id, pair.santa, pair.ward, pair.me).run();
-      }
-      // Только текст и «моё/не моё» — без ID и имён собеседника (Конституция, принцип I)
-      return json({
-        ok: true,
-        state: 'ok',
-        counterpart: withWhom,
-        writable: chatWritable(ev),
-        messages: results.map((m) => ({ id: m.id, mine: m.sender === pair.me, text: m.text, created_at: m.created_at })),
-      });
-    }
-
-    // ---------- обращения к организатору (012) ----------
-    case 'support.get':
-      return json({ ok: true, ...(await participantView(env, ev, me)) });
-
-    case 'support.send': {
-      const r = await sendFromUser(env, ev, me, body.text);
-      return r.ok ? json({ ok: true, thread: r.thread, message: r.message }) : fail(r.error, r.status);
-    }
-
-    case 'support.close': {
-      const r = await closeByUser(env, ev, me);
-      return r.ok ? json({ ok: true }) : fail(r.error, r.status);
-    }
-  }
-  return fail('Неизвестное действие', 404);
-}
-
-// Действия, разрешённые в завершённом эвенте
-// Завершённый эвент — только просмотр, раскрытие, удаление и приглашение его участников в новый.
-// Сброс запрещён: он вернул бы эвент в «идёт», а завершение необратимо (FR-506).
-// Служебный просмотр владельца (010) — тоже только чтение.
-const FINISHED_OK = new Set([
-  'admin.state', 'admin.wishlist', 'admin.reveal', 'admin.event.delete', 'admin.event.invite_from', 'admin.audit',
-  'admin.vault.person', 'admin.vault.pairs',
-  // 012: обращения — чтение всегда, изменения — пока открыта переписка (проверка внутри support.js)
-  'admin.support.get', 'admin.support.take', 'admin.support.send', 'admin.support.pass', 'admin.support.close',
-]);
-
-async function handleAdmin(action, body, env, me, settings) {
-  const db = env.DB;
-  const ownerId = await resolveOwner(db, settings);
-  const isOwner = ownerId === me.tg_id;
-  const ownerOnly = (what = 'Назначать и снимать администраторов') => fail(`${what} может только владелец бота.`, 403);
-  const nameOf = async (id) => displayName(await getUser(db, id));
-
-  // ---------- общие (без эвента) ----------
-  switch (action) {
-    case 'admin.events.create': {
-      let from = null;
-      if (body.from) {
-        from = await getEvent(db, body.from);
-        if (!from) return fail('Образец не найден.');
-      }
-      const r = await createEvent(env, body.title, me.tg_id, { from, invite: !!body.invite });
-      return r.ok ? { event: publicEvent(r.event), invited: r.invited, invite_error: r.inviteError } : fail(r.error);
-    }
-    case 'admin.families': {
-      // Семьи (008) — общие для бота; адресов и пар здесь нет
-      const [users, fams, rows] = await Promise.all([
-        allUsers(db),
-        db.prepare('SELECT id, name FROM families ORDER BY name').all().then((r) => r.results),
-        db.prepare('SELECT user_id, family_id FROM family_members').all().then((r) => r.results),
-      ]);
-      const famOf = Object.fromEntries(rows.map((r) => [r.user_id, r.family_id]));
-      const reg = users.filter((u) => u.registered);
-      return {
-        families: fams.map((f) => ({ id: f.id, name: f.name, members: reg.filter((u) => famOf[u.tg_id] === f.id).map((u) => ({ id: u.tg_id, name: u.name })) })),
-        users: reg.map((u) => ({ id: u.tg_id, name: u.name, family_id: famOf[u.tg_id] || 0 })),
-      };
-    }
-    case 'admin.family.save': {
-      // Владелец видит пары и так — заморозка семей против вычисления пар на него не действует (010, FR-1008)
-      const r = await saveFamily(env, me.tg_id, { id: body.id, name: body.name, members: body.members }, { owner: isOwner });
-      return r.ok ? {} : fail(r.error);
-    }
-    case 'admin.family.delete': {
-      const r = await deleteFamily(env, me.tg_id, body.id, { owner: isOwner });
-      return r.ok ? {} : fail(r.error);
-    }
-    case 'admin.audit': {
-      if (body.event) break; // журнал эвента — ниже, в пределах эвента
-      return { entries: await getAudit(db, 0) };
-    }
-    case 'admin.users': {
-      const users = (await allUsers(db)).filter((u) => u.registered);
-      return {
-        users: users.map((u) => ({ id: u.tg_id, name: u.name, username: u.username, is_admin: !!u.is_admin, is_owner: u.tg_id === ownerId })),
-        owner_id: ownerId,
-        owner_name: users.find((u) => u.tg_id === ownerId)?.name || '',
-      };
-    }
-    case 'admin.rename': {
-      const name = oneLine(body.name);
-      if (!name || name.length > 40) return fail('Имя должно быть от 1 до 40 символов');
-      const target = await getUser(db, Number(body.id));
-      if (!target) return fail('Участник не найден');
-      // Администраторов и владельца переименовывает только владелец; себя — любой админ (006, FR-613)
-      if ((target.is_admin || target.tg_id === ownerId) && target.tg_id !== me.tg_id && !isOwner) {
-        return fail('Переименовать администратора может только владелец бота.', 403);
-      }
-      await updateUser(db, target.tg_id, { name });
-      return {};
-    }
-    case 'admin.transfer': {
-      // Иначе админ перенёс бы участие игрока на свой второй, не-админский аккаунт и увидел его пары (010, FR-1001)
-      if (!isOwner) return ownerOnly('Переносить участие на новый аккаунт');
-      const from = Number(body.from);
-      if (from === ownerId) {
-        return fail('Запись владельца не переносится: владелец восстанавливает доступ по новой ссылке владельца (смена ADMIN_SECRET → страница /setup).');
-      }
-      const to = Number(body.to);
-      const [fromUser, toUser] = await Promise.all([getUser(db, from), getUser(db, to)]);
-      if (fromUser?.is_admin && !isOwner) return fail('Перенести администратора может только владелец бота.', 403);
-      // Иначе админ получил бы чужие пары и переписку (Конституция, принцип I; 006, FR-601)
-      if (toUser?.is_admin || to === ownerId) return fail('Переносить участие на аккаунт администратора нельзя.');
-      const r = await transferAccount(env, from, to, me.tg_id);
-      return r.ok ? { events: r.events } : fail(r.error);
-    }
-    case 'admin.role.grant': {
-      if (!isOwner) return ownerOnly();
-      const r = await grantAdmin(env, Number(body.id), me.tg_id);
-      return r.ok ? {} : fail(r.error);
-    }
-    case 'admin.role.revoke': {
-      if (!isOwner) return ownerOnly();
-      const r = await revokeAdmin(env, Number(body.id), me.tg_id);
-      return r.ok ? {} : fail(r.error);
-    }
-    case 'admin.owner.transfer': {
-      if (!isOwner) return ownerOnly('Передать права владельца');
-      const r = await transferOwnership(env, me.tg_id, Number(body.id));
-      return r.ok ? {} : fail(r.error);
-    }
-  }
-
-  // ---------- в пределах эвента ----------
-  const ev = await getEvent(db, body.event);
-  if (!ev) return fail('Событие не найдено.', 404);
-  if (isFinished(ev) && !FINISHED_OK.has(action)) return fail('Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).');
-
-  switch (action) {
-    case 'admin.state': {
-      const [members, pairs, exclusions, events, cancelable, famRows, requests, removed, users, fixed] = await Promise.all([
-        eventMembers(db, ev.id), getPairs(db, ev.id), getExclusions(db, ev.id), allEvents(db), drawCancelable(db, ev),
-        db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id').all().then((r) => r.results),
-        db.prepare(
-          `SELECT r.id, r.user_id, r.created_at, u.name, u.username FROM join_requests r JOIN users u ON u.tg_id = r.user_id
-            WHERE r.event_id = ? AND r.status = 'pending' ORDER BY r.id`
-        ).bind(ev.id).all().then((r) => r.results),
-        // 010: удалённые организатором (при запрете возврата они не войдут по ссылке)
-        db.prepare(
-          `SELECT r.user_id, r.removed_at, u.name, u.username FROM removed_members r JOIN users u ON u.tg_id = r.user_id
-            WHERE r.event_id = ? ORDER BY r.removed_at DESC`
-        ).bind(ev.id).all().then((r) => r.results),
-        allUsers(db),
-        // 014: закреплённые пары — только владельцу; админу они не читаются вовсе
-        isOwner ? getFixedPairs(db, ev.id) : null,
-      ]);
-      const santas = new Set(pairs.map((p) => p.santa));
-      const ready = new Set(pairs.filter((p) => p.gift_ready).map((p) => p.santa));
-      // 007: статусы человека, а не пары — «получил подарок» (как подопечный) и «открыл подопечного» (как Санта)
-      const received = new Set(pairs.filter((p) => p.gift_received).map((p) => p.ward));
-      const seen = new Set(pairs.filter((p) => p.seen_text !== null).map((p) => p.santa));
-      const memberIds = new Set(members.map((m) => m.user_id));
-      // ВАЖНО: здесь нет ни пар, ни текстов писем — только статусы.
-      return {
-        users: members.map((u) => ({
-          id: u.user_id,
-          name: u.name,
-          username: u.username,
-          registered: !!u.registered,
-          is_admin: !!u.is_admin,
-          is_owner: u.user_id === ownerId,
-          has_wishlist: !!u.wishlist.trim(),
-          in_draw: santas.has(u.user_id),
-          gift_ready: ready.has(u.user_id),
-          blocked: !!u.blocked_at, // Telegram сообщил, что бот заблокирован (006)
-          gift_received: received.has(u.user_id),
-          ward_seen: santas.has(u.user_id) ? seen.has(u.user_id) : null,
-          // 008: только «указан ли адрес» — сам адрес админу не отдаётся
-          ...(ev.delivery_on ? { has_delivery: !!u.delivery.trim() } : {}),
-        })),
-        // 008: семьи, в которых не меньше двух участников этого эвента
-        families: Object.values(famRows.filter((r) => memberIds.has(r.user_id)).reduce((acc, r) => {
-          (acc[r.id] ||= { id: r.id, name: r.name, members: [] }).members.push(r.user_id);
-          return acc;
-        }, {})).filter((f) => f.members.length >= 2),
-        requests: requests.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, username: r.username, created_at: r.created_at })),
-        removed: removed.map((r) => ({ id: r.user_id, name: r.name, username: r.username, removed_at: r.removed_at })),
-        // 012: обращения — без текстов; переписка — отдельным запросом admin.support.get
-        support: await adminList(db, ev, me, isOwner, users),
-        // Исключения образца начинают действовать, когда оба вступят (007, FR-707)
-        exclusions: exclusions.filter((e) => memberIds.has(e.giver) && memberIds.has(e.receiver)),
-        // 014: у админа поля нет вовсе (Конституция, принцип I)
-        ...(fixed ? { fixed: fixed.filter((f) => memberIds.has(f.giver) && memberIds.has(f.receiver)) } : {}),
-        me_member: members.some((m) => m.user_id === me.tg_id),
-        other_events: events.filter((e) => e.id !== ev.id).map((e) => ({ id: e.id, title: e.title, status: e.status })),
-        settings: {
-          ...publicEvent(ev),
-          registration_open: !!ev.registration_open,
-          avoid_previous: !!ev.avoid_previous,
-          invite_link: inviteLink(settings, ev),
-          draw_at: ev.draw_at,
-          owner_id: ownerId,
-          draw_auto_date: ev.draw_auto_date,
-          reveal_auto: !!ev.reveal_auto,
-          finish_auto: !!ev.finish_auto,
-          draw_cancelable: cancelable,
-          families_on: !!ev.families_on,
-        },
-      };
-    }
-
-    case 'admin.wishlist': {
-      const [u, m] = await Promise.all([getUser(db, Number(body.id)), getMember(db, ev.id, Number(body.id))]);
-      if (!u || !m) return fail('Участник не найден');
-      await auditStmt(db, ev.id, me.tg_id, 'wishlist.view', u.name).run();
-      return { name: u.name, wishlist: m.wishlist, updated_at: m.wishlist_updated_at };
-    }
-
-    case 'admin.game': {
-      const clean = (v, n) => String(v ?? '').slice(0, n);
-      const date = (v) => (ISO_DATE.test(v || '') ? v : '');
-      const title = oneLine(body.title ?? ev.title);
-      if (!title || title.length > 80) return fail('Название события — от 1 до 80 символов.');
-      // Меняются только переданные поля (008): отдельные переключатели не стирают остальные параметры
-      const fields = { title };
-      const limits = { budget: 100, place: 200, notes: 2000 };
-      for (const [k, n] of Object.entries(limits)) if (k in body) fields[k] = clean(body[k], n);
-      for (const k of ['event_date', 'deadline']) if (k in body) fields[k] = date(body[k]);
-      // Расписание (007, FR-702): дату автожеребьёвки после жеребьёвки не изменить
-      if ('draw_auto_date' in body) {
-        const auto = date(body.draw_auto_date);
-        if (auto !== ev.draw_auto_date) {
-          if (ev.draw_done) return fail('Дату автожеребьёвки после жеребьёвки не задать.');
-          fields.draw_auto_date = auto;
-        }
-      }
-      // 008: адрес доставки, одобрение заявок, семьи (семьи — только до жеребьёвки)
-      if ('delivery_on' in body) fields.delivery_on = body.delivery_on ? 1 : 0;
-      if ('approval' in body) fields.approval = body.approval ? 1 : 0;
-      if ('rejoin' in body) fields.rejoin = body.rejoin ? 1 : 0; // 010
-      if ('families_on' in body && (body.families_on ? 1 : 0) !== ev.families_on) {
-        if (ev.draw_done) return fail('После жеребьёвки правило семей не изменить.');
-        fields.families_on = body.families_on ? 1 : 0;
-      }
-      if ('reveal_auto' in body) fields.reveal_auto = body.reveal_auto ? 1 : 0;
-      if ('finish_auto' in body) fields.finish_auto = body.finish_auto ? 1 : 0;
-      await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, me.tg_id, 'event.settings', 'параметры')]);
-      return {};
-    }
-
-    case 'admin.ring': {
-      if (ev.draw_done) return fail('После жеребьёвки кольцевую жеребьёвку менять нельзя.');
-      await db.batch([
-        updateEventStmt(db, ev.id, { ring: body.on ? 1 : 0 }),
-        auditStmt(db, ev.id, me.tg_id, 'event.settings', `кольцевая жеребьёвка: ${body.on ? 'вкл' : 'выкл'}`),
-      ]);
-      return {};
-    }
-
-    case 'admin.registration':
-      await db.batch([
-        updateEventStmt(db, ev.id, { registration_open: body.open ? 1 : 0 }),
-        auditStmt(db, ev.id, me.tg_id, 'registration', body.open ? 'открыта' : 'закрыта'),
-      ]);
-      return {};
-
-    case 'admin.invite.regen':
-      await db.batch([updateEventStmt(db, ev.id, { invite_code: randomCode() }), auditStmt(db, ev.id, me.tg_id, 'invite.regen')]);
-      return {};
-
-    case 'admin.avoid_previous':
-      await db.batch([
-        updateEventStmt(db, ev.id, { avoid_previous: body.on ? 1 : 0 }),
-        auditStmt(db, ev.id, me.tg_id, 'event.settings', `не повторять прошлые пары: ${body.on ? 'вкл' : 'выкл'}`),
-      ]);
-      return {};
-
-    case 'admin.participate': {
-      const afterDraw = 'После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.';
-      if (ev.draw_done) return fail(afterDraw);
-      if (body.on) {
-        await db.batch([
-          addMemberStmt(db, ev, me.tg_id), clearRemovedStmt(db, ev.id, me.tg_id),
-          auditStmt(db, ev.id, me.tg_id, 'participate', 'участвует'),
-        ]);
-        return {};
-      }
-      // Выход — только пока жеребьёвка не проведена, проверено в момент записи (018): иначе одновременная жеребьёвка
-      // оставила бы в парах человека вне события. Данные участия (исключения, закреплённые пары, обращения) — по
-      // списку REGISTRY; исход — по записи журнала под тем же условием (не участник тоже получает успешный ответ).
-      const beforeDraw = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)';
-      const [log] = await db.batch([
-        auditIfStmt(db, ev.id, me.tg_id, 'participate', 'не участвует', beforeDraw, ev.id),
-        ...memberDataDeleteStmts(db, ev.id, me.tg_id, beforeDraw, ev.id),
-      ]);
-      return log.meta.changes ? {} : fail(afterDraw);
-    }
-
-    case 'admin.remove': {
-      const id = Number(body.id);
-      if (id === me.tg_id) return fail('Нельзя удалить самого себя — выключи «Я участвую».');
-      if (id === ownerId) return fail('Владельца нельзя удалить из события. Сначала он должен передать права владельца.');
-      const target = await getUser(db, id);
-      if (target?.is_admin && !isOwner) return fail('Удалить администратора может только владелец бота.', 403);
-      if (!(await getMember(db, ev.id, id))) return fail('Человек не участвует в этом событии.');
-      // Отметка «удалён организатором» (010): при запрете возврата человек не войдёт по ссылке снова
-      const r = await removeMember(env, ev, id, { actor: me.tg_id, mark: true });
-      return r.ok ? {} : fail(r.error);
-    }
-
-    case 'admin.removed.allow': {
-      const id = Number(body.id) || 0;
-      const row = await db.prepare('SELECT 1 FROM removed_members WHERE event_id = ? AND user_id = ?').bind(ev.id, id).first();
-      if (!row) return fail('Этого человека нет среди удалённых.');
-      await db.batch([clearRemovedStmt(db, ev.id, id), auditStmt(db, ev.id, me.tg_id, 'member.allow', await nameOf(id))]);
-      return {};
-    }
-
-    case 'admin.insert': {
-      // Только владелец (012, FR-1201): админ по отметкам «не открыл подопечного» и «подарок готов» понял бы, у кого
-      // сменился подопечный, — то есть кто дарит новичку. Владелец пары видит и так (010) и может вписать себя.
-      if (!isOwner) return ownerOnly('Вписывать в жеребьёвку после неё');
-      const r = await insertMember(env, ev, Number(body.id), me.tg_id);
-      return r.ok ? {} : fail(r.error);
-    }
-
-    case 'admin.exclusion.add':
-    case 'admin.exclusion.del': {
-      // После жеребьёвки исключения заморожены: по заменам при удалении/вписывании их можно было бы использовать,
-      // чтобы вычислить пары (009, FR-901). Условие повторено в SQL — на случай жеребьёвки в эту же секунду.
-      // Владелец пары видит и так — для него заморозки нет (010, FR-1008).
-      if (ev.draw_done && !isOwner) return fail(EXCLUSIONS_FROZEN);
-      const giver = Number(body.giver);
-      const receiver = Number(body.receiver);
-      const add = action === 'admin.exclusion.add';
-      if (add) {
-        if (!giver || !receiver || giver === receiver) return fail('Выбери двух разных людей');
-        const [g, r] = await Promise.all([getMember(db, ev.id, giver), getMember(db, ev.id, receiver)]);
-        if (!g || !r) return fail('Исключение можно задать только между участниками события.');
-      }
-      const beforeDraw = isOwner ? '? > 0' : 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
-      const change = (a, b) => add
-        ? db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ?, ?, ? WHERE ${beforeDraw}`).bind(ev.id, a, b, ev.id)
-        : db.prepare(`DELETE FROM exclusions WHERE event_id = ? AND giver = ? AND receiver = ? AND ${beforeDraw}`).bind(ev.id, a, b, ev.id);
-      const stmts = [change(giver, receiver)];
-      if (body.mutual) stmts.push(change(receiver, giver));
-      const names = `${await nameOf(giver)} ${body.mutual ? '↔' : '→'} ${await nameOf(receiver)}`;
-      stmts.push(auditIfStmt(db, ev.id, me.tg_id, add ? 'exclusion.add' : 'exclusion.del', names, beforeDraw, ev.id));
-      await db.batch(stmts);
-      if (!isOwner && (await getEvent(db, ev.id))?.draw_done) return fail(EXCLUSIONS_FROZEN);
-      return {};
-    }
-
-    case 'admin.fixed.add':
-    case 'admin.fixed.del': {
-      // 014: закреплённые пары — будущие пары жеребьёвки; видит и меняет только владелец (админ узнал бы пары).
-      // Только до жеребьёвки — и для владельца: пары действуют лишь при её проведении (research R5).
-      if (!isOwner) return ownerOnly('Закреплять пары');
-      if (ev.draw_done) return fail(FIXED_FROZEN);
-      const giver = Number(body.giver);
-      const receiver = Number(body.receiver);
-      const add = action === 'admin.fixed.add';
-      const links = body.mutual ? [[giver, receiver], [receiver, giver]] : [[giver, receiver]];
-      if (add) {
-        if (!giver || !receiver || giver === receiver) return fail('Выбери двух разных людей');
-        const [members, fixed] = await Promise.all([eventMembers(db, ev.id), getFixedPairs(db, ev.id)]);
-        const byId = new Map(members.filter((m) => m.registered).map((m) => [m.user_id, m]));
-        if (!byId.has(giver) || !byId.has(receiver)) return fail('Закрепить пару можно только между участниками события.');
-        const name = (id) => displayName(byId.get(id));
-        // Кольцевая — без взаимных пар: закрепить можно только в одну сторону
-        if (ev.ring) {
-          if (body.mutual) return fail(RING_ONE_WAY + '.');
-          if (fixed.some((f) => f.giver === receiver && f.receiver === giver)) {
-            return fail(`${RING_ONE_WAY}: «${name(receiver)}» уже дарит «${name(giver)}».`);
-          }
-        }
-        for (const [a, b] of links) {
-          if (fixed.some((f) => f.giver === a && f.receiver === b)) continue; // уже закреплена
-          if (fixed.some((f) => f.giver === a)) return fail(`У «${name(a)}» уже есть закреплённый подопечный — сначала убери ту пару.`);
-          if (fixed.some((f) => f.receiver === b)) return fail(`Санта для «${name(b)}» уже закреплён — сначала убери ту пару.`);
-        }
-      }
-      // Условие повторено в SQL — на случай жеребьёвки в эту же секунду (как у исключений)
-      const beforeDraw = 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
-      const stmts = links.map(([a, b]) => add
-        ? db.prepare(`INSERT OR IGNORE INTO fixed_pairs (event_id, giver, receiver) SELECT ?, ?, ? WHERE ${beforeDraw}`).bind(ev.id, a, b, ev.id)
-        : db.prepare(`DELETE FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ? AND ${beforeDraw}`).bind(ev.id, a, b, ev.id));
-      // Журнал — без имён и подробностей: его видят и админы
-      stmts.push(auditIfStmt(db, ev.id, me.tg_id, add ? 'fixed.add' : 'fixed.del', '', beforeDraw, ev.id));
-      await db.batch(stmts);
-      if ((await getEvent(db, ev.id))?.draw_done) return fail(FIXED_FROZEN);
-      return {};
-    }
-
-    case 'admin.draw.check': {
-      if (ev.draw_done) return fail('Жеребьёвка уже проведена.');
-      const c = await checkDraw(env, ev);
-      // Без признаков учёта прошлых пар: по ним можно было бы вычислить чужие пары прошлого года (009, FR-904)
-      return {
-        possible: c.res.ok,
-        count: c.people.length,
-        ring: c.ring,
-        problems: c.problems,
-        empty_wishlists: c.emptyWishlists,
-      };
-    }
-
-    case 'admin.draw': {
-      const r = await runDraw(env, ev, { actor: me.tg_id });
-      return r.ok ? { count: r.count, single_cycle: r.singleCycle } : fail(r.error);
-    }
-
-    case 'admin.draw.cancel': {
-      const r = await cancelDraw(env, ev, me.tg_id);
-      return r.ok ? { count: r.count } : fail(r.error);
-    }
-
-    case 'admin.draw.cancel.force': {
-      // 012, FR-1205: в любой момент до раскрытия — только владелец (участвующий админ переигрывал бы жеребьёвку)
-      if (!isOwner) return ownerOnly('Принудительно отменить жеребьёвку');
-      if (String(body.confirm || '').trim().toUpperCase() !== 'ОТМЕНА') return fail('Для отмены введи слово ОТМЕНА.');
-      const r = await forceCancelDraw(env, ev, me.tg_id);
-      return r.ok ? { count: r.count } : fail(r.error);
-    }
-
-    // ---------- обращения к организатору (012) ----------
-    case 'admin.support.get':
-    case 'admin.support.take':
-    case 'admin.support.send':
-    case 'admin.support.pass':
-    case 'admin.support.close': {
-      const id = Number(body.thread) || 0;
-      const r = action === 'admin.support.get' ? await adminThread(env, ev, me, isOwner, id)
-        : action === 'admin.support.take' ? await take(env, ev, me, id)
-        : action === 'admin.support.send' ? await sendFromAdmin(env, ev, me, id, body.text)
-        : action === 'admin.support.pass' ? await pass(env, ev, me, isOwner, id, body.to)
-        : await closeByAdmin(env, ev, me, isOwner, id);
-      if (!r.ok) return fail(r.error, r.status);
-      if (action === 'admin.support.get') return { thread: r.thread, messages: r.messages, admins: r.admins };
-      return action === 'admin.support.send' ? { message: r.message } : {};
-    }
-
-    case 'admin.announce': {
-      const r = await announce(env, ev, me.tg_id, body.text);
-      return r.ok ? { count: r.count } : fail(r.error);
-    }
-
-    case 'admin.audit':
-      return { entries: await getAudit(db, ev.id) };
-
-    case 'admin.request.decide': {
-      const req = await db.prepare('SELECT event_id FROM join_requests WHERE id = ?').bind(Number(body.id) || 0).first();
-      if (!req || req.event_id !== ev.id) return fail('Заявка не найдена.');
-      const r = await decideRequest(env, body.id, me.tg_id, !!body.approve);
-      return r.ok ? {} : fail(r.error);
-    }
-
-    case 'admin.remind.unfilled':
-      return { count: (await remindUnfilled(env, ev, me.tg_id)).count };
-
-    case 'admin.remind.santas':
-      if (!ev.draw_done) return fail('Жеребьёвка ещё не проведена.');
-      return { count: (await remindSantas(env, ev, me.tg_id)).count };
-
-    case 'admin.reveal': {
-      // Повторно имена не рассылаются (006, FR-610), в том числе при одновременных вызовах (009)
-      const r = await revealAll(env, ev, me.tg_id);
-      return r.ok ? { count: r.count } : fail(r.error);
-    }
-
-    case 'admin.event.finish': {
-      const r = await finishEvent(env, ev, me.tg_id);
-      return r.ok ? {} : fail(r.error);
-    }
-
-    case 'admin.event.invite_from': {
-      const fromEv = await getEvent(db, body.from);
-      if (!fromEv || fromEv.id === ev.id) return fail('Выбери другое событие.');
-      if (isFinished(ev)) return fail('Событие завершено — приглашать в него нельзя.');
-      const r = await inviteFromEvent(env, ev, fromEv, me.tg_id);
-      return r.ok ? { count: r.count } : fail(r.error);
-    }
-
-    case 'admin.event.delete': {
-      if (!isOwner) return ownerOnly('Удалить событие');
-      if (String(body.confirm || '').trim().toUpperCase() !== 'УДАЛИТЬ') return fail('Для удаления введи слово УДАЛИТЬ.');
-      const r = await deleteEvent(env, ev, me.tg_id);
-      return r.ok ? { notified: r.count } : fail(r.error);
-    }
-
-    // ---------- служебный просмотр владельца (010, FR-1009–FR-1013) ----------
-    case 'admin.vault.person':
-    case 'admin.vault.pairs': {
-      if (!isOwner) return fail('Служебный просмотр доступен только владельцу бота.', 403);
-      const r = action === 'admin.vault.pairs'
-        ? await vaultPairs(env, ev, me.tg_id)
-        : await vaultPerson(env, ev, Number(body.id) || 0, me.tg_id);
-      if (!r.ok) return fail(r.error);
-      const { ok, ...data } = r;
-      return data;
-    }
-
-    case 'admin.reset.full': {
-      if (!isOwner) return ownerOnly('Полный сброс');
-      if (String(body.confirm || '').trim().toUpperCase() !== 'СБРОС') return fail('Для полного сброса введи слово СБРОС.');
-      const r = await resetEvent(env, ev, ownerId, me.tg_id);
-      return { removed: r.removed, invite_link: inviteLink(settings, { invite_code: r.inviteCode }) };
-    }
-  }
-  return fail('Неизвестное действие', 404);
+  if (isFinished(ev) && row.finished !== true) return fail(row.finished);
+  // Владелец — после «событие завершено»: админ на завершённом событии получает 400, а не 403
+  if (!(await owner())) return fail(row.owner, 403);
+  if (row.confirm && !confirmed(body, row.confirm[0])) return fail(row.confirm[1]);
+  return respond(await row.run(ctx, body, ev, member));
 }

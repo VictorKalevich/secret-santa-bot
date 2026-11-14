@@ -2,15 +2,14 @@
 // Владелец ⊇ админ (Конституция, принцип VII): владельцу ни одного отказа по правам.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { initData } from './support/auth.mjs';
+import { ACTIONS as TABLE } from '../src/api.js';
 
 after(restoreFetch);
 
-// После шага 4 плана рефакторинга список берётся из таблицы действий
-const source = readFileSync(new URL('../src/api.js', import.meta.url), 'utf8');
-const ACTIONS = [...new Set([...source.matchAll(/case '(admin\.[a-z._]+)'/g)].map((m) => m[1]))];
+// Список — из таблицы действий (019, шаг 4 плана рефакторинга)
+const ACTIONS = Object.keys(TABLE).filter((a) => a.startsWith('admin.'));
 
 // Действия только владельца — админ получает 403
 const OWNER_ONLY = [
@@ -45,8 +44,9 @@ before(async () => {
   await w.api(boss, 'admin.role.grant', { id: adm.id });
 });
 
-test('права: список действий admin.* — ровно 46, включая действия с «_»', () => {
+test('права: список действий admin.* — ровно 46, включая действия с «_»; всего действий — 59', () => {
   assert.equal(ACTIONS.length, 46, ACTIONS.join(', '));
+  assert.equal(Object.keys(TABLE).length, 59);
   assert.ok(ACTIONS.includes('admin.avoid_previous') && ACTIONS.includes('admin.event.invite_from'));
   for (const a of OWNER_ONLY) assert.ok(ACTIONS.includes(a), 'действие владельца есть в коде: ' + a);
 });

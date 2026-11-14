@@ -38,6 +38,10 @@ after(restoreFetch);
 `createD1(sqlite?) → D1` — см. `data-model.md`. Отличие от настоящей D1, о котором надо помнить: всё выполняется
 синхронно внутри `await`, поэтому без `together`/`beforeWrite` вызовы из `Promise.all` идут по очереди.
 
+Барьер `together` (019): `batch` ждёт его, только если в пакете есть запись (`INSERT|UPDATE|DELETE`); пакет только из
+чтений (`readMany`, `ctx.read`) выполняется сразу — иначе второй вызов читал бы уже после записи первого и проверка
+гонки стала бы пустой. Как и у настоящей D1: чтение ничего не блокирует (`tests/d1-sqlite.test.mjs`).
+
 ## `tests/support/auth.mjs`
 
 `TOKEN`, `ADMIN_SECRET`, `initData(user, { authDate, token })` — подпись как у Telegram. Без `child_process`;

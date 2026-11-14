@@ -5,7 +5,7 @@
 
 import { getSettings, allUsers, getUser, enqueueIfStmt, auditIfStmt } from './db.js';
 import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppButton, cleanText } from './format.js';
-import { chatWritable } from './events.js';
+import { chatWritable } from './status.js';
 import { MAX_CHARS } from './chat.js';
 
 const READ_ONLY = 'Событие завершено больше недели назад: обращения только для чтения.';

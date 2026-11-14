@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createD1, createMigratedD1 } from './support/d1-sqlite.mjs';
-import { REQUIRED_SCHEMA } from '../src/db.js';
+import { REQUIRED_SCHEMA, readMany } from '../src/db.js';
 
 function table() {
   const db = createD1();
@@ -93,6 +93,26 @@ test('D1: счётчик — как у metered: batch и exec — один за�
   assert.equal(db.stats.queries, 4);
   assert.equal(db.stats.statements, 4, 'операторов: 1 + 1 + 2 (exec — мимо подсчёта операторов)');
   assert.deepEqual(db.stats.log, ['SELECT 1', 'SELECT 1', 'batch(2)', 'exec']);
+});
+
+// 019: пакет чтений (readMany, ctx.read) — чтение, а не запись: барьер world.together() встаёт перед первой записью
+test('D1: пакет только из чтений не ждёт барьер записи, пакет с записью — ждёт; readMany — результаты по именам', async () => {
+  const db = table();
+  await db.prepare('INSERT INTO t (id, n) VALUES (1, 10), (2, 20)').run();
+  let waits = 0;
+  db.gate = async () => { waits++; };
+  const r = await readMany(db, {
+    two: db.prepare('SELECT id FROM t WHERE n = ?').bind(20),
+    skipped: null,
+    all: db.prepare('SELECT id FROM t ORDER BY id'),
+  });
+  assert.deepEqual(r, { two: [{ id: 2 }], skipped: [], all: [{ id: 1 }, { id: 2 }] });
+  assert.equal(waits, 0, 'пакет чтений выполнен сразу');
+  await db.batch([db.prepare('SELECT 1'), db.prepare('UPDATE t SET n = 0 WHERE id = 1')]);
+  assert.equal(waits, 1, 'пакет с записью ждёт барьер');
+  const q0 = db.stats.queries;
+  assert.deepEqual(await readMany(db, { none: null }), { none: [] });
+  assert.equal(db.stats.queries, q0, 'ни одного оператора — ни одного запроса');
 });
 
 test('D1: схема из migrations/ — версия, которую требует код', async () => {

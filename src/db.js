@@ -27,13 +27,36 @@ export async function checkSchema(db) {
   schemaReady = true;
 }
 
+// ---------- пакет чтений (019) ----------
+
+// Несколько независимых чтений — одним batch (один запрос в лимите 50): named — «имя → оператор SELECT или ложь».
+// Результат — «имя → строки» в том же наборе имён (у пропущенных — []); ни одного оператора — ни одного запроса.
+// Имена, а не позиции: при объединении чтений порядок результатов не перепутать.
+export async function readMany(db, named) {
+  const out = {};
+  const keys = [];
+  for (const [k, s] of Object.entries(named)) {
+    out[k] = [];
+    if (s) keys.push(k);
+  }
+  if (!keys.length) return out;
+  const res = await db.batch(keys.map((k) => named[k]));
+  keys.forEach((k, i) => { out[k] = res[i].results || []; });
+  return out;
+}
+
 // ---------- settings (общие настройки бота) ----------
 
-export async function getSettings(db) {
-  const { results } = await db.prepare('SELECT key, value FROM settings').all();
+export const settingsQuery = (db) => db.prepare('SELECT key, value FROM settings');
+
+export function settingsFrom(rows) {
   const s = {};
-  for (const r of results) s[r.key] = r.value;
+  for (const r of rows) s[r.key] = r.value;
   return s;
+}
+
+export async function getSettings(db) {
+  return settingsFrom((await settingsQuery(db).all()).results);
 }
 
 export function setSettingStmt(db, key, value) {
@@ -49,13 +72,15 @@ export async function setSettings(db, obj) {
 
 // ---------- users ----------
 
+export const userQuery = (db, id) => db.prepare('SELECT * FROM users WHERE tg_id = ?').bind(id);
+export const usersQuery = (db) => db.prepare('SELECT * FROM users ORDER BY created_at');
+
 export async function getUser(db, id) {
-  return db.prepare('SELECT * FROM users WHERE tg_id = ?').bind(id).first();
+  return userQuery(db, id).first();
 }
 
 export async function allUsers(db) {
-  const { results } = await db.prepare('SELECT * FROM users ORDER BY created_at').all();
-  return results;
+  return (await usersQuery(db).all()).results;
 }
 
 export async function createUser(db, id, username, fields = {}) {
@@ -83,8 +108,11 @@ export async function updateUser(db, id, fields) {
 
 // ---------- events ----------
 
+export const eventQuery = (db, id) => db.prepare('SELECT * FROM events WHERE id = ?').bind(Number(id) || 0);
+export const eventsQuery = (db) => db.prepare('SELECT * FROM events ORDER BY created_at DESC');
+
 export async function getEvent(db, id) {
-  return db.prepare('SELECT * FROM events WHERE id = ?').bind(Number(id) || 0).first();
+  return eventQuery(db, id).first();
 }
 
 export async function getEventByInvite(db, code) {
@@ -92,8 +120,7 @@ export async function getEventByInvite(db, code) {
 }
 
 export async function allEvents(db) {
-  const { results } = await db.prepare('SELECT * FROM events ORDER BY created_at DESC').all();
-  return results;
+  return (await eventsQuery(db).all()).results;
 }
 
 const EVENT_FIELDS = new Set([
@@ -109,8 +136,10 @@ export function updateEventStmt(db, id, fields) {
 
 // ---------- members ----------
 
+export const memberQuery = (db, eventId, userId) => db.prepare('SELECT * FROM members WHERE event_id = ? AND user_id = ?').bind(eventId, userId);
+
 export async function getMember(db, eventId, userId) {
-  return db.prepare('SELECT * FROM members WHERE event_id = ? AND user_id = ?').bind(eventId, userId).first();
+  return memberQuery(db, eventId, userId).first();
 }
 
 // Участники эвента вместе с данными человека
@@ -192,45 +221,6 @@ export async function familyRows(db) {
   return results;
 }
 
-// Семьи (008): пары «не дарят друг другу» между членами одной семьи среди ids — если в эвенте включено правило семей.
-// rows — уже прочитанные строки familyRows (необязательно).
-export async function familyExclusions(db, ev, ids, rows = null) {
-  if (!ev.families_on || ids.length < 2) return [];
-  const set = new Set(ids);
-  const byFamily = new Map();
-  for (const r of rows || (await familyRows(db))) {
-    if (!set.has(r.user_id)) continue;
-    if (!byFamily.has(r.family_id)) byFamily.set(r.family_id, []);
-    byFamily.get(r.family_id).push(r.user_id);
-  }
-  const out = [];
-  for (const list of byFamily.values()) {
-    for (const a of list) for (const b of list) if (a !== b) out.push({ giver: a, receiver: b });
-  }
-  return out;
-}
-
-// Снимок семей участников (010, FR-1019): «число:Σ(человек×семья):Σ(семья)» по строкам семей людей ids.
-// То же выражение считает SQL в условии записи жеребьёвки (FAMILY_SNAPSHOT_SQL) — пары пишутся, только если семьи те же.
-export function familySnapshot(rows, ids) {
-  const set = new Set(ids);
-  let count = 0;
-  let mixed = 0;
-  let fams = 0;
-  for (const r of rows) {
-    if (!set.has(r.user_id)) continue;
-    count += 1;
-    mixed += r.user_id * r.family_id;
-    fams += r.family_id;
-  }
-  return `${count}:${mixed}:${fams}`;
-}
-
-// Параметр — id эвента; учитываются зарегистрированные участники (как в жеребьёвке)
-export const FAMILY_SNAPSHOT_SQL = `(SELECT COUNT(*) || ':' || COALESCE(SUM(fm.user_id * fm.family_id), 0) || ':' || COALESCE(SUM(fm.family_id), 0)
-   FROM family_members fm
-  WHERE fm.user_id IN (SELECT m.user_id FROM members m JOIN users u ON u.tg_id = m.user_id WHERE m.event_id = ? AND u.registered = 1))`;
-
 export async function getExclusions(db, eventId) {
   const { results } = await db.prepare('SELECT giver, receiver FROM exclusions WHERE event_id = ?').bind(eventId).all();
   return results;
@@ -241,23 +231,6 @@ export async function getFixedPairs(db, eventId) {
   const { results } = await db.prepare('SELECT giver, receiver FROM fixed_pairs WHERE event_id = ?').bind(eventId).all();
   return results;
 }
-
-// Снимок закреплённых пар (014, research R6): в отличие от сумм различает перестановку партнёров ({А→Б, В→Г} и
-// {А→Г, В→Б}). Числа меньше 2^53 — одинаково точны в JS и в целых SQLite. Параметр SQL — id эвента.
-const FIXED_MOD = 1000003;
-export function fixedSnapshot(rows) {
-  let g = 0;
-  let r = 0;
-  let mixed = 0;
-  for (const p of rows) {
-    g += p.giver;
-    r += p.receiver;
-    mixed += (p.giver % FIXED_MOD) * (p.receiver % FIXED_MOD);
-  }
-  return `${rows.length}:${g}:${r}:${mixed}`;
-}
-export const FIXED_SNAPSHOT_SQL = `(SELECT COUNT(*) || ':' || COALESCE(SUM(giver), 0) || ':' || COALESCE(SUM(receiver), 0) || ':' ||
-     COALESCE(SUM((giver % ${FIXED_MOD}) * (receiver % ${FIXED_MOD})), 0) FROM fixed_pairs WHERE event_id = ?)`;
 
 // ---------- outbox (очередь сообщений) ----------
 

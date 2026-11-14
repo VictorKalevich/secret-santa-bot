@@ -2,9 +2,10 @@
 
 import {
   getSettings, allUsers, getEvent, addMemberStmt, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt, clearRemovedStmt, isRemoved,
+  memberDataDeleteStmts,
 } from './db.js';
 import { msg, q, escapeHtml, openAppButton, displayName, adminRecipients, oneLine } from './format.js';
-import { isFinished } from './events.js';
+import { isFinished } from './status.js';
 
 // ---------- семьи ----------
 
@@ -89,6 +90,59 @@ export async function deleteFamily(env, actor, id, { owner = false } = {}) {
   return { ok: true };
 }
 
+// admin.families: семьи — общие для бота; адресов и пар здесь нет
+export async function familiesList(ctx) {
+  const db = ctx.db;
+  const [users, fams, rows] = await Promise.all([
+    ctx.users(),
+    db.prepare('SELECT id, name FROM families ORDER BY name').all().then((r) => r.results),
+    db.prepare('SELECT user_id, family_id FROM family_members').all().then((r) => r.results),
+  ]);
+  const famOf = Object.fromEntries(rows.map((r) => [r.user_id, r.family_id]));
+  const reg = users.filter((u) => u.registered);
+  return {
+    families: fams.map((f) => ({ id: f.id, name: f.name, members: reg.filter((u) => famOf[u.tg_id] === f.id).map((u) => ({ id: u.tg_id, name: u.name })) })),
+    users: reg.map((u) => ({ id: u.tg_id, name: u.name, family_id: famOf[u.tg_id] || 0 })),
+  };
+}
+
+// ---------- участие админа и возврат удалённых (019: из api.js) ----------
+
+const AFTER_DRAW = 'После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.';
+
+// «Я участвую» админа: вход и выход — только до жеребьёвки (вписывает после неё только владелец, 012)
+export async function participate(ctx, ev, on, actor) {
+  const db = ctx.db;
+  if (ev.draw_done) return { ok: false, error: AFTER_DRAW };
+  if (on) {
+    await db.batch([
+      addMemberStmt(db, ev, actor), clearRemovedStmt(db, ev.id, actor),
+      auditStmt(db, ev.id, actor, 'participate', 'участвует'),
+    ]);
+    return { ok: true };
+  }
+  // Выход — только пока жеребьёвка не проведена, проверено в момент записи (018): иначе одновременная жеребьёвка
+  // оставила бы в парах человека вне события. Данные участия (исключения, закреплённые пары, обращения) — по
+  // списку REGISTRY; исход — по записи журнала под тем же условием (не участник тоже получает успешный ответ).
+  const beforeDraw = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)';
+  const [log] = await db.batch([
+    auditIfStmt(db, ev.id, actor, 'participate', 'не участвует', beforeDraw, ev.id),
+    ...memberDataDeleteStmts(db, ev.id, actor, beforeDraw, ev.id),
+  ]);
+  return log.meta.changes ? { ok: true } : { ok: false, error: AFTER_DRAW };
+}
+
+// Разрешить удалённому организатором вернуться по ссылке (010)
+export async function allowRemoved(ctx, ev, rawId, actor) {
+  const db = ctx.db;
+  const id = Number(rawId) || 0;
+  const row = await db.prepare('SELECT 1 FROM removed_members WHERE event_id = ? AND user_id = ?').bind(ev.id, id).first();
+  if (!row) return { ok: false, error: 'Этого человека нет среди удалённых.' };
+  const users = await ctx.users();
+  await db.batch([clearRemovedStmt(db, ev.id, id), auditStmt(db, ev.id, actor, 'member.allow', displayName(users.find((u) => u.tg_id === id)))]);
+  return { ok: true };
+}
+
 // ---------- вступление по пригласительной ссылке ----------
 
 // После отказа новая заявка в тот же эвент — не раньше чем через сутки: иначе админов можно засыпать заявками (009, FR-924)
@@ -148,10 +202,11 @@ async function requestJoin(env, ev, user) {
 }
 
 // Решение по заявке — один раз (research R4): повторное нажатие или второй админ ничего не меняют
-export async function decideRequest(env, id, actor, approve) {
+// inEvent — решение из панели события: заявка должна быть заявкой этого события
+export async function decideRequest(env, id, actor, approve, { inEvent = null } = {}) {
   const db = env.DB;
   const req = await db.prepare('SELECT * FROM join_requests WHERE id = ?').bind(Number(id) || 0).first();
-  if (!req) return { ok: false, error: 'Заявка не найдена.' };
+  if (!req || (inEvent && req.event_id !== inEvent.id)) return { ok: false, error: 'Заявка не найдена.' };
   if (req.status !== 'pending') return { ok: false, error: 'Заявка уже рассмотрена.' };
   const ev = await getEvent(db, req.event_id);
   if (!ev) return { ok: false, error: 'Событие не найдено.' };

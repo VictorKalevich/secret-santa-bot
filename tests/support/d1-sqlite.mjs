@@ -75,9 +75,10 @@ export function createD1(sqlite = new Database(':memory:')) {
     sqlite,
     stats,
     prepare: (sql) => stmt(sql),
-    // Одна транзакция: ошибка в любом операторе откатывает все
+    // Одна транзакция: ошибка в любом операторе откатывает все. Пакет только из чтений (019, ctx.read) — чтение:
+    // барьер ставится перед первой записью, иначе второй вызов читал бы уже после записи первого.
     batch: async (list) => {
-      await hold(true);
+      await hold(list.some((s) => isWrite(s.sql)));
       count(`batch(${list.length})`);
       sqlite.exec('BEGIN IMMEDIATE');
       try {

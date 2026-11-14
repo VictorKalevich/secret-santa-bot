@@ -1,12 +1,13 @@
 // Пары эвента: проверка и проведение жеребьёвки, отмена, удаление и вписывание участника после жеребьёвки.
 
 import {
-  getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, familyExclusions, familySnapshot,
-  FAMILY_SNAPSHOT_SQL, getFixedPairs, fixedSnapshot, FIXED_SNAPSHOT_SQL, enqueueIfStmt, auditIfStmt, markRemovedStmt, memberDataDeleteStmts,
+  getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, getFixedPairs, enqueueIfStmt, auditIfStmt,
+  markRemovedStmt, memberDataDeleteStmts,
 } from './db.js';
+import { familyExclusions, familySnapshot, FAMILY_SNAPSHOT_SQL, fixedSnapshot, FIXED_SNAPSHOT_SQL } from './constraints.js';
 import { planDraw, pairRules, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, openAppButton, randomCode, displayName } from './format.js';
-import { isFinished } from './events.js';
+import { isFinished } from './status.js';
 
 // Пары прошлого эвента с наибольшим числом пар среди этих людей; при равенстве — последнего
 // (для «не повторять пары», FR-510). Так параллельный эвент другой группы не подменяет «свой».

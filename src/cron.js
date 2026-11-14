@@ -3,7 +3,8 @@
 import { getSettings, enqueueStmt, updateEventStmt, getEvent, allUsers, auditStmt } from './db.js';
 import { openAppButton, msg, q, escapeHtml, localDate, daysUntil, addDays, ISO_DATE, adminRecipients } from './format.js';
 import { flushOutbox } from './outbox.js';
-import { isFinished, remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
+import { isFinished } from './status.js';
+import { remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
 import { runDraw } from './pairs.js';
 
 // Шаги запуска независимы (009, FR-910): ошибка в одном не мешает остальным, а очередь сообщений отправляется

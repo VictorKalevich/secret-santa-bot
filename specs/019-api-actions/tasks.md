@@ -43,22 +43,22 @@ contracts/api-actions.md, quickstart.md); шаг 4 плана рефактори
 
 **Purpose**: простые проверки, пакет чтений и контекст — на них опираются US1–US3. Поведение не меняется.
 
-- [ ] T004 [P] `src/status.js` (новый, **без импортов**): `CHAT_GRACE_MS`, `isFinished`, `chatUntil`, `chatWritable` (из
+- [X] T004 [P] `src/status.js` (новый, **без импортов**): `CHAT_GRACE_MS`, `isFinished`, `chatUntil`, `chatWritable` (из
   `src/events.js`) и `publicEvent` (из `src/api.js`) без изменений; импорты в `src/events.js`, `src/pairs.js`,
   `src/membership.js`, `src/support.js`, `src/chat.js`, `src/bot.js`, `src/cron.js`, `src/api.js`, тестах — из
   `src/status.js` (реэкспорт из `events.js` не оставлять)
-- [ ] T005 [P] `src/db.js`: `readMany(db, named)` — один `db.batch` из заданных операторов (пропущенные `null`/ложь — `[]`,
+- [X] T005 [P] `src/db.js`: `readMany(db, named)` — один `db.batch` из заданных операторов (пропущенные `null`/ложь — `[]`,
   ни одного заданного — без запроса), результат по именам; построители чтений `userQuery`, `settingsQuery` (+
   `settingsFrom(rows)`), `usersQuery`, `eventQuery`, `memberQuery`; прежние `getUser`, `getSettings`, `allUsers`,
   `getEvent`, `getMember` читают тем же оператором
-- [ ] T006 [P] `tests/support/d1-sqlite.mjs`: `batch` ставит барьер `gate`, только если в пакете есть запись
+- [X] T006 [P] `tests/support/d1-sqlite.mjs`: `batch` ставит барьер `gate`, только если в пакете есть запись
   (`INSERT|UPDATE|DELETE`); `tests/d1-sqlite.test.mjs` — пакет чтений: результаты по порядку операторов, при закрытом
   барьере выполняется сразу, пакет с записью ждёт; `specs/016-fast-tests/contracts/test-harness.md` — правило барьера
-- [ ] T007 `src/context.js` (новый, research R4, `contracts/api-actions.md` §2): `makeContext(env, { me, settings })`,
+- [X] T007 `src/context.js` (новый, research R4, `contracts/api-actions.md` §2): `makeContext(env, { me, settings })`,
   `openContext(env, userId)` (пользователь + настройки одним `readMany`); `settings()`, `users()`, `ownerId()`
   (`resolveOwner(db, settings, users)`), `isOwner()`, `read(named)` с `users: true` / `settings: true` (из кэша или в
   этом же пакете), `forgetUsers()`; кэш — обещания на вызов, ошибка сбрасывает кэш
-- [ ] T008 `npm test` (без правки ожиданий; 2 `todo`)
+- [X] T008 `npm test` (без правки ожиданий; 2 `todo`)
 
 **Checkpoint**: основа есть, ни один ответ и ни одно число запросов не изменились.
 
@@ -71,30 +71,31 @@ contracts/api-actions.md, quickstart.md); шаг 4 плана рефактори
 **Independent Test**: `node --test tests/api-refusals.test.mjs tests/api-table.test.mjs tests/rights.test.mjs
 tests/secrecy.test.mjs` — зелёные, ожидания прав и тайны не правились.
 
-- [ ] T009 [US1] `src/api.js`: `ROLES` (`ANY`, `USER`, `VIEWER`, `MEMBER`, `ADMIN`, `OWNER`), `CLOSED` («Событие завершено —
+- [X] T009 [US1] `src/api.js`: `ROLES` (`ANY`, `USER`, `VIEWER`, `MEMBER`, `ADMIN`, `OWNER`), `CLOSED` («Событие завершено —
   менять его уже нельзя (доступны просмотр, раскрытие и удаление).»), `onlyOwner(what)` → «${what} может только
   владелец бота.», `refuse(text, status = 400)`, `confirmed(body, word)`, `respond(data)` → `{ ok: true, ...data }`;
   `export const ACTIONS` — 59 строк по `data-model.md` §1 в порядке прежних `case` (13 участника, 11 общих админа, 35
   событий; `admin.audit` — `event: 'given'`); заглушки `UNKNOWN_ADMIN` и `UNKNOWN` → 404 «Неизвестное действие»;
   обработчики `run(ctx, body, ev, member)` — тела прежних веток, возвращают данные или `refuse(…)`; `FINISHED_OK` и
   проверки владельца/слова внутри веток удаляются (переходят в поля строки)
-- [ ] T010 [US1] `src/api.js`, `handleApi`: конвейер research R2 — 405 → 401 → тело → контекст (`openContext`) → снятие
+- [X] T010 [US1] `src/api.js`, `handleApi`: конвейер research R2 — 405 → 401 → тело → контекст (`openContext`) → снятие
   `blocked_at` → строка → `role !== ANY` и не зарегистрирован → 403 → `admin.*` и не админ → 403 «Только для
   администратора.» → `admin.*`: `await ctx.ownerId()` сразу → без события: владелец → `run`; с событием: 404 «Событие не
   найдено.» → не `admin.*`: участие → 403 «Ты не участвуешь в этом событии.» (`VIEWER` пропускает админа) → `finished` →
   владелец (403, **после** «завершено») → слово (400) → `run`; заголовки ответа прежние; недостижимая ветка «перенести
   администратора может только владелец» удаляется
-- [ ] T011 [P] [US1] `tests/api-table.test.mjs` (новый) и скрипт `test`: 59 строк (46 `admin.*`), порядок = список эталона;
+- [X] T011 [P] [US1] `tests/api-table.test.mjs` (новый) и скрипт `test`: 59 строк (46 `admin.*`), порядок = список эталона;
   роль из `ROLES`; `owner` (непустая строка) ⇔ роль `OWNER`; у действия события `finished` — `true` или непустая строка;
   `confirm` — пара непустых строк; `run` — функция; `admin.*` — `ADMIN`/`OWNER`, остальные — нет; проверка «от
   противного» на копии строки без роли / без `finished` даёт ошибку с именем действия
-- [ ] T012 [P] [US1] `tests/rights.test.mjs`: список — `Object.keys(ACTIONS).filter((a) => a.startsWith('admin.'))` из
+- [X] T012 [P] [US1] `tests/rights.test.mjs`: список — `Object.keys(ACTIONS).filter((a) => a.startsWith('admin.'))` из
   `../src/api.js` вместо регулярки по тексту; утверждение «46, в том числе с «_»» остаётся, добавить «всего 59»;
   ожидания не меняются. `tests/api-refusals.test.mjs`: набор действий эталона = ключи `ACTIONS` (в том же порядке)
-- [ ] T013 [P] [US1] `tests/e2e.test.mjs` (автотест «владелец ⊇ админ», ~строка 1320): список — из `ACTIONS` (тот же
+- [X] T013 [P] [US1] `tests/e2e.test.mjs` (автотест «владелец ⊇ админ», ~строка 1320): список — из `ACTIONS` (тот же
   фильтр); сценарий не меняется
-- [ ] T014 [US1] `npm test` (эталон отказов, права, тайна — зелёные без правки ожиданий; таблица запросов — не больше
+- [X] T014 [US1] `npm test` (эталон отказов, права, тайна — зелёные без правки ожиданий; таблица запросов — не больше
   базовой); коммит «019 US1: …»
+  Сделано вместе с T016, T017 и частью T015, T018, T019 (новые функции модулей с контекстом: `participant.js`, `panel.js`, `constraints.js`, параметры события, участие, список семей, история переписки): иначе тела веток пришлось бы писать дважды — в таблице и при переносе. Запросов к базе на 1–3 меньше базовых на каждом действии (пользователь и настройки — одним пакетом, пользователи — из контекста).
 
 **Checkpoint**: права — в таблице; ответы на отказы побайтно прежние.
 
@@ -114,10 +115,10 @@ tests/secrecy.test.mjs` — зелёные, ожидания прав и тай�
   rows)`, чтение семей — в вызывающих), `familySnapshot`, `FAMILY_SNAPSHOT_SQL`, `fixedSnapshot`, `FIXED_SNAPSHOT_SQL`;
   импорты в `src/pairs.js`, `src/membership.js`, `tests/unit.test.mjs` (`../src/constraints.js`); импорт только из
   `db.js`, `format.js`, `status.js`
-- [ ] T016 [P] [US3] `src/participant.js` (новый): `homeView(ctx)` (`me`), `eventView(ctx, ev, member)` (`event.get`),
+- [X] T016 [P] [US3] `src/participant.js` (новый): `homeView(ctx)` (`me`), `eventView(ctx, ev, member)` (`event.get`),
   `saveWishlist`, `saveDelivery` (порядок отказов прежний: «адрес не нужен» раньше «завершено»), `wardView`,
   `setGiftReady`, `setGiftReceived` — тела прежних веток
-- [ ] T017 [P] [US3] `src/panel.js` (новый): `adminState(ctx, ev)`, `memberLetter(ctx, ev, id)` (`admin.wishlist`),
+- [X] T017 [P] [US3] `src/panel.js` (новый): `adminState(ctx, ev)`, `memberLetter(ctx, ev, id)` (`admin.wishlist`),
   `usersList(ctx)` (`admin.users`) — тела прежних веток, поля и порядок полей ответа прежние
 - [ ] T018 [US3] `src/events.js`: `saveEventSettings`, `setRing`, `setRegistration`, `regenInvite`, `setAvoidPrevious` — из
   веток `admin.game`, `admin.ring`, `admin.registration`, `admin.invite.regen`, `admin.avoid_previous`; все функции —

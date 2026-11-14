@@ -4,14 +4,9 @@ import {
   getSettings, getEvent, eventMembers, drawParticipants, getPairs, allUsers, enqueueStmt, enqueueIfStmt, updateEventStmt,
   auditStmt, auditIfStmt, eventDataDeleteStmts,
 } from './db.js';
-import { msg, q, escapeHtml, formatDate, formatMs, openAppButton, inviteLink, randomCode, oneLine, cleanText } from './format.js';
+import { msg, q, escapeHtml, formatDate, formatMs, openAppButton, inviteLink, randomCode, oneLine, cleanText, ISO_DATE } from './format.js';
 
-// Переписка завершённого эвента открыта ещё 7 суток (005, FR-506)
-const CHAT_GRACE_MS = 7 * 24 * 3600 * 1000;
-
-export const isFinished = (ev) => ev.status === 'finished';
-export const chatUntil = (ev) => (isFinished(ev) ? ev.finished_at + CHAT_GRACE_MS : 0);
-export const chatWritable = (ev, now = Date.now()) => !isFinished(ev) || now < chatUntil(ev);
+import { CHAT_GRACE_MS, isFinished } from './status.js';
 
 // from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
 // invite — разослать участникам образца приглашение в новый эвент.
@@ -226,4 +221,73 @@ export async function announce(env, ev, actor, rawText) {
     auditStmt(db, ev.id, actor, 'announce', `получили: ${people.length}`),
   ]);
   return { ok: true, count: people.length };
+}
+
+// ---------- параметры события (019: из api.js) ----------
+
+// admin.game: меняются только переданные поля (008) — отдельные переключатели не стирают остальные параметры
+export async function saveEventSettings(ctx, ev, body, actor) {
+  const db = ctx.db;
+  const clean = (v, n) => String(v ?? '').slice(0, n);
+  const date = (v) => (ISO_DATE.test(v || '') ? v : '');
+  const title = oneLine(body.title ?? ev.title);
+  if (!title || title.length > 80) return { ok: false, error: 'Название события — от 1 до 80 символов.' };
+  const fields = { title };
+  const limits = { budget: 100, place: 200, notes: 2000 };
+  for (const [k, n] of Object.entries(limits)) if (k in body) fields[k] = clean(body[k], n);
+  for (const k of ['event_date', 'deadline']) if (k in body) fields[k] = date(body[k]);
+  // Расписание (007, FR-702): дату автожеребьёвки после жеребьёвки не изменить
+  if ('draw_auto_date' in body) {
+    const auto = date(body.draw_auto_date);
+    if (auto !== ev.draw_auto_date) {
+      if (ev.draw_done) return { ok: false, error: 'Дату автожеребьёвки после жеребьёвки не задать.' };
+      fields.draw_auto_date = auto;
+    }
+  }
+  // 008: адрес доставки, одобрение заявок, семьи (семьи — только до жеребьёвки)
+  if ('delivery_on' in body) fields.delivery_on = body.delivery_on ? 1 : 0;
+  if ('approval' in body) fields.approval = body.approval ? 1 : 0;
+  if ('rejoin' in body) fields.rejoin = body.rejoin ? 1 : 0; // 010
+  if ('families_on' in body && (body.families_on ? 1 : 0) !== ev.families_on) {
+    if (ev.draw_done) return { ok: false, error: 'После жеребьёвки правило семей не изменить.' };
+    fields.families_on = body.families_on ? 1 : 0;
+  }
+  if ('reveal_auto' in body) fields.reveal_auto = body.reveal_auto ? 1 : 0;
+  if ('finish_auto' in body) fields.finish_auto = body.finish_auto ? 1 : 0;
+  await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, actor, 'event.settings', 'параметры')]);
+  return { ok: true };
+}
+
+export async function setRing(ctx, ev, on, actor) {
+  if (ev.draw_done) return { ok: false, error: 'После жеребьёвки кольцевую жеребьёвку менять нельзя.' };
+  const db = ctx.db;
+  await db.batch([
+    updateEventStmt(db, ev.id, { ring: on ? 1 : 0 }),
+    auditStmt(db, ev.id, actor, 'event.settings', `кольцевая жеребьёвка: ${on ? 'вкл' : 'выкл'}`),
+  ]);
+  return { ok: true };
+}
+
+export async function setRegistration(ctx, ev, open, actor) {
+  const db = ctx.db;
+  await db.batch([
+    updateEventStmt(db, ev.id, { registration_open: open ? 1 : 0 }),
+    auditStmt(db, ev.id, actor, 'registration', open ? 'открыта' : 'закрыта'),
+  ]);
+  return { ok: true };
+}
+
+export async function regenInvite(ctx, ev, actor) {
+  const db = ctx.db;
+  await db.batch([updateEventStmt(db, ev.id, { invite_code: randomCode() }), auditStmt(db, ev.id, actor, 'invite.regen')]);
+  return { ok: true };
+}
+
+export async function setAvoidPrevious(ctx, ev, on, actor) {
+  const db = ctx.db;
+  await db.batch([
+    updateEventStmt(db, ev.id, { avoid_previous: on ? 1 : 0 }),
+    auditStmt(db, ev.id, actor, 'event.settings', `не повторять прошлые пары: ${on ? 'вкл' : 'выкл'}`),
+  ]);
+  return { ok: true };
 }

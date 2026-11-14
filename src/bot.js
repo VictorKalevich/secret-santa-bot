@@ -6,7 +6,7 @@ import {
 } from './db.js';
 import { tgApi } from './telegram.js';
 import { escapeHtml, msg, q, openAppButton, adminRecipients, oneLine, shortTitle } from './format.js';
-import { isFinished, chatWritable } from './events.js';
+import { isFinished, chatWritable } from './status.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { resolveOwner, setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
 import { joinByInvite, decideRequest, rejoinBlocked } from './membership.js';

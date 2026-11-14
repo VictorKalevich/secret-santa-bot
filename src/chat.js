@@ -2,7 +2,7 @@
 
 import { getSettings, pairOfSanta, pairOfWard, enqueueIfStmt } from './db.js';
 import { msg, q, escapeHtml, shortTitle, appUrl, cleanText } from './format.js';
-import { chatWritable } from './events.js';
+import { chatWritable } from './status.js';
 
 // Лимит письма и сообщения переписки: одно сообщение Telegram вмещает 4096 символов (UTF-16, как String.length),
 // 96 оставляем под заголовок уведомления (003, FR-309).
@@ -84,4 +84,29 @@ export async function unreadCounts(db, eventId, userId) {
 export async function unreadByEvent(db, userId) {
   const { results } = await db.prepare(UNREAD_SQL + ' GROUP BY m.event_id').bind(userId).all();
   return Object.fromEntries(results.map((r) => [r.event_id, (r.from_ward || 0) + (r.from_santa || 0)]));
+}
+
+// chat.get: история переписки с подопечным или Сантой; сообщения собеседника помечаются прочитанными.
+// Только текст и «моё/не моё» — без ID и имён собеседника (Конституция, принцип I).
+export async function chatHistory(ctx, ev, withWhom, after) {
+  const db = ctx.db;
+  const pair = await chatPair(db, ev.id, ctx.me.tg_id, withWhom);
+  if (!pair) return { state: 'no_pair' };
+  const sql = after
+    ? db.prepare('SELECT id, sender, text, created_at FROM messages WHERE event_id = ? AND santa = ? AND ward = ? AND id > ? ORDER BY id LIMIT 300')
+        .bind(ev.id, pair.santa, pair.ward, after)
+    : db.prepare('SELECT id, sender, text, created_at FROM messages WHERE event_id = ? AND santa = ? AND ward = ? ORDER BY id DESC LIMIT 300')
+        .bind(ev.id, pair.santa, pair.ward);
+  const { results } = await sql.all();
+  if (!after) results.reverse();
+  if (results.some((m) => m.sender !== pair.me)) {
+    await db.prepare('UPDATE messages SET read_at = ? WHERE event_id = ? AND santa = ? AND ward = ? AND sender != ? AND read_at = 0')
+      .bind(Date.now(), ev.id, pair.santa, pair.ward, pair.me).run();
+  }
+  return {
+    state: 'ok',
+    counterpart: withWhom,
+    writable: chatWritable(ev),
+    messages: results.map((m) => ({ id: m.id, mine: m.sender === pair.me, text: m.text, created_at: m.created_at })),
+  };
 }
