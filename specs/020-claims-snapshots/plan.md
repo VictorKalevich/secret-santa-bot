@@ -1,6 +1,6 @@
 # Implementation Plan: Захваты и снимки жеребьёвки
 
-**Branch**: `020-claims-snapshots` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branch**: `020-claims-snapshots` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-14)
 
 **Input**: Feature specification from `specs/020-claims-snapshots/spec.md`; шаг 5 плана рефакторинга
 (`docs/refactoring/step-5-claims-snapshots.md`), замеры `docs/refactoring/baseline.md` (разделы 2, 3, 4).

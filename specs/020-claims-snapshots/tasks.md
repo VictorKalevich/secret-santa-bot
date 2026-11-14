@@ -167,17 +167,17 @@ P2). Перед каждым коммитом — `npm test`.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T019 Замеры «после»: `node tests/bench/queries.mjs` (не больше таблицы `tests/queries.test.mjs`), `npm run bench:draw`
+- [X] T019 Замеры «после»: `node tests/bench/queries.mjs` (не больше таблицы `tests/queries.test.mjs`), `npm run bench:draw`
   ×2 (медианы в разбросе «до»), `npm test` 5 прогонов (время), `npm run test:e2e` (зелёный без правок, нет `budget exceeded`)
-- [ ] T020 [P] Документы: `CLAUDE.md` (строка 020 в таблице фич; структура — `src/claim.js`, `src/snapshots.js`,
+- [X] T020 [P] Документы: `CLAUDE.md` (строка 020 в таблице фич; структура — `src/claim.js`, `src/snapshots.js`,
   `constraints.js` без снимков, `pairs.js` — `undoDraw`, `support.js` — `OPEN`/`LED_BY`; жёсткое правило «Одно действие —
   один результат» — помощник и два вида условий, `FIXED_SNAPSHOT_SQL`/`familySnapshot` → `SNAPSHOTS`; тесты — `claims`,
   `snapshots`, `atomic` без `todo`); `docs/refactoring/baseline.md` (раздел 1 — тесты после шага 5, раздел 2 — замер, раздел
   4 — исправленные строки); `docs/refactoring-roadmap.md` (статус шага 5); заметки в `specs/012-insert-cancel-support/
   research.md` (R6) и `specs/014-fixed-pairs/research.md` (R6); статус `spec.md` и `plan.md` этой фичи
-- [ ] T021 [P] README: установка, команды, роли не меняются; дополнить список быстрых тестов (`tests/claims.test.mjs`,
+- [X] T021 [P] README: установка, команды, роли не меняются; дополнить список быстрых тестов (`tests/claims.test.mjs`,
   `tests/snapshots.test.mjs`), если он перечислен
-- [ ] T022 Память проекта: `refactoring-roadmap.md` — шаг 5 выполнен (020), что дальше
+- [X] T022 Память проекта: `refactoring-roadmap.md` — шаг 5 выполнен (020), что дальше
 - [ ] T023 Слияние в `main` (`--ff-only`) и `git push` веток после зелёных `npm test` и `npm run test:e2e`
 
 ---
