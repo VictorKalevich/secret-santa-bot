@@ -1,0 +1,296 @@
+
+  // ---------- состояние ----------
+  // view: 'home' (список эвентов) или 'event' (вкладки одного эвента).
+  // nav — номер экрана (009): растёт при каждом переходе; ответ сервера для прежнего экрана не рисуется.
+  // drafts[evId] — несохранённые объявление и параметры эвента (переживают перерисовку панели).
+  // wardCache — последний ответ ward.get: после закрытия переписки «Подопечный» перерисовывается без нового запроса,
+  // иначе подсветка изменений письма пропала бы (сервер считает письмо просмотренным).
+  const state = {
+    me: null, events: [], limits: { chars: 4000 }, view: 'home', nav: 0, drafts: {}, wardCache: null,
+    evId: null, ev: null, member: null, can: {}, tab: 'my', dirty: false, wardNameShown: false,
+    support: null, supportAdmin: null, // 012: обращения — участнику его статус, админу — ничьи и непрочитанные
+  };
+  const main = document.getElementById('main');
+  const heroTitle = document.getElementById('heroTitle');
+  const heroSub = document.getElementById('heroSub');
+  const heroBack = document.getElementById('heroBack');
+  const UNSAVED = 'Письмо или адрес не сохранены. Уйти без сохранения?';
+  async function leaveEvent() {
+    if (state.dirty && !(await confirmBox(UNSAVED))) return;
+    setDirty(false);
+    await goHome();
+  }
+  heroBack.addEventListener('click', leaveEvent);
+
+  // Запросы в пределах открытого эвента
+  const eapi = (action, body) => api(action, { ...(body || {}), event: state.evId });
+  const finished = () => state.ev && state.ev.status === 'finished';
+
+  function setDirty(v) {
+    state.dirty = v;
+    try { if (tg && ver('6.2')) v ? tg.enableClosingConfirmation() : tg.disableClosingConfirmation(); } catch (e) {}
+    if (state.view === 'event') renderTabs();
+  }
+
+  async function reloadMe() {
+    const d = await api('me');
+    if (!d.registered) return d;
+    state.me = d.me;
+    state.events = d.events;
+    state.limits = d.limits;
+    return d;
+  }
+
+  // Данные эвента evId; если пользователь уже в другом эвенте — ничего не меняет (009).
+  // Участие обновляется на месте: открытые экраны держат ссылку на state.member и видят свежие данные.
+  async function reloadEvent(evId = state.evId) {
+    const d = await api('event.get', { event: evId });
+    if (evId !== state.evId) return null;
+    if (state.member && d.member && state.ev && state.ev.id === d.event.id) Object.assign(state.member, d.member);
+    else state.member = d.member;
+    state.ev = d.event;
+    state.can = d.can;
+    state.announcements = d.announcements || [];
+    state.support = d.support || null;
+    state.supportAdmin = d.support_admin || null;
+    return d;
+  }
+
+  function showLoader() { main.replaceChildren(h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…')); }
+  // retry — повтор именно неудавшейся загрузки (009); на экране эвента — ещё выход к списку
+  function showError(e, retry) {
+    const again = h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => (retry || render)() }, 'Попробовать снова');
+    const home = state.view === 'event' && state.me
+      ? h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => { setDirty(false); goHome(); } }, 'К списку событий')
+      : null;
+    main.replaceChildren(ui.empty('⚠️', 'Не получилось загрузить', e.message, [again, home]));
+  }
+
+  function render() {
+    state.nav++;
+    window.scrollTo(0, 0);
+    if (state.view === 'home') renderHome();
+    else {
+      renderHero();
+      renderTabs();
+      ({ my: renderMy, ward: renderWard, info: renderInfo, admin: renderAdmin }[state.tab] || renderInfo)();
+    }
+    syncBack();
+  }
+
+  // ---------- главный экран: список эвентов (005) ----------
+  async function goHome() {
+    const nav = ++state.nav;
+    state.view = 'home';
+    state.evId = null;
+    state.ev = null;
+    state.wardCache = null;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    syncBack();
+    showLoader();
+    try { await reloadMe(); } catch (e) { if (nav === state.nav) showError(e, goHome); return; }
+    if (nav === state.nav) render();
+  }
+
+  async function openEvent(id, tab, chat, support) {
+    const nav = ++state.nav;
+    state.view = 'event';
+    state.evId = id;
+    state.member = null;
+    state.wardCache = null;
+    state.wardNameShown = false;
+    syncBack();
+    showLoader();
+    try { await reloadEvent(id); } catch (e) { if (nav === state.nav) showError(e, () => openEvent(id, tab, chat, support)); return; }
+    if (nav !== state.nav) return;
+    const m = state.member;
+    // Админу «Подопечный» по умолчанию не открывается: просмотр подопечного запрещает отмену жеребьёвки (009)
+    // 012: из кнопок бота «💬 Открыть» — обращение участника (support=my) или обращение в панели админа (support=<id>)
+    const supportThread = state.me.is_admin && /^\d+$/.test(support || '') ? Number(support) : 0;
+    if (support === 'my' && m) tab = 'info';
+    if (supportThread) tab = 'admin';
+    state.tab = tab || (state.me.is_admin ? (m ? 'my' : 'admin')
+      : m ? (state.ev.draw_done && m.has_ward && m.wishlist.trim() ? 'ward' : 'my') : 'info');
+    render();
+    if (chat === 'santa' && m && m.has_santa) openChat('santa');
+    if (chat === 'ward' && m && m.has_ward) openChat('ward');
+    if (support === 'my' && m) openSupport();
+    if (supportThread) openSupportThread(supportThread, id, () => (state.evId === id && state.tab === 'admin' ? render() : undefined));
+  }
+
+  // Системная кнопка «Назад» Telegram (009): закрывает шторку, на экране эвента — возврат к списку
+  function syncBack() {
+    try {
+      if (!tg || !ver('6.1')) return;
+      if (sheetEl || (state.view === 'event' && !heroBack.hidden)) tg.BackButton.show();
+      else tg.BackButton.hide();
+    } catch (e) {}
+  }
+  try { if (tg && ver('6.1')) tg.BackButton.onClick(() => (sheetEl ? requestCloseSheet() : state.view === 'event' ? leaveEvent() : null)); } catch (e) {}
+
+  function eventRow(e) {
+    const chips = [e.status === 'finished' ? ui.chip('завершён') : ui.chip('идёт', 'success')];
+    if (e.event_date) chips.push(ui.chip('🎁 ' + fmtDate(e.event_date)));
+    if (!e.member) chips.push(ui.chip('ты не участвуешь'));
+    return h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openEvent(e.id) },
+      h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, e.title), h('div', { class: 'ds-chips' }, chips)),
+      e.unread ? h('span', { class: 'ds-badge' }, String(e.unread)) : null,
+      h('span', { class: 'ds-list-item__chevron' }, '›'));
+  }
+
+  function renderHome() {
+    const me = state.me;
+    heroBack.hidden = true;
+    heroTitle.textContent = 'Тайный Санта';
+    heroSub.textContent = 'Привет, ' + me.name + '!';
+    document.getElementById('tabs').hidden = true;
+    const mine = state.events.filter((e) => e.member);
+    const others = state.events.filter((e) => !e.member);
+    const nodes = [];
+    nodes.push(ui.section('Мои события'));
+    if (mine.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, mine.map(eventRow)));
+    else nodes.push(ui.hint(me.is_admin
+      ? 'Ты пока не участвуешь ни в одном событии. Создай событие или вступи в существующее («Админ» → «Я участвую»).'
+      : 'Ты пока не участвуешь ни в одном событии. Попроси у организатора пригласительную ссылку.', 'ds-hint--inset'));
+
+    if (me.is_admin) {
+      if (others.length) nodes.push(ui.section('Другие события'), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
+      const create = ui.btn('🎄 Создать', 'festive', 'ds-btn--block');
+      create.addEventListener('click', () => {
+        const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: 'Например: Новый год 2026 — семья' });
+        // Образец (007): параметры и исключения прошлого эвента, по желанию — приглашение его участников
+        const from = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Без образца — с чистого листа'),
+          ...state.events.map((e) => h('option', { value: e.id }, 'По образцу: ' + e.title)));
+        const invite = h('input', { type: 'checkbox', checked: true, disabled: true });
+        const inviteRow = h('label', { class: 'ds-check' }, invite, 'Пригласить участников образца');
+        from.addEventListener('change', () => { invite.disabled = !from.value; });
+        const ok = ui.btn('Создать', '', 'ds-btn--block');
+        ok.addEventListener('click', () => busy(ok, async () => {
+          if (!title.value.trim()) return toast('Напиши название');
+          const r = await api('admin.events.create', { title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked });
+          closeSheet();
+          toast(r.invited ? `🎄 Событие создано, приглашения: ${r.invited}` : r.invite_error ? '🎄 Событие создано. ' + r.invite_error : '🎄 Событие создано');
+          await reloadMe();
+          await openEvent(r.event.id, 'admin');
+        }));
+        const sheet = [ui.hint('У события будут свои участники, пригласительная ссылка, письма и жеребьёвка. Можно вести несколько событий одновременно.'), title];
+        if (state.events.length) {
+          sheet.push(from, inviteRow, ui.hint('Из образца копируются бюджет, место, заметки, правила жеребьёвки и исключения. Даты — нет.'));
+        }
+        openSheet('Новое событие', [...sheet, ok]);
+      });
+      nodes.push(h('div', { class: 'ds-card' }, create));
+      nodes.push(...renderFamiliesSection());
+      nodes.push(...renderAdminsSection());
+    }
+
+    // Уведомления — общие для всех эвентов
+    const modes = [['sound', '🔔 Звук'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
+    const seg = h('div', { class: 'ds-segmented' });
+    const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
+      class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
+      onclick: () => busy(null, async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast('Сохранено'); }),
+    }, label)));
+    draw();
+    nodes.push(ui.section('Уведомления'),
+      ui.card(ui.hint('Когда подопечный меняет письмо (в любом событии), бот сообщит об этом — без имени и подробностей.'), seg));
+    main.replaceChildren(...nodes);
+  }
+
+  // Раздел «Семьи» (008): постоянные исключения для всех эвентов
+  function renderFamiliesSection() {
+    const box = h('div', {}, ui.section('Семьи'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
+    const load = () => api('admin.families').then((d) => {
+      const list = h('div', { class: 'ds-card ds-card--flush' });
+      if (!d.families.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Семей пока нет.'));
+      for (const f of d.families) {
+        list.append(h('div', { class: 'ds-list-item' },
+          h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, f.name), ui.hint(f.members.map((m) => m.name).join(', '))),
+          h('button', { class: 'ds-icon-btn', title: 'Изменить семью', onclick: () => openFamily(d, f) }, '✏️')));
+      }
+      const add = ui.btn('Новая семья', 'secondary', 'ds-btn--block');
+      add.addEventListener('click', () => openFamily(d, null));
+      box.replaceChildren(ui.section('Семьи'), list,
+        ui.card(ui.hint('Члены одной семьи не дарят друг другу ни в одном событии (если в событии включено «Учитывать семьи»). Один человек — одна семья.'), add));
+    }).catch((e) => box.replaceChildren(ui.section('Семьи'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
+    function openFamily(d, f) {
+      const name = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: f ? f.name : '', placeholder: 'Например: Ивановы' });
+      const free = d.users.filter((u) => !u.family_id || (f && u.family_id === f.id));
+      const boxes = free.map((u) => {
+        const c = h('input', { type: 'checkbox', checked: !!f && u.family_id === f.id });
+        c.dataset.id = u.id;
+        return [c, h('label', { class: 'ds-check' }, c, u.name)];
+      });
+      const save = ui.btn('Сохранить', '', 'ds-btn--block');
+      save.addEventListener('click', () => busy(save, async () => {
+        const members = boxes.filter(([c]) => c.checked).map(([c]) => +c.dataset.id);
+        await api('admin.family.save', { id: f ? f.id : undefined, name: name.value, members });
+        closeSheet();
+        toast('Семья сохранена');
+        await load();
+      }));
+      const items = [name, ui.hint('Кто в семье (люди из других семей здесь не показаны):'), ...boxes.map(([, l]) => l), save];
+      if (f) {
+        const del = ui.btn('🗑 Удалить семью', 'danger', 'ds-btn--block');
+        del.addEventListener('click', async () => {
+          if (!(await confirmBox(`Удалить семью «${f.name}»? Уже проведённые жеребьёвки не изменятся.`))) return;
+          busy(del, async () => { await api('admin.family.delete', { id: f.id }); closeSheet(); toast('Семья удалена'); await load(); });
+        });
+        items.push(del);
+      }
+      openSheet(f ? 'Семья' : 'Новая семья', items);
+    }
+    load();
+    return [box];
+  }
+
+  // Раздел «Администраторы» (002): общий для бота, показывается на главном экране
+  function renderAdminsSection() {
+    const box = h('div', {}, ui.section('Администраторы'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
+    api('admin.users').then((d) => {
+      const me = state.me;
+      const admins = d.users.filter((u) => u.is_admin).sort((a, b) => (b.is_owner ? 1 : 0) - (a.is_owner ? 1 : 0));
+      const list = h('div', { class: 'ds-card ds-card--flush' });
+      for (const u of admins) {
+        const actions = h('div', { class: 'ds-row ds-row--tight' });
+        if (me.is_owner && !u.is_owner) {
+          actions.append(
+            h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: async () => {
+              if (!(await confirmBox(`Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать админов сможет только новый владелец.`))) return;
+              busy(null, async () => { await api('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await goHome(); });
+            } }, '👑'),
+            h('button', { class: 'ds-icon-btn', title: 'Снять права администратора', onclick: async () => {
+              if (!(await confirmBox(`Снять права администратора с «${u.name}»?`))) return;
+              busy(null, async () => { await api('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await goHome(); });
+            } }, '✕'));
+        }
+        list.append(h('div', { class: 'ds-list-item' },
+          h('div', { class: 'ds-grow' },
+            h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)') : null),
+            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip('👑 владелец') : ui.chip('🛠 админ'))),
+          actions));
+      }
+      const parts = [ui.section('Администраторы'), list];
+      if (me.is_owner) {
+        const candidates = d.users.filter((u) => !u.is_admin);
+        if (candidates.length) {
+          const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Кого назначить…'), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
+          const grant = ui.btn('🛠 Назначить админом', 'secondary', 'ds-btn--block');
+          grant.addEventListener('click', async () => {
+            const u = candidates.find((x) => String(x.id) === sel.value);
+            if (!u) return toast('Выбери человека');
+            if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет создавать и вести события. Кто кому дарит, админы не видят.`))) return;
+            busy(grant, async () => { await api('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await goHome(); });
+          });
+          parts.push(ui.card(ui.hint('Админы создают и ведут события. Назначать, снимать админов и передавать права владельца (👑) можешь только ты.'), sel, grant));
+        }
+      } else {
+        parts.push(ui.hint(`Назначать и снимать администраторов может только владелец${d.owner_name ? ' — ' + d.owner_name : ''}.`, 'ds-hint--inset'));
+      }
+      const log = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
+      log.addEventListener('click', () => openAudit(null));
+      parts.push(ui.card(ui.hint('Роли, перенос участия, удалённые события — кто и когда.'), log));
+      box.replaceChildren(...parts);
+    }).catch((e) => box.replaceChildren(ui.section('Администраторы'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
+    return [box];
+  }

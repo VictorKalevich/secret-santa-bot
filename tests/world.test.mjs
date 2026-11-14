@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { BLOCKED_CHAT, telegramReply } from './support/telegram-rules.mjs';
+import { APP } from './support/app-source.mjs';
 
 after(restoreFetch);
 
@@ -26,10 +27,9 @@ test('/app: страница приложения со встроенной ди
   assert.equal(page.status, 200);
   assert.match(page.headers.get('content-type'), /^text\/html/);
   assert.equal(page.headers.get('cache-control'), 'no-store');
-  const html = read('src/app.html');
-  assert.ok(html.includes('/*@design-system*/'), 'в исходнике есть метка');
+  assert.ok(APP.includes('/*@design-system*/'), 'в склейке частей есть метка');
   const css = read('design-system/tokens.css') + '\n' + read('design-system/components.css');
-  assert.equal(page.text, html.replace('/*@design-system*/', () => css));
+  assert.equal(page.text, APP.replace('/*@design-system*/', () => css));
   assert.ok(!page.text.includes('/*@design-system*/'), 'метки в ответе нет');
 });
 

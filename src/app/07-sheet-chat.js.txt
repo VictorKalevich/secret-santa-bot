@@ -1,0 +1,294 @@
+
+  // ---------- шторка ----------
+  // beforeClose — проверка перед закрытием пользователем (✕, фон, «Назад»): false — шторка остаётся (009)
+  let sheetEl = null;
+  let sheetOnClose = null;
+  let sheetBeforeClose = null;
+  function openSheet(title, content, { full = false, onClose = null, beforeClose = null } = {}) {
+    closeSheet();
+    const header = h('div', { class: 'ds-row ds-row--between' }, h('h2', { class: 'ds-sheet__title' }, title),
+      h('button', { class: 'ds-icon-btn', title: 'Закрыть', onclick: requestCloseSheet }, '✕'));
+    sheetEl = h('div', { class: 'ds-sheet-backdrop', onclick: (e) => { if (e.target === sheetEl) requestCloseSheet(); } },
+      h('div', { class: full ? 'ds-sheet ds-sheet--full' : 'ds-sheet ds-stack' }, header, ...[].concat(content)));
+    sheetOnClose = onClose;
+    sheetBeforeClose = beforeClose;
+    document.body.append(sheetEl);
+    document.body.classList.add('ds-root--locked'); // страница под шторкой не прокручивается (011)
+    syncBack();
+  }
+  async function requestCloseSheet() {
+    if (sheetBeforeClose && !(await sheetBeforeClose())) return;
+    closeSheet();
+  }
+  function closeSheet() {
+    if (sheetEl) { sheetEl.remove(); sheetEl = null; }
+    document.body.classList.remove('ds-root--locked');
+    sheetBeforeClose = null;
+    syncBack();
+    const cb = sheetOnClose;
+    sheetOnClose = null;
+    if (cb) cb();
+  }
+
+  // ---------- переписка Санты и подопечного (003) ----------
+  function openChat(withWhom) {
+    const max = state.limits.chars;
+    const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
+    const ta = ui.textarea({ class: 'ds-input ds-composer__input', rows: 1, placeholder: 'Сообщение…' });
+    const send = ui.btn('Отправить', '', 'ds-composer__send');
+    const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
+    const composer = h('div', { class: 'ds-composer' }, ta, send);
+    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — переписка только для чтения.');
+    const evId = state.evId;
+    // lastId — только из ответа chat.get (009): своё отправленное сообщение его не двигает, иначе ответ собеседника,
+    // пришедший в те же секунды (с меньшим id), не загрузился бы никогда
+    let lastId = 0;
+    let timer = null;
+    const shown = new Set();
+
+    const bubble = (m) => {
+      const el = h('div', { class: 'ds-chat__msg ' + (m.mine ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
+        m.text, h('div', { class: 'ds-chat__meta' }, fmtTime(m.created_at)));
+      el.dataset.id = m.id;
+      return el;
+    };
+    // Вставка по порядку id: сообщение собеседника может прийти после уже показанного своего
+    const add = (msgs) => {
+      const fresh = msgs.filter((m) => !shown.has(m.id));
+      if (!fresh.length) return;
+      if (!shown.size) list.replaceChildren();
+      for (const m of fresh) {
+        shown.add(m.id);
+        const next = [...list.children].find((el) => Number(el.dataset.id) > m.id);
+        list.insertBefore(bubble(m), next || null);
+      }
+      list.scrollTop = list.scrollHeight;
+    };
+    const setWritable = (w) => { composer.hidden = !w; closedNote.hidden = w; if (!w) counter.hidden = true; };
+    const load = async () => {
+      const d = await api('chat.get', { event: evId, with: withWhom, after: lastId });
+      if (d.state !== 'ok') { list.replaceChildren(h('div', { class: 'ds-chat__empty' }, 'Переписка недоступна: жеребьёвка ещё не проведена.')); return; }
+      setWritable(d.writable);
+      for (const m of d.messages) lastId = Math.max(lastId, m.id);
+      if (!shown.size && !d.messages.length) {
+        list.replaceChildren(h('div', { class: 'ds-chat__empty' }, !d.writable ? 'Сообщений не было.' : withWhom === 'ward'
+          ? 'Здесь пока пусто. Напиши подопечному — он увидит сообщение от «Тайного Санты» и сможет ответить.'
+          : 'Здесь пока пусто. Напиши своему Санте — он ответит здесь же.'));
+      }
+      add(d.messages);
+    };
+    const update = () => {
+      const n = ta.value.length;
+      counter.hidden = n < max - 500;
+      counter.textContent = `${n} / ${max}`;
+      counter.classList.toggle('ds-counter--over', n > max);
+      send.disabled = !ta.value.trim() || n > max;
+    };
+    ta.addEventListener('input', update);
+    send.addEventListener('click', () => busy(send, async () => {
+      const text = ta.value;
+      const r = await api('message.send', { event: evId, to: withWhom, text });
+      if (ta.value === text) { ta.value = ''; ta.style.height = 'auto'; }
+      add([r.message]);
+      haptic('success');
+      await load().catch(() => {});
+    }).then(update));
+    update();
+    setWritable(state.can.chat_write);
+
+    openSheet(withWhom === 'ward' ? 'Переписка с подопечным' : 'Твой Тайный Санта',
+      [ui.hint(withWhom === 'ward' ? 'Для подопечного ты — «Тайный Санта», имя не раскрывается.' : 'Санта знает, кто ты, а ты его — нет.'),
+        list, composer, counter, closedNote],
+      {
+        full: true,
+        beforeClose: async () => !ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть переписку?')),
+        onClose: async () => {
+          clearInterval(timer);
+          const nav = state.nav;
+          await reloadEvent(evId).catch(() => {});
+          if (nav !== state.nav || state.evId !== evId) return;
+          // «Подопечный» — по прежнему ответу: подсветка изменений письма сохраняется (009)
+          if (state.dirty) renderTabs();
+          else if (state.tab === 'ward') { renderHero(); renderTabs(); renderWard({ cached: true }); }
+          else render();
+        },
+      });
+    load().catch((e) => toast('⚠️ ' + e.message));
+    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
+  }
+
+  // ---------- обращения к организатору (012) ----------
+  // Поле ответа со счётчиком — как в переписке Санты
+  function composerParts(placeholder) {
+    const max = state.limits.chars;
+    const ta = ui.textarea({ class: 'ds-input ds-composer__input', rows: 1, placeholder });
+    const send = ui.btn('Отправить', '', 'ds-composer__send');
+    const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
+    const composer = h('div', { class: 'ds-composer' }, ta, send);
+    const update = () => {
+      const n = ta.value.length;
+      counter.hidden = n < max - 500;
+      counter.textContent = `${n} / ${max}`;
+      counter.classList.toggle('ds-counter--over', n > max);
+      send.disabled = !ta.value.trim() || n > max;
+    };
+    ta.addEventListener('input', update);
+    update();
+    const clear = (text) => { if (ta.value === text) { ta.value = ''; ta.style.height = 'auto'; } update(); };
+    // Скрытое поле не измерить: высота, посчитанная до показа, обрезала бы его — пересчитываем при показе
+    const show = (on) => {
+      const was = composer.hidden;
+      composer.hidden = !on;
+      if (on && was) { ta.style.height = 'auto'; if (ta.value) ta.style.height = ta.scrollHeight + 2 + 'px'; }
+    };
+    return { ta, send, counter, composer, update, clear, show };
+  }
+  const supportBubble = (m) => h('div', { class: 'ds-chat__msg ' + (m.mine ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
+    m.text, h('div', { class: 'ds-chat__meta' }, (m.mine || !m.author ? '' : m.author + ' · ') + fmtTime(m.created_at)));
+
+  // Участник: все его обращения в эвенте одной перепиской; закрытые отделены служебной строкой
+  function openSupport() {
+    const evId = state.evId;
+    const c = composerParts('Сообщение организатору…');
+    const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
+    const status = ui.hint('');
+    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — обращения только для чтения.');
+    const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block');
+    resolve.hidden = true;
+    let timer = null;
+    let sig = '';
+    const load = async () => {
+      const d = await api('support.get', { event: evId });
+      const open = d.threads.find((t) => t.status === 'open');
+      const key = JSON.stringify(d.threads.map((t) => [t.id, t.status, t.assignee_name, t.messages.length]));
+      c.show(d.writable && (d.available || !!open));
+      closedNote.hidden = d.writable;
+      resolve.hidden = !open || !d.writable;
+      status.textContent = open
+        ? (open.assignee_name ? `Обращение ведёт ${open.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.')
+        : 'Сообщение получат организаторы события; ответит тот, кто возьмёт обращение. Не пиши, кто твой подопечный.';
+      if (key === sig) return;
+      sig = key;
+      const nodes = [];
+      for (const t of d.threads) {
+        nodes.push(...t.messages.map(supportBubble));
+        if (t.status !== 'open') nodes.push(h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто · ' + fmtTime(t.closed_at)));
+      }
+      list.replaceChildren(...(nodes.length ? nodes : [h('div', { class: 'ds-chat__empty' }, d.available
+        ? 'Здесь пока пусто. Напиши, что случилось, — организаторы получат сообщение в чате бота.'
+        : 'Сейчас некому написать: в боте нет других организаторов.')]));
+      list.scrollTop = list.scrollHeight;
+    };
+    c.send.addEventListener('click', () => busy(c.send, async () => {
+      const text = c.ta.value;
+      await api('support.send', { event: evId, text });
+      c.clear(text);
+      haptic('success');
+      await load().catch(() => {});
+    }).then(c.update));
+    resolve.addEventListener('click', async () => {
+      if (!(await confirmBox('Закрыть обращение? Если вопрос появится снова — просто напиши.'))) return;
+      busy(resolve, async () => { await api('support.close', { event: evId }); toast('✅ Обращение закрыто'); await load(); });
+    });
+    openSheet('Организатору', [status, list, c.composer, c.counter, closedNote, resolve], {
+      full: true,
+      beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть?')),
+      onClose: async () => {
+        clearInterval(timer);
+        const nav = state.nav;
+        await reloadEvent(evId).catch(() => {});
+        if (nav !== state.nav || state.evId !== evId) return;
+        if (state.dirty) renderTabs();
+        else if (state.tab === 'ward') { renderHero(); renderTabs(); renderWard({ cached: true }); }
+        else render();
+      },
+    });
+    load().catch((e) => toast('⚠️ ' + e.message));
+    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
+  }
+
+  // Админ: одно обращение. Переписка — если её можно видеть (ничьё, своё, владелец); действия — взять, передать, закрыть
+  function openSupportThread(id, evId, after) {
+    const me = state.me;
+    const c = composerParts('Ответ участнику…');
+    c.composer.hidden = true;
+    const head = h('div', { class: 'ds-stack' });
+    const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
+    let timer = null;
+    let sig = '';
+    const act = (btn, fn, done) => busy(btn, async () => { await fn(); if (done) toast(done); sig = ''; await load(); });
+    const load = async () => {
+      let d;
+      try { d = await api('admin.support.get', { event: evId, thread: id }); }
+      catch (e) {
+        clearInterval(timer);
+        head.replaceChildren();
+        list.replaceChildren(h('div', { class: 'ds-chat__empty' }, e.message));
+        return;
+      }
+      const t = d.thread;
+      const key = JSON.stringify([t.status, t.assignee, t.writable, d.messages.map((m) => m.id)]);
+      if (key === sig) return;
+      sig = key;
+      const titleEl = sheetEl && sheetEl.querySelector('.ds-sheet__title');
+      if (titleEl) titleEl.textContent = 'Обращение: ' + t.name;
+      const open = t.status === 'open';
+      const lead = t.assignee === me.id || me.is_owner;
+      const parts = [ui.hint(!open
+        ? `Обращение закрыто ${fmtTime(t.closed_at)}${t.closed_by_name ? ' — ' + t.closed_by_name : ''}.`
+        : !t.assignee ? (t.user_id === me.id ? 'Это твоё обращение — ответят другие организаторы.' : 'Обращение ждёт ответа. Возьми его — или просто ответь, и оно станет твоим.')
+        : t.assignee === me.id ? 'Обращение ведёшь ты.' : `Обращение ведёт ${t.assignee_name}.`)];
+      const row = h('div', { class: 'ds-row ds-row--wrap' });
+      if (open && !t.assignee && t.user_id !== me.id) {
+        const takeBtn = ui.btn('🙋 Взять', 'secondary', 'ds-btn--sm');
+        takeBtn.addEventListener('click', () => act(takeBtn, () => api('admin.support.take', { event: evId, thread: id }), '🙋 Обращение твоё'));
+        row.append(takeBtn);
+      }
+      if (open && lead) {
+        const closeBtn = ui.btn('✅ Закрыть обращение', 'secondary', 'ds-btn--sm');
+        closeBtn.addEventListener('click', async () => {
+          if (!(await confirmBox(`Закрыть обращение «${t.name}»? Участник получит уведомление и сможет написать снова.`))) return;
+          act(closeBtn, () => api('admin.support.close', { event: evId, thread: id }), '✅ Обращение закрыто');
+        });
+        row.append(closeBtn);
+      }
+      if (row.children.length) parts.push(row);
+      if (open && lead && d.admins.length) {
+        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Передать администратору…'),
+          ...d.admins.map((a) => h('option', { value: a.id }, a.id === me.id ? a.name + ' (себе)' : a.name)));
+        const passBtn = ui.btn('↪️ Передать', 'secondary', 'ds-btn--sm');
+        passBtn.addEventListener('click', () => {
+          if (!sel.value) return toast('Выбери, кому передать');
+          act(passBtn, () => api('admin.support.pass', { event: evId, thread: id, to: Number(sel.value) }), '↪️ Обращение передано');
+        });
+        parts.push(h('div', { class: 'ds-row' }, h('div', { class: 'ds-grow' }, sel), passBtn));
+      }
+      head.replaceChildren(...parts);
+      c.show(t.writable);
+      if (!t.writable) c.counter.hidden = true;
+      list.replaceChildren(...(d.messages.length ? d.messages.map(supportBubble) : [h('div', { class: 'ds-chat__empty' }, 'Сообщений нет.')]),
+        ...(open ? [] : [h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто')]));
+      list.scrollTop = list.scrollHeight;
+    };
+    c.send.addEventListener('click', () => busy(c.send, async () => {
+      const text = c.ta.value;
+      await api('admin.support.send', { event: evId, thread: id, text });
+      c.clear(text);
+      haptic('success');
+      sig = '';
+      await load();
+    }).then(c.update));
+    openSheet('Обращение', [head, list, c.composer, c.counter], {
+      full: true,
+      beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Ответ не отправлен. Закрыть?')),
+      onClose: async () => {
+        clearInterval(timer);
+        await reloadEvent(evId).catch(() => {});
+        if (state.evId !== evId) return;
+        renderTabs();
+        if (after) await after();
+      },
+    });
+    load().catch((e) => toast('⚠️ ' + e.message));
+    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
+  }

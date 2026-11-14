@@ -36,15 +36,15 @@ description: "Task list for 021-app-parts"
 
 **Purpose**: части, модуль сборки и склейка для тестов — ими пользуются все истории
 
-- [ ] T002 Разрезать `src/app.html` на части в `src/app/` командой `sed -n 'A,Bp' src/app.html > src/app/<файл>` (Git
+- [X] T002 Разрезать `src/app.html` на части в `src/app/` командой `sed -n 'A,Bp' src/app.html > src/app/<файл>` (Git
   Bash, LF сохраняется) по `data-model.md`: `01-shell.html` 1–25, `02-core.js.txt` 26–216, `03-home.js.txt` 217–512,
   `04-event.js.txt` 513–778, `05-admin.js.txt` 779–1433, `06-vault-audit.js.txt` 1434–1544, `07-sheet-chat.js.txt`
   1545–1838, `08-start.html` 1839–1872; проверить: `cat src/app/* | cmp - src/app.html` — без отличий, сумма 127 062 байта,
   каждая часть «кончается непустой строкой и ровно одним `\n`», части 3–8 начинаются с пустой строки
-- [ ] T003 Создать `src/app-page.js`: комментарий (что это, правила частей — ссылка на `specs/021-app-parts/contracts/
+- [X] T003 Создать `src/app-page.js`: комментарий (что это, правила частей — ссылка на `specs/021-app-parts/contracts/
   app-parts.md`, почему не `.js`), восемь `import … from './app/<файл>'` по порядку, `export const APP_PARTS = [[имя файла,
   текст], …]` в том же порядке, `export default APP_PARTS.map(([, text]) => text).join('')`
-- [ ] T004 Создать `tests/support/app-source.mjs`: `import './text-hooks.mjs'`, затем динамический
+- [X] T004 Создать `tests/support/app-source.mjs`: `import './text-hooks.mjs'`, затем динамический
   `import('../../src/app-page.js')`; экспорт `APP` (склейка), `PARTS` (`[{ name, text, start }]`, `start` — номер первой
   строки части в склейке, с 1), `where(line)` → `src/app/<имя>:<строка в части>`
 
@@ -60,12 +60,12 @@ description: "Task list for 021-app-parts"
 **Independent Test**: quickstart, раздел 2 (`РАВНЫ`, SHA-256 `440b0db8…`); тест `/app` в `tests/world.test.mjs` сравнивает
 ответ со склейкой; страница настоящего Worker — в Phase 6 (T014)
 
-- [ ] T005 [US1] `src/index.js`: строка 3 — `import APP_HTML from './app-page.js';` (комментарий у `APP_PAGE` — «склейка
+- [X] T005 [US1] `src/index.js`: строка 3 — `import APP_HTML from './app-page.js';` (комментарий у `APP_PAGE` — «склейка
   частей `src/app/`»); вставка стилей (строка 16) — без изменений
-- [ ] T006 [US1] `tests/world.test.mjs`, тест «/app: страница приложения со встроенной дизайн-системой»: эталон — `APP` из
+- [X] T006 [US1] `tests/world.test.mjs`, тест «/app: страница приложения со встроенной дизайн-системой»: эталон — `APP` из
   `tests/support/app-source.mjs` (вместо `read('src/app.html')`), метка `/*@design-system*/` в склейке есть, ответ =
   `APP.replace('/*@design-system*/', () => css)`
-- [ ] T007 [US1] Проверить quickstart, раздел 2 (против `git show 35bc60d:src/app.html`): `440b0db8… 127062 РАВНЫ`;
+- [X] T007 [US1] Проверить quickstart, раздел 2 (против `git show 35bc60d:src/app.html`): `440b0db8… 127062 РАВНЫ`;
   `npm test` зелёный
 
 **Checkpoint**: коммит «021 US1: mini app in eight parts, Worker serves their assembly (byte-identical page)»;

@@ -1,0 +1,111 @@
+
+  // ---------- служебный просмотр владельца (010) ----------
+  // Вход — вводом слова ОТКРЫТЬ (как СБРОС и УДАЛИТЬ), чтобы владелец, который сам играет, не увидел пары случайно
+  function openVaultGate(evId, s, users, meMember) {
+    const word = 'ОТКРЫТЬ';
+    const inp = h('input', { class: 'ds-input', type: 'text', placeholder: `Введи слово ${word}`, autocomplete: 'off' });
+    const go = ui.btn('🔐 Войти', '', 'ds-btn--block');
+    go.disabled = true;
+    inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== word; });
+    go.addEventListener('click', () => openVault(evId, s, users, meMember));
+    openSheet('🔐 Служебный просмотр', [
+      meMember ? h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Ты участник этого события. '),
+        'В полной таблице пар ты увидишь своего Санту. Лучше смотри по одному участнику и не открывай себя.') : null,
+      h('div', { class: 'ds-notice' }, 'Здесь видно, кто кому дарит, письма, адреса и переписку. Каждое открытие участника или всех пар ' +
+        'записывается в журнал события — его видят все админы. Статусы участников просмотр не меняет.'),
+      inp, go].filter(Boolean));
+  }
+
+  function openVault(evId, s, users, meMember) {
+    const vapi = (action, body) => api(action, { ...(body || {}), event: evId });
+    const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Участник…'),
+      ...users.map((u) => h('option', { value: u.id }, (u.name || 'без имени') + (u.id === state.me.id ? ' (ты)' : ''))));
+    const showBtn = ui.btn('👁 Открыть участника', '', 'ds-btn--block');
+    const personBox = h('div', { class: 'ds-stack' });
+    showBtn.addEventListener('click', async () => {
+      const u = users.find((x) => String(x.id) === sel.value);
+      if (!u) return toast('Выбери участника');
+      if (u.id === state.me.id && !(await confirmBox('Это ты: увидишь своего Санту. Открыть?'))) return;
+      busy(showBtn, async () => personBox.replaceChildren(...vaultPerson(await vapi('admin.vault.person', { id: u.id }), s)));
+    });
+    const pairsBtn = ui.btn('📋 Показать все пары', 'secondary', 'ds-btn--block');
+    const pairsBox = h('div', { class: 'ds-stack' });
+    pairsBtn.addEventListener('click', async () => {
+      const warn = meMember ? ' Ты участник — увидишь и своего Санту.' : '';
+      if (!(await confirmBox(`Показать все пары события «${s.title}»?${warn} Открытие запишется в журнал.`))) return;
+      busy(pairsBtn, async () => {
+        const r = await vapi('admin.vault.pairs');
+        const list = h('div', { class: 'ds-card ds-card--flush' });
+        if (!r.pairs.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Пар нет: жеребьёвки ещё не было.'));
+        for (const p of r.pairs) {
+          list.append(h('div', { class: 'ds-list-item' }, h('div', { class: 'ds-grow' }, h('b', {}, p.santa.name), ' → ', h('b', {}, p.ward.name))));
+        }
+        pairsBox.replaceChildren(ui.section(`Все пары · ${r.pairs.length}`), list);
+      });
+    });
+    openSheet('🔐 Служебный просмотр', [
+      ui.hint(s.draw_done
+        ? 'По одному участнику — безопаснее: не увидишь лишнего. Каждое открытие записывается в журнал.'
+        : 'Жеребьёвки ещё не было — пар нет. Письма, адреса и переписку можно смотреть по участникам.'),
+      sel, showBtn, personBox,
+      s.draw_done ? pairsBtn : null, pairsBox,
+    ].filter(Boolean));
+  }
+
+  // Карточка участника в служебном просмотре: подопечный, Санта, письмо, адрес, переписка с датами
+  function vaultPerson(r, s) {
+    const rows = [
+      ['Дарит', r.ward ? r.ward.name : (s.draw_done ? 'не в жеребьёвке' : 'жеребьёвки ещё не было')],
+      ['Санта', r.santa ? r.santa.name : (s.draw_done ? 'нет' : 'жеребьёвки ещё не было')],
+    ];
+    // mineSide — сторона самого участника в этой переписке
+    const chat = (title, msgs, mineSide, otherLabel) => [
+      ui.section(title),
+      h('div', { class: 'ds-card ds-chat' }, msgs.length
+        ? msgs.map((m) => h('div', { class: 'ds-chat__msg ' + (m.from === mineSide ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
+          m.text, h('div', { class: 'ds-chat__meta' }, `${m.from === mineSide ? r.person.name : otherLabel} · ${fmtTime(m.created_at)}`)))
+        : h('div', { class: 'ds-chat__empty' }, 'Сообщений нет.')),
+    ];
+    return [
+      ui.section(r.person.name),
+      h('div', { class: 'ds-card' }, h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
+      ui.section('Письмо Санте'),
+      r.wishlist.trim() ? h('div', { class: 'ds-card ds-letter' }, r.wishlist) : h('div', { class: 'ds-card ds-text-muted' }, 'Письмо пустое.'),
+      ...('delivery' in r ? [ui.section('Адрес доставки'),
+        r.delivery.trim() ? h('div', { class: 'ds-card ds-letter' }, r.delivery) : h('div', { class: 'ds-card ds-text-muted' }, 'Адрес не указан.')] : []),
+      ...chat('Переписка с Сантой', r.chat_with_santa, 'ward', r.santa ? `Санта (${r.santa.name})` : 'Санта'),
+      ...chat('Переписка с подопечным', r.chat_with_ward, 'santa', r.ward ? `Подопечный (${r.ward.name})` : 'Подопечный'),
+    ];
+  }
+
+  // ---------- журнал действий (007) ----------
+  const AUDIT_LABELS = {
+    'event.create': '🎄 Создано событие', 'event.settings': '⚙️ Параметры', registration: '🔓 Регистрация', 'invite.regen': '🔄 Новая ссылка',
+    participate: '🙋 Участие организатора', 'member.remove': '🗑 Удалён участник', 'member.insert': '➕ Вписан в жеребьёвку',
+    'exclusion.add': '🚧 Исключение добавлено', 'exclusion.del': '✕ Исключение удалено', draw: '🎲 Жеребьёвка',
+    'fixed.add': '📌 Пара закреплена', 'fixed.del': '✕ Закреплённая пара убрана',
+    'draw.auto': '🎲 Автожеребьёвка', 'draw.auto.failed': '⚠️ Автожеребьёвка не прошла', 'draw.cancel': '↩️ Жеребьёвка отменена',
+    reveal: '🎅 Тайна раскрыта', finish: '🏁 Событие завершено', reset: '🧨 Полный сброс', 'event.delete': '🗑 Событие удалено',
+    'wishlist.view': '👁 Открыто письмо', announce: '📣 Объявление', 'remind.unfilled': '⏰ Напоминание о письмах',
+    'remind.santas': '🎁 Напоминание Сантам', 'invite.from': '📨 Приглашение из события', transfer: '🔁 Перенос участия',
+    'role.grant': '🛠 Назначен админ', 'role.revoke': '🛠 Снят админ', 'owner.transfer': '👑 Передано владение', 'owner.link': '👑 Владелец по ссылке /setup',
+    'family.save': '👪 Семья сохранена', 'family.delete': '👪 Семья удалена', 'request.approve': '✅ Заявка принята', 'request.reject': '❌ Заявка отклонена',
+    'member.allow': '↩️ Разрешено вернуться', 'vault.person': '🔐 Служебный просмотр участника', 'vault.pairs': '🔐 Служебный просмотр: все пары',
+    'draw.cancel.force': '↩️ Жеребьёвка отменена владельцем', 'support.open': '🆘 Новое обращение', 'support.take': '🙋 Обращение взято',
+    'support.pass': '↪️ Обращение передано', 'support.close': '✅ Обращение закрыто', 'support.return': '🔄 Обращение снова ничьё',
+  };
+  function openAudit(eventId) {
+    const box = h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…');
+    openSheet(eventId ? 'Журнал события' : 'Общий журнал', [box]);
+    api('admin.audit', eventId ? { event: eventId } : {}).then((d) => {
+      const list = h('div', { class: 'ds-card ds-card--flush' });
+      if (!d.entries.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Записей пока нет.'));
+      for (const e of d.entries) {
+        list.append(h('div', { class: 'ds-list-item' }, h('div', { class: 'ds-grow' },
+          h('div', { class: 'ds-list-item__title' }, AUDIT_LABELS[e.action] || e.action),
+          e.details ? h('div', { class: 'ds-text-sm' }, e.details) : null,
+          ui.hint(`${e.actor_name} · ${fmtTime(e.created_at)}`))));
+      }
+      box.replaceWith(ui.hint('Последние 100 записей, новые сверху.', 'ds-hint--inset'), list);
+    }).catch((e) => box.replaceWith(ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
+  }

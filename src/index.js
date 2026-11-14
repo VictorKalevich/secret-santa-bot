@@ -1,6 +1,6 @@
 // Точка входа Cloudflare Worker: webhook бота, мини-приложение, API, настройка, cron.
 
-import APP_HTML from './app.html';
+import APP_HTML from './app-page.js';
 import TOKENS_CSS from '../design-system/tokens.css';
 import COMPONENTS_CSS from '../design-system/components.css';
 import { checkSchema, SchemaError } from './db.js';
@@ -12,7 +12,7 @@ import { flushOutbox } from './outbox.js';
 import { metered, reportBudget } from './budget.js';
 import { setup } from './setup.js';
 
-// Страница мини-приложения со встроенной дизайн-системой (без сборщика).
+// Страница мини-приложения (склейка частей src/app/, 021) со встроенной дизайн-системой (без сборщика).
 const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS);
 
 // Единственная точка отправки очереди после запроса (009): если обработчик ставил сообщения в очередь —

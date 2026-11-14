@@ -1,0 +1,34 @@
+
+  // ---------- старт ----------
+  async function start() {
+    if (!initData) {
+      heroSub.textContent = '';
+      main.replaceChildren(ui.empty('📱', 'Открой через Telegram', 'Это приложение работает внутри Telegram. Открой чат с ботом и нажми кнопку «🎁 Санта».'));
+      return;
+    }
+    try {
+      const d = await reloadMe();
+      if (!d.registered) {
+        heroSub.textContent = '';
+        main.replaceChildren(ui.empty('🔒', 'Сначала регистрация', 'Перейди по пригласительной ссылке события от организатора и напиши боту своё имя. После этого возвращайся сюда.'));
+        return;
+      }
+      // ?event=…&chat=…|support=… — из кнопок бота; иначе единственный эвент открывается сразу
+      const params = new URLSearchParams(location.search);
+      const want = Number(params.get('event'));
+      const target = state.events.find((e) => e.id === want);
+      if (target) return openEvent(target.id, null, params.get('chat'), params.get('support'));
+      const mine = state.events.filter((e) => e.member);
+      if (!state.me.is_admin && state.events.length === 1 && mine.length === 1) return openEvent(mine[0].id);
+      state.view = 'home';
+      render();
+    } catch (e) {
+      showError(e, start);
+      heroSub.textContent = '';
+    }
+  }
+  start();
+})();
+</script>
+</body>
+</html>

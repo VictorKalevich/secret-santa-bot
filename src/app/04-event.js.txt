@@ -1,0 +1,266 @@
+
+  // ---------- экран эвента ----------
+  function renderHero() {
+    const e = state.ev;
+    heroBack.hidden = !(state.events.length > 1 || state.me.is_admin);
+    heroTitle.textContent = e.title;
+    const parts = [];
+    if (e.status === 'finished') parts.push('🏁 завершён');
+    if (e.event_date) parts.push('🎁 ' + fmtDate(e.event_date));
+    if (e.budget) parts.push('💰 ' + e.budget);
+    // неразрывные пробелы внутри частей: «до 50 BYN» не разрывается на две строки
+    heroSub.textContent = parts.map((p) => p.replace(/ /g, '\u00a0')).join(' · ') || 'Тайный Санта';
+  }
+
+  function tabHasDot(id) {
+    const u = (state.member && state.member.unread) || {};
+    if (id === 'my') return state.dirty || u.from_santa > 0;
+    if (id === 'ward') return u.from_ward > 0;
+    // 012: непрочитанный ответ организатора; у админа — ничьи обращения и новые сообщения во взятых им
+    if (id === 'info') return !!(state.support && state.support.unread > 0);
+    if (id === 'admin') return !!(state.supportAdmin && state.supportAdmin.waiting + state.supportAdmin.unread > 0);
+    return false;
+  }
+
+  function tabsList() {
+    const t = [];
+    if (state.member) t.push(['my', '✉️', 'Письмо'], ['ward', '🎁', 'Подопечный']);
+    t.push(['info', 'ℹ️', 'Инфо']);
+    if (state.me.is_admin) t.push(['admin', '🛠', 'Админ']);
+    return t;
+  }
+
+  function renderTabs() {
+    const nav = document.getElementById('tabs');
+    nav.hidden = false;
+    nav.replaceChildren(...tabsList().map(([id, icon, label]) =>
+      h('button', {
+        class: 'ds-tab' + (state.tab === id ? ' ds-tab--active' : ''),
+        onclick: async () => {
+          if (state.tab === id) return;
+          if (state.dirty && !(await confirmBox(UNSAVED))) return;
+          if (state.dirty) setDirty(false);
+          state.tab = id;
+          render();
+        },
+      }, h('span', { class: 'ds-tab__icon' }, icon), h('span', { class: 'ds-tab__label' }, label),
+        tabHasDot(id) ? h('span', { class: 'ds-tab__dot' }) : null)
+    ));
+  }
+
+  // Плашка завершённого эвента
+  function finishedNotice() {
+    if (!finished()) return null;
+    const e = state.ev;
+    const until = new Date(e.chat_until);
+    const chat = state.can.chat_write
+      ? `Переписка открыта до ${until.getDate()} ${MONTHS[until.getMonth()]}, потом — только чтение.`
+      : 'Переписка — только для чтения.';
+    return h('div', { class: 'ds-notice ds-text-sm' }, `🏁 Событие завершено ${fmtTime(e.finished_at)}. Письмо и отметки — только для чтения. ${chat}`);
+  }
+
+  // Кнопка «💬 Написать …» с числом непрочитанных
+  function chatButton(withWhom) {
+    const n = ((state.member && state.member.unread) || {})[withWhom === 'ward' ? 'from_ward' : 'from_santa'] || 0;
+    const label = state.can.chat_write
+      ? (withWhom === 'ward' ? '💬 Написать подопечному' : '💬 Написать Санте')
+      : (withWhom === 'ward' ? '💬 Переписка с подопечным' : '💬 Переписка с Сантой');
+    const btn = ui.btn(label, 'secondary', 'ds-btn--block');
+    if (n) btn.append(h('span', { class: 'ds-badge' }, String(n)));
+    btn.addEventListener('click', () => openChat(withWhom));
+    return btn;
+  }
+
+  // ---------- вкладка «Письмо» ----------
+  function renderMy() {
+    const m = state.member;
+    const max = state.limits.chars;
+    const nodes = [finishedNotice(), ui.section('Письмо Тайному Санте')];
+    // «Несохранённое» — письмо или адрес (009)
+    let letterChanged = false, addrChanged = false;
+    const recompute = () => { const v = letterChanged || addrChanged; if (v !== state.dirty) setDirty(v); };
+    if (!state.can.edit_letter) {
+      nodes.push(ui.card(
+        m.wishlist.trim() ? h('div', { class: 'ds-letter' }, m.wishlist) : h('div', { class: 'ds-text-muted' }, 'Письмо осталось пустым.'),
+        m.wishlist_updated_at ? ui.hint('Последнее изменение ' + fmtTime(m.wishlist_updated_at)) : null));
+    } else {
+      const ta = ui.textarea({
+        class: 'ds-input ds-input--letter',
+        placeholder: 'Дорогой Санта! В этом году я мечтаю о…\n\nНапиши, что хочешь получить, что любишь, размеры одежды, любимые цвета — и чего точно не надо.',
+        value: m.wishlist,
+      });
+      const counter = h('span', { class: 'ds-counter' });
+      const saveBtn = ui.btn('Сохранить', '', 'ds-btn--block');
+      const status = h('span', { class: 'ds-hint' });
+      const update = () => {
+        const n = ta.value.length;
+        counter.textContent = `${n} / ${max} символов`;
+        counter.classList.toggle('ds-counter--over', n > max);
+        const changed = ta.value !== m.wishlist;
+        saveBtn.disabled = !changed || n > max;
+        letterChanged = changed;
+        recompute();
+        status.textContent = changed ? 'Есть несохранённые изменения' : m.wishlist_updated_at ? 'Сохранено ' + fmtTime(m.wishlist_updated_at) : '';
+      };
+      ta.addEventListener('input', update);
+      // Сохранённым считается только отправленный текст: допечатанное во время запроса остаётся несохранённым (009)
+      saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
+        const text = ta.value;
+        const r = await eapi('wishlist.save', { text });
+        m.wishlist = text;
+        m.wishlist_updated_at = r.updated_at;
+        haptic('success');
+        toast(m.has_santa ? '✅ Сохранено. Если у Санты включены уведомления, он узнает об этом через несколько минут' : '✅ Письмо сохранено');
+      }).then(update));
+      nodes.push(ui.card(
+        ui.hint(`Письмо увидит твой Санта в этом событии; организатор может открыть его — это записывается в журнал. Менять можно, пока событие идёт. До ${max} символов — столько помещается в одно сообщение Telegram.`),
+        ta, h('div', { class: 'ds-row ds-row--between' }, counter, status), saveBtn));
+      requestAnimationFrame(update);
+    }
+    // 008: адрес доставки — увидит только Санта
+    if (state.ev.delivery_on) {
+      nodes.push(ui.section('Как передать подарок'));
+      if (!state.can.edit_letter) {
+        nodes.push(ui.card(m.delivery ? h('div', { class: 'ds-letter' }, m.delivery) : h('div', { class: 'ds-text-muted' }, 'Адрес не указан.')));
+      } else {
+        const addr = ui.textarea({ placeholder: 'Город, отделение почты или адрес, получатель, телефон — или «заберу сам(а)»', rows: 2, maxlength: 500, value: m.delivery });
+        const saveAddr = ui.btn('Сохранить адрес', 'secondary', 'ds-btn--block');
+        const updateAddr = () => {
+          addrChanged = addr.value.trim() !== (m.delivery || '');
+          saveAddr.disabled = !addrChanged;
+          recompute();
+        };
+        addr.addEventListener('input', updateAddr);
+        saveAddr.addEventListener('click', () => busy(saveAddr, async () => {
+          const text = addr.value;
+          await eapi('delivery.save', { text });
+          m.delivery = text.trim();
+          haptic('success');
+          toast('📍 Адрес сохранён');
+        }).then(updateAddr));
+        requestAnimationFrame(updateAddr);
+        nodes.push(ui.card(ui.hint('Подарки в этом событии отправляют. Адрес увидит только твой Санта — организатор его не видит.'), addr, saveAddr));
+      }
+    }
+    if (m.has_santa) {
+      // 007: подопечный отмечает «получил подарок»; Санта узнает об этом (без имени)
+      const got = h('input', { type: 'checkbox', checked: m.gift_received, disabled: !state.can.edit_letter });
+      const evId = state.evId;
+      bindToggle(got, async (on) => {
+        await api('ward.received', { event: evId, received: on });
+        m.gift_received = on;
+        haptic('success');
+        toast(on ? '🎉 Спасибо! Санта узнает, что подарок дошёл' : 'Отметка снята');
+      });
+      nodes.push(h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Я получил(а) подарок', 'Твой Санта узнает, что подарок дошёл', got)));
+      nodes.push(ui.section('Переписка с Сантой'),
+        ui.card(ui.hint('Хочешь что-то уточнить или ответить на вопрос? Напиши своему Тайному Санте. Ты не знаешь, кто он, а он знает тебя.'), chatButton('santa')));
+    }
+    main.replaceChildren(...nodes.filter(Boolean));
+  }
+
+  // ---------- вкладка «Подопечный» ----------
+  // cached — перерисовать по последнему ответу (после закрытия переписки), не запрашивая ward.get заново
+  async function renderWard({ cached = false } = {}) {
+    const nav = state.nav, evId = state.evId;
+    let d = cached && state.wardCache && state.wardCache.evId === evId ? state.wardCache.d : null;
+    if (!d) {
+      showLoader();
+      try { d = await api('ward.get', { event: evId }); } catch (e) { if (nav === state.nav) showError(e); return; }
+      if (nav !== state.nav) return;
+      state.wardCache = { evId, d };
+    }
+    if (d.state !== 'ok') {
+      main.replaceChildren(...[finishedNotice(), d.state === 'no_draw'
+        ? ui.empty('🎲', 'Жеребьёвка ещё не проведена', 'Как только организатор её проведёт, здесь появится имя и письмо твоего подопечного. Бот пришлёт уведомление.')
+        : ui.empty('⏳', 'Скоро тебя добавят', 'Ты присоединился после жеребьёвки. Организатор впишет тебя — и бот пришлёт уведомление.')].filter(Boolean));
+      return;
+    }
+    const nameEl = h('div', { class: 'ds-ward-card__name' + (state.wardNameShown ? '' : ' ds-ward-card__name--hidden') }, d.ward.name);
+    const toggle = ui.btn(state.wardNameShown ? '🙈 Скрыть' : '👀 Показать имя', 'sm', 'ds-btn--on-festive');
+    toggle.addEventListener('click', () => {
+      state.wardNameShown = !state.wardNameShown;
+      nameEl.classList.toggle('ds-ward-card__name--hidden', !state.wardNameShown);
+      toggle.textContent = state.wardNameShown ? '🙈 Скрыть' : '👀 Показать имя';
+    });
+
+    const text = d.ward.wishlist || '';
+    let letter;
+    if (!text.trim()) {
+      letter = h('div', { class: 'ds-text-muted' }, finished() ? 'Подопечный так и не написал письмо.' : 'Подопечный пока ничего не написал. Можно спросить его в переписке — кнопка ниже 👇');
+    } else if (d.previous !== null && d.previous !== undefined) {
+      letter = h('div', { class: 'ds-stack' },
+        h('div', { class: 'ds-notice ds-text-sm' }, '✨ Письмо изменилось с твоего прошлого просмотра: новое ',
+          h('mark', { class: 'ds-diff-add' }, 'выделено'), ', удалённое ', h('del', { class: 'ds-diff-del' }, 'зачёркнуто'), '.'),
+        renderDiff(d.previous, text));
+    } else {
+      letter = h('div', { class: 'ds-letter' }, text);
+    }
+
+    const gift = h('input', { type: 'checkbox', checked: d.gift_ready, disabled: finished() });
+    bindToggle(gift, async (on) => {
+      await api('ward.gift', { event: evId, ready: on });
+      d.gift_ready = on;
+      haptic('success');
+      toast(on ? '🎉 Отлично! Подарок отмечен как готовый' : 'Отметка снята');
+    });
+
+    main.replaceChildren(...[
+      finishedNotice(),
+      h('div', { class: 'ds-ward-card' }, h('div', { class: 'ds-ward-card__label' }, finished() ? 'Ты был(а) Тайным Сантой для' : 'Ты — Тайный Санта для'), nameEl, toggle),
+      ui.section('Письмо подопечного'),
+      ui.card(letter, d.ward.updated_at && text.trim() ? ui.hint('Обновлено ' + fmtTime(d.ward.updated_at)) : null),
+      d.ward.delivery !== undefined ? ui.section('Как передать подарок') : null,
+      d.ward.delivery !== undefined
+        ? ui.card(d.ward.delivery ? h('div', { class: 'ds-letter' }, d.ward.delivery) : h('div', { class: 'ds-text-muted' }, 'Подопечный пока не указал адрес — спроси в переписке.'))
+        : null,
+      h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Подарок готов', 'Видно только организатору — для статистики', gift)),
+      ui.section('Переписка с подопечным'),
+      ui.card(ui.hint('Есть вопрос? Напиши подопечному — для него ты «Тайный Санта», имя не раскрывается.'), chatButton('ward')),
+    ].filter(Boolean));
+  }
+
+  // ---------- вкладка «Инфо» ----------
+  function renderInfo() {
+    const g = state.ev;
+    const rows = [];
+    rows.push(['Статус', g.status === 'finished' ? 'завершён 🏁' : 'идёт']);
+    if (g.budget) rows.push(['Бюджет', g.budget]);
+    if (g.event_date) rows.push(['Вручение', fmtDate(g.event_date)]);
+    if (g.place) rows.push(['Где', g.place]);
+    if (g.deadline) rows.push(['Письмо до', fmtDate(g.deadline)]);
+    rows.push(['Участников', String(g.participants)]);
+    rows.push(['Жеребьёвка', g.draw_done ? 'проведена ✅' : 'ещё не проведена']);
+    rows.push(['Кольцевая', g.ring ? 'да — взаимных пар нет' : 'нет — взаимные пары возможны']);
+    const nodes = [
+      finishedNotice(),
+      ui.section('О событии'),
+      h('div', { class: 'ds-card' }, h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
+    ];
+    if (g.notes) nodes.push(h('div', { class: 'ds-card ds-letter' }, g.notes));
+    if (state.announcements.length) {
+      nodes.push(ui.section('Объявления'), ...state.announcements.map((a) => ui.card(
+        h('div', { class: 'ds-letter' }, a.text),
+        ui.hint(`📣 ${a.author_name} · ${fmtTime(a.created_at)}`))));
+    }
+    // 012: обращение к организатору — участнику эвента, если есть кому написать
+    const sup = state.support;
+    if (state.member && sup && (sup.available || sup.open || sup.unread)) {
+      const btn = ui.btn(state.can.chat_write ? '💬 Написать организатору' : '💬 Обращения к организатору', 'secondary', 'ds-btn--block');
+      if (sup.unread) btn.append(h('span', { class: 'ds-badge' }, String(sup.unread)));
+      btn.addEventListener('click', () => openSupport());
+      const status = sup.open ? (sup.assignee_name ? `Твоё обращение ведёт ${sup.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.') : '';
+      nodes.push(ui.section('Нужна помощь?'), ui.card(
+        ui.hint('Вопрос по игре или что-то не работает? Напиши организатору — ответ придёт в чат бота и сюда. Не пиши, кто твой подопечный: организаторы не должны знать пары.'),
+        status ? h('div', { class: 'ds-text-sm' }, status) : null,
+        btn));
+    }
+    if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом событии — тебе доступна только информация и панель организатора.', 'ds-hint--inset'));
+    nodes.push(
+      ui.section('Как это работает'),
+      h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
+        h('li', {}, 'Напиши письмо Санте — его увидит тот, кто будет дарить тебе подарок.'),
+        h('li', {}, 'После жеребьёвки во вкладке «Подопечный» появится, кому даришь ты.'),
+        h('li', {}, 'После завершения события письмо остаётся для чтения, переписка открыта ещё 7 дней. Событие сохранится в истории.'))));
+    main.replaceChildren(...nodes.filter(Boolean));
+  }
