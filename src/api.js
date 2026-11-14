@@ -3,7 +3,7 @@
 import {
   getSettings, getUser, updateUser, allUsers, getPairs, pairOfSanta, pairOfWard, getExclusions, getFixedPairs,
   getEvent, allEvents, getMember, eventMembers, addMemberStmt,
-  updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt, clearRemovedStmt, supportDeleteStmts,
+  updateEventStmt, auditStmt, auditIfStmt, getAudit, getAnnouncements, enqueueIfStmt, clearRemovedStmt, memberDataDeleteStmts,
 } from './db.js';
 import { validateInitData } from './telegram.js';
 import { msg, q, openAppButton, inviteLink, randomCode, displayName, cleanText, oneLine, ISO_DATE } from './format.js';
@@ -525,15 +525,8 @@ async function handleAdmin(action, body, env, me, settings) {
       if (ev.draw_done) return fail('После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.');
       const log = auditStmt(db, ev.id, me.tg_id, 'participate', body.on ? 'участвует' : 'не участвует');
       if (body.on) await db.batch([addMemberStmt(db, ev, me.tg_id), clearRemovedStmt(db, ev.id, me.tg_id), log]);
-      else {
-        await db.batch([
-          db.prepare('DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?)').bind(ev.id, me.tg_id, me.tg_id),
-          db.prepare('DELETE FROM fixed_pairs WHERE event_id = ? AND (giver = ? OR receiver = ?)').bind(ev.id, me.tg_id, me.tg_id), // 014
-          db.prepare('DELETE FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, me.tg_id),
-          ...supportDeleteStmts(db, ev.id, me.tg_id), // 012: обращения участника в эвенте уходят вместе с участием
-          log,
-        ]);
-      }
+      // Данные участия (исключения, закреплённые пары, обращения) — по списку REGISTRY (018)
+      else await db.batch([log, ...memberDataDeleteStmts(db, ev.id, me.tg_id)]);
       return {};
     }
 

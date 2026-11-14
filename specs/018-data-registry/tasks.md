@@ -23,7 +23,7 @@ contracts/data-registry.md, quickstart.md); шаг 3 плана рефактор
 
 ## Phase 1: Setup
 
-- [ ] T001 Ветка `018-data-registry`, дерево чистое; замеры «до» записаны в этот файл: `npm test` — 113 тестов, 108
+- [X] T001 Ветка `018-data-registry`, дерево чистое; замеры «до» записаны в этот файл: `npm test` — 113 тестов, 108
   прошли, 5 `todo`, 0 упали; `node tests/bench/queries.mjs` — таблица совпадает с `docs/refactoring/baseline.md`,
   раздел 3
 
@@ -33,7 +33,7 @@ contracts/data-registry.md, quickstart.md); шаг 3 плана рефактор
 
 **Purpose**: список и построители — на них опираются все истории.
 
-- [ ] T002 `src/db.js`: раздел «данные события и человека (018)» — константы ролей `MEMBER`, `ACTOR`, `ACTOR_MOVED`,
+- [X] T002 `src/db.js`: раздел «данные события и человека (018)» — константы ролей `MEMBER`, `ACTOR`, `ACTOR_MOVED`,
   `RECIPIENT`, `SELF`, `NOT_PERSON` и `REGISTRY` по `data-model.md` (17 таблиц в порядке таблицы «Список»:
   `support_messages` раньше `support_threads`, `members` раньше `removed_members`). Поля — по
   `contracts/data-registry.md`: `event`/`via`, `people`, `anchor` (`events` — `'event'`, `members` — `'member'`,
@@ -47,7 +47,7 @@ contracts/data-registry.md, quickstart.md); шаг 3 плана рефактор
   = user_id`; `removed_members` — после: удалить отметки нового в событиях, где он участник; `users` — до: `is_admin =
   MAX(is_admin, COALESCE((SELECT is_admin FROM users WHERE tg_id = старый), 0))` у нового; `settings.note` — владелец
   хранится значением `owner_id`, не переносится
-- [ ] T003 `src/db.js`: построители по `contracts/data-registry.md` — `eventDataDeleteStmts(db, eventId, { keepMember,
+- [X] T003 `src/db.js`: построители по `contracts/data-registry.md` — `eventDataDeleteStmts(db, eventId, { keepMember,
   keepEvent }, guard = '1', ...args)`, `memberDataDeleteStmts(db, eventId, userId, guard = '1', ...args)`,
   `personTransferStmts(db, fromId, toId, { merge }, guard = '1', ...args)` и чистая `mergeMembership(fromRow, toRow)`.
   Условие — `AND (guard)` у каждого оператора, параметры условия — в конце `bind`; свои `OR` — в скобках; якорь —
@@ -56,7 +56,7 @@ contracts/data-registry.md, quickstart.md); шаг 3 плана рефактор
   колонки, затем `DELETE … WHERE (c = старый OR … [OR giver = receiver при noSelf])`; `merge` — по решениям `merge`:
   `DELETE` участия нового в событии, `UPDATE` личных полей участия старого, затем один `UPDATE members SET user_id =
   новый WHERE user_id = старый`. Колонки `ACTOR` и `RECIPIENT` не трогаются
-- [ ] T004 [P] `tests/data-registry.test.mjs` (новый) и скрипт `test` в `package.json`: `registryGaps(sqlite, registry)` —
+- [X] T004 [P] `tests/data-registry.test.mjs` (новый) и скрипт `test` в `package.json`: `registryGaps(sqlite, registry)` —
   все таблицы схемы (`sqlite_master` без `sqlite_*`) в списке и наоборот; каждая колонка с именем `event_id`,
   `user_id`, `tg_id`, `chat_id`, `…_id`, `…_by` или именем колонки человека из списка описана (событие, `via`, колонка
   человека, `NOT_PERSON`); каждая описанная колонка есть в схеме; обязательные политики (`onEventDelete` у таблиц с
@@ -77,23 +77,23 @@ contracts/data-registry.md, quickstart.md); шаг 3 плана рефактор
 **Independent Test**: `npm test` — те же 5 `todo` падают как `todo`, остальное зелёное без правки ожиданий; таблица
 запросов прежняя; поиск из `quickstart.md`, раздел 4, находит каскады только в построителях.
 
-- [ ] T005 [US2] `src/events.js`, `deleteEvent`: операторы удаления — `eventDataDeleteStmts(db, ev.id, {}, exists,
+- [X] T005 [US2] `src/events.js`, `deleteEvent`: операторы удаления — `eventDataDeleteStmts(db, ev.id, {}, exists,
   ev.id)` после уведомлений и записи в общий журнал; исход — последний оператор (`DELETE FROM events`), как сейчас
-- [ ] T006 [US2] `src/events.js`, `resetEvent`: `eventDataDeleteStmts(db, ev.id, { keepMember: ownerId, keepEvent: true })`
+- [X] T006 [US2] `src/events.js`, `resetEvent`: `eventDataDeleteStmts(db, ev.id, { keepMember: ownerId, keepEvent: true })`
   вместо 12 операторов (в том числе двух `UPDATE members` письма и адреса); уведомления — до, параметры события по
   умолчанию и журнал — после, как сейчас; захвата нет
-- [ ] T007 [US2] `src/pairs.js`, `removeMember`: удаление исключений, закреплённых пар, переписки, обращений и строки
+- [X] T007 [US2] `src/pairs.js`, `removeMember`: удаление исключений, закреплённых пар, переписки, обращений и строки
   участника — `memberDataDeleteStmts(db, ev.id, userId, v.guard, ...v.args)` последним блоком; отметка, уведомление и
   журнал — перед ним с прежним условием `v.guard`; исход — `res.at(-1)` вместо `removeAt`; отказы — прежние
-- [ ] T008 [US2] `src/api.js`, `admin.participate` (выкл): `[log, ...memberDataDeleteStmts(db, ev.id, me.tg_id)]`
+- [X] T008 [US2] `src/api.js`, `admin.participate` (выкл): `[log, ...memberDataDeleteStmts(db, ev.id, me.tg_id)]`
   вместо четырёх операторов
-- [ ] T009 [US2] `src/roles.js`, `transferAccount`: решения слияния — `mergeMembership(m, t)` для событий, где участвуют
+- [X] T009 [US2] `src/roles.js`, `transferAccount`: решения слияния — `mergeMembership(m, t)` для событий, где участвуют
   оба; операторы переноса — `personTransferStmts(db, fromId, toId, { merge })`; уведомления новому, старому, остальным
   админам и журнал — перед ними (взаимный порядок прежний); `getUser`, чтения участий и проверка «новый уже в
   жеребьёвке» — без изменений
-- [ ] T010 [US2] `src/db.js`: удалить `supportDeleteStmts` и `supportTransferStmts`, убрать их из импортов `src/events.js`,
+- [X] T010 [US2] `src/db.js`: удалить `supportDeleteStmts` и `supportTransferStmts`, убрать их из импортов `src/events.js`,
   `src/pairs.js`, `src/api.js`, `src/roles.js`; комментарий шапки `src/db.js` — про список
-- [ ] T011 [US2] Проверка: `npm test` (5 `todo` падают как `todo`, 0 упали); `node tests/bench/queries.mjs` = базовая
+- [X] T011 [US2] Проверка: `npm test` (5 `todo` падают как `todo`, 0 упали); `node tests/bench/queries.mjs` = базовая
   таблица; поиск `quickstart.md`, раздел 4; коммит «018 US2: …»
 
 **Checkpoint**: перевод на построители не изменил ни одного ответа, сообщения и числа запросов.

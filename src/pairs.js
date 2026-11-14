@@ -2,7 +2,7 @@
 
 import {
   getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, familyExclusions, familySnapshot,
-  FAMILY_SNAPSHOT_SQL, getFixedPairs, fixedSnapshot, FIXED_SNAPSHOT_SQL, enqueueIfStmt, auditIfStmt, markRemovedStmt, supportDeleteStmts,
+  FAMILY_SNAPSHOT_SQL, getFixedPairs, fixedSnapshot, FIXED_SNAPSHOT_SQL, enqueueIfStmt, auditIfStmt, markRemovedStmt, memberDataDeleteStmts,
 } from './db.js';
 import { planDraw, pairRules, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, openAppButton, randomCode, displayName } from './format.js';
@@ -218,7 +218,6 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
   const target = members.find((m) => m.user_id === userId);
   if (!target) return { ok: false, error: 'Человек не участвует в этом событии.' };
   const v = pairsVersion(db, ev);
-  const when = `AND ${v.guard}`;
   const stmts = v.claim ? [v.claim] : [];
   if (ev.draw_done) {
     const rows = await getPairs(db, ev.id);
@@ -233,18 +232,14 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
       stmts.push(...(await applyPairsChange(env, ev, rows, r.pairs, r.changed, members, v)));
     }
   }
-  stmts.push(db.prepare(`DELETE FROM exclusions WHERE event_id = ? AND (giver = ? OR receiver = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
-  stmts.push(db.prepare(`DELETE FROM fixed_pairs WHERE event_id = ? AND (giver = ? OR receiver = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
-  stmts.push(db.prepare(`DELETE FROM messages WHERE event_id = ? AND (santa = ? OR ward = ?) ${when}`).bind(ev.id, userId, userId, ...v.args));
-  // 012: обращения участника к организаторам в этом эвенте уходят вместе с ним
-  stmts.push(...supportDeleteStmts(db, ev.id, userId, v.guard, ...v.args));
-  const removeAt = stmts.length;
-  stmts.push(db.prepare(`DELETE FROM members WHERE event_id = ? AND user_id = ? ${when}`).bind(ev.id, userId, ...v.args));
-  if (mark) stmts.push(markRemovedStmt(db, ev.id, userId, actor, v.guard, ...v.args));
   if (notify) stmts.push(enqueueIfStmt(db, userId, msg(`Организатор удалил тебя из события ${q(ev)}. Если это ошибка — напиши ему.`), v.guard, ...v.args));
   stmts.push(auditIfStmt(db, ev.id, actor, 'member.remove', displayName(target), v.guard, ...v.args));
+  if (mark) stmts.push(markRemovedStmt(db, ev.id, userId, actor, v.guard, ...v.args));
+  // Исключения, закреплённые пары, переписка и обращения участника — по списку REGISTRY (018); строка участника —
+  // последней: по ней узнаём исход
+  stmts.push(...memberDataDeleteStmts(db, ev.id, userId, v.guard, ...v.args));
   const res = await db.batch(stmts);
-  if (!res[removeAt].meta.changes) {
+  if (!res.at(-1).meta.changes) {
     const still = await db.prepare('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, userId).first();
     return { ok: false, error: still ? PAIRS_RACE : 'Человек не участвует в этом событии.' };
   }

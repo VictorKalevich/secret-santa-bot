@@ -1,7 +1,7 @@
 // Роли (002): владелец и администраторы; перенос участия на новый аккаунт (004 → 005: во всех эвентах).
 
 import {
-  getSettings, setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, auditStmt, supportTransferStmts,
+  getSettings, setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, auditStmt, mergeMembership, personTransferStmts,
 } from './db.js';
 import { msg, escapeHtml, openAppButton, displayName, adminRecipients } from './format.js';
 import { derivedSecret } from './telegram.js';
@@ -154,54 +154,9 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
   }
   const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
   const actor = users.find((u) => u.tg_id === actorId);
-  const stmts = [];
-  for (const m of fromMembers) {
-    const t = toByEvent.get(m.event_id);
-    if (t) {
-      // Новый аккаунт уже вступил в этот эвент: оставляем одно участие; письмо — нового, если оно не пустое;
-      // адрес доставки — по тому же правилу (009, FR-938), каждый со своим временем изменения
-      const keepNew = !!t.wishlist.trim();
-      const keepNewAddr = !!(t.delivery || '').trim();
-      stmts.push(db.prepare('DELETE FROM members WHERE event_id = ? AND user_id = ?').bind(m.event_id, toId));
-      stmts.push(db.prepare(
-        `UPDATE members SET user_id = ?, wishlist = ?, wishlist_updated_at = ?, delivery = ?, delivery_updated_at = ?
-          WHERE event_id = ? AND user_id = ?`
-      ).bind(
-        toId,
-        keepNew ? t.wishlist : m.wishlist, keepNew ? t.wishlist_updated_at : m.wishlist_updated_at,
-        keepNewAddr ? t.delivery : m.delivery, keepNewAddr ? t.delivery_updated_at : m.delivery_updated_at,
-        m.event_id, fromId
-      ));
-    } else {
-      stmts.push(db.prepare('UPDATE members SET user_id = ? WHERE event_id = ? AND user_id = ?').bind(toId, m.event_id, fromId));
-    }
-  }
-  stmts.push(
-    db.prepare('UPDATE pairs SET santa = ? WHERE santa = ?').bind(toId, fromId),
-    db.prepare('UPDATE pairs SET ward = ? WHERE ward = ?').bind(toId, fromId),
-    db.prepare('UPDATE messages SET santa = ? WHERE santa = ?').bind(toId, fromId),
-    db.prepare('UPDATE messages SET ward = ? WHERE ward = ?').bind(toId, fromId),
-    db.prepare('UPDATE OR IGNORE exclusions SET giver = ? WHERE giver = ?').bind(toId, fromId),
-    db.prepare('UPDATE OR IGNORE exclusions SET receiver = ? WHERE receiver = ?').bind(toId, fromId),
-    db.prepare('DELETE FROM exclusions WHERE giver = ? OR receiver = ? OR giver = receiver').bind(fromId, fromId),
-    // 014: закреплённые пары владельца (если у нового аккаунта в событии уже своя — остаётся она)
-    db.prepare('UPDATE OR IGNORE fixed_pairs SET giver = ? WHERE giver = ?').bind(toId, fromId),
-    db.prepare('UPDATE OR IGNORE fixed_pairs SET receiver = ? WHERE receiver = ?').bind(toId, fromId),
-    db.prepare('DELETE FROM fixed_pairs WHERE giver = ? OR receiver = ? OR giver = receiver').bind(fromId, fromId),
-    // 008: семья и заявки переходят на новый аккаунт (если новый уже в семье — остаётся его семья)
-    db.prepare('UPDATE OR IGNORE family_members SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
-    db.prepare('DELETE FROM family_members WHERE user_id = ?').bind(fromId),
-    db.prepare('UPDATE OR IGNORE join_requests SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
-    db.prepare('DELETE FROM join_requests WHERE user_id = ?').bind(fromId),
-    // 010: отметки «удалён организатором» тоже переходят — перенос не должен открывать путь назад
-    db.prepare('UPDATE OR IGNORE removed_members SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
-    db.prepare('DELETE FROM removed_members WHERE user_id = ?').bind(fromId),
-    // …кроме эвентов, где новый аккаунт теперь участник: участник не может быть «удалённым»
-    db.prepare('DELETE FROM removed_members WHERE user_id = ? AND event_id IN (SELECT event_id FROM members WHERE user_id = ?)').bind(toId, toId),
-    // 012: обращения к организаторам (автор, ответственный, сообщения)
-    ...supportTransferStmts(db, fromId, toId),
-    db.prepare('UPDATE users SET is_admin = ? WHERE tg_id = ?').bind(from.is_admin || to.is_admin ? 1 : 0, toId),
-    db.prepare('DELETE FROM users WHERE tg_id = ?').bind(fromId),
+  // Новый аккаунт уже вступил в эвент: остаётся одно участие (письмо и адрес — нового, если не пусты; 009, FR-938)
+  const merge = fromMembers.filter((m) => toByEvent.has(m.event_id)).map((m) => mergeMembership(m, toByEvent.get(m.event_id)));
+  await db.batch([
     enqueueStmt(db, toId, msg(
       '🔁 Организатор перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история событий сохранены.',
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть')]] } }
@@ -213,7 +168,9 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
     ...otherAdminsNotice(db, users, [actorId, toId, fromId],
       `🔁 <b>${escapeHtml(displayName(actor))}</b> перенёс участие <b>${escapeHtml(displayName(from))}</b> на аккаунт <b>${escapeHtml(displayName(to))}</b>.`),
     auditStmt(db, 0, actorId, 'transfer', `${displayName(from)} → ${displayName(to)}`),
-  );
-  await db.batch(stmts);
+    // Участия, письма, пары, переписка, исключения, семья, заявки, отметки «удалён», обращения — по списку REGISTRY
+    // (018); ссылки «кто сделал» остаются; запись старого аккаунта удаляется последней
+    ...personTransferStmts(db, fromId, toId, { merge }),
+  ]);
   return { ok: true, events: fromMembers.length };
 }

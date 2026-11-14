@@ -1,5 +1,5 @@
 // Работа с базой D1 (SQLite). Схема 11: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014
-// (см. migrations/).
+// (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
@@ -326,33 +326,217 @@ export function auditIfStmt(db, eventId, actor, action, details, guard, ...args)
     .bind(eventId || 0, actor || 0, action, String(details).slice(0, 500), Date.now(), ...args);
 }
 
-// ---------- обращения к организатору (012) ----------
+// ---------- данные события и человека (018) ----------
 
-// Удалить обращения эвента (userId — только этого участника) вместе с сообщениями; guard — как в enqueueIfStmt.
-// Сообщения удаляются первыми: их выбирают по обращениям.
-export function supportDeleteStmts(db, eventId, userId = 0, guard = '1', ...args) {
-  const who = userId ? ' AND user_id = ?' : '';
-  const ids = userId ? [eventId, userId] : [eventId];
-  return [
-    db.prepare(`DELETE FROM support_messages WHERE thread_id IN (SELECT id FROM support_threads WHERE event_id = ?${who}) AND ${guard}`)
-      .bind(...ids, ...args),
-    db.prepare(`DELETE FROM support_threads WHERE event_id = ?${who} AND ${guard}`).bind(...ids, ...args),
-  ];
+// Роли колонок человека в REGISTRY
+export const MEMBER = 'member'; // участник: данные человека в событии — уходят с ним (onLeave), переходят при переносе
+export const ACTOR = 'actor'; // кто сделал: ссылка на действовавшего — перенос её не трогает (решение владельца)
+export const ACTOR_MOVED = 'actor-moved'; // кто сделал, но перенос переносит: текущее состояние обращения (012)
+export const RECIPIENT = 'recipient'; // получатель сообщения очереди — перенос не трогает: оно уходит старому аккаунту
+export const SELF = 'self'; // сама запись человека
+export const NOT_PERSON = 'not-person'; // имя похоже на человека, но это не человек
+
+// Один список данных события и человека: все таблицы схемы (тест схемы — tests/data-registry.test.mjs — падает, пока
+// новая таблица или колонка с событием или человеком здесь не описана). Внешних ключей в схеме нет: удаление события,
+// сброс, удаление участника, выход админа из участия и перенос участия строятся только из этого списка (построители
+// ниже). Порядок ключей — порядок операторов: дочерняя таблица (via) раньше родителя; якорь действия — последним.
+//   event — колонка события; via — строки принадлежат событию или человеку через родителя (по его id);
+//   people — колонки человека и их роли; anchor — строка-опора действия ('event', 'member', 'person');
+//   onEventDelete — удаление события и сброс: 'delete' | 'keep';
+//   onLeave — уход участника из события: 'delete' | 'keep' | 'rebuild' (пары перестраивает applyPairsChange);
+//   onTransfer — перенос: 'update' (конфликтов нет), 'dedupe' (UPDATE OR IGNORE, остатки старого — удалить),
+//     'merge' (участия: одно на событие); noSelf — строка «сам себе» недопустима;
+//   transferBefore/transferAfter — свои правила таблицы до и после переноса колонок (sql оканчивается условием WHERE).
+// Спецификация — specs/018-data-registry/ (data-model.md, contracts/data-registry.md).
+export const REGISTRY = {
+  settings: { note: 'владелец — значение owner_id: его запись не переносится, на его аккаунт перенос запрещён' },
+  users: {
+    people: { tg_id: SELF },
+    anchor: 'person',
+    // Права администратора у нового аккаунта объединяются
+    transferBefore: [{
+      sql: 'UPDATE users SET is_admin = MAX(is_admin, COALESCE((SELECT is_admin FROM users WHERE tg_id = ?), 0)) WHERE tg_id = ?',
+      args: (from, to) => [from, to],
+    }],
+  },
+  events: { event: 'id', people: { created_by: ACTOR }, anchor: 'event' },
+  members: {
+    event: 'event_id',
+    people: { user_id: MEMBER },
+    anchor: 'member',
+    onEventDelete: 'delete',
+    onTransfer: 'merge',
+    // Личные поля участия (значение и время изменения): их стирает сброс у оставшегося владельца; при слиянии двух
+    // участий берутся у нового аккаунта, если не пусты (009, FR-938)
+    personal: [['wishlist', 'wishlist_updated_at'], ['delivery', 'delivery_updated_at']],
+  },
+  exclusions: { event: 'event_id', people: { giver: MEMBER, receiver: MEMBER }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'dedupe', noSelf: true },
+  // 014: если у нового аккаунта в событии уже своя закреплённая пара — остаётся она
+  fixed_pairs: { event: 'event_id', people: { giver: MEMBER, receiver: MEMBER }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'dedupe', noSelf: true },
+  pairs: { event: 'event_id', people: { santa: MEMBER, ward: MEMBER }, onEventDelete: 'delete', onLeave: 'rebuild', onTransfer: 'update' },
+  // sender — сторона переписки ('santa'/'ward'), а не человек
+  messages: { event: 'event_id', people: { santa: MEMBER, ward: MEMBER, sender: NOT_PERSON }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'update' },
+  announcements: { event: 'event_id', people: { author: ACTOR }, onEventDelete: 'delete' },
+  // Журнал события остаётся и после удаления события (007); event_id = 0 — общий журнал
+  audit: { event: 'event_id', people: { actor: ACTOR }, onEventDelete: 'keep' },
+  // Заявки — история: остаются, когда участник уходит (008)
+  join_requests: { event: 'event_id', people: { user_id: MEMBER, decided_by: ACTOR }, onEventDelete: 'delete', onLeave: 'keep', onTransfer: 'dedupe' },
+  removed_members: {
+    event: 'event_id',
+    people: { user_id: MEMBER, removed_by: ACTOR },
+    onEventDelete: 'delete',
+    onLeave: 'keep', // отметку ставит само удаление организатором (markRemovedStmt, 010)
+    onTransfer: 'dedupe', // перенос не открывает путь назад…
+    // …кроме событий, где новый аккаунт теперь участник: участник не может быть «удалённым»
+    transferAfter: [{
+      sql: 'DELETE FROM removed_members WHERE user_id = ? AND event_id IN (SELECT event_id FROM members WHERE user_id = ?)',
+      args: (from, to) => [to, to],
+    }],
+  },
+  // 012: сообщения обращения — через обращение; отправитель (участник или админ) переходит при переносе
+  support_messages: { via: { column: 'thread_id', parent: 'support_threads' }, people: { sender: ACTOR_MOVED }, onTransfer: 'update' },
+  support_threads: {
+    event: 'event_id',
+    people: { user_id: MEMBER, assignee: ACTOR_MOVED, closed_by: ACTOR },
+    onEventDelete: 'delete',
+    onLeave: 'delete',
+    onTransfer: 'update',
+    // Одно открытое обращение на событие (012, FR-1221): открытое старого закрывается, если у нового в том же событии
+    // уже есть открытое
+    transferBefore: [{
+      sql: `UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = 0
+             WHERE user_id = ? AND status = 'open'
+               AND event_id IN (SELECT event_id FROM support_threads WHERE user_id = ? AND status = 'open')`,
+      args: (from, to) => [Date.now(), from, to],
+    }],
+    // Сам себе не отвечает: такое обращение снова ничьё
+    transferAfter: [{ sql: 'UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = user_id', args: () => [] }],
+  },
+  families: { people: { created_by: ACTOR } },
+  // 008: семьи — общие для бота; если новый аккаунт уже в семье — остаётся его семья
+  family_members: { via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onTransfer: 'dedupe' },
+  outbox: { people: { chat_id: RECIPIENT } },
+};
+
+// Колонки таблицы с одной из ролей
+export const columnsWith = (spec, ...roles) => Object.entries(spec.people || {}).filter(([, r]) => roles.includes(r)).map(([c]) => c);
+const anyOf = (cols) => (cols.length === 1 ? `${cols[0]} = ?` : `(${cols.map((c) => `${c} = ?`).join(' OR ')})`);
+// Таблицы в порядке списка, якорь действия — последним
+const inOrder = (anchor) => {
+  const all = Object.entries(REGISTRY);
+  return [...all.filter(([, s]) => s.anchor !== anchor), ...all.filter(([, s]) => s.anchor === anchor)];
+};
+// Сборщик операторов построителя: условие guard (в скобках) — у каждого, его параметры — в конце
+const collector = (db, guard, args) => {
+  const out = [];
+  const add = (sql, ...params) => out.push(db.prepare(`${sql} AND (${guard})`).bind(...params, ...args));
+  return { out, add };
+};
+
+// Удалить данные события (удаление события, полный сброс). keepMember — участие этого человека остаётся (сброс:
+// владелец), его личные поля стираются; keepEvent — строка события остаётся (сброс меняет её сам), иначе она удаляется
+// последней. Журнал события остаётся. guard и args — как в enqueueIfStmt.
+export function eventDataDeleteStmts(db, eventId, { keepMember = 0, keepEvent = false } = {}, guard = '1', ...args) {
+  const { out, add } = collector(db, guard, args);
+  for (const [table, spec] of inOrder('event')) {
+    if (spec.anchor === 'event') {
+      if (!keepEvent) add(`DELETE FROM ${table} WHERE ${spec.event} = ?`, eventId);
+      continue;
+    }
+    const parent = spec.via && REGISTRY[spec.via.parent];
+    if (parent) {
+      if (parent.event && parent.onEventDelete === 'delete') {
+        add(`DELETE FROM ${table} WHERE ${spec.via.column} IN (SELECT id FROM ${spec.via.parent} WHERE ${parent.event} = ?)`, eventId);
+      }
+      continue;
+    }
+    if (!spec.event || spec.onEventDelete !== 'delete') continue;
+    if (spec.anchor === 'member' && keepMember) {
+      const [who] = columnsWith(spec, MEMBER);
+      const fields = spec.personal.flatMap(([value, time]) => [[value, ''], [time, 0]]);
+      add(`DELETE FROM ${table} WHERE ${spec.event} = ? AND ${who} != ?`, eventId, keepMember);
+      add(`UPDATE ${table} SET ${fields.map(([f]) => `${f} = ?`).join(', ')} WHERE ${spec.event} = ?`, ...fields.map(([, v]) => v), eventId);
+    } else {
+      add(`DELETE FROM ${table} WHERE ${spec.event} = ?`, eventId);
+    }
+  }
+  return out;
 }
 
-// Перенос участия fromId → toId (012, FR-1221): обращения, ответственный и автор сообщений переходят на новый аккаунт.
-// Открытое обращение старого закрывается, если у нового в том же эвенте уже есть открытое (одно открытое на эвент).
-export function supportTransferStmts(db, fromId, toId) {
-  return [
-    db.prepare(
-      `UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = 0
-        WHERE user_id = ? AND status = 'open'
-          AND event_id IN (SELECT event_id FROM support_threads WHERE user_id = ? AND status = 'open')`
-    ).bind(Date.now(), fromId, toId),
-    db.prepare('UPDATE support_threads SET user_id = ? WHERE user_id = ?').bind(toId, fromId),
-    db.prepare('UPDATE support_threads SET assignee = ? WHERE assignee = ?').bind(toId, fromId),
-    // Сам себе не отвечает: такое обращение снова ничьё
-    db.prepare('UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = user_id').bind(),
-    db.prepare('UPDATE support_messages SET sender = ? WHERE sender = ?').bind(toId, fromId),
-  ];
+// Удалить данные участника в событии (удаление участника, выход админа из участия): таблицы с onLeave 'delete' и их
+// дочерние; строка участника — последней. Пары ('rebuild') перестраивает applyPairsChange, отметку «удалён» ставит
+// markRemovedStmt, заявки остаются. guard и args — как в enqueueIfStmt.
+export function memberDataDeleteStmts(db, eventId, userId, guard = '1', ...args) {
+  const { out, add } = collector(db, guard, args);
+  for (const [table, spec] of inOrder('member')) {
+    const parent = spec.via && REGISTRY[spec.via.parent];
+    if (parent) {
+      const who = columnsWith(parent, MEMBER);
+      if (parent.event && parent.onLeave === 'delete' && who.length) {
+        add(`DELETE FROM ${table} WHERE ${spec.via.column} IN (SELECT id FROM ${spec.via.parent} WHERE ${parent.event} = ? AND ${anyOf(who)})`,
+          eventId, ...who.map(() => userId));
+      }
+      continue;
+    }
+    const who = columnsWith(spec, MEMBER);
+    if (!spec.event || !who.length) continue;
+    if (spec.anchor === 'member' || spec.onLeave === 'delete') {
+      add(`DELETE FROM ${table} WHERE ${spec.event} = ? AND ${anyOf(who)}`, eventId, ...who.map(() => userId));
+    }
+  }
+  return out;
+}
+
+// Слияние двух участий одного события при переносе (009, FR-938): строка остаётся старого (его время вступления),
+// личные поля — нового, если не пусты, каждое со своим временем изменения.
+export function mergeMembership(from, to) {
+  const set = {};
+  for (const [value, time] of REGISTRY.members.personal) {
+    const src = String(to[value] || '').trim() ? to : from;
+    set[value] = src[value];
+    set[time] = src[time];
+  }
+  return { event_id: from.event_id, set };
+}
+
+// Перенести человека fromId на аккаунт toId (перенос участия, 004 → 005: во всех событиях). merge — решения
+// mergeMembership для событий, где участвуют оба. Колонки «кто сделал» и получатель очереди не трогаются; запись
+// старого аккаунта удаляется последней. guard и args — как в enqueueIfStmt.
+export function personTransferStmts(db, fromId, toId, { merge = [] } = {}, guard = '1', ...args) {
+  const { out, add } = collector(db, guard, args);
+  const fix = (list = []) => {
+    for (const f of list) add(f.sql, ...f.args(fromId, toId));
+  };
+  for (const [table, spec] of inOrder('person')) {
+    if (spec.anchor === 'person') {
+      fix(spec.transferBefore);
+      add(`DELETE FROM ${table} WHERE ${columnsWith(spec, SELF)[0]} = ?`, fromId);
+      continue;
+    }
+    const moved = columnsWith(spec, MEMBER, ACTOR_MOVED);
+    if (!moved.length) continue;
+    fix(spec.transferBefore);
+    if (spec.onTransfer === 'merge') {
+      const [who] = moved;
+      const fields = spec.personal.flat();
+      for (const m of merge) {
+        add(`DELETE FROM ${table} WHERE ${spec.event} = ? AND ${who} = ?`, m.event_id, toId);
+        add(`UPDATE ${table} SET ${fields.map((f) => `${f} = ?`).join(', ')} WHERE ${spec.event} = ? AND ${who} = ?`,
+          ...fields.map((f) => m.set[f]), m.event_id, fromId);
+      }
+      add(`UPDATE ${table} SET ${who} = ? WHERE ${who} = ?`, toId, fromId);
+    } else if (spec.onTransfer === 'update' || spec.onTransfer === 'dedupe') {
+      const dedupe = spec.onTransfer === 'dedupe';
+      for (const c of moved) add(`UPDATE${dedupe ? ' OR IGNORE' : ''} ${table} SET ${c} = ? WHERE ${c} = ?`, toId, fromId);
+      if (dedupe) {
+        const left = moved.map((c) => `${c} = ?`);
+        if (spec.noSelf) left.push(`${moved[0]} = ${moved[1]}`);
+        add(`DELETE FROM ${table} WHERE (${left.join(' OR ')})`, ...moved.map(() => fromId));
+      }
+    } else {
+      throw new Error(`REGISTRY.${table}: не задан перенос (onTransfer)`);
+    }
+    fix(spec.transferAfter);
+  }
+  return out;
 }

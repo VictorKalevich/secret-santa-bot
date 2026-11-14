@@ -2,7 +2,7 @@
 
 import {
   getSettings, getEvent, eventMembers, drawParticipants, getPairs, allUsers, enqueueStmt, enqueueIfStmt, updateEventStmt,
-  auditStmt, auditIfStmt, supportDeleteStmts,
+  auditStmt, auditIfStmt, eventDataDeleteStmts,
 } from './db.js';
 import { msg, q, escapeHtml, formatDate, formatMs, openAppButton, inviteLink, randomCode, oneLine, cleanText } from './format.js';
 
@@ -87,16 +87,8 @@ export async function deleteEvent(env, ev, actor = 0) {
     ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(`🗑 Событие ${q(ev)} удалено организатором вместе с письмами и перепиской.`), exists, ev.id)),
     // Журнал эвента остаётся; само удаление — в общем журнале (007)
     auditIfStmt(db, 0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`, exists, ev.id),
-    db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM pairs WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM fixed_pairs WHERE event_id = ?').bind(ev.id), // 014
-    db.prepare('DELETE FROM members WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM removed_members WHERE event_id = ?').bind(ev.id),
-    ...supportDeleteStmts(db, ev.id), // 012: обращения к организаторам
-    db.prepare('DELETE FROM events WHERE id = ?').bind(ev.id),
+    // Данные эвента — по списку REGISTRY (018), строка эвента — последней
+    ...eventDataDeleteStmts(db, ev.id, {}, exists, ev.id),
   ]);
   if (!res.at(-1).meta.changes) return { ok: false, error: 'Событие уже удалено.' };
   return { ok: true, count: members.length };
@@ -112,17 +104,8 @@ export async function resetEvent(env, ev, ownerId, actor = ownerId) {
     ...removed.map((m) => enqueueStmt(db, m.user_id, msg(
       `🎄 Организатор начал событие ${q(ev)} заново. Прежние данные удалены. Чтобы участвовать, попроси новую пригласительную ссылку.`
     ))),
-    db.prepare('DELETE FROM members WHERE event_id = ? AND user_id != ?').bind(ev.id, ownerId),
-    db.prepare("UPDATE members SET wishlist = '', wishlist_updated_at = 0 WHERE event_id = ?").bind(ev.id),
-    db.prepare('DELETE FROM pairs WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM exclusions WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM fixed_pairs WHERE event_id = ?').bind(ev.id), // 014
-    db.prepare('DELETE FROM messages WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM announcements WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM join_requests WHERE event_id = ?').bind(ev.id),
-    db.prepare('DELETE FROM removed_members WHERE event_id = ?').bind(ev.id),
-    ...supportDeleteStmts(db, ev.id), // 012: обращения к организаторам
-    db.prepare("UPDATE members SET delivery = '', delivery_updated_at = 0 WHERE event_id = ?").bind(ev.id),
+    // Данные эвента — по списку REGISTRY (018): участие владельца остаётся, его письмо и адрес стираются
+    ...eventDataDeleteStmts(db, ev.id, { keepMember: ownerId, keepEvent: true }),
     updateEventStmt(db, ev.id, {
       status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,
       ring: 1, avoid_previous: 1, budget: '', event_date: '', place: '', deadline: '', notes: '', last_daily: '',
