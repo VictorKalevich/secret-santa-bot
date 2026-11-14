@@ -3,8 +3,22 @@
 // Базовые числа — docs/refactoring/baseline.md, раздел 3.
 import assert from 'node:assert/strict';
 import { startWorld } from './world.mjs';
+import { seeded } from './draw-cases.mjs';
 
+// Случайные числа сценария — с зерном (017): жеребьёвка и замена после удаления берут Math.random, и без зерна удаление
+// после жеребьёвки меняло то одну пару, то две (2 или 3 сообщения в Telegram) — тест падал примерно в 10% прогонов.
+// Зерно 1 даёт базовую таблицу. Коды и метки (randomCode) идут через crypto.getRandomValues и подменой не затронуты.
 export async function runQueriesScenario() {
+  const realRandom = Math.random;
+  Math.random = seeded(1);
+  try {
+    return await scenario();
+  } finally {
+    Math.random = realRandom;
+  }
+}
+
+async function scenario() {
   const t0 = performance.now();
   const w = await startWorld();
   const rows = [];

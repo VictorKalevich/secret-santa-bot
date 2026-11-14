@@ -26,8 +26,8 @@ description: "Task list for 017-draw-speed"
 
 **Purpose**: замеры «до» и исходный файл для сверки
 
-- [ ] T001 Снять замеры «до» на чистом `main`: `npm test` (110 тестов, 105 прошли, 5 `todo`) и `npm run bench:draw` дважды; записать медианы в `specs/017-draw-speed/research.md` (R6)
-- [ ] T002 Сохранить исходный файл жеребьёвки для сверки: `git show main:src/draw.js > "$TEMP/draw-old.mjs"` (вне проекта)
+- [X] T001 Снять замеры «до» на чистом `main`: `npm test` (110 тестов, 105 прошли, 5 `todo`) и `npm run bench:draw` дважды; записать медианы в `specs/017-draw-speed/research.md` (R6)
+- [X] T002 Сохранить исходный файл жеребьёвки для сверки: `git show main:src/draw.js > "$TEMP/draw-old.mjs"` (вне проекта)
 
 ---
 
@@ -37,9 +37,9 @@ description: "Task list for 017-draw-speed"
 
 **Independent Test**: `node --test tests/queries.test.mjs` 30 раз подряд — 0 падений
 
-- [ ] T003 [US3] В `tests/support/queries-scenario.mjs` подменить `Math.random` генератором `seeded(1)` из `tests/support/draw-cases.mjs` на время `runQueriesScenario` и вернуть прежний в `finally`; комментарий — почему (удаление после жеребьёвки меняет 1 или 2 пары в зависимости от случайных чисел → 2 или 3 сообщения), `src/` и `BASELINE` в `tests/queries.test.mjs` не менять
-- [ ] T004 [US3] Проверить: `node --test tests/queries.test.mjs` 30 раз подряд — 0 падений; `node tests/bench/queries.mjs` печатает прежнюю таблицу (`docs/refactoring/baseline.md`, раздел 3)
-- [ ] T005 [US3] `npm test` зелёный → коммит «017 US3: seeded queries scenario»
+- [X] T003 [US3] В `tests/support/queries-scenario.mjs` подменить `Math.random` генератором `seeded(1)` из `tests/support/draw-cases.mjs` на время `runQueriesScenario` и вернуть прежний в `finally`; комментарий — почему (удаление после жеребьёвки меняет 1 или 2 пары в зависимости от случайных чисел → 2 или 3 сообщения), `src/` и `BASELINE` в `tests/queries.test.mjs` не менять
+- [X] T004 [US3] Проверить: `node --test tests/queries.test.mjs` 30 раз подряд — 0 падений; `node tests/bench/queries.mjs` печатает прежнюю таблицу (`docs/refactoring/baseline.md`, раздел 3)
+- [X] T005 [US3] `npm test` зелёный → коммит «017 US3: seeded queries scenario»
 
 **Checkpoint**: `npm test` перед коммитом не падает случайно
 
