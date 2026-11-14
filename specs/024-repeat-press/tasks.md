@@ -15,7 +15,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Снять «до»: `npm test` (185, зелёные, время), `node tests/bench/queries.mjs` — строки `admin.announce`,
+- [X] T001 Снять «до»: `npm test` (185, зелёные, время), `node tests/bench/queries.mjs` — строки `admin.announce`,
   `admin.remind.*`, `admin.event.invite_from`, `admin.reset.full`, `admin.role.*`, `admin.owner.transfer`,
   `admin.family.save`
 
@@ -23,7 +23,7 @@
 
 ## Phase 2: Foundational
 
-- [ ] T002 `src/db.js`: `updateEventIfStmt(db, id, fields, guard, ...args)` — как `updateEventStmt`, условие
+- [X] T002 `src/db.js`: `updateEventIfStmt(db, id, fields, guard, ...args)` — как `updateEventStmt`, условие
   `AND (guard)`, те же проверки полей (research R2)
 
 ---
@@ -34,7 +34,7 @@
 
 **Independent Test**: `node --test tests/atomic.test.mjs` — проверки рассылок блока 024.
 
-- [ ] T003 [US1] `tests/atomic.test.mjs`: блок `describe('атомарность: повторные нажатия (024)', …)`, вызовы в одну
+- [X] T003 [US1] `tests/atomic.test.mjs`: блок `describe('атомарность: повторные нажатия (024)', …)`, вызовы в одну
   миллисекунду (`sameMoment`): `admin.announce` ×2 с одним текстом — ответы 200/400 «Это объявление уже отправлено.»,
   у участника одно объявление, строк `announcements` 1, запись `announce` 1; два разных текста одновременно — оба 200;
   то же объявление после сдвига времени записей на 61 с назад — 200; `admin.remind.unfilled` ×2 — по одному
@@ -42,7 +42,7 @@
   `admin.remind.santas` ×2 (после жеребьёвки) — то же; `admin.event.invite_from` ×2 (новое событие, приглашение из
   первого) — по одному приглашению, запись одна, отказ «Приглашения уже отправлены — повторить можно через минуту.»
   Запустить — падают
-- [ ] T004 [US1] `src/events.js`: `REPEAT_MS = 60 * 1000`; `announce` — `atomic` с условием «нет объявления с тем же
+- [X] T004 [US1] `src/events.js`: `REPEAT_MS = 60 * 1000`; `announce` — `atomic` с условием «нет объявления с тем же
   текстом новее `now − REPEAT_MS`», сообщения и журнал — перед захватом, захват — `INSERT INTO announcements … SELECT
   …` последним; проигрыш — отказ; `remindUnfilled`/`remindSantas` при `actor` — `atomic` с условием «нет записи
   журнала этого кода в событии новее `now − REPEAT_MS`», сообщения перед захватом, захват — запись журнала; плановый
@@ -57,21 +57,21 @@
 
 **Independent Test**: `node --test tests/atomic.test.mjs` — проверки ролей и сброса.
 
-- [ ] T005 [US2] `tests/atomic.test.mjs`, тот же блок (`sameMoment`): `admin.role.grant` ×2 — 200/400 «Он(а) уже
+- [X] T005 [US2] `tests/atomic.test.mjs`, тот же блок (`sameMoment`): `admin.role.grant` ×2 — 200/400 «Он(а) уже
   администратор.», назначенному одно сообщение, другому админу одно, `role.grant` +1; `admin.role.revoke` ×2 у админа
   со взятым обращением — 200/400 «Он(а) не администратор.», ему одно сообщение, автору обращения одно «снова ждёт
   ответа», `role.revoke` +1, `support.return` +1; `admin.owner.transfer` ×2 — 200/400 «Права владельца уже
   переданы.», новому владельцу одно сообщение, `owner.transfer` 1; `admin.reset.full` ×2 — 200/400 «Событие уже
   сброшено или изменилось одновременно со сбросом — обнови экран.», каждому удалённому одно уведомление, `reset` 1.
   Запустить — падают
-- [ ] T006 [US2] `src/roles.js`: `grantAdmin` и `revokeAdmin` — `atomic` «по прежнему состоянию» (`is_admin = 0` /
+- [X] T006 [US2] `src/roles.js`: `grantAdmin` и `revokeAdmin` — `atomic` «по прежнему состоянию» (`is_admin = 0` /
   `= 1`), сообщения, возврат обращений и журнал — перед захватом, захват — `UPDATE users … AND is_admin = …`
   последним, проигрыш — прежние тексты; `setOwner` при `via: 'transfer'` — условие «владелец прежний», захват —
   `UPDATE settings SET value = ? WHERE key = 'owner_id' AND value = ?` последним, возвращает `{ won }`; ссылка
   (`via: 'link'`) — прежний порядок; `transferOwnership` — отказ «Права владельца уже переданы.»
-- [ ] T007 [US2] `src/support.js`: `returnThreadsStmts(db, settings, users, adminId, guard = ['1'])` — условие у
+- [X] T007 [US2] `src/support.js`: `returnThreadsStmts(db, settings, users, adminId, guard = ['1'])` — условие у
   `UPDATE support_threads`, сообщений и журнала (по умолчанию — прежнее поведение)
-- [ ] T008 [US2] `src/events.js`, `resetEvent`: захват первым — `updateEventIfStmt(…, 'invite_code = ?',
+- [X] T008 [US2] `src/events.js`, `resetEvent`: захват первым — `updateEventIfStmt(…, 'invite_code = ?',
   ev.invite_code)` с новым кодом; уведомления, `eventDataDeleteStmts(…, { keepMember, keepEvent: true }, ...guard)` и
   журнал — после, с условием «код события — новый»; проигрыш — `{ ok: false, error }`; `src/api.js`, строка
   `admin.reset.full` — отказ через `refuse`. T005 — зелёный
@@ -84,9 +84,9 @@
 
 **Independent Test**: `node --test tests/atomic.test.mjs` — проверка семьи.
 
-- [ ] T009 [US3] `tests/atomic.test.mjs`, тот же блок: `admin.family.save` ×2 (новая, один состав, `sameMoment`) —
+- [X] T009 [US3] `tests/atomic.test.mjs`, тот же блок: `admin.family.save` ×2 (новая, один состав, `sameMoment`) —
   200/400, текст отказа `… уже в семье «…».`, семей 1, `family.save` 1. Запустить — падает (500)
-- [ ] T010 [US3] `src/membership.js`, `saveFamily`: запрос «кто уже в семье» — функцией; пакет в `try`; ошибка
+- [X] T010 [US3] `src/membership.js`, `saveFamily`: запрос «кто уже в семье» — функцией; пакет в `try`; ошибка
   `UNIQUE constraint failed: family_members` — повторить запрос и вернуть прежний отказ; иначе — пробросить. T009 —
   зелёный
 

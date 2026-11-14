@@ -132,6 +132,15 @@ export function updateEventStmt(db, id, fields) {
   return db.prepare(`UPDATE events SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).bind(...keys.map((k) => fields[k]), id);
 }
 
+// То же с условием (024): захват полного сброса — пока у события прежний код приглашения
+export function updateEventIfStmt(db, id, fields, guard, ...args) {
+  const keys = Object.keys(fields).filter((k) => EVENT_FIELDS.has(k));
+  if (!keys.length) throw new Error(`updateEventIfStmt: нет полей для записи (${Object.keys(fields).join(', ') || 'пусто'})`);
+  return db
+    .prepare(`UPDATE events SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ? AND (${guard})`)
+    .bind(...keys.map((k) => fields[k]), id, ...args);
+}
+
 // ---------- members ----------
 
 export const memberQuery = (db, eventId, userId) => db.prepare('SELECT * FROM members WHERE event_id = ? AND user_id = ?').bind(eventId, userId);

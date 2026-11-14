@@ -438,7 +438,8 @@ export function supportUnreadFrom(results) {
 
 // Операторы: открытые обращения админа adminId снова ничьи; админам — «снова ничьё» с кнопкой «Взять», участнику —
 // «снова ждёт ответа». Список обращений читается заранее (threads из returnableThreads).
-export async function returnThreadsStmts(db, settings, users, adminId) {
+// guard — условие всех операторов (024: снятие прав — пока он админ); по умолчанию — без условия, как раньше
+export async function returnThreadsStmts(db, settings, users, adminId, [guard, ...args] = ['1']) {
   const { results: threads } = await db
     .prepare(
       `SELECT t.id, t.event_id, t.user_id, e.title FROM support_threads t JOIN events e ON e.id = t.event_id
@@ -447,18 +448,18 @@ export async function returnThreadsStmts(db, settings, users, adminId) {
     .bind(adminId)
     .all();
   if (!threads.length) return [];
-  const stmts = [db.prepare("UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = ? AND status = 'open'").bind(adminId)];
+  const stmts = [db.prepare(`UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = ? AND status = 'open' AND (${guard})`).bind(adminId, ...args)];
   for (const t of threads) {
     const ev = { id: t.event_id, title: t.title };
     const author = users.find((u) => u.tg_id === t.user_id);
     for (const a of adminRecipients(users, [adminId, t.user_id])) {
       stmts.push(enqueueIfStmt(db, a.tg_id, msg(`🔄 Обращение ${bold(author)} (${title(ev)}) снова ничьё.`, {
         reply_markup: adminKeyboard(settings, ev, t.id, true),
-      }), '1'));
+      }), guard, ...args));
     }
     stmts.push(
-      enqueueIfStmt(db, t.user_id, msg(`🔄 Твоё обращение в событии ${title(ev)} снова ждёт ответа организатора.`), '1'),
-      auditIfStmt(db, t.event_id, 0, 'support.return', displayName(author), '1'),
+      enqueueIfStmt(db, t.user_id, msg(`🔄 Твоё обращение в событии ${title(ev)} снова ждёт ответа организатора.`), guard, ...args),
+      auditIfStmt(db, t.event_id, 0, 'support.return', displayName(author), guard, ...args),
     );
   }
   return stmts;

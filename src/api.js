@@ -278,14 +278,14 @@ export const ACTIONS = {
     finished: CLOSED,
     run: async (ctx, body, ev) => out(await decideRequest(ctx, body.id, ctx.me.tg_id, !!body.approve, { inEvent: ev }), none),
   },
-  'admin.remind.unfilled': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => count(await remindUnfilled(ctx, ev, ctx.me.tg_id)) },
+  'admin.remind.unfilled': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await remindUnfilled(ctx, ev, ctx.me.tg_id), count) },
   'admin.remind.santas': {
     role: ADMIN,
     event: true,
     finished: CLOSED,
     async run(ctx, body, ev) {
       if (!ev.draw_done) return refuse(NO_DRAW);
-      return count(await remindSantas(ctx, ev, ctx.me.tg_id));
+      return out(await remindSantas(ctx, ev, ctx.me.tg_id), count);
     },
   },
   // Повторно имена не рассылаются (006, FR-610), в том числе при одновременных вызовах (009)
@@ -328,6 +328,7 @@ export const ACTIONS = {
     confirm: ['СБРОС', 'Для полного сброса введи слово СБРОС.'],
     async run(ctx, body, ev) {
       const r = await resetEvent(ctx, ev, await ctx.ownerId(), ctx.me.tg_id);
+      if (!r.ok) return refuse(r.error); // второй из одновременных сбросов (024)
       return { removed: r.removed, invite_link: inviteLink(await ctx.settings(), { invite_code: r.inviteCode }) };
     },
   },

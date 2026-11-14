@@ -52,12 +52,16 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
   for (const uid of ids) if (!byId[uid]?.registered) return { ok: false, error: 'Участник не найден.' };
   // Один человек — одна семья (FR-805)
-  const { results: taken } = await db
-    .prepare(`SELECT fm.user_id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id
-               WHERE fm.family_id != ? AND fm.user_id IN (${ids.map(() => '?').join(',')})`)
-    .bind(id, ...ids)
-    .all();
-  if (taken.length) return { ok: false, error: `${displayName(byId[taken[0].user_id])} уже в семье «${taken[0].name}».` };
+  const alreadyIn = async () => {
+    const { results: taken } = await db
+      .prepare(`SELECT fm.user_id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id
+                 WHERE fm.family_id != ? AND fm.user_id IN (${ids.map(() => '?').join(',')})`)
+      .bind(id, ...ids)
+      .all();
+    return taken.length ? { ok: false, error: `${displayName(byId[taken[0].user_id])} уже в семье «${taken[0].name}».` } : null;
+  };
+  const taken = await alreadyIn();
+  if (taken) return taken;
   // Переименование без смены состава разрешено всегда
   const before = id ? await familyMembers(db, id) : [];
   const changed = [...ids.filter((x) => !before.includes(x)), ...before.filter((x) => !ids.includes(x))];
@@ -72,7 +76,16 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
     : [db.prepare('INSERT INTO families (name, created_by, created_at) VALUES (?, ?, ?)').bind(clean, actor, now)];
   for (const uid of ids) stmts.push(db.prepare(`INSERT INTO family_members (user_id, family_id) VALUES (?, ${famId})`).bind(uid, ...famArgs));
   stmts.push(auditStmt(db, 0, actor, 'family.save', `«${clean}»: ${ids.map((x) => displayName(byId[x])).join(', ')}`));
-  await db.batch(stmts);
+  try {
+    await db.batch(stmts);
+  } catch (e) {
+    // Одновременное сохранение (024): человек уже попал в другую семью — пакет откатился целиком; ответ — тот же, что
+    // при последовательном повторе. Прочие ошибки — как раньше.
+    if (!/UNIQUE constraint failed: family_members/.test(String(e?.message))) throw e;
+    const taken = await alreadyIn();
+    if (taken) return taken;
+    throw e;
+  }
   return { ok: true };
 }
 

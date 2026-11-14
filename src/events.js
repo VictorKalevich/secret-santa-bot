@@ -2,12 +2,20 @@
 
 import {
   getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt,
-  updateEventStmt, auditStmt, eventDataDeleteStmts,
+  updateEventStmt, updateEventIfStmt, auditStmt, eventDataDeleteStmts,
 } from './db.js';
 import { msg, q, escapeHtml, formatDate, formatMs, appKeyboard, inviteLink, randomCode, oneLine, cleanText, ISO_DATE, NO_DRAW, PAIRS_RACE } from './format.js';
 
 import { CHAT_GRACE_MS, isFinished } from './status.js';
 import { atomic } from './claim.js';
+
+// Повторные нажатия (024): та же рассылка по желанию в том же событии чаще раза в минуту — повтор. Условие — по
+// прежнему состоянию: сообщения — перед опорой (объявление или запись журнала), опора — захват, последней. Время —
+// только граница окна: у двух вызовов в одну миллисекунду она одна, а опора первого новее неё.
+const REPEAT_MS = 60 * 1000;
+const RECENT_AUDIT = 'NOT EXISTS (SELECT 1 FROM audit WHERE event_id = ? AND action = ? AND created_at > ?)';
+const notRepeated = (db, ev, action) => atomic(db, RECENT_AUDIT, ev.id, action, Date.now() - REPEAT_MS);
+const REMIND_AGAIN = 'Напоминание уже отправлено — повторить можно через минуту.';
 
 // from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
 // invite — разослать участникам образца приглашение в новый эвент.
@@ -94,20 +102,24 @@ export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
   const members = await rowsOf(memberIdsQuery(db, ev.id));
   const removed = members.filter((m) => m.user_id !== ownerId);
   const inviteCode = randomCode();
-  await db.batch([
-    ...removed.map((m) => enqueueStmt(db, m.user_id, msg(
+  // Захват мой (024): новый случайный код приглашения — захват первым, пока код прежний; остальное — после него,
+  // пока код новый. Второй из одновременных сбросов (или сброс одновременно со сменой ссылки) ничего не меняет.
+  const mine = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND invite_code = ?)', ev.id, inviteCode);
+  mine.claim(mine.add(updateEventIfStmt(db, ev.id, {
+    status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,
+    ring: 1, avoid_previous: 1, budget: '', event_date: '', place: '', deadline: '', notes: '', last_daily: '',
+    draw_auto_date: '', reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0, rejoin: 1,
+  }, 'invite_code = ?', ev.invite_code)));
+  for (const m of removed) {
+    mine.enqueue(m.user_id, msg(
       `🎄 Организатор начал событие ${q(ev)} заново. Прежние данные удалены. Чтобы участвовать, попроси новую пригласительную ссылку.`
-    ))),
-    // Данные эвента — по списку REGISTRY (018): участие владельца остаётся, его письмо и адрес стираются
-    ...eventDataDeleteStmts(db, ev.id, { keepMember: ownerId, keepEvent: true }),
-    updateEventStmt(db, ev.id, {
-      status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,
-      ring: 1, avoid_previous: 1, budget: '', event_date: '', place: '', deadline: '', notes: '', last_daily: '',
-      draw_auto_date: '', reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0, rejoin: 1,
-    }),
-    auditStmt(db, ev.id, actor, 'reset', `удалено участников: ${removed.length}`),
-  ]);
-  return { removed: removed.length, inviteCode };
+    ));
+  }
+  // Данные эвента — по списку REGISTRY (018): участие владельца остаётся, его письмо и адрес стираются
+  mine.add(...eventDataDeleteStmts(db, ev.id, { keepMember: ownerId, keepEvent: true }, ...mine.guard));
+  mine.audit(ev.id, actor, 'reset', `удалено участников: ${removed.length}`);
+  if (!(await mine.run()).won) return { ok: false, error: 'Событие уже сброшено или изменилось одновременно со сбросом — обнови экран.' };
+  return { ok: true, removed: removed.length, inviteCode };
 }
 
 // Пригласить участников другого эвента: сообщение со ссылкой вступления (FR-509).
@@ -126,12 +138,16 @@ export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
   });
   const skip = new Set([...r.members, ...r.removed].map((m) => m.user_id));
   const people = r.from.filter((m) => !skip.has(m.user_id));
-  const stmts = people.map((m) => enqueueStmt(db, m.user_id, msg(
-    `📨 <b>Приглашение на событие ${q(ev)}</b> — Тайный Санта.\nНажми кнопку, чтобы участвовать.`,
-    { reply_markup: { inline_keyboard: [[{ text: '🎄 Участвовать', url: link }]] } }
-  )));
-  stmts.push(auditStmt(db, ev.id, actor, 'invite.from', `из «${fromEv.title}», приглашено: ${people.length}`));
-  await db.batch(stmts);
+  // Повтор за минуту не рассылается (024): опора — запись журнала, последней
+  const fresh = notRepeated(db, ev, 'invite.from');
+  for (const m of people) {
+    fresh.enqueue(m.user_id, msg(
+      `📨 <b>Приглашение на событие ${q(ev)}</b> — Тайный Санта.\nНажми кнопку, чтобы участвовать.`,
+      { reply_markup: { inline_keyboard: [[{ text: '🎄 Участвовать', url: link }]] } }
+    ));
+  }
+  fresh.claim(fresh.audit(ev.id, actor, 'invite.from', `из «${fromEv.title}», приглашено: ${people.length}`));
+  if (!(await fresh.run()).won) return { ok: false, error: 'Приглашения уже отправлены — повторить можно через минуту.' };
   return { ok: true, count: people.length };
 }
 
@@ -163,23 +179,37 @@ export async function revealAll(ctx, ev, actor = 0) {
   return { ok: true, count: rows.length };
 }
 
+// Рассылка напоминания: плановое (cron, actor = 0) — прежним пакетом с extra (отметка last_daily, 009; пустое журнал
+// не засоряет); ручное — не чаще раза в минуту (024), опора — запись журнала, последней.
+// Код журнала — параметром action: '…', чтобы его видел тест описания API (tests/api-doc.test.mjs)
+async function sendReminder(ctx, ev, { actor, action, letters, extra }) {
+  const db = ctx.db;
+  if (!actor) {
+    const stmts = letters.map(([to, payload]) => enqueueStmt(db, to, payload));
+    if (letters.length) stmts.push(auditStmt(db, ev.id, 0, action, `получили: ${letters.length}`));
+    stmts.push(...extra);
+    if (stmts.length) await db.batch(stmts);
+    return { ok: true, count: letters.length };
+  }
+  const fresh = notRepeated(db, ev, action);
+  for (const [to, payload] of letters) fresh.enqueue(to, payload);
+  fresh.claim(fresh.audit(ev.id, actor, action, `получили: ${letters.length}`));
+  fresh.add(...extra);
+  if (!(await fresh.run()).won) return { ok: false, error: REMIND_AGAIN };
+  return { ok: true, count: letters.length };
+}
+
 // extra — операторы, которые выполняются в том же batch, что и рассылка (cron: отметка last_daily, 009)
 export async function remindUnfilled(ctx, ev, actor = 0, extra = []) {
   const db = ctx.db;
   // Пустые письма отбираются в базе — тексты не читаются (019)
   const { settings, people } = await ctx.read({ people: unfilledIdsQuery(db, ev.id), settings: true });
   const deadline = ev.deadline ? ` до <b>${formatDate(ev.deadline)}</b>` : '';
-  const stmts = people.map((u) =>
-    enqueueStmt(db, u.user_id, msg(
-      `⏰ Напоминание: твоё письмо Санте в событии ${q(ev)} пока пустое. Заполни его${deadline}, чтобы Санте было проще выбрать подарок.`,
-      appKeyboard(settings, '✏️ Написать письмо', { event: ev.id })
-    ))
-  );
-  // Пустое плановое напоминание журнал не засоряет
-  if (people.length || actor) stmts.push(auditStmt(db, ev.id, actor, 'remind.unfilled', `получили: ${people.length}`));
-  stmts.push(...extra);
-  if (stmts.length) await db.batch(stmts);
-  return { ok: true, count: people.length };
+  const letters = people.map((u) => [u.user_id, msg(
+    `⏰ Напоминание: твоё письмо Санте в событии ${q(ev)} пока пустое. Заполни его${deadline}, чтобы Санте было проще выбрать подарок.`,
+    appKeyboard(settings, '✏️ Написать письмо', { event: ev.id })
+  )]);
+  return sendReminder(ctx, ev, { actor, action: 'remind.unfilled', letters, extra });
 }
 
 export async function remindSantas(ctx, ev, actor = 0, extra = []) {
@@ -188,17 +218,11 @@ export async function remindSantas(ctx, ev, actor = 0, extra = []) {
   const { settings } = r;
   const rows = r.rows.filter((p) => !p.gift_ready);
   const when = ev.event_date ? ` Вручение — <b>${formatDate(ev.event_date)}</b>.` : '';
-  const stmts = rows.map((p) =>
-    enqueueStmt(db, p.santa, msg(
-      `🎁 Напоминание для Санты (${q(ev)}): подарок для подопечного уже готов?${when}\nКогда будет готов — отметь это во вкладке «Подопечный».`,
-      appKeyboard(settings, '🎁 Открыть', { event: ev.id })
-    ))
-  );
-  // Пустое плановое напоминание журнал не засоряет
-  if (rows.length || actor) stmts.push(auditStmt(db, ev.id, actor, 'remind.santas', `получили: ${rows.length}`));
-  stmts.push(...extra);
-  if (stmts.length) await db.batch(stmts);
-  return { ok: true, count: rows.length };
+  const letters = rows.map((p) => [p.santa, msg(
+    `🎁 Напоминание для Санты (${q(ev)}): подарок для подопечного уже готов?${when}\nКогда будет готов — отметь это во вкладке «Подопечный».`,
+    appKeyboard(settings, '🎁 Открыть', { event: ev.id })
+  )]);
+  return sendReminder(ctx, ev, { actor, action: 'remind.santas', letters, extra });
 }
 
 // ---------- объявления (007) ----------
@@ -214,14 +238,18 @@ export async function announce(ctx, ev, actor, rawText) {
   if (text.length > ANNOUNCE_MAX) return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${ANNOUNCE_MAX}.` };
   const { settings, people } = await ctx.read({ people: participantIdsQuery(db, ev.id), settings: true });
   const now = Date.now();
-  await db.batch([
-    db.prepare('INSERT INTO announcements (event_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(ev.id, actor, text, now),
-    ...people.map((u) => enqueueStmt(db, u.user_id, msg(
+  // Повтор (024): то же объявление в событии за минуту не рассылается; другой текст — уходит. Опора — само объявление,
+  // последним; сообщения и журнал — перед ним, пока такого объявления нет.
+  const fresh = atomic(db, 'NOT EXISTS (SELECT 1 FROM announcements WHERE event_id = ? AND text = ? AND created_at > ?)', ev.id, text, now - REPEAT_MS);
+  for (const u of people) {
+    fresh.enqueue(u.user_id, msg(
       `📣 <b>Объявление · ${q(ev)}</b>\n\n${escapeHtml(text)}`,
       appKeyboard(settings, '📌 Открыть событие', { event: ev.id })
-    ))),
-    auditStmt(db, ev.id, actor, 'announce', `получили: ${people.length}`),
-  ]);
+    ));
+  }
+  fresh.audit(ev.id, actor, 'announce', `получили: ${people.length}`);
+  fresh.claim(fresh.select('INSERT INTO announcements (event_id, author, text, created_at) SELECT ?, ?, ?, ?', ev.id, actor, text, now));
+  if (!(await fresh.run()).won) return { ok: false, error: 'Это объявление уже отправлено.' };
   return { ok: true, count: people.length };
 }
 

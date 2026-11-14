@@ -149,6 +149,112 @@ describe('атомарность: до жеребьёвки', () => {
   });
 });
 
+// 024: повторные нажатия — рассылки по желанию (окно в минуту), роли, владение, сброс, новая семья. Все вызовы —
+// в одну миллисекунду (sameMoment): признак «уже сделано» — состояние базы, а не время и не автор.
+describe('атомарность: повторные нажатия (024)', () => {
+  const once = { sameMoment: true };
+  const refusal = (rs) => rs.find((r) => r.status === 400)?.data.error;
+
+  describe('рассылки, роли, владение, семья', () => {
+    let z;
+    before(async () => { z = await world(); });
+
+    it('admin.announce ×2 с одним текстом — одно объявление каждому', async () => {
+      const rs = await z.twice(adm, 'admin.announce', { event: z.ev.id, text: 'Сбор в пятницу' }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(refusal(rs), 'Это объявление уже отправлено.');
+      assert.equal(z.sent(z.people[0], 'Сбор в пятницу'), 1, 'объявлений участнику');
+      assert.equal(z.w.query('SELECT COUNT(*) AS n FROM announcements')[0].n, 1);
+      assert.equal(z.audit('announce'), 1);
+    });
+    it('два разных объявления одновременно — уходят оба', async () => {
+      const rs = await z.w.together([
+        () => z.w.api(adm, 'admin.announce', { event: z.ev.id, text: 'Первое' }, true),
+        () => z.w.api(adm2, 'admin.announce', { event: z.ev.id, text: 'Второе' }, true),
+      ], once);
+      assert.deepEqual(statuses(rs), [200, 200]);
+      assert.equal(z.sent(z.people[0], 'Первое') + z.sent(z.people[0], 'Второе'), 2);
+    });
+    it('то же объявление через минуту — уходит', async () => {
+      z.w.query('UPDATE announcements SET created_at = created_at - 61000');
+      const r = await z.w.api(adm, 'admin.announce', { event: z.ev.id, text: 'Сбор в пятницу' }, true);
+      assert.equal(r.status, 200);
+      assert.equal(z.sent(z.people[0], 'Сбор в пятницу'), 2);
+    });
+    it('admin.remind.unfilled ×2 — одно напоминание каждому', async () => {
+      const rs = await z.twice(adm, 'admin.remind.unfilled', { event: z.ev.id }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(refusal(rs), 'Напоминание уже отправлено — повторить можно через минуту.');
+      assert.equal(z.sent(z.people[0], 'письмо Санте'), 1);
+      assert.equal(z.audit('remind.unfilled'), 1);
+    });
+    it('admin.event.invite_from ×2 — одно приглашение каждому', async () => {
+      const B = (await z.w.api(boss, 'admin.events.create', { title: 'Второе' })).event.id;
+      const rs = await z.twice(adm, 'admin.event.invite_from', { event: B, from: z.ev.id }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(refusal(rs), 'Приглашения уже отправлены — повторить можно через минуту.');
+      assert.equal(z.sent(z.people[0], 'Приглашение на событие'), 1);
+      assert.equal(z.audit('invite.from'), 1);
+    });
+    it('admin.family.save ×2 новой семьи — понятный отказ вместо 500', async () => {
+      const rs = await z.twice(adm, 'admin.family.save', { name: 'Ивановы', members: [z.people[0].id, z.people[1].id] }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.match(refusal(rs), /уже в семье «Ивановы»\.$/);
+      assert.equal(z.w.query('SELECT COUNT(*) AS n FROM families')[0].n, 1);
+      assert.equal(z.audit('family.save'), 1);
+    });
+    it('admin.role.grant ×2 — одно уведомление', async () => {
+      const rs = await z.twice(boss, 'admin.role.grant', { id: z.people[2].id }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(refusal(rs), 'Он(а) уже администратор.');
+      assert.equal(z.sent(z.people[2], 'назначил тебя администратором'), 1);
+      assert.equal(z.sent(adm, `${z.people[2].name}</b> теперь администратор`), 1, 'другому админу');
+      assert.equal(z.audit('role.grant'), 3, 'два админа мира и этот');
+    });
+    it('admin.role.revoke ×2 у админа со взятым обращением — одно уведомление, обращение ничьё один раз', async () => {
+      await z.w.api(z.people[3], 'support.send', { event: z.ev.id, text: 'Помогите' });
+      const th = z.w.query('SELECT id FROM support_threads')[0].id;
+      await z.w.api(adm2, 'admin.support.take', { event: z.ev.id, thread: th });
+      const rs = await z.twice(boss, 'admin.role.revoke', { id: adm2.id }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(refusal(rs), 'Он(а) не администратор.');
+      assert.equal(z.sent(adm2, 'снял с тебя права'), 1);
+      assert.equal(z.sent(z.people[3], 'снова ждёт ответа'), 1);
+      assert.equal(z.sent(adm, 'снова ничьё'), 1);
+      assert.equal(z.audit('role.revoke'), 1);
+      assert.equal(z.audit('support.return'), 1);
+    });
+    it('admin.owner.transfer ×2 — одна передача', async () => {
+      const rs = await z.twice(boss, 'admin.owner.transfer', { id: adm.id }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(refusal(rs), 'Права владельца уже переданы.');
+      assert.equal(z.sent(adm, 'Тебе переданы права владельца'), 1);
+      assert.equal(z.audit('owner.transfer'), 1);
+    });
+  });
+
+  describe('после жеребьёвки: напоминание Сантам и полный сброс', () => {
+    let z;
+    before(async () => { z = await world({ draw: true }); });
+
+    it('admin.remind.santas ×2 — одно напоминание каждому Санте', async () => {
+      const rs = await z.twice(adm, 'admin.remind.santas', { event: z.ev.id }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(refusal(rs), 'Напоминание уже отправлено — повторить можно через минуту.');
+      assert.equal(z.sent(z.people[0], 'Напоминание для Санты'), 1);
+      assert.equal(z.audit('remind.santas'), 1);
+    });
+    it('admin.reset.full ×2 — одно уведомление каждому удалённому', async () => {
+      const rs = await z.twice(boss, 'admin.reset.full', { event: z.ev.id, confirm: 'СБРОС' }, once);
+      assert.deepEqual(sorted(rs), [200, 400]);
+      assert.equal(refusal(rs), 'Событие уже сброшено или изменилось одновременно со сбросом — обнови экран.');
+      assert.equal(z.sent(z.people[0], 'начал событие'), 1);
+      assert.equal(z.audit('reset'), 1);
+      assert.equal(z.w.query('SELECT COUNT(*) AS n FROM pairs WHERE event_id = ?', z.ev.id)[0].n, 0, 'пары удалены');
+    });
+  });
+});
+
 // 023: журнал закреплённых пар — по прежнему состоянию, только когда пара действительно добавлена или убрана. Ответы
 // прежние: второй из одновременных вызовов тоже получает успех (research R3 фичи 023).
 describe('атомарность: закреплённые пары (023)', () => {

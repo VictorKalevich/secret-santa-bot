@@ -1,7 +1,7 @@
 // Роли (002): владелец и администраторы; перенос участия на новый аккаунт (004 → 005: во всех эвентах).
 
 import {
-  setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, auditStmt,
+  setSettings, setSettingStmt, allUsers, getUser, getEvent,
   mergeMembership, personTransferStmts,
 } from './db.js';
 import { msg, escapeHtml, appKeyboard, displayName, adminRecipients } from './format.js';
@@ -9,11 +9,8 @@ import { derivedSecret } from './telegram.js';
 import { returnThreadsStmts } from './support.js';
 import { atomic } from './claim.js';
 
-// Сообщение остальным админам (без звука) — кроме перечисленных
+// Сообщение остальным админам (без звука): получатели — adminRecipients(users, кроме перечисленных)
 const adminNotice = (text) => msg(text, { disable_notification: true });
-function otherAdminsNotice(db, users, exclude, text) {
-  return adminRecipients(users, exclude).map((u) => enqueueStmt(db, u.tg_id, adminNotice(text)));
-}
 
 // ---------- ссылка владельца (010, FR-1004–FR-1006) ----------
 
@@ -54,51 +51,59 @@ export async function resolveOwner(db, settings, users) {
 }
 
 // Сделать пользователя владельцем. via: 'link' (ссылка /setup) или 'transfer' (передал прежний владелец).
+// Передача (024) — по прежнему состоянию: всё — пока владелец прежний, смена владельца — последней (захват); второй
+// из одновременных вызовов ничего не меняет — { won: false }. Ссылка (via: 'link') — без условия: её захват — claimOwnerLink.
 export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabel } = {}) {
   const db = ctx.db;
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const target = users.find((u) => u.tg_id === newOwnerId);
   const label = escapeHtml(newOwnerLabel || displayName(target));
-  const stmts = [
-    db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ?').bind(newOwnerId),
-    setSettingStmt(db, 'owner_id', String(newOwnerId)),
-    via === 'transfer'
-      ? auditStmt(db, 0, prevOwnerId, 'owner.transfer', `→ ${newOwnerLabel || displayName(target)}`)
-      : auditStmt(db, 0, newOwnerId, 'owner.link', newOwnerLabel || displayName(target)),
-  ];
+  const transfer = via === 'transfer';
+  const a = transfer
+    ? atomic(db, "EXISTS (SELECT 1 FROM settings WHERE key = 'owner_id' AND value = ?)", String(prevOwnerId))
+    : atomic(db, '1 = 1');
+  a.where('UPDATE users SET is_admin = 1 WHERE tg_id = ?', newOwnerId);
+  if (transfer) a.audit(0, prevOwnerId, 'owner.transfer', `→ ${newOwnerLabel || displayName(target)}`);
+  else a.audit(0, newOwnerId, 'owner.link', newOwnerLabel || displayName(target));
   if (prevOwnerId && prevOwnerId !== newOwnerId) {
     if (via === 'link') {
-      stmts.push(enqueueStmt(db, prevOwnerId, msg(
+      a.enqueue(prevOwnerId, msg(
         `⚠️ Права владельца бота перешли к <b>${label}</b> по ссылке со страницы настройки. Ты остаёшься администратором.\n\n` +
         'Если это не ты и не по договорённости — смени ADMIN_SECRET (см. README), открой страницу настройки и перейди по новой ссылке владельца.'
-      )));
+      ));
     }
     if (via === 'transfer') {
-      stmts.push(enqueueStmt(db, newOwnerId, msg(
+      a.enqueue(newOwnerId, msg(
         '👑 <b>Тебе переданы права владельца бота.</b> Теперь ты назначаешь и снимаешь администраторов — раздел «Администраторы» на главном экране приложения.',
         appKeyboard(settings, '🛠 Открыть')
-      )));
+      ));
     }
-    stmts.push(...otherAdminsNotice(db, users, [newOwnerId, prevOwnerId], `ℹ️ <b>${label}</b> теперь владелец бота.`));
+    for (const u of adminRecipients(users, [newOwnerId, prevOwnerId])) a.enqueue(u.tg_id, adminNotice(`ℹ️ <b>${label}</b> теперь владелец бота.`));
   }
-  await db.batch(stmts);
+  if (transfer) a.claim(db.prepare("UPDATE settings SET value = ? WHERE key = 'owner_id' AND value = ?").bind(String(newOwnerId), String(prevOwnerId)));
+  else a.add(setSettingStmt(db, 'owner_id', String(newOwnerId)));
+  return { won: (await a.run()).won !== false };
 }
+
+const ALREADY_ADMIN = 'Он(а) уже администратор.';
+const NOT_ADMIN = 'Он(а) не администратор.';
 
 export async function grantAdmin(ctx, id, actor = 0) {
   const db = ctx.db;
   const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id);
   if (!u || !u.registered) return { ok: false, error: 'Назначить можно только зарегистрированного человека.' };
-  if (u.is_admin) return { ok: false, error: 'Он(а) уже администратор.' };
-  await db.batch([
-    db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ?').bind(id),
-    enqueueStmt(db, id, msg(
-      '🛠 <b>Владелец назначил тебя администратором.</b>\n\nТеперь ты можешь создавать события и вести их: приглашения, исключения, жеребьёвка, напоминания. Кто кому дарит, админы не видят.',
-      appKeyboard(settings, '🛠 Открыть')
-    )),
-    ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`),
-    auditStmt(db, 0, actor || ownerId, 'role.grant', displayName(u)),
-  ]);
+  if (u.is_admin) return { ok: false, error: ALREADY_ADMIN };
+  // По прежнему состоянию (024): сообщения и журнал — пока он не админ, назначение — последним (захват)
+  const a = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND is_admin = 0)', id);
+  a.enqueue(id, msg(
+    '🛠 <b>Владелец назначил тебя администратором.</b>\n\nТеперь ты можешь создавать события и вести их: приглашения, исключения, жеребьёвка, напоминания. Кто кому дарит, админы не видят.',
+    appKeyboard(settings, '🛠 Открыть')
+  ));
+  for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(`ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`));
+  a.audit(0, actor || ownerId, 'role.grant', displayName(u));
+  a.claim(db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ? AND is_admin = 0').bind(id));
+  if (!(await a.run()).won) return { ok: false, error: ALREADY_ADMIN };
   return { ok: true };
 }
 
@@ -106,17 +111,17 @@ export async function revokeAdmin(ctx, id, actor = 0) {
   const db = ctx.db;
   const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id);
-  if (!u || !u.is_admin) return { ok: false, error: 'Он(а) не администратор.' };
+  if (!u || !u.is_admin) return { ok: false, error: NOT_ADMIN };
   if (id === ownerId) return { ok: false, error: 'Нельзя снять права владельца. Сначала передай владение другому.' };
+  // По прежнему состоянию (024): всё — пока он админ, снятие прав — последним (захват)
+  const a = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND is_admin = 1)', id);
   // 012: обращения, которые он вёл, снова ничьи — остальные админы получают их с кнопкой «Взять»
-  const returned = await returnThreadsStmts(db, settings, users, id);
-  await db.batch([
-    db.prepare('UPDATE users SET is_admin = 0 WHERE tg_id = ?').bind(id),
-    ...returned,
-    enqueueStmt(db, id, msg('Владелец снял с тебя права администратора. Как участник событий ты продолжаешь играть как обычно.')),
-    ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> больше не администратор.`),
-    auditStmt(db, 0, actor || ownerId, 'role.revoke', displayName(u)),
-  ]);
+  a.add(...(await returnThreadsStmts(db, settings, users, id, a.guard)));
+  a.enqueue(id, msg('Владелец снял с тебя права администратора. Как участник событий ты продолжаешь играть как обычно.'));
+  for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(`ℹ️ <b>${escapeHtml(displayName(u))}</b> больше не администратор.`));
+  a.audit(0, actor || ownerId, 'role.revoke', displayName(u));
+  a.claim(db.prepare('UPDATE users SET is_admin = 0 WHERE tg_id = ? AND is_admin = 1').bind(id));
+  if (!(await a.run()).won) return { ok: false, error: NOT_ADMIN };
   return { ok: true };
 }
 
@@ -125,7 +130,7 @@ export async function transferOwnership(ctx, fromId, toId) {
   const u = users.find((x) => x.tg_id === toId);
   if (!u || !u.registered) return { ok: false, error: 'Передать владение можно только зарегистрированному человеку.' };
   if (toId === fromId) return { ok: false, error: 'Ты и так владелец.' };
-  await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId });
+  if (!(await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId })).won) return { ok: false, error: 'Права владельца уже переданы.' };
   return { ok: true };
 }
 
