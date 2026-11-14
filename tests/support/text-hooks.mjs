@@ -1,7 +1,7 @@
-// В Worker файлы .html и .css подключаются как текст правилом Text из wrangler.toml. В Node то же делает этот
-// перехватчик загрузки (module.registerHooks — Node 22.15+ / 23.5+), без зависимостей (016).
-// Расширение .txt добавлено заранее: части app.html (шаг 6 плана рефакторинга) wrangler подключает как текст только
-// с не-JS расширением.
+// В Worker файлы .html и .css подключаются как текст правилом Text из wrangler.toml, .txt — правилом Text wrangler по
+// умолчанию. В Node то же делает этот перехватчик загрузки (module.registerHooks — Node 22.15+ / 23.5+), без
+// зависимостей (016). .txt — части скрипта мини-приложения src/app/*.js.txt (021): с расширением .js wrangler собрал бы
+// их как модули, а не как текст.
 import { registerHooks } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

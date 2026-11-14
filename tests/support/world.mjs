@@ -2,12 +2,13 @@
 // fetch. Интерфейс повторяет tests/harness.mjs (api, setup, say, press, cron, query, texts), поэтому сценарии e2e
 // переносятся почти дословно. Добавлено: last (запросы последнего вызова), log(), together(), beforeWrite().
 // Контракт — specs/016-fast-tests/contracts/test-harness.md.
-import './text-hooks.mjs'; // до импорта Worker: .html и .css — как текст
+import './text-hooks.mjs'; // до импорта Worker: .html, .css и .txt — как текст
 import { createMigratedD1 } from './d1-sqlite.mjs';
 import { initData, TOKEN, ADMIN_SECRET } from './auth.mjs';
 import { telegramReply } from './telegram-rules.mjs';
 
-// Динамический импорт: статический загрузил бы app.html раньше, чем зарегистрирован перехватчик text-hooks
+// Динамический импорт: статический загрузил бы части мини-приложения (src/app/) раньше, чем зарегистрирован
+// перехватчик text-hooks
 const worker = (await import('../../src/index.js')).default;
 
 const BASE = 'http://w.test';

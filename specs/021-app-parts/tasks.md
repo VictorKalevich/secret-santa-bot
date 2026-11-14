@@ -115,21 +115,21 @@ description: "Task list for 021-app-parts"
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T014 Приёмка: quickstart, раздел 3 — страница настоящего Worker = снятой на `main` (153 719 байт, `b4ab9c8f…`);
+- [X] T014 Приёмка: quickstart, раздел 3 — страница настоящего Worker = снятой на `main` (153 719 байт, `b4ab9c8f…`);
   раздел 4 — `npx wrangler deploy --dry-run --outdir` во временную папку: восемь текстовых модулей частей побайтно равны
   файлам (уточнить в quickstart, как они названы в сборке); раздел 5 — `npm run screenshots`, сравнение попиксельно с
   двумя прогонами «до» (8 стабильных снимков — «identical pixels»); `npm test` — 5 прогонов подряд (время)
-- [ ] T015 `npm run test:e2e` — зелёный без правок, в журнале нет `budget exceeded`
-- [ ] T016 [P] Комментарии: `tests/support/text-hooks.mjs` (`.txt` — части приложения `src/app/*.js.txt`, шаг 6 выполнен),
+- [X] T015 `npm run test:e2e` — зелёный без правок, в журнале нет `budget exceeded`
+- [X] T016 [P] Комментарии: `tests/support/text-hooks.mjs` (`.txt` — части приложения `src/app/*.js.txt`, шаг 6 выполнен),
   `tests/support/world.mjs` (динамический импорт — «части приложения» вместо `app.html`)
-- [ ] T017 [P] Документы: `CLAUDE.md` (строка 021 в таблице фич; структура — `src/app/` с восемью частями и правилами,
+- [X] T017 [P] Документы: `CLAUDE.md` (строка 021 в таблице фич; структура — `src/app/` с восемью частями и правилами,
   `src/app-page.js` вместо `src/app.html`, `src/index.js` — откуда склейка; жёсткое правило 2 — «в частях приложения
   (`src/app/`)»; тесты — `app-parts`, `support/app-source.mjs`; перехватчик понимает `.txt`); `design-system/README.md`
   (строки 4 и 79 — части приложения); `docs/refactoring-roadmap.md` (статус шага 6); `docs/refactoring/baseline.md`
   (раздел 1 — `npm test` и e2e после шага 6); статус `spec.md` и `plan.md` этой фичи
-- [ ] T018 [P] README: установка, секреты, команды и роли не меняются; строка `src/` в «Структуре» (мини-приложение —
+- [X] T018 [P] README: установка, секреты, команды и роли не меняются; строка `src/` в «Структуре» (мини-приложение —
   части `src/app/`, склейка — `src/app-page.js`) и пункт о мини-приложении в списке проверок `npm test`
-- [ ] T019 Память проекта: `refactoring-roadmap.md` — шаг 6 выполнен (021), дальше шаг 7 (документы)
+- [X] T019 Память проекта: `refactoring-roadmap.md` — шаг 6 выполнен (021), дальше шаг 7 (документы)
 - [ ] T020 Слияние в `main` (`--ff-only`) и `git push` веток после зелёных `npm test` и `npm run test:e2e`; в отчёте —
   просьба к владельцу открыть приложение на iPhone после выката
 

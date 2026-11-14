@@ -59,8 +59,9 @@ node $env:TEMP\capture-app.mjs . $env:TEMP\app-after.html
 npx wrangler deploy --dry-run --outdir $env:TEMP\santa-dry
 ```
 
-Ожидается: сборка без ошибок; в `$env:TEMP\santa-dry` — восемь текстовых модулей частей (имена с хэшем и именем файла
-части), каждый побайтно равен своему файлу в `src/app/`; `src/app-page.js` и остальной код — в `index.js`.
+Ожидается: сборка без ошибок; в `$env:TEMP\santa-dry` — восемь текстовых модулей частей `<SHA-1>-<файл части>` (например,
+`15355e32…-05-admin.js.txt`), каждый побайтно равен своему файлу в `src/app/`; в `index.js` — восемь
+`import … from "./<SHA-1>-<файл части>"` и склейка `APP_PARTS`, остальной код Worker — там же.
 
 ## 5. Скриншоты
 
@@ -108,8 +109,17 @@ for (const f of readdirSync(A).filter((n) => n.endsWith('.png')).sort()) {
 ```
 
 Критерий (research R8): `00-home`, `00-home-dark`, `01-my-letter-empty`, `12-danger-zone`, `13-new-event`,
-`16-home-participant`, `19-vault-gate`, `28-force-cancel` — «identical pixels» против обоих прогонов «до»; остальные
-отличаются так же, как два прогона «до» между собой (время, случайный подопечный, высота экрана).
+`16-home-participant`, `19-vault-gate`, `28-force-cancel` — «identical pixels» против прогона старого кода, снятого
+одновременно с новым; остальные отличаются так же, как два прогона «до» между собой (время, случайный подопечный, высота
+экрана). `12`, `19`, `28` зависят от времени прогона (фон под шторкой), поэтому сравнивать их с прогоном, снятым часом
+раньше, нельзя. Старый код — в отдельном worktree во временной папке (`node_modules` — ссылкой-junction; перед
+`git worktree remove` удалить саму ссылку: `cmd /c rmdir <worktree>\node_modules`):
+
+```powershell
+git worktree add --detach $env:TEMP\wt-before 35bc60d
+cmd /c mklink /J $env:TEMP\wt-before\node_modules $PWD\node_modules
+# одновременно в двух окнах: в $env:TEMP\wt-before и в проекте — node tests/screenshots.mjs; затем png-diff.mjs по двум test-results
+```
 
 ## 6. «От противного»
 

@@ -1,6 +1,6 @@
 # Implementation Plan: Мини-приложение по частям
 
-**Branch**: `021-app-parts` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branch**: `021-app-parts` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-14)
 
 **Input**: Feature specification from `specs/021-app-parts/spec.md`; шаг 6 плана рефакторинга
 (`docs/refactoring/step-6-app-split.md`), замеры `docs/refactoring/baseline.md` (раздел 1).
