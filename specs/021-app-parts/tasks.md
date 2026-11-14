@@ -98,7 +98,7 @@ description: "Task list for 021-app-parts"
 
 **Independent Test**: «от противного» на искусственных данных — в самом тесте; вручную — лишний файл и удалённая `}` (T013)
 
-- [ ] T012 [US3] Создать `tests/app-parts.test.mjs` (research R5) — чистые функции и их проверки: `listProblems(names,
+- [X] T012 [US3] Создать `tests/app-parts.test.mjs` (research R5) — чистые функции и их проверки: `listProblems(names,
   files)` (имена `^\d\d-[a-z0-9-]+\.(html|js\.txt)$`, номера подряд с `01`, каждый файл папки ровно один раз и по
   порядку), `partProblems(name, text)` (без `\r`, без BOM, не пустая, кончается `\n`, но не `\n\n`; `.js.txt` разбирается
   как тело функции — `new vm.Script('(function () {\n' + text + '\n})')`), `pageProblems(page)` (начало `<!doctype html>`,
@@ -106,7 +106,7 @@ description: "Task list for 021-app-parts"
   `'use strict'`, встроенный скрипт разбирается целиком); «от противного» — каждая функция находит искусственную ошибку
   (CRLF, BOM, `\n\n` в конце, незакрытая скобка, пропущенный и лишний файл, второй `<script>`, оператор после `start()`);
   настоящие части — без замечаний, текст из `APP_PARTS` = файл на диске; добавить файл в скрипт `test` в `package.json`
-- [ ] T013 [US3] «От противного» вручную (quickstart, раздел 6, последние две строки): лишний `src/app/09-extra.js.txt` и
+- [X] T013 [US3] «От противного» вручную (quickstart, раздел 6, последние две строки): лишний `src/app/09-extra.js.txt` и
   удалённая `}` в `src/app/06-vault-audit.js.txt` роняют `tests/app-parts.test.mjs`; откат; `npm test` зелёный
 
 **Checkpoint**: коммит «021 US3: parts test — list, format, parse, one script, start() last»
