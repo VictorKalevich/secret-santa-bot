@@ -106,16 +106,16 @@ contracts/data-registry.md, quickstart.md); шаг 3 плана рефактор
 
 **Independent Test**: `node --test tests/atomic.test.mjs` — 19 проверок «один результат», 2 `todo` «шаг 5».
 
-- [ ] T012 [US1] Дефект 1, `src/api.js`, `admin.participate` (выкл): условие `EXISTS (SELECT 1 FROM events WHERE id = ?
+- [X] T012 [US1] Дефект 1, `src/api.js`, `admin.participate` (выкл): условие `EXISTS (SELECT 1 FROM events WHERE id = ?
   AND draw_done = 0)` у журнала (`auditIfStmt`, первым) и у `memberDataDeleteStmts`; журнал не записался — `fail('После
   жеребьёвки так нельзя. Попроси владельца бота вписать тебя.')`; проверка `ev.draw_done` до записи остаётся
-- [ ] T013 [US1] Дефект 2, `src/roles.js`, `transferAccount`: условие `EXISTS (SELECT 1 FROM users WHERE tg_id = ?)`
+- [X] T013 [US1] Дефект 2, `src/roles.js`, `transferAccount`: условие `EXISTS (SELECT 1 FROM users WHERE tg_id = ?)`
   (старый) у уведомлений (`enqueueIfStmt`), журнала (`auditIfStmt`) и `personTransferStmts`; последний оператор (удаление
   старой записи) не сработал — `{ ok: false, error: 'Старая запись не найдена.' }`
-- [ ] T014 [US1] Дефект 3, `src/pairs.js`, `removeMember`: условие `${v.guard} AND EXISTS (SELECT 1 FROM members WHERE
+- [X] T014 [US1] Дефект 3, `src/pairs.js`, `removeMember`: условие `${v.guard} AND EXISTS (SELECT 1 FROM members WHERE
   event_id = ? AND user_id = ?)` у уведомления, журнала, отметки «удалён» и `memberDataDeleteStmts` (захват версии и
   перестройка пар — только `v.guard`); порядок — уведомление, журнал, отметка, данные, строка участника
-- [ ] T015 [US1] `tests/atomic.test.mjs`: снять `todo: 'шаг 3'` у трёх проверок (и «(будет исправлено в шаге 3)» в
+- [X] T015 [US1] `tests/atomic.test.mjs`: снять `todo: 'шаг 3'` у трёх проверок (и «(будет исправлено в шаге 3)» в
   названиях), шапка — «19 проверок … 2 известных дефекта»; `npm test` (2 `todo`), таблица запросов прежняя; коммит
   «018 US1: …»
 

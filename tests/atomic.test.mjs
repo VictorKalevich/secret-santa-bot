@@ -1,6 +1,7 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 16 проверок «один результат» — обычные; 5 известных дефектов — todo с номером шага, который их чинит
+// 19 проверок «один результат» — обычные (три из них — дефекты, исправленные в шаге 3, 018); 2 известных дефекта —
+// todo с номером шага, который их чинит
 // (docs/refactoring-roadmap.md, «Исправления внутри шагов»): шаг снимает пометку. Случаи без захвата (объявление,
 // напоминание, сброс, роли, двойное сохранение семьи) — решения владельца, здесь их нет (baseline.md, раздел 4).
 import { describe, it, before, after } from 'node:test';
@@ -130,8 +131,10 @@ describe('атомарность: до жеребьёвки', () => {
   let z;
   before(async () => { z = await world(); });
 
-  it('admin.remove ×2 до жеребьёвки — одно уведомление и одна запись журнала (будет исправлено в шаге 3)', { todo: 'шаг 3' }, async () => {
-    await z.twice(adm, 'admin.remove', { event: z.ev.id, id: z.people[0].id });
+  it('admin.remove ×2 до жеребьёвки — одно уведомление и одна запись журнала', async () => {
+    const rs = await z.twice(adm, 'admin.remove', { event: z.ev.id, id: z.people[0].id });
+    assert.deepEqual(sorted(rs), [200, 400]);
+    assert.equal(rs.find((r) => r.status === 400).data.error, 'Человек не участвует в этом событии.');
     assert.equal(z.w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, z.people[0].id).length, 0, 'удалён');
     assert.equal(z.audit('member.remove'), 1, 'записей журнала');
     assert.equal(z.sent(z.people[0], 'удалил тебя'), 1, 'уведомлений удалённому');
@@ -156,11 +159,15 @@ describe('атомарность: «Я участвую» выкл ↔ жере�
     assert.deepEqual(statuses(rs), [200, 400]);
     assert.equal(z.orphans(), 0);
   });
-  it('жеребьёвка пишется первой — в парах нет человека вне события (будет исправлено в шаге 3)', { todo: 'шаг 3' }, async () => {
+  it('жеребьёвка пишется первой — в парах нет человека вне события', async () => {
     const z = await world();
     await z.w.api(adm, 'admin.participate', { event: z.ev.id, on: true });
-    await z.w.together(pair(z), { writeOrder: [1, 0] });
+    const rs = await z.w.together(pair(z), { writeOrder: [1, 0] });
+    assert.deepEqual(statuses(rs), [400, 200], 'выход отказывает, жеребьёвка прошла');
+    assert.equal(rs[0].data.error, 'После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.');
     assert.equal(z.orphans(), 0, 'пар с не-участником');
+    assert.ok(z.w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, adm.id).length, 'админ остался участником');
+    assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'participate' AND details = 'не участвует'")[0].n, 0, 'журнал «не участвует»');
   });
   it('admin.remove ↔ admin.draw, жеребьёвка пишется первой — удаление отказывает', async () => {
     const z = await world();
@@ -228,12 +235,14 @@ describe('атомарность: заявки и обращения', () => {
 });
 
 describe('атомарность: перенос участия', () => {
-  it('admin.transfer ×2, новый аккаунт уже в событии — его участие не пропадает (будет исправлено в шаге 3)', { todo: 'шаг 3' }, async () => {
+  it('admin.transfer ×2, новый аккаунт уже в событии — его участие не пропадает', async () => {
     const z = await world();
     await z.w.api(z.people[0], 'wishlist.save', { event: z.ev.id, text: 'Письмо старого аккаунта' });
     const members = () => z.w.query('SELECT COUNT(*) AS n FROM members WHERE event_id = ?', z.ev.id)[0].n;
     const before = members();
-    await z.twice(boss, 'admin.transfer', { from: z.people[0].id, to: z.people[1].id });
+    const rs = await z.twice(boss, 'admin.transfer', { from: z.people[0].id, to: z.people[1].id });
+    assert.deepEqual(sorted(rs), [200, 400]);
+    assert.equal(rs.find((r) => r.status === 400).data.error, 'Старая запись не найдена.');
     assert.equal(members(), before - 1, 'участников стало на одного меньше');
     assert.ok(z.w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, z.people[1].id).length, 'участие нового аккаунта есть');
     assert.equal(z.audit('transfer'), 1, 'записей журнала');

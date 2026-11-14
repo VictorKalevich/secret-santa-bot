@@ -232,12 +232,16 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
       stmts.push(...(await applyPairsChange(env, ev, rows, r.pairs, r.changed, members, v)));
     }
   }
-  if (notify) stmts.push(enqueueIfStmt(db, userId, msg(`Организатор удалил тебя из события ${q(ev)}. Если это ошибка — напиши ему.`), v.guard, ...v.args));
-  stmts.push(auditIfStmt(db, ev.id, actor, 'member.remove', displayName(target), v.guard, ...v.args));
-  if (mark) stmts.push(markRemovedStmt(db, ev.id, userId, actor, v.guard, ...v.args));
+  // Остальное — только пока человек ещё участник (018): до жеребьёвки версии пар нет, и без этого второй из двух
+  // одновременных вызовов повторил бы уведомление, запись журнала и отметку. Строка участника удаляется последней.
+  const g = `${v.guard} AND EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)`;
+  const ga = [...v.args, ev.id, userId];
+  if (notify) stmts.push(enqueueIfStmt(db, userId, msg(`Организатор удалил тебя из события ${q(ev)}. Если это ошибка — напиши ему.`), g, ...ga));
+  stmts.push(auditIfStmt(db, ev.id, actor, 'member.remove', displayName(target), g, ...ga));
+  if (mark) stmts.push(markRemovedStmt(db, ev.id, userId, actor, g, ...ga));
   // Исключения, закреплённые пары, переписка и обращения участника — по списку REGISTRY (018); строка участника —
   // последней: по ней узнаём исход
-  stmts.push(...memberDataDeleteStmts(db, ev.id, userId, v.guard, ...v.args));
+  stmts.push(...memberDataDeleteStmts(db, ev.id, userId, g, ...ga));
   const res = await db.batch(stmts);
   if (!res.at(-1).meta.changes) {
     const still = await db.prepare('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, userId).first();

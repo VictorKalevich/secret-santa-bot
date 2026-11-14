@@ -522,12 +522,24 @@ async function handleAdmin(action, body, env, me, settings) {
       return {};
 
     case 'admin.participate': {
-      if (ev.draw_done) return fail('После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.');
-      const log = auditStmt(db, ev.id, me.tg_id, 'participate', body.on ? 'участвует' : 'не участвует');
-      if (body.on) await db.batch([addMemberStmt(db, ev, me.tg_id), clearRemovedStmt(db, ev.id, me.tg_id), log]);
-      // Данные участия (исключения, закреплённые пары, обращения) — по списку REGISTRY (018)
-      else await db.batch([log, ...memberDataDeleteStmts(db, ev.id, me.tg_id)]);
-      return {};
+      const afterDraw = 'После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.';
+      if (ev.draw_done) return fail(afterDraw);
+      if (body.on) {
+        await db.batch([
+          addMemberStmt(db, ev, me.tg_id), clearRemovedStmt(db, ev.id, me.tg_id),
+          auditStmt(db, ev.id, me.tg_id, 'participate', 'участвует'),
+        ]);
+        return {};
+      }
+      // Выход — только пока жеребьёвка не проведена, проверено в момент записи (018): иначе одновременная жеребьёвка
+      // оставила бы в парах человека вне события. Данные участия (исключения, закреплённые пары, обращения) — по
+      // списку REGISTRY; исход — по записи журнала под тем же условием (не участник тоже получает успешный ответ).
+      const beforeDraw = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)';
+      const [log] = await db.batch([
+        auditIfStmt(db, ev.id, me.tg_id, 'participate', 'не участвует', beforeDraw, ev.id),
+        ...memberDataDeleteStmts(db, ev.id, me.tg_id, beforeDraw, ev.id),
+      ]);
+      return log.meta.changes ? {} : fail(afterDraw);
     }
 
     case 'admin.remove': {

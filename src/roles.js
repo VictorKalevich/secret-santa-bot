@@ -1,15 +1,19 @@
 // Роли (002): владелец и администраторы; перенос участия на новый аккаунт (004 → 005: во всех эвентах).
 
 import {
-  getSettings, setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, auditStmt, mergeMembership, personTransferStmts,
+  getSettings, setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt,
+  mergeMembership, personTransferStmts,
 } from './db.js';
 import { msg, escapeHtml, openAppButton, displayName, adminRecipients } from './format.js';
 import { derivedSecret } from './telegram.js';
 import { returnThreadsStmts } from './support.js';
 
-// Сообщение остальным админам (без звука) — кроме перечисленных
-function otherAdminsNotice(db, users, exclude, text) {
-  return adminRecipients(users, exclude).map((u) => enqueueStmt(db, u.tg_id, msg(text, { disable_notification: true })));
+// Сообщение остальным админам (без звука) — кроме перечисленных; guard — только при условии (как enqueueIfStmt)
+function otherAdminsNotice(db, users, exclude, text, guard = '', ...args) {
+  return adminRecipients(users, exclude).map((u) => {
+    const payload = msg(text, { disable_notification: true });
+    return guard ? enqueueIfStmt(db, u.tg_id, payload, guard, ...args) : enqueueStmt(db, u.tg_id, payload);
+  });
 }
 
 // ---------- ссылка владельца (010, FR-1004–FR-1006) ----------
@@ -156,21 +160,26 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
   const actor = users.find((u) => u.tg_id === actorId);
   // Новый аккаунт уже вступил в эвент: остаётся одно участие (письмо и адрес — нового, если не пусты; 009, FR-938)
   const merge = fromMembers.filter((m) => toByEvent.has(m.event_id)).map((m) => mergeMembership(m, toByEvent.get(m.event_id)));
-  await db.batch([
-    enqueueStmt(db, toId, msg(
+  // Атомарно (018): всё — только пока старая запись существует, она удаляется последней. Второй из двух одновременных
+  // переносов ничего не меняет и не рассылает (иначе он удалил бы участие, только что перенесённое первым).
+  const fromExists = 'EXISTS (SELECT 1 FROM users WHERE tg_id = ?)';
+  const res = await db.batch([
+    enqueueIfStmt(db, toId, msg(
       '🔁 Организатор перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история событий сохранены.',
       { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть')]] } }
-    )),
+    ), fromExists, fromId),
     // Перенос не должен быть незаметным (006, FR-602): прежний аккаунт и остальные админы узнают о нём
-    enqueueStmt(db, fromId, msg(
+    enqueueIfStmt(db, fromId, msg(
       `🔁 Твоё участие в «Тайном Санте» перенесено на аккаунт <b>${escapeHtml(displayName(to))}</b>. Если это не ты — напиши организатору.`
-    )),
+    ), fromExists, fromId),
     ...otherAdminsNotice(db, users, [actorId, toId, fromId],
-      `🔁 <b>${escapeHtml(displayName(actor))}</b> перенёс участие <b>${escapeHtml(displayName(from))}</b> на аккаунт <b>${escapeHtml(displayName(to))}</b>.`),
-    auditStmt(db, 0, actorId, 'transfer', `${displayName(from)} → ${displayName(to)}`),
+      `🔁 <b>${escapeHtml(displayName(actor))}</b> перенёс участие <b>${escapeHtml(displayName(from))}</b> на аккаунт <b>${escapeHtml(displayName(to))}</b>.`,
+      fromExists, fromId),
+    auditIfStmt(db, 0, actorId, 'transfer', `${displayName(from)} → ${displayName(to)}`, fromExists, fromId),
     // Участия, письма, пары, переписка, исключения, семья, заявки, отметки «удалён», обращения — по списку REGISTRY
     // (018); ссылки «кто сделал» остаются; запись старого аккаунта удаляется последней
-    ...personTransferStmts(db, fromId, toId, { merge }),
+    ...personTransferStmts(db, fromId, toId, { merge }, fromExists, fromId),
   ]);
+  if (!res.at(-1).meta.changes) return { ok: false, error: 'Старая запись не найдена.' };
   return { ok: true, events: fromMembers.length };
 }
