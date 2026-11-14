@@ -113,15 +113,15 @@
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T014 [P] `tests/atomic.test.mjs`: заголовок — 32 → 43 проверки «один результат» (+11, 024); снять фразу
+- [X] T014 [P] `tests/atomic.test.mjs`: заголовок — 32 → 43 проверки «один результат» (+11, 024); снять фразу
   «случаи без захвата … — решения владельца, здесь их нет»
-- [ ] T015 [P] `docs/api.md`: отказы повтора в разделах `admin.announce`, `admin.remind.unfilled`,
+- [X] T015 [P] `docs/api.md`: отказы повтора в разделах `admin.announce`, `admin.remind.unfilled`,
   `admin.remind.santas`, `admin.event.invite_from`, `admin.reset.full`, `admin.role.grant`, `admin.role.revoke`,
   `admin.owner.transfer`, `admin.family.save`; в «Порядке проверок» — абзац про окно повтора
-- [ ] T016 [P] `CLAUDE.md`: строка 024; в правиле «Одно действие — один результат» — рассылки по желанию (окно
+- [X] T016 [P] `CLAUDE.md`: строка 024; в правиле «Одно действие — один результат» — рассылки по желанию (окно
   минута), роли, владение, сброс; `atomic` — 43 проверки; `app-buttons` в списке тестов; `updateEventIfStmt` в
   описании `src/db.js`
-- [ ] T017 [P] `docs/refactoring-roadmap.md` — пункты «рассылки без защиты», «двойное сохранение семьи», кнопки
+- [X] T017 [P] `docs/refactoring-roadmap.md` — пункты «рассылки без защиты», «двойное сохранение семьи», кнопки
   `busy(null…)` — сделано (024); `docs/refactoring/baseline.md`, раздел 4 — строки «решение владельца» → «исправлено
   (024)», таблица «один результат» + новые строки; `docs/refactoring/step-6-app-split.md` — пункт `busy(null…)` —
   сделано (024)
