@@ -3,6 +3,12 @@
 Внутренний контракт модулей Worker. Внешние интерфейсы (API мини-приложения, бот, `/setup`, тексты, журнал) не
 меняются — их контракты прежние (`specs/005-events-history/contracts/events.md` и дополнения 006–014).
 
+> **Поправка 025** (`specs/025-behavior-fixes/research.md`, R2): роль `ACTOR_MOVED` упразднена — её колонки получили
+> `ACTOR`; `ACTOR` («кто сделал») при переносе **переходит** к новому аккаунту, удаление участника её по-прежнему не
+> трогает. `onTransfer` обязателен у таблиц с колонками `MEMBER` или `ACTOR` (`events`, `announcements`, `audit`,
+> `families` — `update`). У старого аккаунта после переноса остаётся только `RECIPIENT` (`outbox.chat_id`). Ниже — текст
+> 018 с этой поправкой.
+
 ## `REGISTRY`
 
 ```js
@@ -10,11 +16,11 @@ export const REGISTRY = {
   <таблица>: {
     event?: '<колонка события>',               // 'event_id'; у events — 'id'
     via?: { column: '<колонка>', parent: '<таблица>' },   // строки принадлежат событию/человеку через родителя (его id)
-    people?: { <колонка>: MEMBER | ACTOR | ACTOR_MOVED | RECIPIENT | SELF | NOT_PERSON },
+    people?: { <колонка>: MEMBER | ACTOR | RECIPIENT | SELF | NOT_PERSON },
     anchor?: 'event' | 'member' | 'person',      // строка-опора действия: оператор с ней — последний
     onEventDelete?: 'delete' | 'keep',           // обязательно у таблиц с event (кроме якоря events)
     onLeave?: 'delete' | 'keep' | 'rebuild',     // обязательно у таблиц с event и колонкой MEMBER (кроме якоря members)
-    onTransfer?: 'update' | 'dedupe' | 'merge',  // обязательно у таблиц с колонкой MEMBER или ACTOR_MOVED
+    onTransfer?: 'update' | 'dedupe' | 'merge',  // обязательно у таблиц с колонкой MEMBER или ACTOR (025)
     noSelf?: true,                               // строка «сам себе» недопустима — удалить после переноса
     personal?: [['<значение>', '<время изменения>'], …],   // members: что стирает сброс и что берёт слияние
     transferBefore?: [{ sql, args: (from, to) => [...] }], // свои правила таблицы до переноса колонок
@@ -25,8 +31,8 @@ export const REGISTRY = {
 ```
 
 - В списке все таблицы схемы, порядок ключей — порядок операторов; дочерняя таблица (`via`) стоит раньше родителя.
-- Константы ролей экспортируются: `MEMBER`, `ACTOR`, `ACTOR_MOVED`, `RECIPIENT`, `SELF`, `NOT_PERSON`.
-- Колонки `ACTOR` и `RECIPIENT` построители не трогают ни в одном действии.
+- Константы ролей экспортируются: `MEMBER`, `ACTOR`, `RECIPIENT`, `SELF`, `NOT_PERSON` (`ACTOR_MOVED` — до 025).
+- Колонки `RECIPIENT` построители не трогают ни в одном действии; `ACTOR` — только перенос (025).
 
 ## Построители
 
@@ -49,7 +55,7 @@ user_id = ? AND (guard)`. Таблицы `onLeave: 'keep'` и `'rebuild'` не �
 
 ### `personTransferStmts(db, fromId, toId, { merge = [] } = {}, guard = '1', ...args)`
 
-Переносит человека: для каждой таблицы с колонками `MEMBER`/`ACTOR_MOVED` — `transferBefore`, затем политика
+Переносит человека: для каждой таблицы с колонками `MEMBER`/`ACTOR` (до 025 — `MEMBER`/`ACTOR_MOVED`) — `transferBefore`, затем политика
 `onTransfer`, затем `transferAfter`. `merge` — решения слияния участий из `mergeMembership`. Последними —
 `transferBefore` записи человека (права админа: `MAX` текущих значений) и `DELETE FROM users WHERE tg_id = ?`.
 

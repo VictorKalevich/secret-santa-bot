@@ -102,15 +102,15 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T015 [P] `docs/api.md`: служебный просмотр — слово `ОТКРЫТЬ` (вместо «API его не требует»); `admin.rename` —
+- [X] T015 [P] `docs/api.md`: служебный просмотр — слово `ОТКРЫТЬ` (вместо «API его не требует»); `admin.rename` —
   журнал `rename`; `admin.request.decide` — «В завершённом: проверяет обработчик», принять — 400; `admin.transfer` —
   отметки «кто сделал» переходят; «Коды журнала» — `rename`; абзац «кроме `admin.rename`» — убрать. Тест `api-doc`
-- [ ] T016 [P] `specs/018-data-registry/contracts/data-registry.md`, `data-model.md`: поправка 025 — `ACTOR`
+- [X] T016 [P] `specs/018-data-registry/contracts/data-registry.md`, `data-model.md`: поправка 025 — `ACTOR`
   переносится, `ACTOR_MOVED` упразднена, у старого аккаунта — только `RECIPIENT`
-- [ ] T017 [P] `CLAUDE.md`: строка 025; `REGISTRY` (роли), журнал (без исключения `admin.rename`), служебный просмотр
+- [X] T017 [P] `CLAUDE.md`: строка 025; `REGISTRY` (роли), журнал (без исключения `admin.rename`), служебный просмотр
   (слово проверяет и сервер), `atomic` 44, тест `behavior`; `README.md`: журнал — переименования, перенос — подписи
   переходят, заявки в завершённом — отклонить в приложении, служебный просмотр — слово
-- [ ] T018 [P] `docs/refactoring-roadmap.md` — четыре пункта «Решений владельца» — сделано (025), порядок — пункт 3
+- [X] T018 [P] `docs/refactoring-roadmap.md` — четыре пункта «Решений владельца» — сделано (025), порядок — пункт 3
   сделан; `tests/atomic.test.mjs` — заголовок 43 → 44
 - [ ] T019 `npm test` ×3, `node tests/bench/queries.mjs` (прежние числа), `npm run test:e2e`, `npm run screenshots`
   (19–21 — служебный просмотр открывается); `git diff main --stat`
