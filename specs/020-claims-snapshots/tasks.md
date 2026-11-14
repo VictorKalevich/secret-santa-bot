@@ -178,7 +178,7 @@ P2). Перед каждым коммитом — `npm test`.
 - [X] T021 [P] README: установка, команды, роли не меняются; дополнить список быстрых тестов (`tests/claims.test.mjs`,
   `tests/snapshots.test.mjs`), если он перечислен
 - [X] T022 Память проекта: `refactoring-roadmap.md` — шаг 5 выполнен (020), что дальше
-- [ ] T023 Слияние в `main` (`--ff-only`) и `git push` веток после зелёных `npm test` и `npm run test:e2e`
+- [X] T023 Слияние в `main` (`--ff-only`) и `git push` веток после зелёных `npm test` и `npm run test:e2e`
 
 ---
 
