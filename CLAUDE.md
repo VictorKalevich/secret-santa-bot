@@ -32,6 +32,7 @@ Telegram-бот «Тайный Санта» для небольшой групп
 | `013-event-wording` | `specs/013-event-wording/` | реализовано: в текстах для людей «событие» вместо «эвент» (название отдельно — без слова, иначе «событие» в нужном падеже), короткие подписи («🎄 Создать», «Параметры», «Полный сброс»…), кнопки без «＋» |
 | `014-fixed-pairs` | `specs/014-fixed-pairs/` | реализовано: закреплённые пары владельца «кто кому дарит» (блок под «Исключениями», при кольцевой — в одну сторону, важнее исключений, только до жеребьёвки; админы не видят) |
 | `015-test-stability` | `specs/015-test-stability/` | реализовано: поиск жеребьёвки быстрее при том же результате (запас по лимиту CPU), имитация Telegram без keep-alive (`connection: close`) — стабильные `npm test` и e2e |
+| `016-fast-tests` | `specs/016-fast-tests/` | реализовано (шаг 1 рефакторинга): весь Worker в `npm test` на `node:sqlite` — тайна по значениям, права по всем 46 `admin.*`, атомарность с навязанным чередованием (5 дефектов — `todo` с номером шага), запросы на действие ≤ базовых, эталон жеребьёвки; `src/` не менялся |
 
 С 005 почти все действия привязаны к эвенту (`event_id`); актуальный контракт API — `specs/005-events-history/contracts/events.md`
 (контракты 001–004 описывают поведение внутри одного эвента); изменения 006 — `specs/006-fixes/contracts/api-changes.md`; 007 — `specs/007-admin-tools/contracts/api.md`; 008 — `specs/008-delivery-families-requests/contracts/api.md`; 009 — `specs/009-fix-refactor/contracts/api-changes.md`;
@@ -49,13 +50,17 @@ Telegram-бот «Тайный Санта» для небольшой групп
 - JavaScript ES2022, ES-модули, Cloudflare Workers (workerd); без рантайм-зависимостей и без сборщика.
 - Wrangler 4 (dev/deploy), Cloudflare D1 (SQLite), Cron Triggers (раз в минуту).
 - Telegram Bot API (webhook `/tg`) + Telegram Mini Apps (`/app`, подпись `initData`).
-- Тесты: `node:test`; e2e — `wrangler dev` + `tests/mock-telegram.mjs`; скриншоты — `playwright-core` + Chrome.
+- Тесты: `node:test`, Node 22.15+ (`node:sqlite` без флага, `module.registerHooks`). Быстрые (`npm test`) — весь Worker в
+  одном процессе («мир», `tests/support/world.mjs`): подмена D1 на `node:sqlite` со схемой из `migrations/`, Telegram —
+  подмена `fetch` с правилами `tests/support/telegram-rules.mjs`; e2e — `wrangler dev` + `tests/mock-telegram.mjs` (те же
+  правила); скриншоты — `playwright-core` + Chrome.
 
 ## Команды
 
 ```powershell
-npm test             # юнит + правила дизайн-системы и слов (перед каждым коммитом)
+npm test             # быстрые тесты всего Worker + дизайн-система и слова (перед каждым коммитом, секунды)
 npm run test:e2e     # сквозной сценарий (перед выкатом)
+npm run bench:draw   # замер жеребьёвки 50–200 человек (шаги 2, 4, 5 рефакторинга; в npm test не входит)
 npm run screenshots  # визуальная проверка UI → test-results/
 npm run dev          # локальный Worker
 npm run deploy       # выкат в Cloudflare
@@ -117,6 +122,14 @@ npm run deploy       # выкат в Cloudflare
   (каждое действие админа и бота пишет журнал; без пар, писем и текстов объявлений).
 - `src/app.html` — мини-приложение; стили только из дизайн-системы.
 - `design-system/` — `tokens.css`, `components.css`, `preview.html`, `README.md`.
+- `tests/` (016): `support/` — «мир» (`world.mjs`: `api`, `say`, `press`, `cron`, `query`, `last` — запросы вызова,
+  `log()`, `together` — «все читают, затем пишут», `beforeWrite`; контракт — `specs/016-fast-tests/contracts/test-harness.md`),
+  `d1-sqlite.mjs`, `auth.mjs` (подпись `initData`), `telegram-rules.mjs`, `text-hooks.mjs`, `queries-scenario.mjs`,
+  `draw-cases.mjs`. Тесты: `secrecy` (перестановка пар не меняет ответы организаторам), `rights` (46 действий × 3 роли,
+  список — регуляркой `case '(admin\.[a-z._]+)'`), `atomic` (известные дефекты — `todo: 'шаг N'`; чинишь — снимай
+  пометку), `queries` (таблица базовых чисел; запросов к базе не больше, к Telegram — столько же), `draw-golden`
+  (`fixtures/draw-golden.json` — не пересоздавать), `d1-sqlite`, `world`. Замеры — `bench/` (`node tests/bench/queries.mjs [sql]`).
+  Новый тестовый файл — в скрипт `test` в `package.json` (файлы перечислены явно, чтобы не подхватить e2e).
 
 ## Жёсткие правила
 
@@ -163,7 +176,7 @@ npm run deploy       # выкат в Cloudflare
 4. **Лимит текста** — `MAX_CHARS = 4000` (`src/chat.js`): письмо, сообщения переписки и обращений помещаются в одно сообщение Telegram (4096).
 5. **Бесплатный тариф.** ≤ 10 мс CPU и ≤ 50 внешних запросов (вкл. D1) на вызов. Сообщения другим людям — только
    через `outbox` (`enqueueStmt`); отправляет очередь только `index.js` в конце вызова и cron (`flushOutbox`
-   сам не берёт больше остатка `budgetLeft`). Тяжёлые вычисления — на клиенте. e2e проверяет журнал на `budget exceeded`.
+   сам не берёт больше остатка `budgetLeft`). Тяжёлые вычисления — на клиенте. e2e и `tests/queries.test.mjs` проверяют журнал на `budget exceeded`.
 6. **Секреты** (`BOT_TOKEN`, `ADMIN_SECRET`) — только `wrangler secret put`; `.dev.vars`, `.env*` не коммитить.
 7. **Файлы.** Проект живёт в `C:\ClaudeProjects\secret-santa-bot\`. В самой `C:\ClaudeProjects\` ничего не создавать.
 8. **README.** Фича меняет установку, настройку, секреты, команды, роли или использование → правь `README.md` в той же

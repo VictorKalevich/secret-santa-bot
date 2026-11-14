@@ -119,7 +119,7 @@ description: "Task list for 016-fast-tests"
 
 **Independent Test**: `npm run test:e2e` — зелёный, в подтесте «владелец может всё, что админ» 46 действий.
 
-- [ ] T031 [US5] `tests/e2e.test.mjs` (подтест «владелец может всё, что админ», ~строки 1321–1322): регулярка `case '(admin\.[a-z._]+)'`, `assert.equal(actions.length, 46, …)` вместо `>= 35`; остальное в e2e не трогать (FR-1614, FR-1602)
+- [X] T031 [US5] `tests/e2e.test.mjs` (подтест «владелец может всё, что админ», ~строки 1321–1322): регулярка `case '(admin\.[a-z._]+)'`, `assert.equal(actions.length, 46, …)` вместо `>= 35`; остальное в e2e не трогать (FR-1614, FR-1602)
 
 **Checkpoint**: US5 готова.
 
@@ -127,16 +127,16 @@ description: "Task list for 016-fast-tests"
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T032 Время и стабильность: `npm test` ≤ 5 с; 5 прогонов подряд без падений проверок `< 10 мс` в `tests/draw.test.mjs`; если нестабильно — `--test-concurrency=1` в скрипте `test`, пороги не трогать (SC-1601, R14)
-- [ ] T033 Проверка «тесты ловят поломки» (quickstart, раздел 4) — временные правки `src/`, каждая роняет свой тест; затем `git checkout -- src`; `git diff main -- src` пуст (SC-1602)
-- [ ] T034 [P] `docs/refactoring/prototypes/`: удалить `d1-shim.mjs`, `text-hooks.mjs`, `world.mjs`, `queries.mjs`, `atomic.mjs`, `bench-draw.mjs`, `bench-draw-cold.mjs`, `draw-scenario.mjs`; оставить `draw-speedup.patch`, `draw-equivalence.mjs`; `README.md` — что где теперь лежит (SC-1606)
-- [ ] T035 [P] `README.md`: версия Node в разделе установки («нужна 22.15 или новее»), раздел о тестах — что проверяет `npm test` (тайна, права, атомарность, запросы, эталон жеребьёвки), `npm run bench:draw`, структура `tests/` (FR-1618, Конституция «README в той же ветке»)
-- [ ] T036 [P] `CLAUDE.md`: строка 016 в таблице фич, команды (`npm run bench:draw`), «Технологии» (быстрые тесты на `node:sqlite`, Node 22.15+), структура `tests/support/`, правило «e2e проверяет `budget exceeded`» — теперь и быстрые тесты (FR-1618)
-- [ ] T037 `npm run test:e2e` — зелёный (SC-1603)
-- [ ] T038 [P] `docs/refactoring/baseline.md`: раздел 1 (новые числа `npm test`, время), раздел 7 (команды: `npm test`, `npm run test:e2e`, `npm run bench:draw`, `node tests/bench/queries.mjs`, `node --test tests/atomic.test.mjs`), ссылки на скрипты — новые пути (SC-1607)
-- [ ] T039 [P] `docs/refactoring-roadmap.md`: шаг 1 — «выполнен (016)»; упоминания путей прототипов, которые переехали (SC-1607)
-- [ ] T040 Память проекта: `refactoring-roadmap.md` — шаг 1 выполнен, где лежат опоры тестов
-- [ ] T041 Отметить задачи в этом файле; слияние в `main` и отправка после зелёных `npm test` и `npm run test:e2e`
+- [X] T032 Время и стабильность: `npm test` ≤ 5 с; 5 прогонов подряд без падений проверок `< 10 мс` в `tests/draw.test.mjs`; если нестабильно — `--test-concurrency=1` в скрипте `test`, пороги не трогать (SC-1601, R14)
+- [X] T033 Проверка «тесты ловят поломки» (quickstart, раздел 4) — временные правки `src/`, каждая роняет свой тест; затем `git checkout -- src`; `git diff main -- src` пуст (SC-1602)
+- [X] T034 [P] `docs/refactoring/prototypes/`: удалить `d1-shim.mjs`, `text-hooks.mjs`, `world.mjs`, `queries.mjs`, `atomic.mjs`, `bench-draw.mjs`, `bench-draw-cold.mjs`, `draw-scenario.mjs`; оставить `draw-speedup.patch`, `draw-equivalence.mjs`; `README.md` — что где теперь лежит (SC-1606)
+- [X] T035 [P] `README.md`: версия Node в разделе установки («нужна 22.15 или новее»), раздел о тестах — что проверяет `npm test` (тайна, права, атомарность, запросы, эталон жеребьёвки), `npm run bench:draw`, структура `tests/` (FR-1618, Конституция «README в той же ветке»)
+- [X] T036 [P] `CLAUDE.md`: строка 016 в таблице фич, команды (`npm run bench:draw`), «Технологии» (быстрые тесты на `node:sqlite`, Node 22.15+), структура `tests/support/`, правило «e2e проверяет `budget exceeded`» — теперь и быстрые тесты (FR-1618)
+- [X] T037 `npm run test:e2e` — зелёный (SC-1603)
+- [X] T038 [P] `docs/refactoring/baseline.md`: раздел 1 (новые числа `npm test`, время), раздел 7 (команды: `npm test`, `npm run test:e2e`, `npm run bench:draw`, `node tests/bench/queries.mjs`, `node --test tests/atomic.test.mjs`), ссылки на скрипты — новые пути (SC-1607)
+- [X] T039 [P] `docs/refactoring-roadmap.md`: шаг 1 — «выполнен (016)»; упоминания путей прототипов, которые переехали (SC-1607)
+- [X] T040 Память проекта: `refactoring-roadmap.md` — шаг 1 выполнен, где лежат опоры тестов
+- [X] T041 Отметить задачи в этом файле; слияние в `main` и отправка после зелёных `npm test` и `npm run test:e2e`
 
 ---
 
