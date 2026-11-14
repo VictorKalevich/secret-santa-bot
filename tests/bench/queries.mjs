@@ -1,7 +1,7 @@
 // Таблица «действие → запросов к базе и к Telegram» по сценарию tests/support/queries-scenario.mjs (016).
 // Запуск из корня проекта:  node tests/bench/queries.mjs        — таблица
 //                           node tests/bench/queries.mjs sql    — ещё и SQL каждого действия
-// Базовые числа — docs/refactoring/baseline.md, раздел 3; проверка «не больше» — tests/queries.test.mjs.
+// Базовые числа и проверка «не больше» — таблица в tests/queries.test.mjs.
 import { runQueriesScenario } from '../support/queries-scenario.mjs';
 import { restoreFetch } from '../support/world.mjs';
 

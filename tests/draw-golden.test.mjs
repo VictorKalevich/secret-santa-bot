@@ -1,6 +1,6 @@
 // Эталон жеребьёвки (016, FR-1611): при том же зерне planDraw, findAssignment, removeFromAssignment и
 // insertIntoAssignment дают ровно те же результаты, что при создании эталона. Автоматическая проверка требования
-// «порядок вызовов rng не меняется» для всех шагов плана рефакторинга. Эталон не пересоздаётся
+// «порядок вызовов rng не меняется» для любой правки src/draw.js. Эталон не пересоздаётся
 // (tests/fixtures/make-draw-golden.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

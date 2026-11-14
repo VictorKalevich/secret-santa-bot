@@ -1,6 +1,6 @@
 // Сценарий из 46 действий через весь Worker (016): число запросов к базе и к Telegram на каждое действие.
 // Пользуются tests/queries.test.mjs (не больше базового замера) и tests/bench/queries.mjs (печать таблицы и SQL).
-// Базовые числа — docs/refactoring/baseline.md, раздел 3.
+// Базовые числа — таблица в tests/queries.test.mjs.
 import assert from 'node:assert/strict';
 import { startWorld } from './world.mjs';
 import { seeded } from './draw-cases.mjs';

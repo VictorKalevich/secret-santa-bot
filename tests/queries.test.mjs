@@ -1,6 +1,6 @@
 // Число запросов на действие (016, FR-1610; Конституция, принцип V — не больше 50 внешних запросов на вызов).
 // К базе — не больше базового замера (шаг 4 плана рефакторинга их сократил — числа ниже после 019, до него — в
-// docs/refactoring/baseline.md, раздел 3; остальные шаги не добавляют); к Telegram — ровно столько же (сообщения —
+// git на 5d8cc0e: docs/refactoring/baseline.md, раздел 3; остальные фичи не добавляют); к Telegram — ровно столько же (сообщения —
 // поведение). Посмотреть текущие числа и SQL: node tests/bench/queries.mjs [sql].
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +9,7 @@ import { runQueriesScenario } from './support/queries-scenario.mjs';
 
 after(restoreFetch);
 
-// Пороги файла шага 4 (docs/refactoring/step-4-api-table-context.md, приёмка): до 019 → не больше. Таблица ниже их
+// Пороги шага 4 плана рефакторинга (019, приёмка): до 019 → не больше. Таблица ниже их
 // соблюдает; проверка — чтобы следующая правка таблицы не вернула прежние числа незаметно.
 const STEP4 = {
   'admin.state (пустое событие)': 6,
