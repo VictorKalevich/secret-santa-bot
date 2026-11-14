@@ -144,22 +144,22 @@ contracts/data-registry.md, quickstart.md); шаг 3 плана рефактор
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T018 [P] `CLAUDE.md`: строка `018-data-registry` в таблице фич; `src/db.js` — `REGISTRY` и три построителя вместо
+- [X] T018 [P] `CLAUDE.md`: строка `018-data-registry` в таблице фич; `src/db.js` — `REGISTRY` и три построителя вместо
   `supportDeleteStmts`/`supportTransferStmts`; жёсткое правило: новая таблица/колонка с событием или человеком —
   описать в `REGISTRY` (тест схемы падает), каскады — только построителями; `tests/` — `data-registry`, `atomic` (2 `todo`
   шага 5)
-- [ ] T019 [P] `docs/refactoring-roadmap.md`: статус шага 3 «выполнен (018, 2026-11-14)»; `docs/refactoring/step-3-data-registry.md`
+- [X] T019 [P] `docs/refactoring-roadmap.md`: статус шага 3 «выполнен (018, 2026-11-14)»; `docs/refactoring/step-3-data-registry.md`
   — пометка в начале «Выполнен в 018»
-- [ ] T020 [P] `docs/refactoring/baseline.md`: раздел 1 — строка `npm test` после шага 3; раздел 4 — три случая шага 3
+- [X] T020 [P] `docs/refactoring/baseline.md`: раздел 1 — строка `npm test` после шага 3; раздел 4 — три случая шага 3
   в «Один результат» (19), «Дубль или порча данных» — 8; раздел 3 — без изменений (числа те же)
-- [ ] T021 [P] Пометки «с 018 — из списка `REGISTRY` (`src/db.js`)» в `specs/012-insert-cancel-support/research.md`
+- [X] T021 [P] Пометки «с 018 — из списка `REGISTRY` (`src/db.js`)» в `specs/012-insert-cancel-support/research.md`
   (удаление и перенос обращений), `specs/014-fixed-pairs/data-model.md` (жизненный цикл), `specs/014-fixed-pairs/research.md`
-- [ ] T022 [P] README: проверить, что установка, настройка, секреты, команды, роли и использование не изменились —
+- [X] T022 [P] README: проверить, что установка, настройка, секреты, команды, роли и использование не изменились —
   правка не нужна (Конституция: задача на README в каждой фиче)
-- [ ] T023 Память проекта (`refactoring-roadmap.md` в памяти): шаг 3 выполнен, `todo` шага 5 — два
-- [ ] T024 `npm test` 5 раз подряд — зелёный; коммит «018 docs: …»
-- [ ] T025 `npm run test:e2e` — 8 сценариев зелёные без правок, журнал без `budget exceeded`
-- [ ] T026 Слияние в `main` (`--ff-only`), `git push` ветки и `main`; `git branch -a --no-merged main` пуст
+- [X] T023 Память проекта (`refactoring-roadmap.md` в памяти): шаг 3 выполнен, `todo` шага 5 — два
+- [X] T024 `npm test` 5 раз подряд — зелёный; коммит «018 docs: …»
+- [X] T025 `npm run test:e2e` — 8 сценариев зелёные без правок, журнал без `budget exceeded`
+- [X] T026 Слияние в `main` (`--ff-only`), `git push` ветки и `main`; `git branch -a --no-merged main` пуст
 
 ---
 
