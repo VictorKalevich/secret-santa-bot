@@ -175,7 +175,7 @@ export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   for (const u of adminRecipients(users, [actorId, toId, fromId])) fromExists.enqueue(u.tg_id, notice);
   fromExists.audit(0, actorId, 'transfer', `${displayName(from)} → ${displayName(to)}`);
   // Участия, письма, пары, переписка, исключения, семья, заявки, отметки «удалён», обращения — по списку REGISTRY
-  // (018); ссылки «кто сделал» остаются; запись старого аккаунта удаляется последней: она и есть захват
+  // (018); ссылки «кто сделал» переходят тоже (025); запись старого аккаунта удаляется последней: она и есть захват
   fromExists.claim(fromExists.add(...personTransferStmts(db, fromId, toId, { merge }, ...fromExists.guard)));
   if (!(await fromExists.run()).won) return { ok: false, error: 'Старая запись не найдена.' };
   return { ok: true, events: fromMembers.length };

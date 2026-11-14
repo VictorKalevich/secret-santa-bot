@@ -318,8 +318,9 @@ export function auditIfStmt(db, eventId, actor, action, details, guard, ...args)
 
 // Роли колонок человека в REGISTRY
 export const MEMBER = 'member'; // участник: данные человека в событии — уходят с ним (onLeave), переходят при переносе
-export const ACTOR = 'actor'; // кто сделал: ссылка на действовавшего — перенос её не трогает (решение владельца)
-export const ACTOR_MOVED = 'actor-moved'; // кто сделал, но перенос переносит: текущее состояние обращения (012)
+// Кто сделал: ссылка на действовавшего — удаление участника её не трогает, перенос переносит: это тот же человек на
+// новом аккаунте (025, решение владельца; до 025 переносились только ответственный и отправитель в обращениях)
+export const ACTOR = 'actor';
 export const RECIPIENT = 'recipient'; // получатель сообщения очереди — перенос не трогает: оно уходит старому аккаунту
 export const SELF = 'self'; // сама запись человека
 export const NOT_PERSON = 'not-person'; // имя похоже на человека, но это не человек
@@ -347,7 +348,7 @@ export const REGISTRY = {
       args: (from, to) => [from, to],
     }],
   },
-  events: { event: 'id', people: { created_by: ACTOR }, anchor: 'event' },
+  events: { event: 'id', people: { created_by: ACTOR }, anchor: 'event', onTransfer: 'update' },
   members: {
     event: 'event_id',
     people: { user_id: MEMBER },
@@ -364,9 +365,9 @@ export const REGISTRY = {
   pairs: { event: 'event_id', people: { santa: MEMBER, ward: MEMBER }, onEventDelete: 'delete', onLeave: 'rebuild', onTransfer: 'update' },
   // sender — сторона переписки ('santa'/'ward'), а не человек
   messages: { event: 'event_id', people: { santa: MEMBER, ward: MEMBER, sender: NOT_PERSON }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'update' },
-  announcements: { event: 'event_id', people: { author: ACTOR }, onEventDelete: 'delete' },
+  announcements: { event: 'event_id', people: { author: ACTOR }, onEventDelete: 'delete', onTransfer: 'update' },
   // Журнал события остаётся и после удаления события (007); event_id = 0 — общий журнал
-  audit: { event: 'event_id', people: { actor: ACTOR }, onEventDelete: 'keep' },
+  audit: { event: 'event_id', people: { actor: ACTOR }, onEventDelete: 'keep', onTransfer: 'update' },
   // Заявки — история: остаются, когда участник уходит (008)
   join_requests: { event: 'event_id', people: { user_id: MEMBER, decided_by: ACTOR }, onEventDelete: 'delete', onLeave: 'keep', onTransfer: 'dedupe' },
   removed_members: {
@@ -382,10 +383,10 @@ export const REGISTRY = {
     }],
   },
   // 012: сообщения обращения — через обращение; отправитель (участник или админ) переходит при переносе
-  support_messages: { via: { column: 'thread_id', parent: 'support_threads' }, people: { sender: ACTOR_MOVED }, onTransfer: 'update' },
+  support_messages: { via: { column: 'thread_id', parent: 'support_threads' }, people: { sender: ACTOR }, onTransfer: 'update' },
   support_threads: {
     event: 'event_id',
-    people: { user_id: MEMBER, assignee: ACTOR_MOVED, closed_by: ACTOR },
+    people: { user_id: MEMBER, assignee: ACTOR, closed_by: ACTOR },
     onEventDelete: 'delete',
     onLeave: 'delete',
     onTransfer: 'update',
@@ -400,7 +401,7 @@ export const REGISTRY = {
     // Сам себе не отвечает: такое обращение снова ничьё
     transferAfter: [{ sql: 'UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = user_id', args: () => [] }],
   },
-  families: { people: { created_by: ACTOR } },
+  families: { people: { created_by: ACTOR }, onTransfer: 'update' },
   // 008: семьи — общие для бота; если новый аккаунт уже в семье — остаётся его семья
   family_members: { via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onTransfer: 'dedupe' },
   outbox: { people: { chat_id: RECIPIENT } },
@@ -488,8 +489,8 @@ export function mergeMembership(from, to) {
 }
 
 // Перенести человека fromId на аккаунт toId (перенос участия, 004 → 005: во всех событиях). merge — решения
-// mergeMembership для событий, где участвуют оба. Колонки «кто сделал» и получатель очереди не трогаются; запись
-// старого аккаунта удаляется последней. guard и args — как в enqueueIfStmt.
+// mergeMembership для событий, где участвуют оба. Колонки «кто сделал» переходят тоже (025), получатель очереди — нет;
+// запись старого аккаунта удаляется последней. guard и args — как в enqueueIfStmt.
 export function personTransferStmts(db, fromId, toId, { merge = [] } = {}, guard = '1', ...args) {
   const { out, add } = collector(db, guard, args);
   const fix = (list = []) => {
@@ -501,7 +502,7 @@ export function personTransferStmts(db, fromId, toId, { merge = [] } = {}, guard
       add(`DELETE FROM ${table} WHERE ${columnsWith(spec, SELF)[0]} = ?`, fromId);
       continue;
     }
-    const moved = columnsWith(spec, MEMBER, ACTOR_MOVED);
+    const moved = columnsWith(spec, MEMBER, ACTOR);
     if (!moved.length) continue;
     fix(spec.transferBefore);
     if (spec.onTransfer === 'merge') {

@@ -84,8 +84,8 @@ async function scenario() {
   await w.say(late, '/start ' + inviteOf(st));
   await w.say(late, late.name);
   await w.api(boss, 'admin.insert', { event: ev.id, id: late.id }); note('admin.insert');
-  await w.api(boss, 'admin.vault.pairs', { event: ev.id }); note('admin.vault.pairs');
-  await w.api(boss, 'admin.vault.person', { event: ev.id, id: people[2].id }); note('admin.vault.person');
+  await w.api(boss, 'admin.vault.pairs', { event: ev.id, confirm: 'ОТКРЫТЬ' }); note('admin.vault.pairs');
+  await w.api(boss, 'admin.vault.person', { event: ev.id, id: people[2].id, confirm: 'ОТКРЫТЬ' }); note('admin.vault.person');
   await w.api(adm, 'admin.audit', { event: ev.id }); note('admin.audit (событие)');
   const two = await w.together([1, 2].map(() => () => w.api(adm, 'admin.reveal', { event: ev.id }, true)));
   assert.deepEqual(two.map((r) => r.status).sort(), [200, 400], 'раскрытие: один из двух одновременных вызовов');

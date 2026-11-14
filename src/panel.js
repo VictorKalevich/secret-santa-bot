@@ -4,7 +4,8 @@
 import {
   panelMembersQuery, panelPairsQuery, exclusionsQuery, eventsQuery, fixedPairsQuery, getUser, getMember, auditStmt,
 } from './db.js';
-import { inviteLink } from './format.js';
+import { inviteLink, displayName } from './format.js';
+import { atomic } from './claim.js';
 import { publicEvent } from './status.js';
 import { cancelableQuery } from './pairs.js';
 import { adminListQuery, adminListView } from './support.js';
@@ -111,4 +112,15 @@ export async function usersList(ctx) {
     owner_id: ownerId,
     owner_name: users.find((u) => u.tg_id === ownerId)?.name || '',
   };
+}
+
+// Переименование админом (025): запись общего журнала «старое → новое» — только при настоящем изменении. По прежнему
+// состоянию (020): запись — пока имя другое, само имя — последним (захват). Второй вызов с тем же именем ничего не
+// пишет и тоже успех: имя уже такое, какое просили. Права и длину проверяет строка admin.rename.
+export async function renameUser(ctx, target, name, actor) {
+  if (target.name === name) return;
+  const a = atomic(ctx.db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND name IS NOT ?)', target.tg_id, name);
+  a.audit(0, actor, 'rename', `${displayName(target)} → ${name}`);
+  a.claim(a.where('UPDATE users SET name = ? WHERE tg_id = ?', name, target.tg_id));
+  await a.run();
 }

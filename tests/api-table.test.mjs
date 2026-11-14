@@ -38,7 +38,11 @@ test('таблица действий: действия владельца и с
     'admin.reset.full', 'admin.role.grant', 'admin.role.revoke', 'admin.transfer', 'admin.vault.pairs', 'admin.vault.person',
   ]);
   const words = Object.fromEntries(Object.entries(ACTIONS).filter(([, r]) => r.confirm).map(([a, r]) => [a, r.confirm[0]]));
-  assert.deepEqual(words, { 'admin.draw.cancel.force': 'ОТМЕНА', 'admin.event.delete': 'УДАЛИТЬ', 'admin.reset.full': 'СБРОС' });
+  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер
+  assert.deepEqual(words, {
+    'admin.draw.cancel.force': 'ОТМЕНА', 'admin.event.delete': 'УДАЛИТЬ', 'admin.vault.person': 'ОТКРЫТЬ',
+    'admin.vault.pairs': 'ОТКРЫТЬ', 'admin.reset.full': 'СБРОС',
+  });
 });
 
 test('таблица действий: «от противного» — строка без роли, без finished, с владельцем без текста — ошибки с именем', () => {

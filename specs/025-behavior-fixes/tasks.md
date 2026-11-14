@@ -14,9 +14,9 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Снять «до»: `npm test` (198, зелёные), `node tests/bench/queries.mjs` — строки `admin.rename`,
+- [X] T001 Снять «до»: `npm test` (198, зелёные), `node tests/bench/queries.mjs` — строки `admin.rename`,
   `admin.transfer`, `admin.vault.person`, `admin.vault.pairs`, `admin.request.decide`
-- [ ] T002 `tests/behavior.test.mjs`: каркас (мир `startWorld`, владелец, админ, участники, событие; `after(restoreFetch)`);
+- [X] T002 `tests/behavior.test.mjs`: каркас (мир `startWorld`, владелец, админ, участники, событие; `after(restoreFetch)`);
   `package.json` — файл в скрипт `test`
 
 ---
@@ -27,17 +27,17 @@
 
 **Independent Test**: `node --test tests/behavior.test.mjs` — блок служебного просмотра; `tests/api-refusals.test.mjs`.
 
-- [ ] T003 [US1] `tests/behavior.test.mjs`: блок «служебный просмотр: слово ОТКРЫТЬ» — без слова и со словом «СБРОС»
+- [X] T003 [US1] `tests/behavior.test.mjs`: блок «служебный просмотр: слово ОТКРЫТЬ» — без слова и со словом «СБРОС»
   оба действия → 400 «Для служебного просмотра введи слово ОТКРЫТЬ.», в ответе нет `pairs`/`person`, записей
   `vault.*` в журнале не прибавилось; « открыть » → 200 и одна запись; админ со словом → 403 «Служебный просмотр
   доступен только владельцу бота.»; несуществующее событие со словом → 404. Запустить — падает
-- [ ] T004 [US1] `tests/support/refusals-scenario.mjs`: в конец `extra` — `vault.pairs-word`, `vault.person-word-wrong`,
+- [X] T004 [US1] `tests/support/refusals-scenario.mjs`: в конец `extra` — `vault.pairs-word`, `vault.person-word-wrong`,
   `vault.pairs-word-admin` (research R5); `tests/fixtures/api-refusals.json` — 6 ответов служебного просмотра владельцу
   (R5) и 3 новых ключа; `tests/api-refusals.test.mjs` — в заголовке список изменений эталона 025
-- [ ] T005 [US1] `src/api.js`: у `admin.vault.person` и `admin.vault.pairs` — `confirm: ['ОТКРЫТЬ', 'Для служебного
+- [X] T005 [US1] `src/api.js`: у `admin.vault.person` и `admin.vault.pairs` — `confirm: ['ОТКРЫТЬ', 'Для служебного
   просмотра введи слово ОТКРЫТЬ.']`; `tests/support/queries-scenario.mjs` и `tests/e2e.test.mjs` — `confirm: 'ОТКРЫТЬ'`
   в вызовах служебного просмотра
-- [ ] T006 [US1] `src/app/06-vault-audit.js.txt`: `openVaultGate` передаёт введённое слово в `openVault`, `vapi`
+- [X] T006 [US1] `src/app/06-vault-audit.js.txt`: `openVaultGate` передаёт введённое слово в `openVault`, `vapi`
   добавляет `confirm`. T003, T004 — зелёные
 
 ---
@@ -48,7 +48,7 @@
 
 **Independent Test**: `node --test tests/data-registry.test.mjs tests/behavior.test.mjs`.
 
-- [ ] T007 [US2] `tests/data-registry.test.mjs`: правило «`onTransfer` у таблиц с `MEMBER` или `ACTOR`»; проверка
+- [X] T007 [US2] `tests/data-registry.test.mjs`: правило «`onTransfer` у таблиц с `MEMBER` или `ACTOR`»; проверка
   построителя переноса — колонки «кто сделал» (`actor`, `author`, `created_by`, `decided_by`, `removed_by`,
   `closed_by`, `sender`, `assignee`) переносятся, `chat_id` — нет; `STAYS` = `outbox.chat_id` (только `RECIPIENT`);
   сквозной перенос — у старого аккаунта только очередь, `support_threads.closed_by` — у нового; импорт без
@@ -56,7 +56,7 @@
   отправил объявление и удалил участника (записи журнала); владелец переносит его участие на новый аккаунт (не админ):
   записи журнала события (`admin.audit`) подписаны именем нового аккаунта, автор объявления (`event.get`) — тоже; у
   старого аккаунта в базе — только `outbox`. Запустить — падают
-- [ ] T008 [US2] `src/db.js`: `ACTOR` — «кто сделал: удаление участника не трогает, перенос переносит (025)»;
+- [X] T008 [US2] `src/db.js`: `ACTOR` — «кто сделал: удаление участника не трогает, перенос переносит (025)»;
   `ACTOR_MOVED` упразднить (`support_messages.sender`, `support_threads.assignee` → `ACTOR`); `onTransfer: 'update'` у
   `events`, `announcements`, `audit`, `families`; `personTransferStmts` — колонки `MEMBER` и `ACTOR`; комментарий
   построителя. T007 — зелёный
@@ -69,14 +69,14 @@
 
 **Independent Test**: `node --test tests/behavior.test.mjs tests/atomic.test.mjs`.
 
-- [ ] T009 [US3] `tests/behavior.test.mjs`: блок «переименование»: смена имени — одна запись общего журнала `rename`
+- [X] T009 [US3] `tests/behavior.test.mjs`: блок «переименование»: смена имени — одна запись общего журнала `rename`
   «Старое → Новое», `actor_name` — переименовавший; то же имя (и с лишними пробелами) — успех, записи нет; админ
   переименовал себя — запись. `tests/atomic.test.mjs`: `admin.rename` ×2 в одну миллисекунду с одним именем (блок
   «повторные нажатия», `sameMoment`) — оба 200, запись одна. Запустить — падают
-- [ ] T010 [US3] `src/panel.js`: `renameUser(ctx, target, name, actor)` — без изменения — успех; иначе `atomic` по
+- [X] T010 [US3] `src/panel.js`: `renameUser(ctx, target, name, actor)` — без изменения — успех; иначе `atomic` по
   прежнему состоянию (`name IS NOT ?`), запись журнала перед захватом, захват — `UPDATE users … AND name IS NOT ?`
   последним; `src/api.js`: строка `admin.rename` вызывает `renameUser` (прежние проверки длины и прав)
-- [ ] T011 [US3] `src/app/06-vault-audit.js.txt`: `AUDIT_LABELS` — `rename: '✏️ Переименован'`. T009 — зелёный
+- [X] T011 [US3] `src/app/06-vault-audit.js.txt`: `AUDIT_LABELS` — `rename: '✏️ Переименован'`. T009 — зелёный
 
 ---
 
@@ -86,15 +86,15 @@
 
 **Independent Test**: `node --test tests/behavior.test.mjs tests/api-refusals.test.mjs`.
 
-- [ ] T012 [US4] `tests/behavior.test.mjs`: блок «заявка в завершённом событии»: заявка ждёт, событие завершено;
+- [X] T012 [US4] `tests/behavior.test.mjs`: блок «заявка в завершённом событии»: заявка ждёт, событие завершено;
   `approve: true` — 400 «Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).»;
   отклонение — 200, заявителю сообщение об отказе, второму админу — уведомление, `request.reject` — одна запись;
   повтор — «Заявка уже рассмотрена.». `tests/support/refusals-scenario.mjs` — случай
   `request.decide-approve-finished`; эталон — 4 ответа `admin.request.decide` на завершённых событиях (R5) и новый
   ключ. Запустить — падают
-- [ ] T013 [US4] `src/api.js`: строка `admin.request.decide` — `finished: true`, в обработчике первым — принять в
+- [X] T013 [US4] `src/api.js`: строка `admin.request.decide` — `finished: true`, в обработчике первым — принять в
   завершённое → `refuse(CLOSED)`
-- [ ] T014 [US4] `src/app/05-admin.js.txt`: раздел заявок — функция `requestNodes()`; в идущем событии — прежнее место
+- [X] T014 [US4] `src/app/05-admin.js.txt`: раздел заявок — функция `requestNodes()`; в идущем событии — прежнее место
   и вид; в завершённом — перед обращениями, только «Отклонить» и подсказка «Событие завершено — принять заявку нельзя,
   отклонить можно: человек получит ответ.» T012 — зелёный
 

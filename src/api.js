@@ -22,7 +22,7 @@ import {
   participantView, sendFromUser, closeByUser, adminThread, take, sendFromAdmin, pass, closeByAdmin,
 } from './support.js';
 import { homeView, eventView, saveWishlist, saveDelivery, wardView, setGiftReady, setGiftReceived } from './participant.js';
-import { adminState, memberLetter, usersList } from './panel.js';
+import { adminState, memberLetter, usersList, renameUser } from './panel.js';
 import { changeExclusions, changeFixed } from './constraints.js';
 
 // ---------- роли и общие отказы ----------
@@ -35,6 +35,7 @@ const { ANY, USER, VIEWER, MEMBER, ADMIN, OWNER } = ROLES;
 // Завершённый эвент — только просмотр, раскрытие, удаление и приглашение его участников в новый. Сброс запрещён: он
 // вернул бы эвент в «идёт», а завершение необратимо (FR-506).
 const CLOSED = 'Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).';
+const VAULT_WORD = ['ОТКРЫТЬ', 'Для служебного просмотра введи слово ОТКРЫТЬ.'];
 const onlyOwner = (what) => `${what} может только владелец бота.`;
 const ROLES_OWNER = onlyOwner('Назначать и снимать администраторов');
 const VAULT_OWNER = 'Служебный просмотр доступен только владельцу бота.';
@@ -147,7 +148,7 @@ export const ACTIONS = {
       if ((target.is_admin || target.tg_id === ownerId) && target.tg_id !== ctx.me.tg_id && !(await ctx.isOwner())) {
         return refuse('Переименовать администратора может только владелец бота.', 403);
       }
-      await updateUser(ctx.db, target.tg_id, { name });
+      await renameUser(ctx, target, name, ctx.me.tg_id); // журнал — только при настоящем изменении (025)
       return {};
     },
   },
@@ -272,11 +273,15 @@ export const ACTIONS = {
     run: async (ctx, body, ev) => out(await closeByAdmin(ctx, ev, thread(body)), none),
   },
   'admin.announce': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await announce(ctx, ev, ctx.me.tg_id, body.text), count) },
+  // В завершённом — только отклонить (025): как кнопкой бота req:<id>:r; принять — прежний отказ
   'admin.request.decide': {
     role: ADMIN,
     event: true,
-    finished: CLOSED,
-    run: async (ctx, body, ev) => out(await decideRequest(ctx, body.id, ctx.me.tg_id, !!body.approve, { inEvent: ev }), none),
+    finished: true,
+    async run(ctx, body, ev) {
+      if (isFinished(ev) && body.approve) return refuse(CLOSED);
+      return out(await decideRequest(ctx, body.id, ctx.me.tg_id, !!body.approve, { inEvent: ev }), none);
+    },
   },
   'admin.remind.unfilled': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await remindUnfilled(ctx, ev, ctx.me.tg_id), count) },
   'admin.remind.santas': {
@@ -312,14 +317,16 @@ export const ACTIONS = {
     run: async (ctx, body, ev) => out(await deleteEvent(ctx, ev, ctx.me.tg_id), (r) => ({ notified: r.count })),
   },
   // ---------- служебный просмотр владельца (010, FR-1009–FR-1013): только чтение ----------
+  // Слово ОТКРЫТЬ проверяет и сервер (025) — как СБРОС, УДАЛИТЬ, ОТМЕНА; отказ по слову — до журнала
   'admin.vault.person': {
     role: OWNER,
     owner: VAULT_OWNER,
     event: true,
     finished: true,
+    confirm: VAULT_WORD,
     run: async (ctx, body, ev) => out(await vaultPerson(ctx, ev, Number(body.id) || 0, ctx.me.tg_id)),
   },
-  'admin.vault.pairs': { role: OWNER, owner: VAULT_OWNER, event: true, finished: true, run: async (ctx, body, ev) => out(await vaultPairs(ctx, ev, ctx.me.tg_id)) },
+  'admin.vault.pairs': { role: OWNER, owner: VAULT_OWNER, event: true, finished: true, confirm: VAULT_WORD, run: async (ctx, body, ev) => out(await vaultPairs(ctx, ev, ctx.me.tg_id)) },
   'admin.reset.full': {
     role: OWNER,
     owner: onlyOwner('Полный сброс'),

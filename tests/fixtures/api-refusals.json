@@ -1263,11 +1263,11 @@
   },
   "owner admin.vault.person": {
    "status": 400,
-   "error": "Участник не найден"
+   "error": "Для служебного просмотра введи слово ОТКРЫТЬ."
   },
   "owner admin.vault.pairs": {
-   "status": 200,
-   "error": null
+   "status": 400,
+   "error": "Для служебного просмотра введи слово ОТКРЫТЬ."
   },
   "owner admin.reset.full": {
    "status": 400,
@@ -2943,7 +2943,7 @@
   },
   "finished-owner admin.request.decide": {
    "status": 400,
-   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+   "error": "Заявка не найдена."
   },
   "finished-owner admin.remind.unfilled": {
    "status": 400,
@@ -2971,11 +2971,11 @@
   },
   "finished-owner admin.vault.person": {
    "status": 400,
-   "error": "Участник не найден"
+   "error": "Для служебного просмотра введи слово ОТКРЫТЬ."
   },
   "finished-owner admin.vault.pairs": {
-   "status": 200,
-   "error": null
+   "status": 400,
+   "error": "Для служебного просмотра введи слово ОТКРЫТЬ."
   },
   "finished-owner admin.reset.full": {
    "status": 400,
@@ -3187,7 +3187,7 @@
   },
   "finished-admin admin.request.decide": {
    "status": 400,
-   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+   "error": "Заявка не найдена."
   },
   "finished-admin admin.remind.unfilled": {
    "status": 400,
@@ -3919,7 +3919,7 @@
   },
   "finished-old-owner admin.request.decide": {
    "status": 400,
-   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+   "error": "Заявка не найдена."
   },
   "finished-old-owner admin.remind.unfilled": {
    "status": 400,
@@ -3947,11 +3947,11 @@
   },
   "finished-old-owner admin.vault.person": {
    "status": 400,
-   "error": "Участник не найден"
+   "error": "Для служебного просмотра введи слово ОТКРЫТЬ."
   },
   "finished-old-owner admin.vault.pairs": {
-   "status": 200,
-   "error": null
+   "status": 400,
+   "error": "Для служебного просмотра введи слово ОТКРЫТЬ."
   },
   "finished-old-owner admin.reset.full": {
    "status": 400,
@@ -4163,7 +4163,7 @@
   },
   "finished-old-admin admin.request.decide": {
    "status": 400,
-   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+   "error": "Заявка не найдена."
   },
   "finished-old-admin admin.remind.unfilled": {
    "status": 400,
@@ -4552,6 +4552,22 @@
   "extra notify.set-bad": {
    "status": 400,
    "error": "bad mode"
+  },
+  "extra vault.pairs-word": {
+   "status": 200,
+   "error": null
+  },
+  "extra vault.person-word-wrong": {
+   "status": 400,
+   "error": "Для служебного просмотра введи слово ОТКРЫТЬ."
+  },
+  "extra vault.pairs-word-admin": {
+   "status": 403,
+   "error": "Служебный просмотр доступен только владельцу бота."
+  },
+  "extra request.decide-approve-finished": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
   },
   "extra GET": {
    "status": 405,

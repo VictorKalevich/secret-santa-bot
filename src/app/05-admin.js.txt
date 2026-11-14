@@ -55,6 +55,33 @@
       ];
     };
 
+    // --- заявки на вступление (008): в идущем эвенте — после приглашения; в завершённом (025) — только «Отклонить»:
+    // принять в него нельзя, а человек ждёт ответа (то же, что кнопка бота)
+    const requestNodes = () => {
+      if (!d.requests.length) return [];
+      const reqList = h('div', { class: 'ds-card ds-card--flush' });
+      for (const r of d.requests) {
+        // Кнопки заявки недоступны, пока идёт решение (024)
+        const pick = h('div', { class: 'ds-row ds-row--tight' });
+        const decide = (approve) => busy([...pick.children], async () => {
+          await xapi('admin.request.decide', { id: r.id, approve });
+          toast(approve ? `✅ ${r.name} в событии` : 'Заявка отклонена');
+          await refresh();
+        });
+        if (!done) pick.append(h('button', { class: 'ds-icon-btn', title: 'Принять', onclick: () => decide(true) }, '✅'));
+        pick.append(h('button', { class: 'ds-icon-btn', title: 'Отклонить', onclick: () => decide(false) }, '❌'));
+        reqList.append(h('div', { class: 'ds-list-item' },
+          h('div', { class: 'ds-grow' },
+            h('div', { class: 'ds-list-item__title' }, r.name || 'без имени', r.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + r.username) : null),
+            ui.hint(fmtTime(r.created_at))),
+          pick));
+      }
+      const hint = done
+        ? 'Событие завершено — принять заявку нельзя, отклонить можно: человек получит ответ.'
+        : (s.registration_open ? null : 'Регистрация закрыта — принять заявку можно, когда откроешь её. Отклонить можно сейчас.');
+      return [ui.section(`Заявки · ${d.requests.length}`), hint ? ui.hint(hint, 'ds-hint--inset') : null, reqList].filter(Boolean);
+    };
+
     // --- приглашение (только для идущего эвента)
     if (!done) {
       const regToggle = h('input', { type: 'checkbox', checked: s.registration_open });
@@ -110,29 +137,7 @@
         regCard.append(ui.toggleRow('Я участвую', 'Выключи, если ты только организатор этого события', partToggle, 'ds-divided'));
       }
       nodes.push(ui.section('Приглашение'), regCard);
-      if (d.requests.length) {
-        const reqList = h('div', { class: 'ds-card ds-card--flush' });
-        for (const r of d.requests) {
-          // Обе кнопки заявки недоступны, пока идёт решение (024)
-          const pick = h('div', { class: 'ds-row ds-row--tight' });
-          const decide = (approve) => busy([...pick.children], async () => {
-            await xapi('admin.request.decide', { id: r.id, approve });
-            toast(approve ? `✅ ${r.name} в событии` : 'Заявка отклонена');
-            await refresh();
-          });
-          pick.append(
-            h('button', { class: 'ds-icon-btn', title: 'Принять', onclick: () => decide(true) }, '✅'),
-            h('button', { class: 'ds-icon-btn', title: 'Отклонить', onclick: () => decide(false) }, '❌'));
-          reqList.append(h('div', { class: 'ds-list-item' },
-            h('div', { class: 'ds-grow' },
-              h('div', { class: 'ds-list-item__title' }, r.name || 'без имени', r.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + r.username) : null),
-              ui.hint(fmtTime(r.created_at))),
-            pick));
-        }
-        nodes.push(ui.section(`Заявки · ${d.requests.length}`),
-          s.registration_open ? null : ui.hint('Регистрация закрыта — принять заявку можно, когда откроешь её. Отклонить можно сейчас.', 'ds-hint--inset'),
-          reqList);
-      }
+      nodes.push(...requestNodes());
       // 010: удалённые организатором — при запрете возврата им можно точечно разрешить вернуться
       if (!s.rejoin && d.removed.length) {
         const remList = h('div', { class: 'ds-card ds-card--flush' });
@@ -189,7 +194,8 @@
       nodes.push(ui.section('Объявление'),
         ui.card(ui.hint('Сообщение всем участникам от бота. Оно останется во вкладке «Инфо».'), annText, annBtn));
     } else {
-      nodes.push(...supportNodes()); // завершённый эвент: обращения — на том же месте, перед участниками
+      // Завершённый эвент: заявки (только отклонить, 025) и обращения — на том же месте, перед участниками
+      nodes.push(...requestNodes(), ...supportNodes());
     }
 
     // --- меню участника (004)

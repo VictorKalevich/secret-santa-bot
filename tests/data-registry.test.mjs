@@ -7,11 +7,11 @@ import { createMigratedD1 } from './support/d1-sqlite.mjs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { seeded } from './support/draw-cases.mjs';
 import {
-  REGISTRY, MEMBER, ACTOR, ACTOR_MOVED, RECIPIENT, SELF, NOT_PERSON, columnsWith,
+  REGISTRY, MEMBER, ACTOR, RECIPIENT, SELF, NOT_PERSON, columnsWith,
   eventDataDeleteStmts, memberDataDeleteStmts, personTransferStmts, mergeMembership,
 } from '../src/db.js';
 
-const ROLES = new Set([MEMBER, ACTOR, ACTOR_MOVED, RECIPIENT, SELF, NOT_PERSON]);
+const ROLES = new Set([MEMBER, ACTOR, RECIPIENT, SELF, NOT_PERSON]);
 
 // Схема базы: таблица → имена колонок
 function schemaOf(sqlite) {
@@ -53,7 +53,7 @@ function registryGaps(sqlite, registry = REGISTRY) {
     if (spec.event && member && spec.anchor !== 'member' && !['delete', 'keep', 'rebuild'].includes(spec.onLeave)) {
       gaps.push(`${table}: не задано onLeave`);
     }
-    if (columnsWith(spec, MEMBER, ACTOR_MOVED).length && !['update', 'dedupe', 'merge'].includes(spec.onTransfer)) {
+    if (columnsWith(spec, MEMBER, ACTOR).length && !['update', 'dedupe', 'merge'].includes(spec.onTransfer)) {
       gaps.push(`${table}: не задано onTransfer`);
     }
   }
@@ -149,17 +149,17 @@ describe('построители операторов', () => {
     assert.match(stmts[0].sql, /event_id = \? AND \(giver = \? OR receiver = \?\) AND/);
   });
 
-  it('перенос: колонки «кто сделал» и получатель очереди не трогаются, запись человека — последней', () => {
+  it('перенос: колонки «кто сделал» переносятся (025), получатель очереди — нет, запись человека — последней', () => {
     const merge = [{ event_id: 7, set: { wishlist: 'н', wishlist_updated_at: 2, delivery: 'с', delivery_updated_at: 1 } }];
     const stmts = personTransferStmts(fakeDb, 100, 200, { merge }, GUARD, 'g');
     assertGuarded(stmts);
     const sql = stmts.map((s) => s.sql);
     assert.match(sql.at(-1), /^DELETE FROM users WHERE tg_id = \?/);
     assert.deepEqual(stmts.at(-1).args, [100, 'g']);
-    for (const c of ['actor', 'author', 'created_by', 'decided_by', 'removed_by', 'closed_by', 'chat_id']) {
-      assert.ok(!sql.some((s) => new RegExp(`SET ${c} = `).test(s)), c);
+    assert.ok(!sql.some((s) => /SET chat_id = /.test(s)), 'chat_id');
+    for (const c of ['santa', 'ward', 'giver', 'receiver', 'sender', 'assignee', 'actor', 'author', 'created_by', 'decided_by', 'removed_by', 'closed_by']) {
+      assert.ok(sql.some((s) => s.includes(`SET ${c} = ?`)), c);
     }
-    for (const c of ['santa', 'ward', 'giver', 'receiver', 'sender', 'assignee']) assert.ok(sql.some((s) => s.includes(`SET ${c} = ?`)), c);
     // Слияние: участие нового удаляется, в участие старого — письмо и адрес по решению, затем все участия старого — новому
     const iDel = sql.indexOf('DELETE FROM members WHERE event_id = ? AND user_id = ? AND (' + GUARD + ')');
     assert.deepEqual(stmts[iDel].args, [7, 200, 'g']);
@@ -214,16 +214,20 @@ const adm = { id: 9002, name: 'Админ', username: 'adm' };
 const fresh = { id: 777, name: 'Новый аккаунт', username: 'fresh' };
 const P = Array.from({ length: 6 }, (_, i) => ({ id: 101 + i, name: 'Игрок' + (i + 1), username: 'p' + (i + 1) }));
 const [p1, p2, p3, p4, p5, p6] = P;
-// Что остаётся у человека всегда — явно, по файлу шага (не по ролям списка, чтобы тест не доверял самому списку):
-// ссылки «кто сделал» и получатель сообщения в очереди
-const STAYS = [
+// Что остаётся у старого аккаунта после переноса — явно (не по ролям списка, чтобы тест не доверял самому списку):
+// только получатель сообщения в очереди (до 025 — и ссылки «кто сделал»)
+const STAYS = ['outbox.chat_id'];
+// Ссылки «кто сделал» — с 025 переносятся вместе с человеком
+const ACTOR_COLUMNS = [
   'announcements.author', 'audit.actor', 'events.created_by', 'families.created_by', 'join_requests.decided_by',
-  'outbox.chat_id', 'removed_members.removed_by', 'support_threads.closed_by',
+  'removed_members.removed_by', 'support_messages.sender', 'support_threads.assignee', 'support_threads.closed_by',
 ];
 
-test('остатки по файлу шага совпадают с ролями «кто сделал» и «получатель» в списке', () => {
-  const fromRegistry = Object.entries(REGISTRY).flatMap(([t, s]) => columnsWith(s, ACTOR, RECIPIENT).map((c) => `${t}.${c}`));
-  assert.deepEqual(fromRegistry.sort(), [...STAYS].sort());
+test('остатки после переноса — только получатель очереди; «кто сделал» — роль ACTOR', () => {
+  const recipients = Object.entries(REGISTRY).flatMap(([t, s]) => columnsWith(s, RECIPIENT).map((c) => `${t}.${c}`));
+  assert.deepEqual(recipients.sort(), [...STAYS].sort());
+  const actors = Object.entries(REGISTRY).flatMap(([t, s]) => columnsWith(s, ACTOR).map((c) => `${t}.${c}`));
+  assert.deepEqual(actors.sort(), [...ACTOR_COLUMNS].sort());
 });
 
 // Случайные числа — с зерном: удаление после жеребьёвки перестраивает пары случайно, тест не должен зависеть от удачи
@@ -345,7 +349,8 @@ function personRows(w, id, event = 0) {
   }
   return out;
 }
-const kept = (rows) => Object.keys(rows).filter((k) => !STAYS.includes(k)).sort();
+// Удаление участника и выход не трогают ссылки «кто сделал»; перенос — переносит (025): там stays = STAYS
+const kept = (rows, stays = [...STAYS, ...ACTOR_COLUMNS]) => Object.keys(rows).filter((k) => !stays.includes(k)).sort();
 
 describe('после действия не остаётся строк события и человека', () => {
   after(restoreFetch);
@@ -400,16 +405,17 @@ describe('после действия не остаётся строк собы�
     assert.ok(personRows(w, p2.id, A)['members.user_id'], 'участие в A осталось');
   }));
 
-  it('перенос: старый аккаунт остаётся только в ссылках «кто сделал» и в очереди; данные — у нового', () => seededRun(async () => {
+  it('перенос: старый аккаунт остаётся только в очереди; данные и ссылки «кто сделал» — у нового (025)', () => seededRun(async () => {
     const { w, A, B, C } = await rich();
-    const before = kept(personRows(w, p1.id));
+    const before = kept(personRows(w, p1.id), STAYS);
     assert.ok(before.length >= 12, 'у p1 были данные почти во всех таблицах');
     await w.api(boss, 'admin.transfer', { from: p1.id, to: fresh.id });
     const left = personRows(w, p1.id);
-    assert.deepEqual(kept(left), [], 'у старого аккаунта — только «кто сделал» и очередь');
-    assert.ok(left['support_threads.closed_by'], 'закрытое им обращение подписано старым аккаунтом');
+    assert.deepEqual(kept(left, STAYS), [], 'у старого аккаунта — только очередь');
+    assert.ok(!left['support_threads.closed_by'], 'закрытое им обращение подписано уже не старым аккаунтом');
+    assert.ok(personRows(w, fresh.id)['support_threads.closed_by'], '…а новым');
     // Всё, что было у старого как у участника, теперь у нового
-    const now = kept(personRows(w, fresh.id));
+    const now = kept(personRows(w, fresh.id), STAYS);
     for (const k of before) if (k !== 'users.tg_id') assert.ok(now.includes(k), k);
     // B: одно участие, письмо старого (у нового пустое); A: письмо и адрес старого; C: отметка «удалён» перешла
     assert.deepEqual(w.query('SELECT user_id, wishlist FROM members WHERE event_id = ? AND user_id IN (?, ?)', B, p1.id, fresh.id),

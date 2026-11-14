@@ -1241,10 +1241,10 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
 
     await t.test('служебный просмотр: участник и все пары, журнал без пар, статусы не меняются', async () => {
       // до жеребьёвки пар нет
-      const pre = await zapi(boss, 'admin.vault.person', { event: E, id: anya.id });
+      const pre = await zapi(boss, 'admin.vault.person', { event: E, id: anya.id, confirm: 'ОТКРЫТЬ' });
       assert.equal(pre.ward, null);
       assert.equal(pre.santa, null);
-      assert.deepEqual((await zapi(boss, 'admin.vault.pairs', { event: E })).pairs, []);
+      assert.deepEqual((await zapi(boss, 'admin.vault.pairs', { event: E, confirm: 'ОТКРЫТЬ' })).pairs, []);
 
       const V = await newEvent('Сейф', [anya, borya, vera, gena], { delivery_on: true });
       await zapi(boss, 'admin.participate', { event: V, on: true });
@@ -1267,9 +1267,9 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
         assert.equal(r.data.error, 'Служебный просмотр доступен только владельцу бота.');
       }
 
-      const all = await zapi(boss, 'admin.vault.pairs', { event: V });
+      const all = await zapi(boss, 'admin.vault.pairs', { event: V, confirm: 'ОТКРЫТЬ' });
       assert.deepEqual(new Map(all.pairs.map((p) => [p.santa.id, p.ward.id])), pairs);
-      const p = await zapi(boss, 'admin.vault.person', { event: V, id: vera.id });
+      const p = await zapi(boss, 'admin.vault.person', { event: V, id: vera.id, confirm: 'ОТКРЫТЬ' });
       assert.equal(p.person.name, 'Вера');
       assert.equal(p.ward.id, pairs.get(vera.id));
       assert.equal(p.santa.id, santaOf(vera.id));
@@ -1278,7 +1278,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       assert.deepEqual(p.chat_with_santa.map((m) => [m.from, m.text]), [['ward', 'Привет, Санта!']]);
       assert.deepEqual(p.chat_with_ward.map((m) => [m.from, m.text]), [['santa', 'Привет от Санты']]);
       assert.ok(p.chat_with_santa[0].created_at > 0, 'с датами');
-      assert.equal((await zapi(boss, 'admin.vault.person', { event: V, id: zhora.id }, true)).status, 400, 'не участник');
+      assert.equal((await zapi(boss, 'admin.vault.person', { event: V, id: zhora.id, confirm: 'ОТКРЫТЬ' }, true)).status, 400, 'не участник');
 
       assert.deepEqual([await z.query(statusSql), await z.query(readSql)], before, 'статусы и непрочитанные не изменились');
       const log = (await zapi(helper, 'admin.audit', { event: V })).entries;
@@ -1290,11 +1290,11 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       // отмена жеребьёвки остаётся доступной; завершённый эвент тоже открывается
       const V2 = await newEvent('Сейф-2', [anya, borya, vera]);
       await zapi(boss, 'admin.draw', { event: V2 });
-      await zapi(boss, 'admin.vault.pairs', { event: V2 });
-      for (const u of [anya, borya, vera]) await zapi(boss, 'admin.vault.person', { event: V2, id: u.id });
+      await zapi(boss, 'admin.vault.pairs', { event: V2, confirm: 'ОТКРЫТЬ' });
+      for (const u of [anya, borya, vera]) await zapi(boss, 'admin.vault.person', { event: V2, id: u.id, confirm: 'ОТКРЫТЬ' });
       assert.equal((await zapi(boss, 'admin.state', { event: V2 })).settings.draw_cancelable, true, 'просмотр не мешает отменить жеребьёвку');
       await zapi(boss, 'admin.event.finish', { event: V2 });
-      assert.equal((await zapi(boss, 'admin.vault.pairs', { event: V2 })).pairs.length, 3, 'и в завершённом эвенте');
+      assert.equal((await zapi(boss, 'admin.vault.pairs', { event: V2, confirm: 'ОТКРЫТЬ' })).pairs.length, 3, 'и в завершённом эвенте');
 
       // владельцу не действуют ограничения против вычисления пар; админу — действуют
       await zapi(boss, 'admin.exclusion.add', { event: V, giver: anya.id, receiver: borya.id });

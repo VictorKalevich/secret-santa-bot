@@ -130,6 +130,12 @@ export async function runRefusals() {
     ['ward.get-admin', adm, 'ward.get', { event: E }],
     ['notify.set-stranger', stranger, 'notify.set', { mode: 'off' }],
     ['notify.set-bad', member, 'notify.set', { mode: 'loud' }],
+    // 025: слово служебного просмотра и отклонение заявки в завершённом событии (в конце — номера событий прежних случаев
+    // не сдвигаются)
+    ['vault.pairs-word', boss, 'admin.vault.pairs', async () => ({ event: await fresh(), confirm: ' открыть ' })],
+    ['vault.person-word-wrong', boss, 'admin.vault.person', { event: E, id: member.id, confirm: 'СБРОС' }],
+    ['vault.pairs-word-admin', adm, 'admin.vault.pairs', { event: E, confirm: 'ОТКРЫТЬ' }],
+    ['request.decide-approve-finished', adm, 'admin.request.decide', { event: F, id: 0, approve: true }],
   ];
   for (const [name, user, action, b] of extra) {
     await record(`extra ${name}`, user, action, typeof b === 'function' ? await b() : b);

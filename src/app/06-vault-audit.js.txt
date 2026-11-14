@@ -1,13 +1,14 @@
 
   // ---------- служебный просмотр владельца (010) ----------
-  // Вход — вводом слова ОТКРЫТЬ (как СБРОС и УДАЛИТЬ), чтобы владелец, который сам играет, не увидел пары случайно
+  // Вход — вводом слова ОТКРЫТЬ (как СБРОС и УДАЛИТЬ), чтобы владелец, который сам играет, не увидел пары случайно;
+  // введённое слово уходит в каждом запросе служебного просмотра — его проверяет и сервер (025)
   function openVaultGate(evId, s, users, meMember) {
     const word = 'ОТКРЫТЬ';
     const inp = h('input', { class: 'ds-input', type: 'text', placeholder: `Введи слово ${word}`, autocomplete: 'off' });
     const go = ui.btn('🔐 Войти', '', 'ds-btn--block');
     go.disabled = true;
     inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== word; });
-    go.addEventListener('click', () => openVault(evId, s, users, meMember));
+    go.addEventListener('click', () => openVault(evId, s, users, meMember, inp.value.trim()));
     openSheet('🔐 Служебный просмотр', [
       meMember ? h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Ты участник этого события. '),
         'В полной таблице пар ты увидишь своего Санту. Лучше смотри по одному участнику и не открывай себя.') : null,
@@ -16,8 +17,8 @@
       inp, go].filter(Boolean));
   }
 
-  function openVault(evId, s, users, meMember) {
-    const vapi = (action, body) => api(action, { ...(body || {}), event: evId });
+  function openVault(evId, s, users, meMember, word) {
+    const vapi = (action, body) => api(action, { ...(body || {}), event: evId, confirm: word });
     const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Участник…'),
       ...users.map((u) => h('option', { value: u.id }, (u.name || 'без имени') + (u.id === state.me.id ? ' (ты)' : ''))));
     const showBtn = ui.btn('👁 Открыть участника', '', 'ds-btn--block');
@@ -90,7 +91,7 @@
     'remind.santas': '🎁 Напоминание Сантам', 'invite.from': '📨 Приглашение из события', transfer: '🔁 Перенос участия',
     'role.grant': '🛠 Назначен админ', 'role.revoke': '🛠 Снят админ', 'owner.transfer': '👑 Передано владение', 'owner.link': '👑 Владелец по ссылке /setup',
     'family.save': '👪 Семья сохранена', 'family.delete': '👪 Семья удалена', 'request.approve': '✅ Заявка принята', 'request.reject': '❌ Заявка отклонена',
-    'member.allow': '↩️ Разрешено вернуться', 'vault.person': '🔐 Служебный просмотр участника', 'vault.pairs': '🔐 Служебный просмотр: все пары',
+    'member.allow': '↩️ Разрешено вернуться', rename: '✏️ Переименован', 'vault.person': '🔐 Служебный просмотр участника', 'vault.pairs': '🔐 Служебный просмотр: все пары',
     'draw.cancel.force': '↩️ Жеребьёвка отменена владельцем', 'support.open': '🆘 Новое обращение', 'support.take': '🙋 Обращение взято',
     'support.pass': '↪️ Обращение передано', 'support.close': '✅ Обращение закрыто', 'support.return': '🔄 Обращение снова ничьё',
   };
