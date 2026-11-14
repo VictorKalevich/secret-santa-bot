@@ -4,7 +4,7 @@ import {
   getEvent, addMemberStmt, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt, clearRemovedStmt, isRemoved,
   memberDataDeleteStmts,
 } from './db.js';
-import { msg, q, escapeHtml, openAppButton, displayName, adminRecipients, oneLine } from './format.js';
+import { msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine } from './format.js';
 import { isFinished } from './status.js';
 
 // ---------- семьи ----------
@@ -155,6 +155,16 @@ export async function rejoinBlocked(db, ev, userId) {
 
 // Вступление зарегистрированного человека, который ещё не участник эвента (009, FR-920) — единая логика для ссылки и
 // для ввода имени после неё.
+// Отказ по заявке (008): ответ боту и сообщение участнику — один текст (019)
+export const requestRejected = (ev) => `Организатор не одобрил заявку на участие в событии ${q(ev)}. Если это ошибка — напиши ему.`;
+
+// Админам (кроме самого человека) — «… присоединяется к событию»: вступление по ссылке и ввод имени в боте (019)
+export function joinedNoticeStmts(db, users, user, ev) {
+  return adminRecipients(users, [user.tg_id]).map((a) => enqueueStmt(db, a.tg_id, msg(
+    `👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к событию ${q(ev)}`, { disable_notification: true }
+  )));
+}
+
 // Результат: 'joined' | 'closed' | 'removed' | 'request_sent' | 'request_pending' | 'request_rejected'.
 export async function joinByInvite(ctx, ev, user) {
   const db = ctx.db;
@@ -166,9 +176,7 @@ export async function joinByInvite(ctx, ev, user) {
   await db.batch([
     addMemberStmt(db, ev, user.tg_id),
     clearRemovedStmt(db, ev.id, user.tg_id), // вернулся — больше не в списке удалённых (010)
-    ...adminRecipients(users, [user.tg_id]).map((a) => enqueueStmt(db, a.tg_id, msg(
-      `👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к событию ${q(ev)}`, { disable_notification: true }
-    ))),
+    ...joinedNoticeStmts(db, users, user, ev),
   ]);
   return 'joined';
 }
@@ -233,8 +241,8 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
       ev.draw_done
         ? `🎉 Заявка одобрена — ты в событии ${q(ev)}! Жеребьёвка уже прошла — организатор впишет тебя, бот пришлёт уведомление. А пока напиши письмо Санте.`
         : `🎉 Заявка одобрена — ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] } })
-    : msg(`Организатор не одобрил заявку на участие в событии ${q(ev)}. Если это ошибка — напиши ему.`), guard, ...g));
+      appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }))
+    : msg(requestRejected(ev)), guard, ...g));
   for (const a of adminRecipients(users, [actor, req.user_id])) {
     stmts.push(enqueueIfStmt(db, a.tg_id, msg(
       `${approve ? '✅' : '❌'} <b>${escapeHtml(displayName(by))}</b> ${approve ? 'принял(а)' : 'отклонил(а)'} заявку <b>${escapeHtml(displayName(person))}</b> на участие в событии ${q(ev)}.`,

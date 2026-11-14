@@ -98,6 +98,7 @@ const USER_FIELDS = new Set(['name', 'username', 'is_admin', 'registered', 'noti
 
 export function updateUserStmt(db, id, fields) {
   const keys = Object.keys(fields).filter((k) => USER_FIELDS.has(k));
+  if (!keys.length) throw new Error(`updateUserStmt: нет полей для записи (${Object.keys(fields).join(', ') || 'пусто'})`);
   const sql = `UPDATE users SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE tg_id = ?`;
   return db.prepare(sql).bind(...keys.map((k) => fields[k]), id);
 }
@@ -127,6 +128,7 @@ const EVENT_FIELDS = new Set([
 
 export function updateEventStmt(db, id, fields) {
   const keys = Object.keys(fields).filter((k) => EVENT_FIELDS.has(k));
+  if (!keys.length) throw new Error(`updateEventStmt: нет полей для записи (${Object.keys(fields).join(', ') || 'пусто'})`);
   return db.prepare(`UPDATE events SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).bind(...keys.map((k) => fields[k]), id);
 }
 

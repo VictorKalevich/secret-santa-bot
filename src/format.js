@@ -82,6 +82,15 @@ export function openAppButton(settings, text = '🎁 Открыть прилож
   return { text, web_app: { url: appUrl(settings, params) } };
 }
 
+// Одна кнопка приложения под сообщением (019): msg(text, appKeyboard(…)) или { …, ...appKeyboard(…) } — ключ последним
+export const appKeyboard = (settings, text, params) => ({ reply_markup: { inline_keyboard: [[openAppButton(settings, text, params)]] } });
+
+// Общие тексты (019): побайтно одинаковые в нескольких модулях
+export const NOT_REGISTERED = 'Сначала зарегистрируйся по пригласительной ссылке.';
+export const ADMIN_ONLY = 'Только для администратора.';
+export const NO_DRAW = 'Жеребьёвка ещё не проведена.';
+export const PAIRS_RACE = 'Пары изменились одновременно с этим действием — попробуй ещё раз.';
+
 export function inviteLink(settings, ev) {
   if (!settings.bot_username || !ev?.invite_code) return '';
   return `https://t.me/${settings.bot_username}?start=inv_${ev.invite_code}`;

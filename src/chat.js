@@ -7,6 +7,8 @@ import { chatWritable } from './status.js';
 // Лимит письма и сообщения переписки: одно сообщение Telegram вмещает 4096 символов (UTF-16, как String.length),
 // 96 оставляем под заголовок уведомления (003, FR-309).
 export const MAX_CHARS = 4000;
+// Отказ «слишком длинно» для письма, переписки и обращений (019: один текст)
+export const tooLong = (n) => `Слишком длинно: ${n} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).`;
 
 export async function chatPair(db, eventId, userId, withWhom) {
   if (withWhom === 'ward') {
@@ -38,7 +40,7 @@ export async function sendChatMessage(ctx, ev, fromId, to, rawText, { expectOthe
   const text = cleanText(rawText);
   if (!text) return { ok: false, error: 'Пустое сообщение.' };
   if (text.length > MAX_CHARS) {
-    return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).` };
+    return { ok: false, error: tooLong(text.length) };
   }
   if (!chatWritable(ev)) return { ok: false, error: 'Событие завершено больше недели назад: переписка доступна только для чтения.' };
   const pair = await chatPair(db, ev.id, fromId, to);

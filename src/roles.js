@@ -4,7 +4,7 @@ import {
   setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt,
   mergeMembership, personTransferStmts,
 } from './db.js';
-import { msg, escapeHtml, openAppButton, displayName, adminRecipients } from './format.js';
+import { msg, escapeHtml, appKeyboard, displayName, adminRecipients } from './format.js';
 import { derivedSecret } from './telegram.js';
 import { returnThreadsStmts } from './support.js';
 
@@ -77,7 +77,7 @@ export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabe
     if (via === 'transfer') {
       stmts.push(enqueueStmt(db, newOwnerId, msg(
         '👑 <b>Тебе переданы права владельца бота.</b> Теперь ты назначаешь и снимаешь администраторов — раздел «Администраторы» на главном экране приложения.',
-        { reply_markup: { inline_keyboard: [[openAppButton(settings, '🛠 Открыть')]] } }
+        appKeyboard(settings, '🛠 Открыть')
       )));
     }
     stmts.push(...otherAdminsNotice(db, users, [newOwnerId, prevOwnerId], `ℹ️ <b>${label}</b> теперь владелец бота.`));
@@ -95,7 +95,7 @@ export async function grantAdmin(ctx, id, actor = 0) {
     db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ?').bind(id),
     enqueueStmt(db, id, msg(
       '🛠 <b>Владелец назначил тебя администратором.</b>\n\nТеперь ты можешь создавать события и вести их: приглашения, исключения, жеребьёвка, напоминания. Кто кому дарит, админы не видят.',
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🛠 Открыть')]] } }
+      appKeyboard(settings, '🛠 Открыть')
     )),
     ...otherAdminsNotice(db, users, [id, ownerId], `ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`),
     auditStmt(db, 0, actor || ownerId, 'role.grant', displayName(u)),
@@ -160,7 +160,7 @@ export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   const res = await db.batch([
     enqueueIfStmt(db, toId, msg(
       '🔁 Организатор перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история событий сохранены.',
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть')]] } }
+      appKeyboard(settings, '🎁 Открыть')
     ), fromExists, fromId),
     // Перенос не должен быть незаметным (006, FR-602): прежний аккаунт и остальные админы узнают о нём
     enqueueIfStmt(db, fromId, msg(

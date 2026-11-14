@@ -199,20 +199,22 @@ tests/draw-golden.test.mjs` — зелёные; `npm run bench:draw` ×2 — б�
 
 **Independent Test**: `npm test` (слова, эталон отказов, запросы) зелёный; тексты сообщений побайтно те же.
 
-- [ ] T033 [P] [US4] `src/format.js`: `NOT_REGISTERED`, `ADMIN_ONLY`, `NO_DRAW`, `PAIRS_RACE` и `appKeyboard(settings, text,
+- [X] T033 [P] [US4] `src/format.js`: `NOT_REGISTERED`, `ADMIN_ONLY`, `NO_DRAW`, `PAIRS_RACE` и `appKeyboard(settings, text,
   params)` → `{ reply_markup: { inline_keyboard: [[openAppButton(…)]] } }`; замена в `src/api.js`, `src/bot.js`,
   `src/events.js`, `src/pairs.js` и местах «одна кнопка приложения» (порядок ключей сообщения прежний)
-- [ ] T034 [P] [US4] `src/chat.js` `tooLong(n)` (письмо, переписка, обращения); `src/membership.js` `requestRejected(ev)`
+- [X] T034 [P] [US4] `src/chat.js` `tooLong(n)` (письмо, переписка, обращения); `src/membership.js` `requestRejected(ev)`
   (бот и модуль) и `joinedNoticeStmts(db, users, user, ev)` — рассылка «… присоединяется к событию» для `joinByInvite`
   и ввода имени в боте
-- [ ] T035 [US4] `src/bot.js`: `registrationClosed(ev)`, `REPLY_EXPIRED`, `parsePending` / `replyPending` /
+- [X] T035 [US4] `src/bot.js`: `registrationClosed(ev)`, `REPLY_EXPIRED`, `parsePending` / `replyPending` /
   `supportPending` (старый `msg_<сторона>:<событие>` без собеседника → «время ответа истекло»); четыре разных «Событие
   завершено больше недели назад…» не объединять
-- [ ] T036 [P] [US4] `src/setup.js` (новый): страница `/setup` из `src/index.js` без правок текста и заголовков;
+  быстрый тест: tests/world.test.mjs «старый и устаревший режим ответа не отправляет, свежий — отправляет»
+- [X] T036 [P] [US4] `src/setup.js` (новый): страница `/setup` из `src/index.js` без правок текста и заголовков;
   `src/index.js` импортирует её
-- [ ] T037 [P] [US4] `src/db.js`: `updateUserStmt` / `updateEventStmt` с пустым набором полей — `throw new Error(…)`;
+- [X] T037 [P] [US4] `src/db.js`: `updateUserStmt` / `updateEventStmt` с пустым набором полей — `throw new Error(…)`;
   имена для журнала исключений — из `ctx.users()` (`src/constraints.js`)
-- [ ] T038 [US4] `npm test`; `node tests/bench/queries.mjs` — числа US2 не выросли; коммит «019 US4: …»
+  имена для журнала исключений берутся из ctx.users() с US1 (T015); здесь — только отказ пустого UPDATE
+- [X] T038 [US4] `npm test`; `node tests/bench/queries.mjs` — числа US2 не выросли; коммит «019 US4: …»
 
 ---
 

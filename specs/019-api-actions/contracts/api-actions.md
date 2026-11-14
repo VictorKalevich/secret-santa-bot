@@ -54,10 +54,13 @@ ctx.forgetUsers()
 | `panel.js` | `adminState(ctx, ev)`, `memberLetter(ctx, ev, id)`, `usersList(ctx)` |
 | `chat.js` | `sendChatMessage(ctx, ev, fromId, to, text, { expectOther })`, `chatHistory(ctx, ev, withWhom, after)`, `chatPair(db, …)`, `unreadQuery(db, eventId, userId)` + `unreadFrom(rows)`, `unreadByEventQuery(db, userId)` + `unreadByEventFrom(rows)`, `tooLong(n)`, `MAX_CHARS` |
 | `support.js` | `participantView(ctx, ev)`, `sendFromUser(ctx, ev, text)`, `closeByUser(ctx, ev)`, `adminListQuery(db, ev)`, `adminListView(rows, users, me, isOwner)`, `adminThread(ctx, ev, id)`, `take(ctx, ev, id)`, `sendFromAdmin(ctx, ev, id, text)`, `pass(ctx, ev, id, to)`, `closeByAdmin(ctx, ev, id)`, `supportCountsQuery(db, ev, me)`, `supportCountsView(rows, { member, admin })`, `supportUnreadQuery(db, me)` + `supportUnreadFrom(rows)`, `returnThreadsStmts(db, settings, users, adminId)`, `supportAvailable(users, userId)` |
-| `membership.js` | `saveFamily(ctx, actor, { id, name, members })`, `deleteFamily(ctx, actor, id)`, `familiesList(ctx)`, `participate(ctx, ev, on, actor)`, `allowRemoved(ctx, ev, id, actor)`, `joinByInvite(ctx, ev, user)`, `decideRequest(ctx, id, actor, approve, { ev })`, `joinedNoticeStmts(db, users, user, ev)`, `requestRejected(ev)`, `rejoinBlocked(db, ev, userId)` |
+| `membership.js` | `saveFamily(ctx, actor, { id, name, members })`, `deleteFamily(ctx, actor, id)`, `familiesList(ctx)`, `participate(ctx, ev, on, actor)`, `allowRemoved(ctx, ev, id, actor)`, `joinByInvite(ctx, ev, user)`, `decideRequest(ctx, id, actor, approve, { inEvent })`, `joinedNoticeStmts(db, users, user, ev)`, `requestRejected(ev)`, `rejoinBlocked(db, ev, userId)` |
 | `roles.js` | `resolveOwner(db, settings, users)`, `setOwner(ctx, id, { via, prevOwnerId, newOwnerLabel })`, `grantAdmin(ctx, id, actor)`, `revokeAdmin(ctx, id, actor)`, `transferOwnership(ctx, fromId, toId)`, `transferAccount(ctx, fromId, toId, actorId)`; `ownerLinkCode(env)`, `ownerLinkUsed(env, settings)`, `claimOwnerLink(env)` — без изменений |
 | `vault.js` | `vaultPerson(ctx, ev, id, actor)`, `vaultPairs(ctx, ev, actor)` |
 | `status.js` | `CHAT_GRACE_MS`, `isFinished(ev)`, `chatUntil(ev)`, `chatWritable(ev, now)`, `publicEvent(ev)` — без импортов |
+| `format.js` | прежние + `appKeyboard(settings, text, params)` (одна кнопка приложения), `NOT_REGISTERED`, `ADMIN_ONLY`, `NO_DRAW`, `PAIRS_RACE` |
+| `setup.js` | `setup(request, url, env)` — страница `/setup` из `index.js` без правок текста и заголовков |
+| `bot.js` (внутри) | `registrationClosed(ev)`, `REPLY_EXPIRED`, `parsePending(pending)` (старый `msg_<сторона>:<событие>` — `since = 0`, «время ответа истекло»), `replyPending(side, eventId, otherId)`, `supportPending(who, id)` |
 
 ## 4. Чтения (`src/db.js`)
 

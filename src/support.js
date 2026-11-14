@@ -6,7 +6,7 @@
 import { getUser, enqueueIfStmt, auditIfStmt } from './db.js';
 import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppButton, cleanText } from './format.js';
 import { chatWritable } from './status.js';
-import { MAX_CHARS } from './chat.js';
+import { MAX_CHARS, tooLong } from './chat.js';
 
 const READ_ONLY = 'Событие завершено больше недели назад: обращения только для чтения.';
 const NOBODY = 'Сейчас некому написать: в боте нет других организаторов.';
@@ -20,7 +20,7 @@ const bold = (u) => `<b>${escapeHtml(displayName(u))}</b>`;
 function checkText(raw) {
   const text = cleanText(raw);
   if (!text) return { error: 'Пустое сообщение.' };
-  if (text.length > MAX_CHARS) return { error: `Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).` };
+  if (text.length > MAX_CHARS) return { error: tooLong(text.length) };
   return { text };
 }
 

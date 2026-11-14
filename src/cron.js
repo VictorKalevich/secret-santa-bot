@@ -1,7 +1,7 @@
 // Плановые задачи: запускаются Cloudflare раз в минуту. Работают только с идущими эвентами.
 
 import { enqueueStmt, updateEventStmt, getEvent, auditStmt } from './db.js';
-import { openAppButton, msg, q, escapeHtml, localDate, daysUntil, addDays, ISO_DATE, adminRecipients } from './format.js';
+import { appKeyboard, msg, q, escapeHtml, localDate, daysUntil, addDays, ISO_DATE, adminRecipients } from './format.js';
 import { flushOutbox } from './outbox.js';
 import { isFinished } from './status.js';
 import { remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
@@ -54,7 +54,7 @@ async function notifyWishlistChanges(ctx) {
     const what = r.delivery_on ? 'обновил письмо или адрес доставки' : 'обновил письмо Санте';
     stmts.push(enqueueStmt(db, r.santa, msg(`📝 Твой подопечный в событии ${q(r)} ${what}.`, {
       disable_notification: r.notify_mode === 'silent',
-      reply_markup: { inline_keyboard: [[openAppButton(settings, '👀 Посмотреть', { event: r.event_id })]] },
+      ...appKeyboard(settings, '👀 Посмотреть', { event: r.event_id }),
     })));
   }
   await db.batch(stmts);

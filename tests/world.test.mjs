@@ -71,3 +71,36 @@ test('мир: сеть наружу закрыта', async () => {
   await startWorld();
   await assert.rejects(fetch('https://api.telegram.org/'), /сеть в быстрых тестах недоступна/);
 });
+
+// 019: режим ответа (pending) разбирается в одном месте; старый формат переписки без собеседника и времени (до 009)
+// и устаревшее нажатие «Ответить» в обращении — «время ответа истекло», ничего не отправлено
+test('бот: старый и устаревший режим ответа не отправляет, свежий — отправляет', async () => {
+  const { w, ev, code } = await ownerWorld();
+  const people = [{ id: 101, name: 'Аня', username: 'anya' }, { id: 102, name: 'Боря', username: 'borya' }, { id: 103, name: 'Вера', username: 'vera' }];
+  for (const u of people) {
+    await w.say(u, '/start ' + code);
+    await w.say(u, u.name);
+  }
+  assert.equal((await w.api(boss, 'admin.draw', { event: ev.id })).count, 3);
+  const [anya] = people;
+  const pending = () => w.query('SELECT pending FROM users WHERE tg_id = ?', anya.id)[0].pending;
+  const count = (table) => w.query(`SELECT COUNT(*) AS n FROM ${table}`)[0].n;
+
+  w.query('UPDATE users SET pending = ? WHERE tg_id = ?', `msg_ward:${ev.id}`, anya.id);
+  await w.say(anya, 'Текст в старом режиме');
+  assert.match(w.lastText(anya), /Время ответа истекло — сообщение не отправлено/);
+  assert.equal(pending(), '');
+
+  w.query('UPDATE users SET pending = ? WHERE tg_id = ?', `sup_u:${ev.id}:${Date.now() - 2 * 3600e3}`, anya.id);
+  await w.say(anya, 'Вопрос организатору');
+  assert.match(w.lastText(anya), /Время ответа истекло — сообщение не отправлено/);
+  assert.equal(pending(), '');
+  assert.equal(count('messages'), 0);
+  assert.equal(count('support_messages'), 0);
+
+  await w.press(anya, `msg:ward:${ev.id}`);
+  assert.match(pending(), /^msg_ward:\d+:\d+:\d+$/);
+  await w.say(anya, 'Привет, подопечный');
+  assert.match(w.lastText(anya), /Отправлено подопечному/);
+  assert.equal(count('messages'), 1);
+});

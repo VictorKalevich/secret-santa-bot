@@ -1,14 +1,14 @@
 // Обработка сообщений в чате с ботом (webhook от Telegram).
 
 import {
-  getUser, createUser, updateUser, pairOfSanta, pairOfWard, enqueueStmt, getEvent, getEventByInvite, getMember, addMemberStmt, clearRemovedStmt,
+  getUser, createUser, updateUser, pairOfSanta, pairOfWard, getEvent, getEventByInvite, getMember, addMemberStmt, clearRemovedStmt,
 } from './db.js';
 import { tgApi } from './telegram.js';
-import { escapeHtml, msg, q, openAppButton, adminRecipients, oneLine, shortTitle } from './format.js';
+import { escapeHtml, msg, q, openAppButton, appKeyboard, oneLine, shortTitle, NOT_REGISTERED, ADMIN_ONLY } from './format.js';
 import { isFinished, chatWritable } from './status.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
-import { joinByInvite, decideRequest, rejoinBlocked } from './membership.js';
+import { joinByInvite, decideRequest, rejoinBlocked, requestRejected, joinedNoticeStmts } from './membership.js';
 import { openContext, makeContext } from './context.js';
 import { sendFromUser, sendFromAdmin, take, supportAvailable } from './support.js';
 
@@ -18,12 +18,28 @@ const CLOSED_BOT = '🎄 Это закрытый бот для игры в Та�
 const STALE_INVITE = 'Эта пригласительная ссылка устарела. Попроси у организатора новую.';
 // Удалённый организатором при запрете возврата (010, FR-1022); админам об этой попытке ничего не приходит
 const REMOVED = (ev) => `Организатор удалил тебя из события ${q(ev)} — вернуться по ссылке нельзя. Если это ошибка — напиши ему.`;
-// Режим ответа в переписку: msg_<ward|santa>:<эвент>[:<собеседник>:<время нажатия>] (старый формат — без двух последних)
+const registrationClosed = (ev) => `Регистрация на событие ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`;
+const REPLY_EXPIRED = '⌛ Время ответа истекло — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз и пришли его снова.';
+
+// ---------- режим ответа (pending): сборка и разбор в одном месте (019) ----------
+// В переписку: msg_<ward|santa>:<эвент>:<собеседник>:<время нажатия>; старый формат (до 009) — без двух последних
 const REPLY_MODE = /^msg_(ward|santa):(\d+)(?::(\d+):(\d+))?$/;
-// 012: ответ в обращение — участник пишет в эвент (sup_u:<эвент>:<мс>), админ — в обращение (sup_a:<id>:<мс>)
+// 012: в обращение — участник пишет в эвент (sup_u:<эвент>:<мс>), админ — в обращение (sup_a:<id>:<мс>)
 const SUPPORT_MODE = /^sup_(u|a):(\d+):(\d+)$/;
-const inReplyMode = (pending) => REPLY_MODE.test(pending) || SUPPORT_MODE.test(pending);
 const REPLY_WINDOW_MS = 60 * 60 * 1000;
+const replyPending = (side, eventId, otherId) => `msg_${side}:${eventId}:${otherId}:${Date.now()}`;
+const supportPending = (who, id) => `sup_${who}:${id}:${Date.now()}`;
+// → { kind: 'reply', side, event, other, since } | { kind: 'support', who, id, since } | null. У старого формата since = 0 —
+// «время ответа истекло»
+function parsePending(pending) {
+  const rm = REPLY_MODE.exec(pending);
+  if (rm) return { kind: 'reply', side: rm[1], event: rm[2], other: Number(rm[3] || 0), since: Number(rm[4] || 0) };
+  const sm = SUPPORT_MODE.exec(pending);
+  if (sm) return { kind: 'support', who: sm[1], id: sm[2], since: Number(sm[3]) };
+  return null;
+}
+const inReplyMode = (pending) => parsePending(pending) !== null;
+const expired = (since) => !since || Date.now() - since > REPLY_WINDOW_MS;
 
 // Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913).
 async function buildMenu(db, user, settings) {
@@ -73,13 +89,6 @@ async function buildMenu(db, user, settings) {
   return { text: lines.join('\n'), parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } };
 }
 
-async function notifyAdminsJoined(ctx, name, ev, exceptId) {
-  const db = ctx.db;
-  const admins = adminRecipients(await ctx.users(), [exceptId]);
-  if (!admins.length) return;
-  await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(`👋 <b>${escapeHtml(name)}</b> присоединяется к событию ${q(ev)}`, { disable_notification: true }))));
-}
-
 export async function handleUpdate(update, env) {
   const db = env.DB;
   const call = tgApi(env);
@@ -99,10 +108,7 @@ export async function handleUpdate(update, env) {
 
   const reply = (payload) => call('sendMessage', { chat_id: from.id, ...(typeof payload === 'string' ? msg(payload) : payload) });
   const sendMenu = async (u) => reply(await buildMenu(db, u, settings));
-  const writeLetter = (text, ev) => ({
-    ...msg(text),
-    reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] },
-  });
+  const writeLetter = (text, ev) => ({ ...msg(text), ...appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }) });
   // Ответ на вступление по ссылке (joinByInvite); true — показать меню следом
   const replyJoin = async (ev, status) => {
     switch (status) {
@@ -110,7 +116,7 @@ export async function handleUpdate(update, env) {
         await reply(writeLetter(`🎄 Ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`, ev));
         return true;
       case 'closed':
-        await reply(`Регистрация на событие ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`);
+        await reply(registrationClosed(ev));
         return false;
       case 'removed':
         await reply(REMOVED(ev));
@@ -119,7 +125,7 @@ export async function handleUpdate(update, env) {
         await reply(`⏳ Заявка на участие в событии ${q(ev)} уже отправлена — ждём решения организатора.`);
         return false;
       case 'request_rejected':
-        await reply(`Организатор не одобрил заявку на участие в событии ${q(ev)}. Если это ошибка — напиши ему.`);
+        await reply(requestRejected(ev));
         return false;
       default:
         await reply(`⏳ Заявка на участие в событии ${q(ev)} отправлена организатору. Как только он её рассмотрит, я напишу.`);
@@ -181,7 +187,7 @@ export async function handleUpdate(update, env) {
       // Ещё без имени: сначала имя, вступление — после него (joinByInvite). Код ссылки запоминаем, чтобы после имени
       // не вступить по уже сменённой ссылке.
       if (!member && (isFinished(ev) || !ev.registration_open)) {
-        return reply(`Регистрация на событие ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`);
+        return reply(registrationClosed(ev));
       }
       // Удалили ещё до ввода имени, а возврат запрещён (010): не добавляем и имя не спрашиваем
       if (!member && user && (await rejoinBlocked(db, ev, from.id))) return reply(REMOVED(ev));
@@ -222,9 +228,10 @@ export async function handleUpdate(update, env) {
       else await reply(hello + (user.is_admin ? '\n\nСоздай первое событие в приложении — там появится пригласительная ссылка.' : ''));
       return sendMenu(user);
     }
-    // Уже участник (вступил до имени) — приветствие, организатору «присоединяется»
+    // Уже участник (вступил до имени) — приветствие, организатору «присоединяется» (имя уже сохранено в user)
     if (await getMember(db, ev.id, from.id)) {
-      await notifyAdminsJoined(ctx, name, ev, from.id);
+      const notice = joinedNoticeStmts(db, await ctx.users(), user, ev);
+      if (notice.length) await db.batch(notice);
       await reply(writeLetter(`${hello}\n\nТеперь открой приложение и напиши письмо своему Тайному Санте в событии ${q(ev)}: что хочешь получить, что любишь, размеры, чего точно не надо.`, ev));
       return sendMenu(user);
     }
@@ -243,49 +250,44 @@ export async function handleUpdate(update, env) {
   if (!user.registered) return reply(NAME_PROMPT);
 
   // ---------- ответ в переписку (003/005; 009 — привязан к собеседнику и истекает через час) ----------
-  const rm = REPLY_MODE.exec(user.pending);
-  if (rm) {
-    const toWard = rm[1] === 'ward';
-    const otherId = Number(rm[3] || 0);
-    const since = Number(rm[4] || 0);
+  const mode = parsePending(user.pending);
+  if (mode?.kind === 'reply') {
+    const toWard = mode.side === 'ward';
     if (!text) {
       await updateUser(db, from.id, { pending: '' });
       return sendMenu(user);
     }
-    if (!since || Date.now() - since > REPLY_WINDOW_MS) {
+    if (expired(mode.since)) {
       await updateUser(db, from.id, { pending: '' });
-      return reply('⌛ Время ответа истекло — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз и пришли его снова.');
+      return reply(REPLY_EXPIRED);
     }
     if (text.length > MAX_CHARS) {
       return reply(`❌ Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS}. Отправь покороче или /cancel.`);
     }
-    const ev = await getEvent(db, rm[2]);
+    const ev = await getEvent(db, mode.event);
     await updateUser(db, from.id, { pending: '' });
     if (!ev) return reply('❌ Событие не найдено.');
-    const res = await sendChatMessage(ctx, ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: otherId });
+    const res = await sendChatMessage(ctx, ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: mode.other });
     if (res.ok) return reply(toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.');
     return reply(res.pairChanged ? res.error : '❌ ' + res.error);
   }
 
   // ---------- ответ в обращение к организатору (012) ----------
-  const sm = SUPPORT_MODE.exec(user.pending);
-  if (sm) {
+  if (mode?.kind === 'support') {
     await updateUser(db, from.id, { pending: '' });
     if (!text) return sendMenu(user);
-    if (Date.now() - Number(sm[3]) > REPLY_WINDOW_MS) {
-      return reply('⌛ Время ответа истекло — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз и пришли его снова.');
-    }
-    if (sm[1] === 'u') {
-      const ev = await getEvent(db, sm[2]);
+    if (expired(mode.since)) return reply(REPLY_EXPIRED);
+    if (mode.who === 'u') {
+      const ev = await getEvent(db, mode.id);
       if (!ev || !(await getMember(db, ev.id, from.id))) return reply('❌ Ты не участвуешь в этом событии.');
       const res = await sendFromUser(ctx, ev, text);
       return reply(res.ok ? '✅ Отправлено организатору. Ответ придёт сюда.' : '❌ ' + res.error);
     }
     if (!user.is_admin) return reply('❌ Отвечать на обращения могут только администраторы.');
-    const t = await db.prepare('SELECT event_id FROM support_threads WHERE id = ?').bind(Number(sm[2])).first();
+    const t = await db.prepare('SELECT event_id FROM support_threads WHERE id = ?').bind(Number(mode.id)).first();
     const ev = t ? await getEvent(db, t.event_id) : null;
     if (!ev) return reply('❌ Обращение не найдено.');
-    const res = await sendFromAdmin(ctx, ev, Number(sm[2]), text);
+    const res = await sendFromAdmin(ctx, ev, Number(mode.id), text);
     return reply(res.ok ? '✅ Отправлено участнику.' : `❌ ${res.error} Сообщение не отправлено.`);
   }
 
@@ -306,7 +308,7 @@ async function handleCallback(cq, env, call) {
   const user = await getUser(db, from.id);
   const ctx = makeContext(env, { me: user }); // настройки и пользователи — лениво: не всем нажатиям они нужны
   if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 }); // 006, FR-609
-  if (!user || !user.registered) return answer('Сначала зарегистрируйся по пригласительной ссылке.');
+  if (!user || !user.registered) return answer(NOT_REGISTERED);
   const send = (payload) => call('sendMessage', { chat_id: from.id, ...payload });
 
   const mm = /^msg:(ward|santa):(\d+)$/.exec(data);
@@ -324,7 +326,7 @@ async function handleCallback(cq, env, call) {
     if (!chatWritable(ev)) return refuse('Событие завершено больше недели назад — переписка только для чтения.');
     // Режим ответа помнит собеседника и время нажатия (только на сервере): msg_<сторона>:<эвент>:<собеседник>:<мс>
     const other = toWard ? p.ward : p.santa;
-    await updateUser(db, from.id, { pending: `msg_${mm[1]}:${ev.id}:${other}:${Date.now()}` });
+    await updateUser(db, from.id, { pending: replyPending(mm[1], ev.id, other) });
     await answer();
     return send(msg(
       (toWard
@@ -348,11 +350,11 @@ async function handleCallback(cq, env, call) {
       if (!ev || !(await getMember(db, ev.id, from.id))) return refuse('Ты не участвуешь в этом событии.');
       if (!chatWritable(ev)) return refuse('Событие завершено больше недели назад — обращения только для чтения.');
       if (!supportAvailable(await ctx.users(), from.id)) return refuse('Сейчас некому написать: в боте нет других организаторов.');
-      await updateUser(db, from.id, { pending: `sup_u:${ev.id}:${Date.now()}` });
+      await updateUser(db, from.id, { pending: supportPending('u', ev.id) });
       await answer();
       return prompt(`✍️ Напиши сообщение организатору (${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
     }
-    if (!user.is_admin) return refuse('Только для администратора.');
+    if (!user.is_admin) return refuse(ADMIN_ONLY);
     const t = await db.prepare('SELECT * FROM support_threads WHERE id = ?').bind(Number(sp[2])).first();
     const ev = t ? await getEvent(db, t.event_id) : null;
     if (!ev) return refuse('Обращение не найдено.');
@@ -373,7 +375,7 @@ async function handleCallback(cq, env, call) {
     if (t.user_id === from.id) return refuse('Это твоё обращение — отвечать на него будут другие организаторы.');
     if (t.assignee && t.assignee !== from.id) return refuse(`Обращение ведёт ${(await getUser(db, t.assignee))?.name || 'другой админ'}.`);
     if (!chatWritable(ev)) return refuse('Событие завершено больше недели назад — обращения только для чтения.');
-    await updateUser(db, from.id, { pending: `sup_a:${t.id}:${Date.now()}` });
+    await updateUser(db, from.id, { pending: supportPending('a', t.id) });
     await answer();
     return prompt(`✍️ Напиши ответ <b>${name}</b> (обращение, ${q(ev)}).` + (t.assignee ? '' : ' Ответив, ты возьмёшь обращение себе.'));
   }
@@ -381,7 +383,7 @@ async function handleCallback(cq, env, call) {
   // Решение по заявке на вступление (008): кнопки в сообщении админу
   const rq = /^req:(\d+):(a|r)$/.exec(data);
   if (rq) {
-    if (!user.is_admin) return answer('Только для администратора.');
+    if (!user.is_admin) return answer(ADMIN_ONLY);
     const r = await decideRequest(ctx, Number(rq[1]), from.id, rq[2] === 'a');
     if (!r.ok) return answer(r.error);
     await answer(rq[2] === 'a' ? '✅ Принято' : '❌ Отклонено');

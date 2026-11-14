@@ -6,7 +6,7 @@
 
 import { getUser, updateUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
-import { inviteLink, oneLine } from './format.js';
+import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW } from './format.js';
 import { isFinished, publicEvent } from './status.js';
 import { openContext } from './context.js';
 import {
@@ -284,7 +284,7 @@ export const ACTIONS = {
     event: true,
     finished: CLOSED,
     async run(ctx, body, ev) {
-      if (!ev.draw_done) return refuse('Жеребьёвка ещё не проведена.');
+      if (!ev.draw_done) return refuse(NO_DRAW);
       return count(await remindSantas(ctx, ev, ctx.me.tg_id));
     },
   },
@@ -364,9 +364,9 @@ export async function handleApi(request, env, action) {
 
   const admin = action.startsWith('admin.');
   const row = Object.hasOwn(ACTIONS, action) ? ACTIONS[action] : admin ? UNKNOWN_ADMIN : UNKNOWN;
-  if (row.role !== ANY && (!me || !me.registered)) return fail('Сначала зарегистрируйся по пригласительной ссылке.', 403);
+  if (row.role !== ANY && (!me || !me.registered)) return fail(NOT_REGISTERED, 403);
   if (admin) {
-    if (!me.is_admin) return fail('Только для администратора.', 403);
+    if (!me.is_admin) return fail(ADMIN_ONLY, 403);
     // Владелец — сразу: если он в настройках недействителен, назначается самый ранний админ (не откладывать запись)
     await ctx.ownerId();
   }

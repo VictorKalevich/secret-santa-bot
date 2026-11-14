@@ -6,7 +6,7 @@ import {
 } from './db.js';
 import { familyExclusions, familySnapshot, FAMILY_SNAPSHOT_SQL, fixedSnapshot, FIXED_SNAPSHOT_SQL } from './constraints.js';
 import { planDraw, pairRules, removeFromAssignment, insertIntoAssignment } from './draw.js';
-import { msg, q, openAppButton, randomCode, displayName } from './format.js';
+import { msg, q, appKeyboard, randomCode, displayName, NO_DRAW, PAIRS_RACE } from './format.js';
 import { isFinished } from './status.js';
 
 // Пары прошлого эвента с наибольшим числом пар среди этих людей; при равенстве — последнего
@@ -134,7 +134,7 @@ export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
   for (const u of check.people) {
     stmts.push(enqueueIfStmt(db, u.user_id, msg(
       `🎄 <b>Жеребьёвка в событии ${q(ev)} проведена!</b>\n\nОткрой приложение и загляни во вкладку «Подопечный», чтобы узнать, кому ты даришь подарок. Никому не рассказывай 🤫`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Узнать подопечного', { event: ev.id })]] } }
+      appKeyboard(settings, '🎁 Узнать подопечного', { event: ev.id })
     ), guard, ev.id, token));
   }
   stmts.push(auditIfStmt(db, ev.id, actor, action, `участников: ${check.people.length}`, guard, ev.id, token));
@@ -156,8 +156,6 @@ function pairsToMap(rows) {
 }
 
 // ---------- изменение пар после жеребьёвки ----------
-
-const PAIRS_RACE = 'Пары изменились одновременно с этим действием — попробуй ещё раз.';
 
 // Версия пар (009, FR-921): изменение после жеребьёвки сначала «занимает» новую версию (draw_token) при условии, что
 // версия та же, что была при чтении пар; остальные операторы выполняются только при новой версии. Два одновременных
@@ -213,7 +211,7 @@ async function applyPairsChange(ctx, ev, oldRows, newMap, changed, members, v) {
       isNew
         ? `🎄 <b>Ты в игре!</b> Жеребьёвка события ${q(ev)} для тебя проведена — загляни во вкладку «Подопечный» 🤫`
         : `🔄 Состав события ${q(ev)} изменился, и у тебя теперь <b>новый подопечный</b>. Загляни во вкладку «Подопечный».`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Посмотреть', { event: ev.id })]] } }
+      appKeyboard(settings, '🎁 Посмотреть', { event: ev.id })
     ), v.guard, ...v.args));
   }
   return stmts;
@@ -283,7 +281,7 @@ export function insertRank(p, talked) {
 // Вписывает только владелец (012, FR-1201) — проверка прав в api.js
 export async function insertMember(ctx, ev, userId, actor = 0) {
   const db = ctx.db;
-  if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
+  if (!ev.draw_done) return { ok: false, error: NO_DRAW };
   // Участники, пары (с отметкой «открыл» — для групп Сант), правила и переписка — одним пакетом чтений (019)
   const read = await ctx.read({
     members: drawMembersQuery(db, ev.id),
@@ -350,7 +348,7 @@ export async function cancelDraw(ctx, ev, actor) {
     db.prepare(`DELETE FROM pairs WHERE event_id = ? AND ${guard}`).bind(ev.id, ev.id, token),
     ...rows.map((p) => enqueueIfStmt(db, p.santa, msg(
       `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
+      appKeyboard(settings, '🎁 Открыть', { event: ev.id })
     ), guard, ev.id, token)),
     auditIfStmt(db, ev.id, actor, 'draw.cancel', `пар удалено: ${rows.length}`, guard, ev.id, token),
   ];
@@ -382,7 +380,7 @@ export async function forceCancelDraw(ctx, ev, actor) {
     ...rows.map((p) => enqueueIfStmt(db, p.santa, msg(
       `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
       'подопечным удалена. Твоё письмо сохранено. Когда будет новая жеребьёвка, бот напишет.',
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
+      appKeyboard(settings, '🎁 Открыть', { event: ev.id })
     ), guard, ev.id, token)),
     auditIfStmt(db, ev.id, actor, 'draw.cancel.force', `пар удалено: ${rows.length}`, guard, ev.id, token),
   ]);

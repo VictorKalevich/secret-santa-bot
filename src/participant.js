@@ -5,9 +5,9 @@ import {
   eventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, participantCountQuery, announcementsQuery, getUser, getMember,
   enqueueIfStmt,
 } from './db.js';
-import { msg, q, openAppButton, cleanText } from './format.js';
+import { msg, q, appKeyboard, cleanText } from './format.js';
 import { isFinished, chatWritable, publicEvent } from './status.js';
-import { MAX_CHARS, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
+import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
 
 const DELIVERY_MAX = 500;
@@ -84,7 +84,7 @@ export async function eventView(ctx, ev, member) {
 export async function saveWishlist(ctx, ev, member, raw) {
   const text = String(raw ?? '').replace(/\r\n/g, '\n');
   if (text.length > MAX_CHARS) {
-    return no(`Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).`);
+    return no(tooLong(text.length));
   }
   if (text === member.wishlist) return { ok: true, updated_at: member.wishlist_updated_at };
   const now = Date.now();
@@ -156,7 +156,7 @@ export async function setGiftReceived(ctx, ev, received) {
     // Только если отметку поставил именно этот запрос (защита от двойного нажатия)
     stmts.push(enqueueIfStmt(db, pair.santa, msg(
       `🎉 Твой подопечный в событии ${q(ev)} получил подарок! Спасибо, Санта 🎅`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
+      appKeyboard(settings, '🎁 Открыть', { event: ev.id })
     ), 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = ?)', ev.id, me.tg_id, now));
   }
   await db.batch(stmts);

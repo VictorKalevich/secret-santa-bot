@@ -4,7 +4,7 @@ import {
   getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt, enqueueIfStmt,
   updateEventStmt, auditStmt, auditIfStmt, eventDataDeleteStmts,
 } from './db.js';
-import { msg, q, escapeHtml, formatDate, formatMs, openAppButton, inviteLink, randomCode, oneLine, cleanText, ISO_DATE } from './format.js';
+import { msg, q, escapeHtml, formatDate, formatMs, appKeyboard, inviteLink, randomCode, oneLine, cleanText, ISO_DATE, NO_DRAW, PAIRS_RACE } from './format.js';
 
 import { CHAT_GRACE_MS, isFinished } from './status.js';
 
@@ -62,7 +62,7 @@ export async function finishEvent(ctx, ev, actor = 0) {
     db.prepare("UPDATE events SET status = 'finished', finished_at = ?, registration_open = 0 WHERE id = ? AND status = 'active'").bind(now, ev.id),
     ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(
       `🏁 <b>Событие ${q(ev)} завершено.</b> Спасибо за игру!\n\nПисьмо Санте теперь только для чтения. Переписка открыта ещё 7 дней (до ${until}), потом останется для чтения. История события сохранится в приложении.`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '📚 Открыть', { event: ev.id })]] } }
+      appKeyboard(settings, '📚 Открыть', { event: ev.id })
     ), guard, ev.id, now, ev.id)),
     auditIfStmt(db, ev.id, actor, 'finish', '', guard, ev.id, now, ev.id),
   ]);
@@ -140,7 +140,7 @@ export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
 export async function revealAll(ctx, ev, actor = 0) {
   const db = ctx.db;
   const cur = await getEvent(db, ev.id);
-  if (!cur?.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
+  if (!cur?.draw_done) return { ok: false, error: NO_DRAW };
   if (cur.revealed) return { ok: false, error: 'Тайна уже раскрыта.' };
   const { rows, users } = await ctx.read({ rows: pairLinksQuery(db, ev.id), users: true });
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
@@ -158,7 +158,7 @@ export async function revealAll(ctx, ev, actor = 0) {
   ]);
   if (!claim.meta.changes) {
     const now = await getEvent(db, ev.id);
-    return { ok: false, error: now?.revealed ? 'Тайна уже раскрыта.' : 'Пары изменились одновременно с этим действием — попробуй ещё раз.' };
+    return { ok: false, error: now?.revealed ? 'Тайна уже раскрыта.' : PAIRS_RACE };
   }
   return { ok: true, count: rows.length };
 }
@@ -172,7 +172,7 @@ export async function remindUnfilled(ctx, ev, actor = 0, extra = []) {
   const stmts = people.map((u) =>
     enqueueStmt(db, u.user_id, msg(
       `⏰ Напоминание: твоё письмо Санте в событии ${q(ev)} пока пустое. Заполни его${deadline}, чтобы Санте было проще выбрать подарок.`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '✏️ Написать письмо', { event: ev.id })]] } }
+      appKeyboard(settings, '✏️ Написать письмо', { event: ev.id })
     ))
   );
   // Пустое плановое напоминание журнал не засоряет
@@ -191,7 +191,7 @@ export async function remindSantas(ctx, ev, actor = 0, extra = []) {
   const stmts = rows.map((p) =>
     enqueueStmt(db, p.santa, msg(
       `🎁 Напоминание для Санты (${q(ev)}): подарок для подопечного уже готов?${when}\nКогда будет готов — отметь это во вкладке «Подопечный».`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '🎁 Открыть', { event: ev.id })]] } }
+      appKeyboard(settings, '🎁 Открыть', { event: ev.id })
     ))
   );
   // Пустое плановое напоминание журнал не засоряет
@@ -218,7 +218,7 @@ export async function announce(ctx, ev, actor, rawText) {
     db.prepare('INSERT INTO announcements (event_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(ev.id, actor, text, now),
     ...people.map((u) => enqueueStmt(db, u.user_id, msg(
       `📣 <b>Объявление · ${q(ev)}</b>\n\n${escapeHtml(text)}`,
-      { reply_markup: { inline_keyboard: [[openAppButton(settings, '📌 Открыть событие', { event: ev.id })]] } }
+      appKeyboard(settings, '📌 Открыть событие', { event: ev.id })
     ))),
     auditStmt(db, ev.id, actor, 'announce', `получили: ${people.length}`),
   ]);
