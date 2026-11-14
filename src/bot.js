@@ -1,15 +1,15 @@
 // Обработка сообщений в чате с ботом (webhook от Telegram).
 
 import {
-  getSettings, getUser, createUser, updateUser, pairOfSanta, pairOfWard, enqueueStmt, allUsers,
-  getEvent, getEventByInvite, getMember, addMemberStmt, clearRemovedStmt,
+  getUser, createUser, updateUser, pairOfSanta, pairOfWard, enqueueStmt, getEvent, getEventByInvite, getMember, addMemberStmt, clearRemovedStmt,
 } from './db.js';
 import { tgApi } from './telegram.js';
 import { escapeHtml, msg, q, openAppButton, adminRecipients, oneLine, shortTitle } from './format.js';
 import { isFinished, chatWritable } from './status.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
-import { resolveOwner, setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
+import { setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
 import { joinByInvite, decideRequest, rejoinBlocked } from './membership.js';
+import { openContext, makeContext } from './context.js';
 import { sendFromUser, sendFromAdmin, take, supportAvailable } from './support.js';
 
 const NAME_PROMPT =
@@ -73,9 +73,9 @@ async function buildMenu(db, user, settings) {
   return { text: lines.join('\n'), parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } };
 }
 
-async function notifyAdminsJoined(env, name, ev, exceptId) {
-  const db = env.DB;
-  const admins = adminRecipients(await allUsers(db), [exceptId]);
+async function notifyAdminsJoined(ctx, name, ev, exceptId) {
+  const db = ctx.db;
+  const admins = adminRecipients(await ctx.users(), [exceptId]);
   if (!admins.length) return;
   await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(`👋 <b>${escapeHtml(name)}</b> присоединяется к событию ${q(ev)}`, { disable_notification: true }))));
 }
@@ -90,8 +90,10 @@ export async function handleUpdate(update, env) {
   if (!m || !m.from || m.chat?.type !== 'private') return;
   const from = m.from;
   const text = (m.text || '').trim();
-  const settings = await getSettings(db);
-  let user = await getUser(db, from.id);
+  // Пользователь и настройки — одним пакетом (019); ctx.me обновляется, когда пользователь перечитан
+  const ctx = await openContext(env, from.id);
+  const settings = await ctx.settings();
+  let user = ctx.me;
   // Человек пишет боту — значит, бот у него не заблокирован (006, FR-609)
   if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 });
 
@@ -140,15 +142,16 @@ export async function handleUpdate(update, env) {
         await reply('Ссылка владельца уже использована. Чтобы получить новую — смени ADMIN_SECRET и снова открой страницу настройки.');
         return user?.registered ? sendMenu(user) : undefined;
       }
-      const prevOwnerId = await resolveOwner(db, settings);
+      const prevOwnerId = await ctx.ownerId();
       if (!user) await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
-      await setOwner(env, from.id, {
+      ctx.forgetUsers(); // список пользователей изменился — setOwner читает его заново
+      await setOwner(ctx, from.id, {
         via: 'link',
         prevOwnerId,
         newOwnerLabel: user?.name || from.first_name || (from.username ? '@' + from.username : ''),
       });
       settings.owner_id = String(from.id);
-      user = await getUser(db, from.id);
+      user = ctx.me = await getUser(db, from.id);
       if (!user.registered) {
         await updateUser(db, from.id, { pending: 'name' });
         return reply('👑 Ты — владелец бота «Тайный Санта»: создаёшь события и назначаешь администраторов.\n\n' + NAME_PROMPT);
@@ -172,7 +175,7 @@ export async function handleUpdate(update, env) {
           await reply(`🎄 Ты уже участвуешь в событии ${q(ev)}.`);
           return sendMenu(user);
         }
-        if (await replyJoin(ev, await joinByInvite(env, ev, user))) return sendMenu(user);
+        if (await replyJoin(ev, await joinByInvite(ctx, ev, user))) return sendMenu(user);
         return;
       }
       // Ещё без имени: сначала имя, вступление — после него (joinByInvite). Код ссылки запоминаем, чтобы после имени
@@ -211,7 +214,7 @@ export async function handleUpdate(update, env) {
     }
     const [, eid, code] = user.pending.split(':');
     await updateUser(db, from.id, { name, username: from.username || '', registered: 1, pending: '' });
-    user = await getUser(db, from.id);
+    user = ctx.me = await getUser(db, from.id);
     const hello = `Приятно познакомиться, ${escapeHtml(name)}! 🎉`;
     const ev = Number(eid) ? await getEvent(db, eid) : null;
     if (!ev) {
@@ -221,7 +224,7 @@ export async function handleUpdate(update, env) {
     }
     // Уже участник (вступил до имени) — приветствие, организатору «присоединяется»
     if (await getMember(db, ev.id, from.id)) {
-      await notifyAdminsJoined(env, name, ev, from.id);
+      await notifyAdminsJoined(ctx, name, ev, from.id);
       await reply(writeLetter(`${hello}\n\nТеперь открой приложение и напиши письмо своему Тайному Санте в событии ${q(ev)}: что хочешь получить, что любишь, размеры, чего точно не надо.`, ev));
       return sendMenu(user);
     }
@@ -231,7 +234,7 @@ export async function handleUpdate(update, env) {
       return sendMenu(user);
     }
     await reply(hello);
-    const status = await joinByInvite(env, ev, user);
+    const status = await joinByInvite(ctx, ev, user);
     const menu = await replyJoin(ev, status);
     if (menu || status === 'closed' || status === 'removed') return sendMenu(user);
     return;
@@ -259,7 +262,7 @@ export async function handleUpdate(update, env) {
     const ev = await getEvent(db, rm[2]);
     await updateUser(db, from.id, { pending: '' });
     if (!ev) return reply('❌ Событие не найдено.');
-    const res = await sendChatMessage(env, ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: otherId });
+    const res = await sendChatMessage(ctx, ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: otherId });
     if (res.ok) return reply(toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.');
     return reply(res.pairChanged ? res.error : '❌ ' + res.error);
   }
@@ -275,14 +278,14 @@ export async function handleUpdate(update, env) {
     if (sm[1] === 'u') {
       const ev = await getEvent(db, sm[2]);
       if (!ev || !(await getMember(db, ev.id, from.id))) return reply('❌ Ты не участвуешь в этом событии.');
-      const res = await sendFromUser(env, ev, user, text);
+      const res = await sendFromUser(ctx, ev, text);
       return reply(res.ok ? '✅ Отправлено организатору. Ответ придёт сюда.' : '❌ ' + res.error);
     }
     if (!user.is_admin) return reply('❌ Отвечать на обращения могут только администраторы.');
     const t = await db.prepare('SELECT event_id FROM support_threads WHERE id = ?').bind(Number(sm[2])).first();
     const ev = t ? await getEvent(db, t.event_id) : null;
     if (!ev) return reply('❌ Обращение не найдено.');
-    const res = await sendFromAdmin(env, ev, user, Number(sm[2]), text);
+    const res = await sendFromAdmin(ctx, ev, Number(sm[2]), text);
     return reply(res.ok ? '✅ Отправлено участнику.' : `❌ ${res.error} Сообщение не отправлено.`);
   }
 
@@ -301,6 +304,7 @@ async function handleCallback(cq, env, call) {
   const data = cq.data || '';
   const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const user = await getUser(db, from.id);
+  const ctx = makeContext(env, { me: user }); // настройки и пользователи — лениво: не всем нажатиям они нужны
   if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 }); // 006, FR-609
   if (!user || !user.registered) return answer('Сначала зарегистрируйся по пригласительной ссылке.');
   const send = (payload) => call('sendMessage', { chat_id: from.id, ...payload });
@@ -338,12 +342,12 @@ async function handleCallback(cq, env, call) {
       return answer(text);
     };
     const prompt = (text) => send(msg(text + `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`));
-    const settings = await getSettings(db);
+    const settings = await ctx.settings();
     if (sp[1] === 'u') {
       const ev = await getEvent(db, sp[2]);
       if (!ev || !(await getMember(db, ev.id, from.id))) return refuse('Ты не участвуешь в этом событии.');
       if (!chatWritable(ev)) return refuse('Событие завершено больше недели назад — обращения только для чтения.');
-      if (!supportAvailable(await allUsers(db), from.id)) return refuse('Сейчас некому написать: в боте нет других организаторов.');
+      if (!supportAvailable(await ctx.users(), from.id)) return refuse('Сейчас некому написать: в боте нет других организаторов.');
       await updateUser(db, from.id, { pending: `sup_u:${ev.id}:${Date.now()}` });
       await answer();
       return prompt(`✍️ Напиши сообщение организатору (${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
@@ -355,7 +359,7 @@ async function handleCallback(cq, env, call) {
     const author = await getUser(db, t.user_id);
     const name = escapeHtml(author?.name || 'участник');
     if (sp[1] === 'take') {
-      const r = await take(env, ev, user, t.id);
+      const r = await take(ctx, ev, t.id);
       if (!r.ok) return refuse(r.error);
       await answer('🙋 Обращение твоё');
       return send(msg(`🙋 Обращение <b>${name}</b> (${q(ev)}) теперь ведёшь ты. Ответь кнопкой ниже или в приложении.`, {
@@ -378,7 +382,7 @@ async function handleCallback(cq, env, call) {
   const rq = /^req:(\d+):(a|r)$/.exec(data);
   if (rq) {
     if (!user.is_admin) return answer('Только для администратора.');
-    const r = await decideRequest(env, Number(rq[1]), from.id, rq[2] === 'a');
+    const r = await decideRequest(ctx, Number(rq[1]), from.id, rq[2] === 'a');
     if (!r.ok) return answer(r.error);
     await answer(rq[2] === 'a' ? '✅ Принято' : '❌ Отклонено');
     return send(msg(`${rq[2] === 'a' ? '✅ Заявка принята' : '❌ Заявка отклонена'}: <b>${escapeHtml(r.name)}</b>, ${q(r.ev)}.`));

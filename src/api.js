@@ -88,7 +88,7 @@ export const ACTIONS = {
     event: true,
     finished: true,
     async run(ctx, body, ev) {
-      const r = await sendChatMessage(ctx.env, ev, ctx.me.tg_id, body.to === 'santa' ? 'santa' : 'ward', body.text);
+      const r = await sendChatMessage(ctx, ev, ctx.me.tg_id, body.to === 'santa' ? 'santa' : 'ward', body.text);
       return r.ok ? { message: r.message } : refuse(r.error);
     },
   },
@@ -99,14 +99,14 @@ export const ACTIONS = {
     run: (ctx, body, ev) => chatHistory(ctx, ev, body.with === 'santa' ? 'santa' : 'ward', Number(body.after) || 0),
   },
   // ---------- обращения к организатору (012): изменения — пока открыта переписка (support.js) ----------
-  'support.get': { role: MEMBER, event: true, finished: true, run: (ctx, body, ev) => participantView(ctx.env, ev, ctx.me) },
+  'support.get': { role: MEMBER, event: true, finished: true, run: (ctx, body, ev) => participantView(ctx, ev) },
   'support.send': {
     role: MEMBER,
     event: true,
     finished: true,
-    run: async (ctx, body, ev) => out(await sendFromUser(ctx.env, ev, ctx.me, body.text), (r) => ({ thread: r.thread, message: r.message })),
+    run: async (ctx, body, ev) => out(await sendFromUser(ctx, ev, body.text), (r) => ({ thread: r.thread, message: r.message })),
   },
-  'support.close': { role: MEMBER, event: true, finished: true, run: async (ctx, body, ev) => out(await closeByUser(ctx.env, ev, ctx.me), none) },
+  'support.close': { role: MEMBER, event: true, finished: true, run: async (ctx, body, ev) => out(await closeByUser(ctx, ev), none) },
 
   // ---------- администратор: общие (без события) ----------
   'admin.events.create': {
@@ -117,7 +117,7 @@ export const ACTIONS = {
         from = await getEvent(ctx.db, body.from);
         if (!from) return refuse('Образец не найден.');
       }
-      const r = await createEvent(ctx.env, body.title, ctx.me.tg_id, { from, invite: !!body.invite });
+      const r = await createEvent(ctx, body.title, ctx.me.tg_id, { from, invite: !!body.invite });
       return out(r, () => ({ event: publicEvent(r.event), invited: r.invited, invite_error: r.inviteError }));
     },
   },
@@ -126,11 +126,11 @@ export const ACTIONS = {
   // Владелец видит пары и так — заморозка семей против вычисления пар на него не действует (010, FR-1008)
   'admin.family.save': {
     role: ADMIN,
-    run: async (ctx, body) => out(await saveFamily(ctx.env, ctx.me.tg_id, { id: body.id, name: body.name, members: body.members }, { owner: await ctx.isOwner() }), none),
+    run: async (ctx, body) => out(await saveFamily(ctx, ctx.me.tg_id, { id: body.id, name: body.name, members: body.members }), none),
   },
   'admin.family.delete': {
     role: ADMIN,
-    run: async (ctx, body) => out(await deleteFamily(ctx.env, ctx.me.tg_id, body.id, { owner: await ctx.isOwner() }), none),
+    run: async (ctx, body) => out(await deleteFamily(ctx, ctx.me.tg_id, body.id), none),
   },
   // Без поля event — общий журнал, с ним — журнал события (несуществующее — 404)
   'admin.audit': { role: ADMIN, event: 'given', finished: true, run: async (ctx, body, ev) => ({ entries: await getAudit(ctx.db, ev ? ev.id : 0) }) },
@@ -165,15 +165,15 @@ export const ACTIONS = {
       const toUser = await getUser(ctx.db, to);
       // Иначе админ получил бы чужие пары и переписку (Конституция, принцип I; 006, FR-601)
       if (toUser?.is_admin || to === ownerId) return refuse('Переносить участие на аккаунт администратора нельзя.');
-      return out(await transferAccount(ctx.env, from, to, ctx.me.tg_id), (r) => ({ events: r.events }));
+      return out(await transferAccount(ctx, from, to, ctx.me.tg_id), (r) => ({ events: r.events }));
     },
   },
-  'admin.role.grant': { role: OWNER, owner: ROLES_OWNER, run: async (ctx, body) => out(await grantAdmin(ctx.env, Number(body.id), ctx.me.tg_id), none) },
-  'admin.role.revoke': { role: OWNER, owner: ROLES_OWNER, run: async (ctx, body) => out(await revokeAdmin(ctx.env, Number(body.id), ctx.me.tg_id), none) },
+  'admin.role.grant': { role: OWNER, owner: ROLES_OWNER, run: async (ctx, body) => out(await grantAdmin(ctx, Number(body.id), ctx.me.tg_id), none) },
+  'admin.role.revoke': { role: OWNER, owner: ROLES_OWNER, run: async (ctx, body) => out(await revokeAdmin(ctx, Number(body.id), ctx.me.tg_id), none) },
   'admin.owner.transfer': {
     role: OWNER,
     owner: onlyOwner('Передать права владельца'),
-    run: async (ctx, body) => out(await transferOwnership(ctx.env, ctx.me.tg_id, Number(body.id)), none),
+    run: async (ctx, body) => out(await transferOwnership(ctx, ctx.me.tg_id, Number(body.id)), none),
   },
 
   // ---------- администратор: в пределах события ----------
@@ -198,7 +198,7 @@ export const ACTIONS = {
       if (target?.is_admin && !(await ctx.isOwner())) return refuse('Удалить администратора может только владелец бота.', 403);
       if (!(await getMember(db, ev.id, id))) return refuse('Человек не участвует в этом событии.');
       // Отметка «удалён организатором» (010): при запрете возврата человек не войдёт по ссылке снова
-      return out(await removeMember(ctx.env, ev, id, { actor: me.tg_id, mark: true }), none);
+      return out(await removeMember(ctx, ev, id, { actor: me.tg_id, mark: true }), none);
     },
   },
   'admin.removed.allow': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await allowRemoved(ctx, ev, body.id, ctx.me.tg_id), none) },
@@ -209,7 +209,7 @@ export const ACTIONS = {
     owner: onlyOwner('Вписывать в жеребьёвку после неё'),
     event: true,
     finished: CLOSED,
-    run: async (ctx, body, ev) => out(await insertMember(ctx.env, ev, Number(body.id), ctx.me.tg_id), none),
+    run: async (ctx, body, ev) => out(await insertMember(ctx, ev, Number(body.id), ctx.me.tg_id), none),
   },
   // После жеребьёвки — только владелец (заморозка в модуле, 009/010)
   'admin.exclusion.add': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeExclusions(ctx, ev, { add: true, ...pair(body) }), none) },
@@ -223,7 +223,7 @@ export const ACTIONS = {
     finished: CLOSED,
     async run(ctx, body, ev) {
       if (ev.draw_done) return refuse('Жеребьёвка уже проведена.');
-      const c = await checkDraw(ctx.env, ev);
+      const c = await checkDraw(ctx, ev);
       // Без признаков учёта прошлых пар: по ним можно было бы вычислить чужие пары прошлого года (009, FR-904)
       return { possible: c.res.ok, count: c.people.length, ring: c.ring, problems: c.problems, empty_wishlists: c.emptyWishlists };
     },
@@ -232,9 +232,9 @@ export const ACTIONS = {
     role: ADMIN,
     event: true,
     finished: CLOSED,
-    run: async (ctx, body, ev) => out(await runDraw(ctx.env, ev, { actor: ctx.me.tg_id }), (r) => ({ count: r.count, single_cycle: r.singleCycle })),
+    run: async (ctx, body, ev) => out(await runDraw(ctx, ev, { actor: ctx.me.tg_id }), (r) => ({ count: r.count, single_cycle: r.singleCycle })),
   },
-  'admin.draw.cancel': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await cancelDraw(ctx.env, ev, ctx.me.tg_id), count) },
+  'admin.draw.cancel': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await cancelDraw(ctx, ev, ctx.me.tg_id), count) },
   // 012, FR-1205: в любой момент до раскрытия — только владелец (участвующий админ переигрывал бы жеребьёвку)
   'admin.draw.cancel.force': {
     role: OWNER,
@@ -242,55 +242,55 @@ export const ACTIONS = {
     event: true,
     finished: CLOSED,
     confirm: ['ОТМЕНА', 'Для отмены введи слово ОТМЕНА.'],
-    run: async (ctx, body, ev) => out(await forceCancelDraw(ctx.env, ev, ctx.me.tg_id), count),
+    run: async (ctx, body, ev) => out(await forceCancelDraw(ctx, ev, ctx.me.tg_id), count),
   },
   // ---------- обращения к организатору (012): чтение всегда, изменения — пока открыта переписка (support.js) ----------
   'admin.support.get': {
     role: ADMIN,
     event: true,
     finished: true,
-    run: async (ctx, body, ev) => out(await adminThread(ctx.env, ev, ctx.me, await ctx.isOwner(), thread(body)),
+    run: async (ctx, body, ev) => out(await adminThread(ctx, ev, thread(body)),
       (r) => ({ thread: r.thread, messages: r.messages, admins: r.admins })),
   },
-  'admin.support.take': { role: ADMIN, event: true, finished: true, run: async (ctx, body, ev) => out(await take(ctx.env, ev, ctx.me, thread(body)), none) },
+  'admin.support.take': { role: ADMIN, event: true, finished: true, run: async (ctx, body, ev) => out(await take(ctx, ev, thread(body)), none) },
   'admin.support.send': {
     role: ADMIN,
     event: true,
     finished: true,
-    run: async (ctx, body, ev) => out(await sendFromAdmin(ctx.env, ev, ctx.me, thread(body), body.text), (r) => ({ message: r.message })),
+    run: async (ctx, body, ev) => out(await sendFromAdmin(ctx, ev, thread(body), body.text), (r) => ({ message: r.message })),
   },
   'admin.support.pass': {
     role: ADMIN,
     event: true,
     finished: true,
-    run: async (ctx, body, ev) => out(await pass(ctx.env, ev, ctx.me, await ctx.isOwner(), thread(body), body.to), none),
+    run: async (ctx, body, ev) => out(await pass(ctx, ev, thread(body), body.to), none),
   },
   'admin.support.close': {
     role: ADMIN,
     event: true,
     finished: true,
-    run: async (ctx, body, ev) => out(await closeByAdmin(ctx.env, ev, ctx.me, await ctx.isOwner(), thread(body)), none),
+    run: async (ctx, body, ev) => out(await closeByAdmin(ctx, ev, thread(body)), none),
   },
-  'admin.announce': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await announce(ctx.env, ev, ctx.me.tg_id, body.text), count) },
+  'admin.announce': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await announce(ctx, ev, ctx.me.tg_id, body.text), count) },
   'admin.request.decide': {
     role: ADMIN,
     event: true,
     finished: CLOSED,
-    run: async (ctx, body, ev) => out(await decideRequest(ctx.env, body.id, ctx.me.tg_id, !!body.approve, { inEvent: ev }), none),
+    run: async (ctx, body, ev) => out(await decideRequest(ctx, body.id, ctx.me.tg_id, !!body.approve, { inEvent: ev }), none),
   },
-  'admin.remind.unfilled': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => count(await remindUnfilled(ctx.env, ev, ctx.me.tg_id)) },
+  'admin.remind.unfilled': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => count(await remindUnfilled(ctx, ev, ctx.me.tg_id)) },
   'admin.remind.santas': {
     role: ADMIN,
     event: true,
     finished: CLOSED,
     async run(ctx, body, ev) {
       if (!ev.draw_done) return refuse('Жеребьёвка ещё не проведена.');
-      return count(await remindSantas(ctx.env, ev, ctx.me.tg_id));
+      return count(await remindSantas(ctx, ev, ctx.me.tg_id));
     },
   },
   // Повторно имена не рассылаются (006, FR-610), в том числе при одновременных вызовах (009)
-  'admin.reveal': { role: ADMIN, event: true, finished: true, run: async (ctx, body, ev) => out(await revealAll(ctx.env, ev, ctx.me.tg_id), count) },
-  'admin.event.finish': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await finishEvent(ctx.env, ev, ctx.me.tg_id), none) },
+  'admin.reveal': { role: ADMIN, event: true, finished: true, run: async (ctx, body, ev) => out(await revealAll(ctx, ev, ctx.me.tg_id), count) },
+  'admin.event.finish': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await finishEvent(ctx, ev, ctx.me.tg_id), none) },
   // Разрешено в завершённом ради своего порядка отказов: «Выбери другое событие.» раньше «приглашать нельзя»
   'admin.event.invite_from': {
     role: ADMIN,
@@ -300,7 +300,7 @@ export const ACTIONS = {
       const fromEv = await getEvent(ctx.db, body.from);
       if (!fromEv || fromEv.id === ev.id) return refuse('Выбери другое событие.');
       if (isFinished(ev)) return refuse('Событие завершено — приглашать в него нельзя.');
-      return out(await inviteFromEvent(ctx.env, ev, fromEv, ctx.me.tg_id), count);
+      return out(await inviteFromEvent(ctx, ev, fromEv, ctx.me.tg_id), count);
     },
   },
   'admin.event.delete': {
@@ -309,7 +309,7 @@ export const ACTIONS = {
     event: true,
     finished: true,
     confirm: ['УДАЛИТЬ', 'Для удаления введи слово УДАЛИТЬ.'],
-    run: async (ctx, body, ev) => out(await deleteEvent(ctx.env, ev, ctx.me.tg_id), (r) => ({ notified: r.count })),
+    run: async (ctx, body, ev) => out(await deleteEvent(ctx, ev, ctx.me.tg_id), (r) => ({ notified: r.count })),
   },
   // ---------- служебный просмотр владельца (010, FR-1009–FR-1013): только чтение ----------
   'admin.vault.person': {
@@ -317,9 +317,9 @@ export const ACTIONS = {
     owner: VAULT_OWNER,
     event: true,
     finished: true,
-    run: async (ctx, body, ev) => out(await vaultPerson(ctx.env, ev, Number(body.id) || 0, ctx.me.tg_id)),
+    run: async (ctx, body, ev) => out(await vaultPerson(ctx, ev, Number(body.id) || 0, ctx.me.tg_id)),
   },
-  'admin.vault.pairs': { role: OWNER, owner: VAULT_OWNER, event: true, finished: true, run: async (ctx, body, ev) => out(await vaultPairs(ctx.env, ev, ctx.me.tg_id)) },
+  'admin.vault.pairs': { role: OWNER, owner: VAULT_OWNER, event: true, finished: true, run: async (ctx, body, ev) => out(await vaultPairs(ctx, ev, ctx.me.tg_id)) },
   'admin.reset.full': {
     role: OWNER,
     owner: onlyOwner('Полный сброс'),
@@ -327,7 +327,7 @@ export const ACTIONS = {
     finished: CLOSED,
     confirm: ['СБРОС', 'Для полного сброса введи слово СБРОС.'],
     async run(ctx, body, ev) {
-      const r = await resetEvent(ctx.env, ev, await ctx.ownerId(), ctx.me.tg_id);
+      const r = await resetEvent(ctx, ev, await ctx.ownerId(), ctx.me.tg_id);
       return { removed: r.removed, invite_link: inviteLink(await ctx.settings(), { invite_code: r.inviteCode }) };
     },
   },

@@ -3,7 +3,7 @@
 // Каждое изменение — один batch: первый оператор меняет обращение по условию прежнего состояния, уведомления и журнал —
 // по условию «изменение сделал этот вызов» (research R6). Сообщения людям — только через outbox.
 
-import { getSettings, allUsers, getUser, enqueueIfStmt, auditIfStmt } from './db.js';
+import { getUser, enqueueIfStmt, auditIfStmt } from './db.js';
 import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppButton, cleanText } from './format.js';
 import { chatWritable } from './status.js';
 import { MAX_CHARS } from './chat.js';
@@ -48,10 +48,10 @@ const MINE_SENT = 'EXISTS (SELECT 1 FROM support_messages WHERE thread_id = ? AN
 // ---------- участник ----------
 
 // Обращения участника в эвенте (до 10 последних, старые сначала); ответы организаторов помечаются прочитанными
-export async function participantView(env, ev, me) {
-  const db = env.DB;
+export async function participantView(ctx, ev) {
+  const { db, me } = ctx;
   const [users, threads] = await Promise.all([
-    allUsers(db),
+    ctx.users(),
     db.prepare('SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? ORDER BY id DESC LIMIT 10').bind(ev.id, me.tg_id).all().then((r) => r.results.reverse()),
   ]);
   const byId = new Map(users.map((u) => [u.tg_id, u]));
@@ -81,12 +81,12 @@ export async function participantView(env, ev, me) {
 }
 
 // Сообщение участника: в открытое обращение или новое (одно открытое на эвент — уникальный индекс)
-export async function sendFromUser(env, ev, me, rawText, retry = true) {
-  const db = env.DB;
+export async function sendFromUser(ctx, ev, rawText, retry = true) {
+  const { db, me } = ctx;
   const t = checkText(rawText);
   if (t.error) return fail(t.error);
   if (!chatWritable(ev)) return fail(READ_ONLY);
-  const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
+  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const admins = adminRecipients(users, [me.tg_id]);
   if (!admins.length) return fail(NOBODY);
   let thread = await db.prepare("SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'").bind(ev.id, me.tg_id).first();
@@ -128,17 +128,17 @@ export async function sendFromUser(env, ev, me, rawText, retry = true) {
   const row = inserted.results[0];
   if (!row) {
     // Обращение закрыли между чтением и записью — следующее сообщение открывает новое
-    return retry ? sendFromUser(env, ev, me, rawText, false) : fail('Не получилось отправить — попробуй ещё раз.');
+    return retry ? sendFromUser(ctx, ev, rawText, false) : fail('Не получилось отправить — попробуй ещё раз.');
   }
   return { ok: true, thread: thread.id, created, message: { id: row.id, mine: true, author: '', text: t.text, created_at: row.created_at } };
 }
 
-export async function closeByUser(env, ev, me) {
-  const db = env.DB;
+export async function closeByUser(ctx, ev) {
+  const { db, me } = ctx;
   if (!chatWritable(ev)) return fail(READ_ONLY);
   const thread = await db.prepare("SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'").bind(ev.id, me.tg_id).first();
   if (!thread) return fail('Открытого обращения нет.');
-  const users = await allUsers(db);
+  const users = await ctx.users();
   const now = Date.now();
   const done = `${THREAD} AND status = 'closed' AND closed_at = ? AND closed_by = ? AND (assignee = 0 OR assignee = ?))`;
   const res = await db.batch([
@@ -193,13 +193,13 @@ export async function adminList(db, ev, me, isOwner, users) {
 }
 
 // Одно обращение с перепиской (если её можно видеть); ответственный, открыв его, читает сообщения участника
-export async function adminThread(env, ev, me, isOwner, id) {
-  const db = env.DB;
+export async function adminThread(ctx, ev, id) {
+  const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
   if (!t) return fail(NOT_FOUND, 404);
-  const users = await allUsers(db);
+  const users = await ctx.users();
   const byId = new Map(users.map((u) => [u.tg_id, u]));
-  if (!canRead(t, me, isOwner)) {
+  if (!canRead(t, me, await ctx.isOwner())) {
     return fail(`Обращение ведёт ${displayName(byId.get(t.assignee))} — переписку видят он(а) и владелец.`, 403);
   }
   const { results } = await db.prepare('SELECT * FROM support_messages WHERE thread_id = ? ORDER BY id').bind(t.id).all();
@@ -258,8 +258,8 @@ async function taken(db, t) {
   return fail(`Обращение уже взял(а) ${displayName(who)}.`);
 }
 
-export async function take(env, ev, me, id) {
-  const db = env.DB;
+export async function take(ctx, ev, id) {
+  const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
   if (!t) return fail(NOT_FOUND, 404);
   if (t.status !== 'open') return fail(CLOSED);
@@ -267,15 +267,15 @@ export async function take(env, ev, me, id) {
   if (t.assignee === me.tg_id) return { ok: true, thread: t };
   if (t.assignee) return taken(db, t);
   if (!chatWritable(ev)) return fail(READ_ONLY);
-  const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
+  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const [claim] = await db.batch(takeStmts(db, settings, users, ev, t, me, Date.now()));
   if (!claim.meta.changes) return taken(db, t);
   return { ok: true, thread: { ...t, assignee: me.tg_id } };
 }
 
 // Ответ организатора: ничьё обращение берётся этим ответом; чужое — отказ (владелец сначала передаёт себе)
-export async function sendFromAdmin(env, ev, me, id, rawText) {
-  const db = env.DB;
+export async function sendFromAdmin(ctx, ev, id, rawText) {
+  const { db, me } = ctx;
   const tx = checkText(rawText);
   if (tx.error) return fail(tx.error);
   const t = await threadOf(db, ev.id, id);
@@ -283,7 +283,7 @@ export async function sendFromAdmin(env, ev, me, id, rawText) {
   if (t.status !== 'open') return fail(CLOSED);
   if (t.user_id === me.tg_id) return fail('Это твоё обращение — отвечать на него будут другие организаторы.');
   if (!chatWritable(ev)) return fail(READ_ONLY);
-  const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
+  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   if (t.assignee && t.assignee !== me.tg_id) return fail(`Обращение ведёт ${displayName(users.find((u) => u.tg_id === t.assignee))}.`);
   const now = Date.now();
   const stmts = t.assignee ? [] : takeStmts(db, settings, users, ev, t, me, now, { participant: false });
@@ -304,14 +304,14 @@ export async function sendFromAdmin(env, ev, me, id, rawText) {
   return { ok: true, message: { id: row.id, mine: true, from_admin: true, author: displayName(me), text: tx.text, created_at: row.created_at } };
 }
 
-export async function pass(env, ev, me, isOwner, id, toId) {
-  const db = env.DB;
+export async function pass(ctx, ev, id, toId) {
+  const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
   if (!t) return fail(NOT_FOUND, 404);
-  if (t.assignee !== me.tg_id && !isOwner) return fail('Передать обращение может тот, кто его ведёт, или владелец.', 403);
+  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return fail('Передать обращение может тот, кто его ведёт, или владелец.', 403);
   if (t.status !== 'open') return fail(CLOSED);
   if (!chatWritable(ev)) return fail(READ_ONLY);
-  const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
+  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const to = users.find((u) => u.tg_id === Number(toId));
   if (!to || !to.is_admin || !to.registered || to.tg_id === t.user_id) return fail('Передать можно другому администратору.');
   if (to.tg_id === t.assignee) return fail(`Обращение и так ведёт ${displayName(to)}.`);
@@ -341,14 +341,14 @@ export async function pass(env, ev, me, isOwner, id, toId) {
   return { ok: true };
 }
 
-export async function closeByAdmin(env, ev, me, isOwner, id) {
-  const db = env.DB;
+export async function closeByAdmin(ctx, ev, id) {
+  const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
   if (!t) return fail(NOT_FOUND, 404);
-  if (t.assignee !== me.tg_id && !isOwner) return fail('Закрыть обращение может тот, кто его ведёт, или владелец.', 403);
+  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return fail('Закрыть обращение может тот, кто его ведёт, или владелец.', 403);
   if (t.status !== 'open') return fail(CLOSED);
   if (!chatWritable(ev)) return fail(READ_ONLY);
-  const users = await allUsers(db);
+  const users = await ctx.users();
   const author = users.find((u) => u.tg_id === t.user_id);
   const now = Date.now();
   const done = `${THREAD} AND closed_at = ? AND closed_by = ?)`;

@@ -20,8 +20,8 @@ async function chatOf(db, ev, column, id) {
 }
 
 // Участник: кому дарит, кто его Санта, письмо, адрес, переписка с Сантой и с подопечным
-export async function vaultPerson(env, ev, id, actor) {
-  const db = env.DB;
+export async function vaultPerson(ctx, ev, id, actor) {
+  const db = ctx.db;
   const [user, member] = await Promise.all([getUser(db, id), getMember(db, ev.id, id)]);
   if (!user || !member) return { ok: false, error: 'Участник не найден' };
   // Сначала журнал: если запись не удалась, данные не отдаются
@@ -51,8 +51,8 @@ export async function vaultPerson(env, ev, id, actor) {
 }
 
 // Все пары «Санта → подопечный» эвента
-export async function vaultPairs(env, ev, actor) {
-  const db = env.DB;
+export async function vaultPairs(ctx, ev, actor) {
+  const db = ctx.db;
   const [rows, members] = await Promise.all([getPairs(db, ev.id), eventMembers(db, ev.id)]);
   await auditStmt(db, ev.id, actor, 'vault.pairs', `пар: ${rows.length}`).run();
   const byId = Object.fromEntries(members.map((m) => [m.user_id, m]));

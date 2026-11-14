@@ -1,17 +1,20 @@
 // Плановые задачи: запускаются Cloudflare раз в минуту. Работают только с идущими эвентами.
 
-import { getSettings, enqueueStmt, updateEventStmt, getEvent, allUsers, auditStmt } from './db.js';
+import { enqueueStmt, updateEventStmt, getEvent, auditStmt } from './db.js';
 import { openAppButton, msg, q, escapeHtml, localDate, daysUntil, addDays, ISO_DATE, adminRecipients } from './format.js';
 import { flushOutbox } from './outbox.js';
 import { isFinished } from './status.js';
 import { remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
 import { runDraw } from './pairs.js';
+import { makeContext } from './context.js';
 
 // Шаги запуска независимы (009, FR-910): ошибка в одном не мешает остальным, а очередь сообщений отправляется
 // всегда — в пределах оставшегося бюджета запросов вызова (outbox.js).
+// Один контекст на запуск (019): настройки и пользователи читаются не больше раза и только если нужны.
 export async function runScheduled(env) {
-  await step('notify', () => notifyWishlistChanges(env));
-  await step('daily', () => dailyStep(env));
+  const ctx = makeContext(env);
+  await step('notify', () => notifyWishlistChanges(ctx));
+  await step('daily', () => dailyStep(ctx));
   await step('flush', () => flushOutbox(env, 45));
 }
 
@@ -25,9 +28,8 @@ async function step(name, fn) {
 
 // Санта получает уведомление, когда подопечный перестал править письмо
 // (через NOTIFY_DELAY_MINUTES после последней правки), чтобы не было спама.
-async function notifyWishlistChanges(env) {
-  const db = env.DB;
-  const settings = await getSettings(db);
+async function notifyWishlistChanges(ctx) {
+  const { db, env } = ctx;
   const delayMs = Number(env.NOTIFY_DELAY_MINUTES ?? 10) * 60 * 1000;
   const { results } = await db
     .prepare(
@@ -42,6 +44,7 @@ async function notifyWishlistChanges(env) {
     .bind(Date.now() - delayMs)
     .all();
   if (!results.length) return;
+  const settings = await ctx.settings(); // только если есть что отправлять
   const stmts = [];
   for (const r of results) {
     stmts.push(db.prepare('UPDATE pairs SET notified_at = ? WHERE event_id = ? AND santa = ?').bind(r.upd, r.event_id, r.santa));
@@ -73,10 +76,10 @@ function dailyReminder(env, ev) {
 // завершение) и ежедневные напоминания. Каждое такое действие стоит ~10 запросов, поэтому за запуск выполняется
 // только одно (009, FR-911); остальные — в следующие минуты. Кандидат выбирается по минуте суток: если один эвент
 // раз за разом падает, он не задерживает остальные. Эвенты, которым сегодня ничего не нужно, отмечаются одним запросом.
-async function dailyStep(env) {
+async function dailyStep(ctx) {
+  const { db, env } = ctx;
   const now = localDate(env);
   if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
-  const db = env.DB;
   // Все идущие эвенты (их немного): автодействие, заданное уже после сегодняшнего прохода, выполняется сразу
   const { results } = await db.prepare("SELECT * FROM events WHERE status = 'active'").all();
   const autos = [];
@@ -84,11 +87,11 @@ async function dailyStep(env) {
   const quiet = [];
   for (const ev of results) {
     const due = dueAutoAction(ev, now.iso);
-    if (due) autos.push(() => runAutoAction(env, ev, due));
+    if (due) autos.push(() => runAutoAction(ctx, ev, due));
     else if (ev.last_daily !== now.iso) {
       const remind = dailyReminder(env, ev);
       // Отметка «сегодня сделано» — в одном batch с напоминанием: либо оба, либо ничего
-      if (remind) reminders.push(() => remind(env, ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso })]));
+      if (remind) reminders.push(() => remind(ctx, ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso })]));
       else quiet.push(ev.id);
     }
   }
@@ -112,15 +115,15 @@ function dueAutoAction(ev, today) {
   return null;
 }
 
-async function runAutoAction(env, ev, what) {
-  const db = env.DB;
-  if (what === 'reveal') return revealAll(env, ev, 0);
-  if (what === 'finish') return finishEvent(env, ev, 0);
-  const r = await runDraw(env, ev, { actor: 0, action: 'draw.auto' });
+async function runAutoAction(ctx, ev, what) {
+  const db = ctx.db;
+  if (what === 'reveal') return revealAll(ctx, ev, 0);
+  if (what === 'finish') return finishEvent(ctx, ev, 0);
+  const r = await runDraw(ctx, ev, { actor: 0, action: 'draw.auto' });
   if (r.ok) return r;
   if ((await getEvent(db, ev.id))?.draw_done) return r; // жеребьёвку уже провёл кто-то другой
   // Неудача: админам — причина, дата снимается, чтобы не пытаться каждую минуту
-  const users = await allUsers(db);
+  const users = await ctx.users();
   await db.batch([
     updateEventStmt(db, ev.id, { draw_auto_date: '' }),
     ...adminRecipients(users).map((u) => enqueueStmt(db, u.tg_id, msg(

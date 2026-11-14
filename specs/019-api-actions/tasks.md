@@ -120,27 +120,28 @@ tests/secrecy.test.mjs` — зелёные, ожидания прав и тай�
   `setGiftReady`, `setGiftReceived` — тела прежних веток
 - [X] T017 [P] [US3] `src/panel.js` (новый): `adminState(ctx, ev)`, `memberLetter(ctx, ev, id)` (`admin.wishlist`),
   `usersList(ctx)` (`admin.users`) — тела прежних веток, поля и порядок полей ответа прежние
-- [ ] T018 [US3] `src/events.js`: `saveEventSettings`, `setRing`, `setRegistration`, `regenInvite`, `setAvoidPrevious` — из
+- [X] T018 [US3] `src/events.js`: `saveEventSettings`, `setRing`, `setRegistration`, `regenInvite`, `setAvoidPrevious` — из
   веток `admin.game`, `admin.ring`, `admin.registration`, `admin.invite.regen`, `admin.avoid_previous`; все функции —
   `ctx` первым (`createEvent`, `finishEvent`, `deleteEvent`, `resetEvent`, `inviteFromEvent`, `revealAll`,
   `remindUnfilled`, `remindSantas`, `announce`); настройки и пользователи — `ctx.settings()` / `ctx.users()`
-- [ ] T019 [US3] `src/membership.js`: `participate(ctx, ev, on, actor)`, `allowRemoved(ctx, ev, id, actor)`,
+- [X] T019 [US3] `src/membership.js`: `participate(ctx, ev, on, actor)`, `allowRemoved(ctx, ev, id, actor)`,
   `familiesList(ctx)` — из `src/api.js`; `decideRequest(ctx, id, actor, approve, { ev })` проверяет `req.event_id`
   (прежний текст отказа); `saveFamily`, `deleteFamily`, `joinByInvite` — `ctx` первым, «владелец ли я» — из контекста
-- [ ] T020 [US3] `src/pairs.js` (`checkDraw`, `runDraw`, `removeMember`, `insertMember`, `cancelDraw`, `forceCancelDraw`),
+- [X] T020 [US3] `src/pairs.js` (`checkDraw`, `runDraw`, `removeMember`, `insertMember`, `cancelDraw`, `forceCancelDraw`),
   `src/chat.js` (`sendChatMessage`, `chatHistory` — из ветки `chat.get`), `src/support.js` (`participantView`,
   `sendFromUser`, `closeByUser`, `adminThread`, `take`, `sendFromAdmin`, `pass`, `closeByAdmin`), `src/roles.js`
   (`setOwner`, `grantAdmin`, `revokeAdmin`, `transferOwnership`, `transferAccount`), `src/vault.js` (`vaultPerson`,
   `vaultPairs`): `ctx` первым; `me`, `isOwner`, `users`, `settings` — из контекста; низкоуровневые построители
   (`drawCancelable`, `chatPair`, `returnThreadsStmts`, `rejoinBlocked`, функции `db.js`) — по-прежнему `db`; условия
   захватов и состав пакетов записи не меняются; в `vaultPerson` журнал — до чтений, как сейчас
-- [ ] T021 [US3] `src/bot.js`: контекст — `openContext` для сообщения, `makeContext(env, { me })` для нажатия кнопки;
+  `adminList` и счётчики обращений — по-прежнему с `db` (разделение «запрос + сборка» — US2, T029).
+- [X] T021 [US3] `src/bot.js`: контекст — `openContext` для сообщения, `makeContext(env, { me })` для нажатия кнопки;
   `ctx.me` обновляется после повторного чтения пользователя; ссылка владельца: `createUser` → `ctx.forgetUsers()` →
   `setOwner`; `src/cron.js`: `makeContext(env)` на запуск, шаги получают его (ошибка одного шага не отравляет кэш
   следующего); `src/index.js` — без изменений маршрутов
-- [ ] T022 [US3] `src/api.js`: обработчики таблицы — вызовы модулей и сборка полей ответа; ни одного `prepare(`;
+- [X] T022 [US3] `src/api.js`: обработчики таблицы — вызовы модулей и сборка полей ответа; ни одного `prepare(`;
   импорты — только модули
-- [ ] T023 [US3] `npm test`; `node tests/bench/queries.mjs` — ни одно число не выше базового; коммит «019 US3: …»
+- [X] T023 [US3] `npm test`; `node tests/bench/queries.mjs` — ни одно число не выше базового; коммит «019 US3: …»
 
 **Checkpoint**: обработчик API — разбор, таблица, ответ; функции модулей — с контекстом.
 

@@ -1,6 +1,6 @@
 // Анонимная переписка Санты и подопечного (003, по эвентам).
 
-import { getSettings, pairOfSanta, pairOfWard, enqueueIfStmt } from './db.js';
+import { pairOfSanta, pairOfWard, enqueueIfStmt } from './db.js';
 import { msg, q, escapeHtml, shortTitle, appUrl, cleanText } from './format.js';
 import { chatWritable } from './status.js';
 
@@ -33,8 +33,8 @@ const PAIR_CHANGED = '🔄 Пара изменилась после нажати
 // Сохранить сообщение в переписке и поставить уведомление получателю в очередь.
 // expectOther — собеседник, которому человек собирался ответить (режим ответа в чате бота, 009): если пара с тех пор
 // сменилась, сообщение не уходит новому собеседнику.
-export async function sendChatMessage(env, ev, fromId, to, rawText, { expectOther = 0 } = {}) {
-  const db = env.DB;
+export async function sendChatMessage(ctx, ev, fromId, to, rawText, { expectOther = 0 } = {}) {
+  const db = ctx.db;
   const text = cleanText(rawText);
   if (!text) return { ok: false, error: 'Пустое сообщение.' };
   if (text.length > MAX_CHARS) {
@@ -44,7 +44,7 @@ export async function sendChatMessage(env, ev, fromId, to, rawText, { expectOthe
   const pair = await chatPair(db, ev.id, fromId, to);
   if (!pair) return { ok: false, error: to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.' };
   if (expectOther && pair.other !== expectOther) return { ok: false, error: PAIR_CHANGED, pairChanged: true };
-  const settings = await getSettings(db);
+  const settings = await ctx.settings();
   const now = Date.now();
   // Заголовок + текст до MAX_CHARS всегда помещаются в одно сообщение Telegram: название эвента сокращаем
   const t = q({ title: shortTitle(ev.title) });

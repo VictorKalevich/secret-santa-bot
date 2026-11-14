@@ -1,7 +1,7 @@
 // Пары эвента: проверка и проведение жеребьёвки, отмена, удаление и вписывание участника после жеребьёвки.
 
 import {
-  getSettings, getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, getFixedPairs, enqueueIfStmt, auditIfStmt,
+  getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, getFixedPairs, enqueueIfStmt, auditIfStmt,
   markRemovedStmt, memberDataDeleteStmts,
 } from './db.js';
 import { familyExclusions, familySnapshot, FAMILY_SNAPSHOT_SQL, fixedSnapshot, FIXED_SNAPSHOT_SQL } from './constraints.js';
@@ -49,8 +49,8 @@ function describeProblem(p, byId) {
   }
 }
 
-export async function checkDraw(env, ev) {
-  const db = env.DB;
+export async function checkDraw(ctx, ev) {
+  const db = ctx.db;
   const people = await drawParticipants(db, ev.id);
   const ids = people.map((u) => u.user_id);
   const allEx = await getExclusions(db, ev.id);
@@ -90,11 +90,11 @@ export async function checkDraw(env, ev) {
 }
 
 // actor — кто проводит (0 — бот), action — код для журнала: 'draw' или 'draw.auto' (007)
-export async function runDraw(env, ev, { actor = 0, action = 'draw' } = {}) {
-  const db = env.DB;
+export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
+  const db = ctx.db;
   if (ev.draw_done) return { ok: false, error: 'Жеребьёвка уже проведена.' };
-  const settings = await getSettings(db);
-  const check = await checkDraw(env, ev);
+  const settings = await ctx.settings();
+  const check = await checkDraw(ctx, ev);
   if (!check.res.ok) return { ok: false, error: check.problems.join('\n') };
   // Атомарно (006, FR-607): batch D1 — одна транзакция. Первый оператор «занимает» жеребьёвку своим токеном;
   // остальные записи выполняются, только если токен в эвенте — наш. Вторая одновременная жеребьёвка ничего не запишет.
@@ -170,9 +170,9 @@ function pairsVersion(db, ev, cond = '', ...condArgs) {
 }
 
 // Применяем изменённое распределение эвента: переписываем только изменившиеся пары (все операторы — при версии v).
-async function applyPairsChange(env, ev, oldRows, newMap, changed, members, v) {
-  const db = env.DB;
-  const settings = await getSettings(db);
+async function applyPairsChange(ctx, ev, oldRows, newMap, changed, members, v) {
+  const db = ctx.db;
+  const settings = await ctx.settings();
   const oldMap = pairsToMap(oldRows);
   const byId = Object.fromEntries(members.map((u) => [u.user_id, u]));
   const when = `AND ${v.guard}`;
@@ -213,8 +213,8 @@ async function applyPairsChange(env, ev, oldRows, newMap, changed, members, v) {
 
 // Убрать человека из эвента (после жеребьёвки — с минимальной перестройкой пар).
 // mark — удаляет организатор: запомнить «удалён» (010, FR-1021), при запрете возврата по ссылке он не вернётся.
-export async function removeMember(env, ev, userId, { notify = true, actor = 0, mark = false } = {}) {
-  const db = env.DB;
+export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, mark = false } = {}) {
+  const db = ctx.db;
   const members = await eventMembers(db, ev.id);
   const target = members.find((m) => m.user_id === userId);
   if (!target) return { ok: false, error: 'Человек не участвует в этом событии.' };
@@ -230,7 +230,7 @@ export async function removeMember(env, ev, userId, { notify = true, actor = 0, 
       if (!r) {
         return { ok: false, error: 'Не получается убрать участника, не нарушив исключения или кольцевую жеребьёвку. Ослабь исключения.' };
       }
-      stmts.push(...(await applyPairsChange(env, ev, rows, r.pairs, r.changed, members, v)));
+      stmts.push(...(await applyPairsChange(ctx, ev, rows, r.pairs, r.changed, members, v)));
     }
   }
   // Остальное — только пока человек ещё участник (018): до жеребьёвки версии пар нет, и без этого второй из двух
@@ -264,8 +264,8 @@ export function insertRank(p, talked) {
 }
 
 // Вписывает только владелец (012, FR-1201) — проверка прав в api.js
-export async function insertMember(env, ev, userId, actor = 0) {
-  const db = env.DB;
+export async function insertMember(ctx, ev, userId, actor = 0) {
+  const db = ctx.db;
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
   const members = await eventMembers(db, ev.id);
   const u = members.find((x) => x.user_id === userId);
@@ -294,7 +294,7 @@ export async function insertMember(env, ev, userId, actor = 0) {
     ev.id, r.santa, r.ward, ...(fresh ? [ev.id, r.santa, r.ward] : []));
   const [claim] = await db.batch([
     v.claim,
-    ...(await applyPairsChange(env, ev, rows, r.pairs, r.changed, members, v)),
+    ...(await applyPairsChange(ctx, ev, rows, r.pairs, r.changed, members, v)),
     auditIfStmt(db, ev.id, actor, 'member.insert', displayName(u), v.guard, ...v.args),
   ]);
   if (!claim.meta.changes) return { ok: false, error: PAIRS_RACE };
@@ -314,12 +314,12 @@ export async function drawCancelable(db, ev) {
 }
 
 // Отмена жеребьёвки атомарно (research R3): если кто-то открыл подопечного между проверкой и batch — ничего не меняется
-export async function cancelDraw(env, ev, actor) {
-  const db = env.DB;
+export async function cancelDraw(ctx, ev, actor) {
+  const db = ctx.db;
   if (isFinished(ev)) return { ok: false, error: 'Событие завершено — отменить жеребьёвку нельзя.' };
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
   if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
-  const [settings, rows] = await Promise.all([getSettings(db), getPairs(db, ev.id)]);
+  const [settings, rows] = await Promise.all([ctx.settings(), getPairs(db, ev.id)]);
   const token = 'cancel:' + randomCode(12);
   const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)';
   const stmts = [
@@ -344,12 +344,12 @@ export async function cancelDraw(env, ev, actor) {
 // Владелец отменяет жеребьёвку в любой момент до раскрытия (research R4): пары, отметки и переписка Сант эвента
 // удаляются, письма остаются, регистрация открывается. Захват — по версии пар (draw_token): одновременное вписывание,
 // удаление или другая отмена не дадут второго результата.
-export async function forceCancelDraw(env, ev, actor) {
-  const db = env.DB;
+export async function forceCancelDraw(ctx, ev, actor) {
+  const db = ctx.db;
   if (isFinished(ev)) return { ok: false, error: 'Событие завершено — отменить жеребьёвку нельзя.' };
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
   if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
-  const [settings, rows] = await Promise.all([getSettings(db), getPairs(db, ev.id)]);
+  const [settings, rows] = await Promise.all([ctx.settings(), getPairs(db, ev.id)]);
   const token = 'force:' + randomCode(12);
   const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)';
   const [claim] = await db.batch([

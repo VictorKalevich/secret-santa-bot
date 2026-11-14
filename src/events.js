@@ -1,7 +1,7 @@
 // Жизненный цикл эвента: создание, завершение, удаление, сброс, приглашения, раскрытие тайны, напоминания, объявления.
 
 import {
-  getSettings, getEvent, eventMembers, drawParticipants, getPairs, allUsers, enqueueStmt, enqueueIfStmt, updateEventStmt,
+  getEvent, eventMembers, drawParticipants, getPairs, enqueueStmt, enqueueIfStmt, updateEventStmt,
   auditStmt, auditIfStmt, eventDataDeleteStmts,
 } from './db.js';
 import { msg, q, escapeHtml, formatDate, formatMs, openAppButton, inviteLink, randomCode, oneLine, cleanText, ISO_DATE } from './format.js';
@@ -10,8 +10,8 @@ import { CHAT_GRACE_MS, isFinished } from './status.js';
 
 // from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
 // invite — разослать участникам образца приглашение в новый эвент.
-export async function createEvent(env, title, createdBy, { from = null, invite = false } = {}) {
-  const db = env.DB;
+export async function createEvent(ctx, title, createdBy, { from = null, invite = false } = {}) {
+  const db = ctx.db;
   const clean = oneLine(title);
   if (!clean || clean.length > 80) return { ok: false, error: 'Название события — от 1 до 80 символов.' };
   const code = randomCode();
@@ -40,20 +40,20 @@ export async function createEvent(env, title, createdBy, { from = null, invite =
   let invited = 0;
   let inviteError = '';
   if (from && invite) {
-    const r = await inviteFromEvent(env, row, from, createdBy);
+    const r = await inviteFromEvent(ctx, row, from, createdBy);
     if (r.ok) invited = r.count;
     else inviteError = r.error;
   }
   return { ok: true, event: row, invited, inviteError };
 }
 
-export async function finishEvent(env, ev, actor = 0) {
-  const db = env.DB;
+export async function finishEvent(ctx, ev, actor = 0) {
+  const db = ctx.db;
   if (isFinished(ev)) return { ok: false, error: 'Событие уже завершено.' };
-  const settings = await getSettings(db);
+  const settings = await ctx.settings();
   const now = Date.now();
   const members = await drawParticipants(db, ev.id);
-  const until = formatMs(now + CHAT_GRACE_MS, Number(env.TIMEZONE_OFFSET_HOURS ?? 3));
+  const until = formatMs(now + CHAT_GRACE_MS, Number(ctx.env.TIMEZONE_OFFSET_HOURS ?? 3));
   // Атомарно (009, FR-920): завершает только первый из одновременных вызовов (админ и cron) — остальные ничего не рассылают
   // Часы Workers у одновременных запросов могут совпасть до миллисекунды, поэтому «наш» захват узнаём ещё и по
   // отсутствию записи журнала 'finish': завершение необратимо, такая запись у эвента одна и пишется последней.
@@ -74,8 +74,8 @@ export async function finishEvent(env, ev, actor = 0) {
 // Атомарно (010, FR-1024): рассылка и запись журнала — только пока эвент существует, сам эвент удаляется последним.
 // Batch D1 — одна транзакция, транзакции записи идут по очереди: второе одновременное удаление видит эвент уже удалённым
 // и ничего не рассылает и не пишет.
-export async function deleteEvent(env, ev, actor = 0) {
-  const db = env.DB;
+export async function deleteEvent(ctx, ev, actor = 0) {
+  const db = ctx.db;
   const members = await eventMembers(db, ev.id);
   const exists = 'EXISTS (SELECT 1 FROM events WHERE id = ?)';
   const res = await db.batch([
@@ -90,8 +90,8 @@ export async function deleteEvent(env, ev, actor = 0) {
 }
 
 // Полный сброс эвента (004 → 005: в пределах одного эвента). Владелец, если участвовал, остаётся.
-export async function resetEvent(env, ev, ownerId, actor = ownerId) {
-  const db = env.DB;
+export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
+  const db = ctx.db;
   const members = await eventMembers(db, ev.id);
   const removed = members.filter((m) => m.user_id !== ownerId);
   const inviteCode = randomCode();
@@ -113,10 +113,10 @@ export async function resetEvent(env, ev, ownerId, actor = ownerId) {
 
 // Пригласить участников другого эвента: сообщение со ссылкой вступления (FR-509).
 // Закрытая регистрация — значит никто (010, FR-1017); удалённым организатором при запрете возврата — не приглашаем.
-export async function inviteFromEvent(env, ev, fromEv, actor = 0) {
-  const db = env.DB;
+export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
+  const db = ctx.db;
   if (!ev.registration_open) return { ok: false, error: 'Регистрация закрыта — открой её, чтобы приглашать.' };
-  const settings = await getSettings(db);
+  const settings = await ctx.settings();
   const link = inviteLink(settings, ev);
   if (!link) return { ok: false, error: 'Сначала открой страницу настройки /setup (см. README).' };
   const [members, removed] = await Promise.all([
@@ -136,12 +136,12 @@ export async function inviteFromEvent(env, ev, fromEv, actor = 0) {
 
 // Раскрыть тайну: каждому подопечному — имя его Санты. Атомарно (009, FR-919): рассылает только первый из одновременных
 // вызовов (админ и cron), и только если пары не поменялись после чтения (версия пар — draw_token).
-export async function revealAll(env, ev, actor = 0) {
-  const db = env.DB;
+export async function revealAll(ctx, ev, actor = 0) {
+  const db = ctx.db;
   const cur = await getEvent(db, ev.id);
   if (!cur?.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
   if (cur.revealed) return { ok: false, error: 'Тайна уже раскрыта.' };
-  const [rows, users] = await Promise.all([getPairs(db, ev.id), allUsers(db)]);
+  const [rows, users] = await Promise.all([getPairs(db, ev.id), ctx.users()]);
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
   // revealed хранит уникальную отметку этого раскрытия (для условий ниже); везде читается как «да/нет».
   // Случайная, а не время: часы Workers у одновременных запросов могут совпасть.
@@ -163,9 +163,9 @@ export async function revealAll(env, ev, actor = 0) {
 }
 
 // extra — операторы, которые выполняются в том же batch, что и рассылка (cron: отметка last_daily, 009)
-export async function remindUnfilled(env, ev, actor = 0, extra = []) {
-  const db = env.DB;
-  const settings = await getSettings(db);
+export async function remindUnfilled(ctx, ev, actor = 0, extra = []) {
+  const db = ctx.db;
+  const settings = await ctx.settings();
   const people = (await drawParticipants(db, ev.id)).filter((u) => !u.wishlist.trim());
   const deadline = ev.deadline ? ` до <b>${formatDate(ev.deadline)}</b>` : '';
   const stmts = people.map((u) =>
@@ -181,9 +181,9 @@ export async function remindUnfilled(env, ev, actor = 0, extra = []) {
   return { ok: true, count: people.length };
 }
 
-export async function remindSantas(env, ev, actor = 0, extra = []) {
-  const db = env.DB;
-  const settings = await getSettings(db);
+export async function remindSantas(ctx, ev, actor = 0, extra = []) {
+  const db = ctx.db;
+  const settings = await ctx.settings();
   const rows = (await getPairs(db, ev.id)).filter((p) => !p.gift_ready);
   const when = ev.event_date ? ` Вручение — <b>${formatDate(ev.event_date)}</b>.` : '';
   const stmts = rows.map((p) =>
@@ -204,13 +204,13 @@ export async function remindSantas(env, ev, actor = 0, extra = []) {
 const ANNOUNCE_MAX = 2000;
 
 // Объявление всем зарегистрированным участникам эвента (FR-701): хранится и рассылается через outbox
-export async function announce(env, ev, actor, rawText) {
-  const db = env.DB;
+export async function announce(ctx, ev, actor, rawText) {
+  const db = ctx.db;
   if (isFinished(ev)) return { ok: false, error: 'Событие завершено — объявления в нём уже не отправить.' };
   const text = cleanText(rawText);
   if (!text) return { ok: false, error: 'Напиши текст объявления.' };
   if (text.length > ANNOUNCE_MAX) return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${ANNOUNCE_MAX}.` };
-  const [settings, people] = await Promise.all([getSettings(db), drawParticipants(db, ev.id)]);
+  const [settings, people] = await Promise.all([ctx.settings(), drawParticipants(db, ev.id)]);
   const now = Date.now();
   await db.batch([
     db.prepare('INSERT INTO announcements (event_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(ev.id, actor, text, now),

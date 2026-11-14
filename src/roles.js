@@ -1,7 +1,7 @@
 // Роли (002): владелец и администраторы; перенос участия на новый аккаунт (004 → 005: во всех эвентах).
 
 import {
-  getSettings, setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt,
+  setSettings, setSettingStmt, allUsers, getUser, getEvent, enqueueStmt, enqueueIfStmt, auditStmt, auditIfStmt,
   mergeMembership, personTransferStmts,
 } from './db.js';
 import { msg, escapeHtml, openAppButton, displayName, adminRecipients } from './format.js';
@@ -55,10 +55,9 @@ export async function resolveOwner(db, settings, users) {
 }
 
 // Сделать пользователя владельцем. via: 'link' (ссылка /setup) или 'transfer' (передал прежний владелец).
-export async function setOwner(env, newOwnerId, { via, prevOwnerId, newOwnerLabel } = {}) {
-  const db = env.DB;
-  const settings = await getSettings(db);
-  const users = await allUsers(db);
+export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabel } = {}) {
+  const db = ctx.db;
+  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const target = users.find((u) => u.tg_id === newOwnerId);
   const label = escapeHtml(newOwnerLabel || displayName(target));
   const stmts = [
@@ -86,14 +85,12 @@ export async function setOwner(env, newOwnerId, { via, prevOwnerId, newOwnerLabe
   await db.batch(stmts);
 }
 
-export async function grantAdmin(env, id, actor = 0) {
-  const db = env.DB;
-  const settings = await getSettings(db);
-  const users = await allUsers(db);
+export async function grantAdmin(ctx, id, actor = 0) {
+  const db = ctx.db;
+  const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id);
   if (!u || !u.registered) return { ok: false, error: 'Назначить можно только зарегистрированного человека.' };
   if (u.is_admin) return { ok: false, error: 'Он(а) уже администратор.' };
-  const ownerId = await resolveOwner(db, settings, users);
   await db.batch([
     db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ?').bind(id),
     enqueueStmt(db, id, msg(
@@ -106,12 +103,10 @@ export async function grantAdmin(env, id, actor = 0) {
   return { ok: true };
 }
 
-export async function revokeAdmin(env, id, actor = 0) {
-  const db = env.DB;
-  const settings = await getSettings(db);
-  const users = await allUsers(db);
+export async function revokeAdmin(ctx, id, actor = 0) {
+  const db = ctx.db;
+  const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id);
-  const ownerId = await resolveOwner(db, settings, users);
   if (!u || !u.is_admin) return { ok: false, error: 'Он(а) не администратор.' };
   if (id === ownerId) return { ok: false, error: 'Нельзя снять права владельца. Сначала передай владение другому.' };
   // 012: обращения, которые он вёл, снова ничьи — остальные админы получают их с кнопкой «Взять»
@@ -126,20 +121,19 @@ export async function revokeAdmin(env, id, actor = 0) {
   return { ok: true };
 }
 
-export async function transferOwnership(env, fromId, toId) {
-  const db = env.DB;
-  const users = await allUsers(db);
+export async function transferOwnership(ctx, fromId, toId) {
+  const users = await ctx.users();
   const u = users.find((x) => x.tg_id === toId);
   if (!u || !u.registered) return { ok: false, error: 'Передать владение можно только зарегистрированному человеку.' };
   if (toId === fromId) return { ok: false, error: 'Ты и так владелец.' };
-  await setOwner(env, toId, { via: 'transfer', prevOwnerId: fromId });
+  await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId });
   return { ok: true };
 }
 
 // ---------- перенос участия на новый аккаунт ----------
 
-export async function transferAccount(env, fromId, toId, actorId = 0) {
-  const db = env.DB;
+export async function transferAccount(ctx, fromId, toId, actorId = 0) {
+  const db = ctx.db;
   if (!fromId || !toId || fromId === toId) return { ok: false, error: 'Выбери две разные записи.' };
   const from = await getUser(db, fromId);
   const to = await getUser(db, toId);
@@ -156,7 +150,7 @@ export async function transferAccount(env, fromId, toId, actorId = 0) {
       return { ok: false, error: `Новый аккаунт уже участвует в жеребьёвке события «${ev?.title || ''}» — выбери другую запись.` };
     }
   }
-  const [settings, users] = await Promise.all([getSettings(db), allUsers(db)]);
+  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const actor = users.find((u) => u.tg_id === actorId);
   // Новый аккаунт уже вступил в эвент: остаётся одно участие (письмо и адрес — нового, если не пусты; 009, FR-938)
   const merge = fromMembers.filter((m) => toByEvent.has(m.event_id)).map((m) => mergeMembership(m, toByEvent.get(m.event_id)));
