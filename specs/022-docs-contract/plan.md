@@ -1,6 +1,6 @@
 # Implementation Plan: Сводный контракт API и правки документов
 
-**Branch**: `022-docs-contract` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branch**: `022-docs-contract` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-14)
 
 **Input**: Feature specification from `specs/022-docs-contract/spec.md`; шаг 7 плана рефакторинга
 (`docs/refactoring/step-7-docs-contract.md`), замеры `docs/refactoring/baseline.md` (раздел 1).

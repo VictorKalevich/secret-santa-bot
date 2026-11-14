@@ -130,13 +130,13 @@
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T019 `npm test` (5 прогонов, время) и `npm run test:e2e` (без `budget exceeded`); `git diff main --stat -- src/
+- [X] T019 `npm test` (5 прогонов, время) и `npm run test:e2e` (без `budget exceeded`); `git diff main --stat -- src/
   migrations/ design-system/` пуст
-- [ ] T020 [P] `docs/refactoring/baseline.md` — строка «после шага 7» (число тестов, время); `docs/refactoring-roadmap.md` —
+- [X] T020 [P] `docs/refactoring/baseline.md` — строка «после шага 7» (число тестов, время); `docs/refactoring-roadmap.md` —
   статус шага 7 «выполнен (022, дата)», «Решения владельца» — находки research R10
-- [ ] T021 [P] Память проекта: `refactoring-roadmap.md` (шаг 7 выполнен, все шаги закрыты, `docs/api.md` и тест),
+- [X] T021 [P] Память проекта: `refactoring-roadmap.md` (шаг 7 выполнен, все шаги закрыты, `docs/api.md` и тест),
   `MEMORY.md` — строка указателя
-- [ ] T022 Отметки задач в `tasks.md`, статус `spec.md`/`plan.md` — «реализовано»; итоговый коммит; слияние в `main`
+- [X] T022 Отметки задач в `tasks.md`, статус `spec.md`/`plan.md` — «реализовано»; итоговый коммит; слияние в `main`
   (`--ff-only`) и `git push` после зелёных `npm test` и e2e
 
 ---
