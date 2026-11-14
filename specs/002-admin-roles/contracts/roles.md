@@ -1,3 +1,5 @@
+> История фичи 002. Актуальное описание API, бота и журнала — [docs/api.md](../../../docs/api.md) (с фичи 022).
+
 # Contract: роли — изменения API, чата и сообщений
 
 > **С фичи 005** действия привязаны к эвенту (поле `event`), см. [`specs/005-events-history/contracts/events.md`](../../005-events-history/contracts/events.md).

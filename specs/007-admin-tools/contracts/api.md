@@ -1,3 +1,5 @@
+> История фичи 007. Актуальное описание API, бота и журнала — [docs/api.md](../../../docs/api.md) (с фичи 022).
+
 # Contract: инструменты организатора (007)
 
 Дополняет [005 events.md](../../005-events-history/contracts/events.md) и [006 api-changes.md](../../006-fixes/contracts/api-changes.md).

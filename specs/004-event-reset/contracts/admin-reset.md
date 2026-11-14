@@ -1,3 +1,5 @@
+> История фичи 004. Актуальное описание API, бота и журнала — [docs/api.md](../../../docs/api.md) (с фичи 022).
+
 # Contract: сброс и перенос
 
 > **С фичи 005** действия привязаны к эвенту (поле `event`), см. [`specs/005-events-history/contracts/events.md`](../../005-events-history/contracts/events.md).

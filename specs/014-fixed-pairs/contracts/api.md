@@ -1,3 +1,5 @@
+> История фичи 014. Актуальное описание API, бота и журнала — [docs/api.md](../../../docs/api.md) (с фичи 022).
+
 # Contract: API закреплённых пар (014)
 
 Все запросы — `POST /api/<action>` с подписью `initData`, как раньше (`specs/005-events-history/contracts/events.md`).

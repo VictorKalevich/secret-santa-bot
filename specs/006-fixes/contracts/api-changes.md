@@ -1,3 +1,5 @@
+> История фичи 006. Актуальное описание API, бота и журнала — [docs/api.md](../../../docs/api.md) (с фичи 022).
+
 # Contract changes: 006-fixes
 
 Базовый контракт — [005 events.md](../../005-events-history/contracts/events.md). Изменения:
