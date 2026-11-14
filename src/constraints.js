@@ -1,7 +1,7 @@
 // Правила пар (019): исключения «кто кому не дарит», закреплённые пары владельца (014), семьи как исключения (008).
 // Снимки этих правил для условия записи жеребьёвки — src/snapshots.js (020); жеребьёвка и замены — src/pairs.js.
 
-import { getEvent, memberQuery, drawMembersQuery, fixedPairsQuery, auditIfStmt } from './db.js';
+import { getEvent, memberQuery, drawMembersQuery, fixedPairsQuery } from './db.js';
 import { displayName } from './format.js';
 import { atomic } from './claim.js';
 
@@ -81,13 +81,22 @@ export async function changeFixed(ctx, ev, { add, giver: rawGiver, receiver: raw
     }
   }
   // Условие повторено в SQL — на случай жеребьёвки в эту же секунду (как у исключений)
-  const beforeDraw = 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
-  const stmts = links.map(([a, b]) => add
-    ? db.prepare(`INSERT OR IGNORE INTO fixed_pairs (event_id, giver, receiver) SELECT ?, ?, ? WHERE ${beforeDraw}`).bind(ev.id, a, b, ev.id)
-    : db.prepare(`DELETE FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ? AND ${beforeDraw}`).bind(ev.id, a, b, ev.id));
-  // Журнал — без имён и подробностей: его видят и админы
-  stmts.push(auditIfStmt(db, ev.id, me.tg_id, add ? 'fixed.add' : 'fixed.del', '', beforeDraw, ev.id));
-  await db.batch(stmts);
+  const beforeDraw = atomic(db, 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)', ev.id);
+  // Журнал — по прежнему состоянию, перед изменением (023): пока хотя бы одна сторона действительно изменится.
+  // Закрепление вставляется, если у Санты нет закреплённого подопечного и у подопечного — Санты (первичный ключ и
+  // уникальный индекс fixed_pairs); стороны взаимной пары друг другу не мешают. Второй из двух одновременных вызовов
+  // видит изменение первого и записи не пишет. Без имён и подробностей: журнал видят и админы.
+  const change = add
+    ? '(NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND giver = ?) AND NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND receiver = ?))'
+    : 'EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ?)';
+  beforeDraw
+    .and(links.map(() => change).join(' OR '), ...links.flatMap(([a, b]) => (add ? [ev.id, a, ev.id, b] : [ev.id, a, b])))
+    .audit(ev.id, me.tg_id, add ? 'fixed.add' : 'fixed.del', '');
+  for (const [a, b] of links) {
+    if (add) beforeDraw.select('INSERT OR IGNORE INTO fixed_pairs (event_id, giver, receiver) SELECT ?, ?, ?', ev.id, a, b);
+    else beforeDraw.where('DELETE FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ?', ev.id, a, b);
+  }
+  await beforeDraw.run();
   if ((await getEvent(db, ev.id))?.draw_done) return no(FIXED_FROZEN);
   return { ok: true };
 }

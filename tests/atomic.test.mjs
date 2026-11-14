@@ -1,12 +1,13 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 26 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 32 проверки «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
-// узнаётся по прежнему состоянию, а не по времени, 020). Известный дефект — todo с номером шага, который его чинит
+// узнаётся по прежнему состоянию, а не по времени, 020), шесть — закреплённые пары (023: журнал — только при изменении;
+// там же проверка повторов без изменений). Известный дефект — todo с номером шага, который его чинит
 // (docs/refactoring-roadmap.md, «Исправления внутри шагов»): шаг снимает пометку; сейчас таких нет. Случаи без захвата
 // (объявление, напоминание, сброс, роли, двойное сохранение семьи) — решения владельца, здесь их нет (baseline.md,
 // раздел 4).
-import { describe, it, before, after } from 'node:test';
+import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
 
@@ -145,6 +146,86 @@ describe('атомарность: до жеребьёвки', () => {
     await z.twice(adm, 'admin.exclusion.add', { event: z.ev.id, giver: z.people[1].id, receiver: z.people[2].id });
     assert.equal(z.w.query('SELECT COUNT(*) AS n FROM exclusions WHERE event_id = ?', z.ev.id)[0].n, 1, 'исключение одно');
     assert.equal(z.audit('exclusion.add'), 1, 'записей журнала');
+  });
+});
+
+// 023: журнал закреплённых пар — по прежнему состоянию, только когда пара действительно добавлена или убрана. Ответы
+// прежние: второй из одновременных вызовов тоже получает успех (research R3 фичи 023).
+describe('атомарность: закреплённые пары (023)', () => {
+  let z, p;
+  before(async () => {
+    z = await world();
+    p = z.people;
+    await z.w.api(boss, 'admin.ring', { event: z.ev.id, on: false }); // взаимные пары — только без кольцевой
+  });
+  afterEach(() => clear()); // каждая проверка начинает без закреплённых пар
+  const fix = (a, b, extra = {}) => ({ event: z.ev.id, giver: a.id, receiver: b.id, ...extra });
+  const rows = () => z.w.query('SELECT giver, receiver FROM fixed_pairs WHERE event_id = ? ORDER BY giver', z.ev.id);
+  const add = (body) => z.w.api(boss, 'admin.fixed.add', body);
+  const del = (body) => z.w.api(boss, 'admin.fixed.del', body);
+  const clear = async () => { for (const r of rows()) await del({ event: z.ev.id, giver: r.giver, receiver: r.receiver }); };
+  // Записи журнала, добавленные вызовом f: в событии уже есть записи прошлых проверок
+  async function counted(action, f) {
+    const n = z.audit(action);
+    const out = await f();
+    return { added: z.audit(action) - n, out };
+  }
+
+  it('admin.fixed.add ×2 — одна пара, одна запись', async () => {
+    const { added, out } = await counted('fixed.add', () => z.twice(boss, 'admin.fixed.add', fix(p[0], p[1])));
+    assert.deepEqual(statuses(out), [200, 200]);
+    assert.deepEqual(rows(), [{ giver: p[0].id, receiver: p[1].id }]);
+    assert.equal(added, 1, 'записей журнала');
+  });
+  it('admin.fixed.add ×2 в одну миллисекунду — одна запись', async () => {
+    const { added } = await counted('fixed.add', () => z.twice(boss, 'admin.fixed.add', fix(p[2], p[3]), { sameMoment: true }));
+    assert.deepEqual(rows(), [{ giver: p[2].id, receiver: p[3].id }]);
+    assert.equal(added, 1, 'записей журнала');
+  });
+  it('admin.fixed.del ×2 — пары нет, одна запись', async () => {
+    await add(fix(p[0], p[1]));
+    const { added, out } = await counted('fixed.del', () => z.twice(boss, 'admin.fixed.del', fix(p[0], p[1])));
+    assert.deepEqual(statuses(out), [200, 200]);
+    assert.deepEqual(rows(), []);
+    assert.equal(added, 1, 'записей журнала');
+  });
+  it('взаимная пара ×2 — две стороны, одна запись', async () => {
+    const { added } = await counted('fixed.add', () => z.twice(boss, 'admin.fixed.add', fix(p[0], p[1], { mutual: true })));
+    assert.equal(rows().length, 2, 'в обе стороны');
+    assert.equal(added, 1, 'записей журнала');
+  });
+  it('одновременно «А → Б» и «А → В» (один Санта) — одна пара, одна запись', async () => {
+    const { added, out } = await counted('fixed.add', () => z.w.together([
+      () => z.w.api(boss, 'admin.fixed.add', fix(p[0], p[1]), true),
+      () => z.w.api(boss, 'admin.fixed.add', fix(p[0], p[2]), true),
+    ]));
+    assert.deepEqual(statuses(out), [200, 200], 'ответы прежние');
+    assert.equal(rows().length, 1, 'у Санты один закреплённый подопечный');
+    assert.equal(added, 1, 'записей журнала');
+  });
+  it('одновременно «А → Б» и «В → Б» (один подопечный) — одна пара, одна запись', async () => {
+    const { added } = await counted('fixed.add', () => z.w.together([
+      () => z.w.api(boss, 'admin.fixed.add', fix(p[0], p[1]), true),
+      () => z.w.api(boss, 'admin.fixed.add', fix(p[2], p[1]), true),
+    ]));
+    assert.equal(rows().length, 1, 'у подопечного один закреплённый Санта');
+    assert.equal(added, 1, 'записей журнала');
+  });
+  it('без изменений — без записи; взаимная с одной новой стороной — одна', async () => {
+    await add(fix(p[0], p[1]));
+    let r = await counted('fixed.add', () => z.w.api(boss, 'admin.fixed.add', fix(p[0], p[1]), true));
+    assert.equal(r.out.status, 200, 'повтор — успех, как раньше');
+    assert.equal(r.added, 0, 'повтор закреплённой пары — без записи');
+    r = await counted('fixed.del', () => z.w.api(boss, 'admin.fixed.del', fix(p[2], p[3]), true));
+    assert.equal(r.out.status, 200);
+    assert.equal(r.added, 0, 'удаление отсутствующей — без записи');
+    r = await counted('fixed.add', () => add(fix(p[0], p[1], { mutual: true })));
+    assert.equal(rows().length, 2, 'добавлена вторая сторона');
+    assert.equal(r.added, 1, 'изменение было — одна запись');
+    await del(fix(p[1], p[0]));
+    r = await counted('fixed.del', () => del(fix(p[0], p[1], { mutual: true })));
+    assert.deepEqual(rows(), [], 'убрана оставшаяся сторона');
+    assert.equal(r.added, 1, 'изменение было — одна запись');
   });
 });
 

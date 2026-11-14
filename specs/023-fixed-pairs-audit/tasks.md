@@ -17,7 +17,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Снять «до»: `npm test` на ветке — все зелёные (178), записать время; `node tests/bench/queries.mjs` —
+- [X] T001 Снять «до»: `npm test` на ветке — все зелёные (178), записать время; `node tests/bench/queries.mjs` —
   строка `admin.fixed.add` 6 / 0
 
 ---
@@ -34,12 +34,12 @@
 
 **Independent Test**: `node --test tests/atomic.test.mjs` — блок «закреплённые пары».
 
-- [ ] T002 [US1] `tests/atomic.test.mjs`: блок `describe('атомарность: закреплённые пары', …)` в событии до жеребьёвки
+- [X] T002 [US1] `tests/atomic.test.mjs`: блок `describe('атомарность: закреплённые пары', …)` в событии до жеребьёвки
   (владелец `boss`): `admin.fixed.add` ×2 (`z.twice`) — строк `fixed_pairs` 1, `z.audit('fixed.add')` 1; ×2 с
   `{ sameMoment: true }` — то же на другой паре; `admin.fixed.del` ×2 — строк 0, `fixed.del` 1; взаимная
   (`mutual: true`) ×2 — строк 2, запись одна. Счёт записей — разницей до и после (в событии уже есть записи прошлых
   проверок). Запустить — проверки падают (2 записи вместо 1)
-- [ ] T003 [US1] `src/constraints.js`, `changeFixed`: пакет через `atomic(db, beforeDraw, ev.id)`; запись журнала —
+- [X] T003 [US1] `src/constraints.js`, `changeFixed`: пакет через `atomic(db, beforeDraw, ev.id)`; запись журнала —
   первой, `.and(условие изменения).audit(ev.id, me.tg_id, add ? 'fixed.add' : 'fixed.del', '')`; условие изменения
   (research R1) — закрепление: `OR` по сторонам `(NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND giver = ?)
   AND NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND receiver = ?))`; удаление: `OR` по сторонам
@@ -59,11 +59,11 @@
 
 **Independent Test**: `node --test tests/atomic.test.mjs` — проверка «без изменений».
 
-- [ ] T004 [US2] `tests/atomic.test.mjs`, тот же блок: `it('без изменений — без записи; взаимная с одной новой стороной —
+- [X] T004 [US2] `tests/atomic.test.mjs`, тот же блок: `it('без изменений — без записи; взаимная с одной новой стороной —
   одна')`: повторное `admin.fixed.add` закреплённой пары — +0 записей, ответ 200; `admin.fixed.del` отсутствующей — +0,
   200; закреплена «А → Б», `admin.fixed.add` взаимной «А ↔ Б» — строк 2, +1 запись; закреплена одна сторона, удаление
   взаимной — строк 0, +1 запись
-- [ ] T005 [US2] `tests/e2e.test.mjs`, сценарий 014 «закрепление: только владелец…»: `assert.equal(audit.length, 2)` →
+- [X] T005 [US2] `tests/e2e.test.mjs`, сценарий 014 «закрепление: только владелец…»: `assert.equal(audit.length, 2)` →
   `1` с пояснением «повтор без изменений записи не пишет (023)»
 
 **Checkpoint**: журнал совпадает с изменениями и при последовательных вызовах.
@@ -76,7 +76,7 @@
 
 **Independent Test**: `node --test tests/atomic.test.mjs` — две проверки «один Санта» / «один подопечный».
 
-- [ ] T006 [US3] `tests/atomic.test.mjs`, тот же блок: `z.w.together([...])` двух владельцев-вызовов «А → Б» и «А → В» —
+- [X] T006 [US3] `tests/atomic.test.mjs`, тот же блок: `z.w.together([...])` двух владельцев-вызовов «А → Б» и «А → В» —
   у А одна строка, +1 запись `fixed.add`, оба ответа 200 (прежний ответ, research R3); «А → Б» и «В → Б» — у Б один
   Санта, +1 запись. До T003 — падают, после — зелёные
 
@@ -86,7 +86,7 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T007 [P] `tests/atomic.test.mjs`: заголовок — 26 → 32 проверки «один результат» (+6 закреплённых пар, 023) и
+- [X] T007 [P] `tests/atomic.test.mjs`: заголовок — 26 → 32 проверки «один результат» (+6 закреплённых пар, 023) и
   проверка повторов без изменений
 - [ ] T008 [P] `docs/api.md`: разделы `admin.fixed.add` и `admin.fixed.del` — «Журнал: `fixed.add` — только если пара
   (хотя бы одна сторона) действительно закреплена; без имён…» / «`fixed.del` — только если действительно убрана»;

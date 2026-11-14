@@ -1817,7 +1817,7 @@ test('014: закреплённые пары владельца', { timeout: 400
       }
       assert.equal(await fixedCount(F), 1, 'админ ничего не изменил');
       const audit = (await zapi(helper, 'admin.audit', { event: F })).entries.filter((e) => e.action.startsWith('fixed.'));
-      assert.equal(audit.length, 2);
+      assert.equal(audit.length, 1, 'повтор без изменений записи не пишет (023)');
       assert.ok(audit.every((e) => !e.details), 'журнал без имён');
 
       // проверки
