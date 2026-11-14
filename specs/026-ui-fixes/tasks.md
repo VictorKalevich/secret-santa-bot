@@ -24,8 +24,8 @@ description: "Задачи фичи 026 — недочёты интерфейс�
 
 **Purpose**: снимки «до» и заготовка тестов
 
-- [ ] T001 Снять скриншоты на коде до правок: `npm run screenshots` на ветке `026-ui-fixes` до изменений `src/app/`, скопировать `test-results/*.png` в папку «до» во временной папке сеанса (scratchpad) — для сравнения в T030
-- [ ] T002 Создать `tests/app-ui.test.mjs`: импорт `APP`, `where` из `tests/support/app-source.mjs`; общие помощники — `lines(text)`, `block(text, re)` (тело по отступам: от строки начала до первой следующей строки с тем же отступом, начинающейся с `}` или `)`, — contracts/app-ui.md), `fnBody(text, name)` (верхнеуровневое `function name(` / `const name =` с отступом 2), `topLevelOwner(lines, i)` (имя ближайшего объявления верхнего уровня выше строки); добавить файл в скрипт `test` в `package.json` после `tests/app-buttons.test.mjs`
+- [X] T001 Снять скриншоты на коде до правок: `npm run screenshots` на ветке `026-ui-fixes` до изменений `src/app/`, скопировать `test-results/*.png` в папку «до» во временной папке сеанса (scratchpad) — для сравнения в T030
+- [X] T002 Создать `tests/app-ui.test.mjs`: импорт `APP`, `where` из `tests/support/app-source.mjs`; общие помощники — `lines(text)`, `block(text, re)` (тело по отступам: от строки начала до первой следующей строки с тем же отступом, начинающейся с `}` или `)`, — contracts/app-ui.md), `fnBody(text, name)` (верхнеуровневое `function name(` / `const name =` с отступом 2), `topLevelOwner(lines, i)` (имя ближайшего объявления верхнего уровня выше строки); добавить файл в скрипт `test` в `package.json` после `tests/app-buttons.test.mjs`
 
 ---
 
@@ -33,7 +33,7 @@ description: "Задачи фичи 026 — недочёты интерфейс�
 
 **Purpose**: обвязка проверок в браузере (нужна US1–US3)
 
-- [ ] T003 В `tests/screenshots.mjs` — `checkUiFixes()` после `checkSheetScroll(admin, A)`: событие «Проверка» (создать, «Я участвую», участник `people[4]` по ссылке), страница как в `checkSheetScroll` (без SDK Telegram, `initData` в адресе), список нарушений → `colorProblems` с пометкой «026:», итог `✔ недочёты интерфейса (026): …`; вызовы страниц — с таймаутами, сбой ожидания — нарушение, а не падение скрипта
+- [X] T003 В `tests/screenshots.mjs` — `checkUiFixes()` после `checkSheetScroll(admin, A)`: событие «Проверка» (создать, «Я участвую», участник `people[4]` по ссылке), страница как в `checkSheetScroll` (без SDK Telegram, `initData` в адресе), список нарушений → `colorProblems` с пометкой «026:», итог `✔ недочёты интерфейса (026): …`; вызовы страниц — с таймаутами, сбой ожидания — нарушение, а не падение скрипта
 
 **Checkpoint**: заготовки есть — истории можно делать по порядку
 
@@ -49,14 +49,14 @@ description: "Задачи фичи 026 — недочёты интерфейс�
 
 ### Tests for User Story 1
 
-- [ ] T004 [US1] Правила 1 и 2 в `tests/app-ui.test.mjs`: `saveRebuilds(text)` — блок с `xapi('admin.game', values())` содержит `refresh(` или `again(`; `panelOwnData(text)` — в теле `renderAdmin` нет `state.ev`, `state.can`, `state.evId` (кроме `evId = state.evId`), `finished()`, `eapi(`, `finishedNotice()` без аргумента; тесты «нарушений нет» и «от противного»
-- [ ] T005 [US1] В `checkUiFixes` (`tests/screenshots.mjs`): (а) вкладка «Админ» события «Проверка» → поле «Название» = «Проверка — новое» → «Сохранить» → после «Сохранено» кнопка «Сохранить» в видимой области, «⋯» участника → «🗑 Удалить из события» — текст окна (`page.once('dialog')`, отказ) содержит ««Проверка — новое»»; (б) открытая панель → `admin.event.finish` запросом → «Инфо» → «Админ» → нет кнопки «Полный сброс», есть «Удалить событие» и текст «Событие завершено»
-- [ ] T006 [US1] Убедиться, что T004 и T005 падают на коде до правок (`node --test tests/app-ui.test.mjs`, `npm run screenshots`)
+- [X] T004 [US1] Правила 1 и 2 в `tests/app-ui.test.mjs`: `saveRebuilds(text)` — блок с `xapi('admin.game', values())` содержит `refresh(` или `again(`; `panelOwnData(text)` — в теле `renderAdmin` нет `state.ev`, `state.can`, `state.evId` (кроме `evId = state.evId`), `finished()`, `eapi(`, `finishedNotice()` без аргумента; тесты «нарушений нет» и «от противного»
+- [X] T005 [US1] В `checkUiFixes` (`tests/screenshots.mjs`): (а) вкладка «Админ» события «Проверка» → поле «Название» = «Проверка — новое» → «Сохранить» → после «Сохранено» кнопка «Сохранить» в видимой области, «⋯» участника → «🗑 Удалить из события» — текст окна (`page.once('dialog')`, отказ) содержит ««Проверка — новое»»; (б) открытая панель → `admin.event.finish` запросом → «Инфо» → «Админ» → нет кнопки «Полный сброс», есть «Удалить событие» и текст «Событие завершено»
+- [X] T006 [US1] Убедиться, что T004 и T005 падают на коде до правок (`node --test tests/app-ui.test.mjs`, `npm run screenshots`)
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] `finishedNotice(e = state.ev)` в `src/app/04-event.js.txt`: плашка по событию `e` (`status`, `finished_at`, `chat_until`), строка переписки — по `state.can.chat_write`
-- [ ] T008 [US1] `renderAdmin` в `src/app/05-admin.js.txt`: параметр `{ quiet = false }` — без `showLoader()`, после `main.replaceChildren` прокрутка прежняя; `again(opts)`, `refresh(opts)` передают параметр; `finishedNotice(s)`; кнопка журнала — `openAudit(evId)`; «Опасная зона» — `done` вместо `finished()`; «Сохранить» параметров — после `admin.game` и `delete drafts.game` → `await refresh({ quiet: true })`, затем `haptic('success')`, `toast('Сохранено')` (только если панель ещё на экране)
+- [X] T007 [US1] `finishedNotice(e = state.ev)` в `src/app/04-event.js.txt`: плашка по событию `e` (`status`, `finished_at`, `chat_until`), строка переписки — по `state.can.chat_write`
+- [X] T008 [US1] `renderAdmin` в `src/app/05-admin.js.txt`: параметр `{ quiet = false }` — без `showLoader()`, после `main.replaceChildren` прокрутка прежняя; `again(opts)`, `refresh(opts)` передают параметр; `finishedNotice(s)`; кнопка журнала — `openAudit(evId)`; «Опасная зона» — `done` вместо `finished()`; «Сохранить» параметров — после `admin.game` и `delete drafts.game` → `await refresh({ quiet: true })`, затем `haptic('success')`, `toast('Сохранено')` (только если панель ещё на экране)
 
 **Checkpoint**: правила 1–2 зелёные; проверки (а), (б) в Chrome проходят
 
@@ -70,13 +70,13 @@ description: "Задачи фичи 026 — недочёты интерфейс�
 
 ### Tests for User Story 2
 
-- [ ] T009 [US2] Правило 3 в `tests/app-ui.test.mjs`: `sheetOwners(text)` — строки с `sheetEl` только в `openSheet`, `requestCloseSheet`, `closeSheet`, `poll`, `syncBack`, объявлении `let sheetEl` и строке с `BackButton.onClick`; `setInterval(` — только в `poll`; «от противного»
-- [ ] T010 [US2] В `checkUiFixes`: событие A, вкладка «Админ», `page.route('**/api/admin.support.get')` держит первый ответ → открыть обращение «Олег» → ✕ → дождаться панели → «📜 Журнал действий» → отпустить ответ → через 500 мс заголовок шторки — «Журнал события»
-- [ ] T011 [US2] Убедиться, что T009 и T010 падают на коде до правок
+- [X] T009 [US2] Правило 3 в `tests/app-ui.test.mjs`: `sheetOwners(text)` — строки с `sheetEl` только в `openSheet`, `requestCloseSheet`, `closeSheet`, `poll`, `syncBack`, объявлении `let sheetEl` и строке с `BackButton.onClick`; `setInterval(` — только в `poll`; «от противного»
+- [X] T010 [US2] В `checkUiFixes`: событие A, вкладка «Админ», `page.route('**/api/admin.support.get')` держит первый ответ → открыть обращение «Олег» → ✕ → дождаться панели → «📜 Журнал действий» → отпустить ответ → через 500 мс заголовок шторки — «Журнал события»
+- [X] T011 [US2] Убедиться, что T009 и T010 падают на коде до правок
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] `src/app/07-sheet-chat.js.txt`: `openSheet` возвращает `sheetEl` (заголовок — строка или узел); `poll(own, load)` — раз в 6 с `load().catch(() => {})`, пока `sheetEl === own`, иначе `clearInterval` себя, возвращает таймер; `openChat`, `openSupport`, `openSupportThread` — `const own = openSheet(...)`, `timer = poll(own, load)`; `openSupportThread` — заголовок `document.createTextNode('Обращение')`, в `load` — `titleText.data = 'Обращение: ' + t.name` (без поиска шторки)
+- [X] T012 [US2] `src/app/07-sheet-chat.js.txt`: `openSheet` возвращает `sheetEl` (заголовок — строка или узел); `poll(own, load)` — раз в 6 с `load().catch(() => {})`, пока `sheetEl === own`, иначе `clearInterval` себя, возвращает таймер; `openChat`, `openSupport`, `openSupportThread` — `const own = openSheet(...)`, `timer = poll(own, load)`; `openSupportThread` — заголовок `document.createTextNode('Обращение')`, в `load` — `titleText.data = 'Обращение: ' + t.name` (без поиска шторки)
 
 **Checkpoint**: правило 3 зелёное; заголовок журнала прежний
 
@@ -92,15 +92,15 @@ description: "Задачи фичи 026 — недочёты интерфейс�
 
 ### Tests for User Story 3
 
-- [ ] T013 [US3] Правило 4 в `tests/app-ui.test.mjs`: `screensGuarded(text)` — нет `async function render`; в теле `render` есть `catch` и `showError`; в теле `closeSheet` есть `.catch(`; «от противного»
-- [ ] T014 [US3] В `checkUiFixes`: (а) событие «Проверка», `page.route('**/api/admin.state')` → `{"ok":true}` → вкладка «Админ» → за 3 с экран «Не получилось загрузить», загрузчика нет; снять подмену → «Попробовать снова» → панель («Журнал действий»); (б) событие A: открыть обращение, подменить `admin.state`, ✕ → экран ошибки, не загрузчик
-- [ ] T015 [US3] Убедиться, что T013 и T014 падают на коде до правок
+- [X] T013 [US3] Правило 4 в `tests/app-ui.test.mjs`: `screensGuarded(text)` — нет `async function render`; в теле `render` есть `catch` и `showError`; в теле `closeSheet` есть `.catch(`; «от противного»
+- [X] T014 [US3] В `checkUiFixes`: (а) событие «Проверка», `page.route('**/api/admin.state')` → `{"ok":true}` → вкладка «Админ» → за 3 с экран «Не получилось загрузить», загрузчика нет; снять подмену → «Попробовать снова» → панель («Журнал действий»); (б) событие A: открыть обращение, подменить `admin.state`, ✕ → экран ошибки, не загрузчик
+- [X] T015 [US3] Убедиться, что T013 и T014 падают на коде до правок
 
 ### Implementation for User Story 3
 
-- [ ] T016 [US3] `src/app/03-home.js.txt`: `screen(build)` рядом с `showError` — `async (...args)`, отказ → `showError(e)`, если `state.nav` прежний; `render()` — тело вкладки/главного экрана в `try`, исключение → `showError(e)`
-- [ ] T017 [US3] `renderWard = screen(async ({ cached = false } = {}) => {…})` в `src/app/04-event.js.txt`; `renderAdmin = screen(async ({ quiet = false } = {}) => {…})` в `src/app/05-admin.js.txt`
-- [ ] T018 [US3] `closeSheet` в `src/app/07-sheet-chat.js.txt`: `onClose` — `new Promise((done) => done(cb())).catch((e) => toast('⚠️ ' + e.message))` (синхронное начало сохраняется)
+- [X] T016 [US3] `src/app/03-home.js.txt`: `screen(build)` рядом с `showError` — `async (...args)`, отказ → `showError(e)`, если `state.nav` прежний; `render()` — тело вкладки/главного экрана в `try`, исключение → `showError(e)`
+- [X] T017 [US3] `renderWard = screen(async ({ cached = false } = {}) => {…})` в `src/app/04-event.js.txt`; `renderAdmin = screen(async ({ quiet = false } = {}) => {…})` в `src/app/05-admin.js.txt`
+- [X] T018 [US3] `closeSheet` в `src/app/07-sheet-chat.js.txt`: `onClose` — `new Promise((done) => done(cb())).catch((e) => toast('⚠️ ' + e.message))` (синхронное начало сохраняется)
 
 **Checkpoint**: правило 4 зелёное; экран ошибки вместо загрузчика
 
@@ -114,12 +114,12 @@ description: "Задачи фичи 026 — недочёты интерфейс�
 
 ### Tests for User Story 4
 
-- [ ] T019 [US4] Правило 6 в `tests/app-ui.test.mjs`: `CONFIRM_MAX` из склейки (нет — нарушение); сканер аргумента `confirmBox(` (строки, шаблоны с `${…}`); `worst(expr, ctx)` — строка, шаблон, `a || b`, `x ? a : b`, `plural(n, …)`, таблица пределов (имя 40, семья 40, название события 80, число 3 — contracts/app-ui.md), локальные `const`/`let` выше вызова и `x += …` между ними, `title` у `typed('…'`; подстановка без предела — нарушение; в теле `confirmBox` — обрезка с «…» и `CONFIRM_MAX`; «от противного»: текст 251 символ, подстановка `${u.secret}`, `confirmBox` со `slice(0, 250)`
-- [ ] T020 [US4] Убедиться, что T019 падает на коде до правок
+- [X] T019 [US4] Правило 6 в `tests/app-ui.test.mjs`: `CONFIRM_MAX` из склейки (нет — нарушение); сканер аргумента `confirmBox(` (строки, шаблоны с `${…}`); `worst(expr, ctx)` — строка, шаблон, `a || b`, `x ? a : b`, `plural(n, …)`, таблица пределов (имя 40, семья 40, название события 80, число 3 — contracts/app-ui.md), локальные `const`/`let` выше вызова и `x += …` между ними, `title` у `typed('…'`; подстановка без предела — нарушение; в теле `confirmBox` — обрезка с «…» и `CONFIRM_MAX`; «от противного»: текст 251 символ, подстановка `${u.secret}`, `confirmBox` со `slice(0, 250)`
+- [X] T020 [US4] Убедиться, что T019 падает на коде до правок
 
 ### Implementation for User Story 4
 
-- [ ] T021 [US4] `src/app/02-core.js.txt`: `const CONFIRM_MAX = 250;` с комментарием (предел Telegram 256, тест `app-ui`); `confirmBox` — в окно Telegram текст длиннее предела уходит как `text.slice(0, CONFIRM_MAX - 1) + '…'`, `window.confirm(text)` — целиком
+- [X] T021 [US4] `src/app/02-core.js.txt`: `const CONFIRM_MAX = 250;` с комментарием (предел Telegram 256, тест `app-ui`); `confirmBox` — в окно Telegram текст длиннее предела уходит как `text.slice(0, CONFIRM_MAX - 1) + '…'`, `window.confirm(text)` — целиком
 
 **Checkpoint**: правило 6 зелёное
 
@@ -135,14 +135,14 @@ description: "Задачи фичи 026 — недочёты интерфейс�
 
 ### Tests for User Story 5
 
-- [ ] T022 [US5] Правила 5 и 7 в `tests/app-ui.test.mjs`: `stateDeclared(text)` — каждое `state.X` есть в литерале `const state = {…}`; `copies(text)` — `ds-composer__input`, разбор взаимных пар (`x.giver === ….receiver && x.receiver === ….giver`), `'и наоборот (в обе стороны)'`, `'Выбери двух людей'`, `'Нужны два разных человека'` — не больше одного раза; «от противного»
-- [ ] T023 [US5] Убедиться, что T022 падает на коде до правок
+- [X] T022 [US5] Правила 5 и 7 в `tests/app-ui.test.mjs`: `stateDeclared(text)` — каждое `state.X` есть в литерале `const state = {…}`; `copies(text)` — `ds-composer__input`, разбор взаимных пар (`x.giver === ….receiver && x.receiver === ….giver`), `'и наоборот (в обе стороны)'`, `'Выбери двух людей'`, `'Нужны два разных человека'` — не больше одного раза; «от противного»
+- [X] T023 [US5] Убедиться, что T022 падает на коде до правок
 
 ### Implementation for User Story 5
 
-- [ ] T024 [US5] `announcements: []` в `state` (`src/app/03-home.js.txt`)
-- [ ] T025 [US5] `src/app/07-sheet-chat.js.txt`: `composerParts` — в начало раздела переписки (перед `openChat`), комментарий «поле ответа: переписка и обращения»; `openChat` на `composerParts('Сообщение…')`: `setWritable` — `c.show(w)`, `closedNote.hidden = w`, при `!w` — `c.counter.hidden = true`; отправка — `c.clear(text)`, `.then(c.update)`; содержимое шторки — `c.composer, c.counter`; `beforeClose` — `c.ta`
-- [ ] T026 [US5] `renderAdmin` (`src/app/05-admin.js.txt`): `nameOf`, `rulePairs(rows)`, `ruleList(pairs, { empty, both, one, del })`, `ruleForm({ to, label, mutual, add })` перед блоком исключений; «Исключения» и «Закреплённые пары» — через них с прежними текстами, флажками (исключения — включён; закреплённые — выключен, при кольцевой строки нет — `syncFixed`), сообщениями, запросами (`admin.exclusion.add/del`, `admin.fixed.add` с `mutual: !s.ring && …`, `admin.fixed.del`) и порядком узлов
+- [X] T024 [US5] `announcements: []` в `state` (`src/app/03-home.js.txt`)
+- [X] T025 [US5] `src/app/07-sheet-chat.js.txt`: `composerParts` — в начало раздела переписки (перед `openChat`), комментарий «поле ответа: переписка и обращения»; `openChat` на `composerParts('Сообщение…')`: `setWritable` — `c.show(w)`, `closedNote.hidden = w`, при `!w` — `c.counter.hidden = true`; отправка — `c.clear(text)`, `.then(c.update)`; содержимое шторки — `c.composer, c.counter`; `beforeClose` — `c.ta`
+- [X] T026 [US5] `renderAdmin` (`src/app/05-admin.js.txt`): `nameOf`, `rulePairs(rows)`, `ruleList(pairs, { empty, both, one, del })`, `ruleForm({ to, label, mutual, add })` перед блоком исключений; «Исключения» и «Закреплённые пары» — через них с прежними текстами, флажками (исключения — включён; закреплённые — выключен, при кольцевой строки нет — `syncFixed`), сообщениями, запросами (`admin.exclusion.add/del`, `admin.fixed.add` с `mutual: !s.ring && …`, `admin.fixed.del`) и порядком узлов
 
 **Checkpoint**: все правила `app-ui` зелёные
 
@@ -150,15 +150,15 @@ description: "Задачи фичи 026 — недочёты интерфейс�
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T027 `npm test` — всё зелёное (в т.ч. `design-system`, `wording`, `app-parts`, `app-buttons`, `world`)
-- [ ] T028 `npm run screenshots` — код выхода 0, `✔ недочёты интерфейса (026)`, прежние проверки цветов, шторки, полей даты
-- [ ] T029 `npm run test:e2e` — зелёный
-- [ ] T030 Сравнить скриншоты «до» (T001) и «после» попиксельно: отличия — только тексты времени; места с отличиями просмотреть глазами
-- [ ] T031 [P] `docs/todo.md`: убрать «2. Недочёты интерфейса»; вступление раздела «Ждёт проверки на iPhone» — про оставшийся пункт (CSP)
-- [ ] T032 [P] `CLAUDE.md`: строка `026-ui-fixes` в таблице фич; тест `app-ui` в списке тестов; помощники частей (`screen`, `poll`, `composerParts`, правила пар, `CONFIRM_MAX`) в описании `src/app/`; «Отложено» — без «недочётов интерфейса»
-- [ ] T033 [P] README: проверить — установка, настройка, секреты, команды, роли и работа с ботом не меняются, правка не нужна (записать в отчёт)
-- [ ] T034 `spec.md`, `plan.md` — статус «Реализовано»; отметить задачи в `tasks.md`
-- [ ] T035 Коммиты (тесты и правки; документы; приёмка), слияние в `main` (`--ff-only`), `git push` веток — без выката
+- [X] T027 `npm test` — всё зелёное (в т.ч. `design-system`, `wording`, `app-parts`, `app-buttons`, `world`)
+- [X] T028 `npm run screenshots` — код выхода 0, `✔ недочёты интерфейса (026)`, прежние проверки цветов, шторки, полей даты
+- [X] T029 `npm run test:e2e` — зелёный
+- [X] T030 Сравнить скриншоты «до» (T001) и «после» попиксельно: отличия — только тексты времени; места с отличиями просмотреть глазами
+- [X] T031 [P] `docs/todo.md`: убрать «2. Недочёты интерфейса»; вступление раздела «Ждёт проверки на iPhone» — про оставшийся пункт (CSP)
+- [X] T032 [P] `CLAUDE.md`: строка `026-ui-fixes` в таблице фич; тест `app-ui` в списке тестов; помощники частей (`screen`, `poll`, `composerParts`, правила пар, `CONFIRM_MAX`) в описании `src/app/`; «Отложено» — без «недочётов интерфейса»
+- [X] T033 [P] README: проверить — установка, настройка, секреты, команды, роли и работа с ботом не меняются, правка не нужна (записать в отчёт)
+- [X] T034 `spec.md`, `plan.md` — статус «Реализовано»; отметить задачи в `tasks.md`
+- [X] T035 Коммиты (тесты и правки; документы; приёмка), слияние в `main` (`--ff-only`), `git push` веток — без выката
 
 ---
 

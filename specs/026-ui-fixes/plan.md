@@ -1,6 +1,6 @@
 # Implementation Plan: Недочёты интерфейса мини-приложения
 
-**Branch**: `026-ui-fixes` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branch**: `026-ui-fixes` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-14)
 
 **Input**: Feature specification from `specs/026-ui-fixes/spec.md`; `docs/todo.md`, «Ждёт проверки на iPhone» →
 «Недочёты интерфейса» (7 пунктов; Content-Security-Policy — не в этой фиче).
