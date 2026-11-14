@@ -1,6 +1,6 @@
 # Implementation Plan: Мелкие правки поведения
 
-**Branch**: `025-behavior-fixes` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branch**: `025-behavior-fixes` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-14)
 
 **Input**: Feature specification from `specs/025-behavior-fixes/spec.md`; «Решения владельца» плана рефакторинга
 (порядок 2026-11-14, пункт 3: слово «ОТКРЫТЬ» в API, «кто сделал» при переносе, журнал переименования, отклонение

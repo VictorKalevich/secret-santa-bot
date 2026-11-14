@@ -112,9 +112,9 @@
   переходят, заявки в завершённом — отклонить в приложении, служебный просмотр — слово
 - [X] T018 [P] `docs/refactoring-roadmap.md` — четыре пункта «Решений владельца» — сделано (025), порядок — пункт 3
   сделан; `tests/atomic.test.mjs` — заголовок 43 → 44
-- [ ] T019 `npm test` ×3, `node tests/bench/queries.mjs` (прежние числа), `npm run test:e2e`, `npm run screenshots`
+- [X] T019 `npm test` ×3, `node tests/bench/queries.mjs` (прежние числа), `npm run test:e2e`, `npm run screenshots`
   (19–21 — служебный просмотр открывается); `git diff main --stat`
-- [ ] T020 Отметки задач, статус spec/plan — «реализовано»; коммиты; слияние в `main` (`--ff-only`), `git push`;
+- [X] T020 Отметки задач, статус spec/plan — «реализовано»; коммиты; слияние в `main` (`--ff-only`), `git push`;
   память проекта
 
 ---
