@@ -1,15 +1,22 @@
 // Жеребьёвка с исключениями.
 // Чистые функции без зависимостей от Cloudflare, чтобы их можно было тестировать в Node.
 //
-// ids        — массив id участников
-// isAllowed  — (giver, receiver) => boolean; самому себе дарить нельзя, это проверяется здесь же
+// ids        — массив id участников (различных)
+// isAllowed  — (giver, receiver) => boolean; самому себе дарить нельзя, это проверяется здесь же.
+//              Необязательное свойство isAllowed.fillMatrix(ids, adj) (017) — та же матрица допустимости без
+//              n² вызовов функции; есть у правил из pairRules, произвольная функция работает перебором.
 // Результат  — Map<santaId, wardId>
 
+// Перестановка через временную переменную, а не деструктуризацией (017): в непрогретом коде [a[i], a[j]] = [a[j], a[i]]
+// создаёт массив на каждую перестановку, а первое паросочетание делает их ~n² — две трети холодного вызова.
+// Вызовы rng и их порядок те же.
 function shuffle(arr, rng) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+    const t = a[i];
+    a[i] = a[j];
+    a[j] = t;
   }
   return a;
 }
@@ -142,7 +149,10 @@ export function findAssignment(ids, isAllowed, rng = Math.random, { ring = true,
 
   const ok = allowedFn(isAllowed);
   const adj = new Uint8Array(n * n);
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) adj[i * n + j] = ok(ids[i], ids[j]) ? 1 : 0;
+  // Правила из pairRules заполняют матрицу по своим спискам (017). Обёртка над ними (a, b) => rules(a, b) свойство
+  // теряет и идёт перебором — медленнее, результат тот же; planDraw передаёт правила напрямую.
+  if (typeof isAllowed.fillMatrix === 'function') isAllowed.fillMatrix(ids, adj);
+  else for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) adj[i * n + j] = ok(ids[i], ids[j]) ? 1 : 0;
   const result = (to, singleCycle) => {
     const pairs = new Map(to.map((r, g) => [ids[g], ids[r]]));
     return { ok: true, pairs, singleCycle: singleCycle ?? isSingleCycle(pairs) };
@@ -204,12 +214,42 @@ export function pairRules(bans = [], fixed = []) {
   }
   const wardOf = new Map(fixed.map((f) => [f.giver, f.receiver]));
   const santaOf = new Map(fixed.map((f) => [f.receiver, f.giver]));
-  return (a, b) => {
+  const rule = (a, b) => {
     if (wardOf.has(a)) return wardOf.get(a) === b;
     if (santaOf.has(b)) return false; // его закреплённый Санта — не a (иначе сработала бы строка выше)
     const to = banned.get(a);
     return !(to && to.has(b));
   };
+  // Та же матрица, что дал бы перебор ids[i] !== ids[j] && rule(ids[i], ids[j]), без n² вызовов (017). Шаги идут в
+  // порядке проверок rule, поздний перекрывает ранний: запреты → столбцы закреплённых подопечных → строки закреплённых
+  // Сант (закреплённая пара важнее запрета) → диагональ. Люди из правил, которых нет в ids, пропускаются.
+  rule.fillMatrix = (ids, adj) => {
+    const n = ids.length;
+    const at = new Map();
+    for (let i = 0; i < n; i++) at.set(ids[i], i);
+    adj.fill(1, 0, n * n);
+    for (const [g, to] of banned) {
+      const i = at.get(g);
+      if (i === undefined) continue;
+      for (const r of to) {
+        const j = at.get(r);
+        if (j !== undefined) adj[i * n + j] = 0;
+      }
+    }
+    for (const r of santaOf.keys()) {
+      const j = at.get(r);
+      if (j !== undefined) for (let i = 0; i < n; i++) adj[i * n + j] = 0;
+    }
+    for (const [g, r] of wardOf) {
+      const i = at.get(g);
+      if (i === undefined) continue;
+      adj.fill(0, i * n, i * n + n);
+      const j = at.get(r);
+      if (j !== undefined) adj[i * n + j] = 1;
+    }
+    for (let i = 0; i < n; i++) adj[i * n + i] = 0;
+  };
+  return rule;
 }
 
 // Полная жеребьёвка эвента (009, FR-923): все попытки делят один бюджет, а не тратят по полному каждая.

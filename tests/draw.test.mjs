@@ -536,3 +536,82 @@ test('замены после жеребьёвки не ломают закре�
     if (ring) assert.equal(hasMutual(ins.pairs), false);
   }
 });
+
+// ---------- 017: матрица допустимости по спискам правил ----------
+// fillMatrix обязана давать ровно ту же матрицу, что перебор правил (FR-1704): от неё зависит результат жеребьёвки.
+
+// Матрица перебором — как в findAssignment для произвольной функции правил
+function matrixByRule(ids, rule) {
+  const n = ids.length;
+  const adj = new Uint8Array(n * n);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) adj[i * n + j] = ids[i] !== ids[j] && rule(ids[i], ids[j]) ? 1 : 0;
+  return adj;
+}
+
+function firstDiff(ids, got, want) {
+  const n = ids.length;
+  for (let k = 0; k < n * n; k++) if (got[k] !== want[k]) return `${ids[Math.floor(k / n)]}→${ids[k % n]}: ${got[k]} вместо ${want[k]}`;
+  return null;
+}
+
+test('fillMatrix: та же матрица, что перебор правил (600 случайных правил, люди не из списка, дубли, «самому себе»)', () => {
+  let withFixed = 0;
+  let outsiders = 0;
+  for (let seed = 1; seed <= 600; seed++) {
+    const g = seeded(seed * 104729);
+    const pick = (k) => Math.floor(g() * k);
+    const n = 1 + pick(40);
+    const ids = Array.from({ length: n }, (_, i) => 300 + i * 5);
+    // Человек из списка или, иногда, не из него (не ввёл имя, удалён — правила о нём остались)
+    const person = (p) => (g() < p ? 9000 + pick(5) : ids[pick(n)]);
+    const dens = [0, 0.5, 2, 6][pick(4)];
+    const bans = Array.from({ length: Math.floor(n * dens * g()) }, () => ({ giver: person(0.1), receiver: person(0.1) }));
+    // Закреплённые пары — без ограничений базы: бывают дубли Санты и подопечного, «самому себе», люди не из списка
+    const fixed = Array.from({ length: g() < 0.6 ? pick(Math.max(1, Math.floor(n / 2))) + 1 : 0 }, () => {
+      const giver = person(0.15);
+      return { giver, receiver: g() < 0.05 ? giver : person(0.15) };
+    });
+    if (fixed.length) withFixed++;
+    if ([...bans, ...fixed].some((e) => !ids.includes(e.giver) || !ids.includes(e.receiver))) outsiders++;
+    const rule = pairRules(bans, fixed);
+    assert.equal(typeof rule.fillMatrix, 'function');
+    const got = new Uint8Array(n * n).fill(7); // мусор: fillMatrix обязана заполнить каждую клетку
+    rule.fillMatrix(ids, got);
+    const diff = firstDiff(ids, got, matrixByRule(ids, rule));
+    assert.equal(diff, null, `случай ${seed} (${n} человек, запретов ${bans.length}, закреплённых ${fixed.length}): ${diff}`);
+  }
+  assert.ok(withFixed > 300, 'случаев с закреплёнными парами');
+  assert.ok(outsiders > 300, 'случаев с людьми не из списка');
+});
+
+test('fillMatrix: закреплённая пара важнее запрета, подопечный не из списка — строка Санты пустая', () => {
+  const ids = [1, 2, 3, 4];
+  const rule = pairRules([{ giver: 1, receiver: 2 }, { giver: 3, receiver: 4 }], [{ giver: 1, receiver: 2 }, { giver: 4, receiver: 99 }, { giver: 98, receiver: 3 }]);
+  const adj = new Uint8Array(16);
+  rule.fillMatrix(ids, adj);
+  const row = (i) => [...adj.subarray(i * 4, i * 4 + 4)];
+  assert.deepEqual(row(0), [0, 1, 0, 0], '1 дарит только своему закреплённому 2, несмотря на запрет 1→2');
+  assert.deepEqual(row(1), [1, 0, 0, 1], '2: 3 — закреплённый подопечный 98 (не из списка), 2 — сам');
+  assert.deepEqual(row(2), [1, 0, 0, 0], '3: запрет 3→4, 3 — сам, 2 — у 1');
+  assert.deepEqual(row(3), [0, 0, 0, 0], '4: закреплённый подопечный 99 не в списке — никому');
+  assert.deepEqual([...adj], [...matrixByRule(ids, rule)]);
+  // Без правил — все, кроме себя
+  const free = new Uint8Array(9);
+  pairRules().fillMatrix([5, 6, 7], free);
+  assert.deepEqual([...free], [0, 1, 1, 1, 0, 1, 1, 1, 0]);
+});
+
+test('findAssignment: функция без fillMatrix — прежний перебор с тем же результатом', () => {
+  for (let seed = 1; seed <= 50; seed++) {
+    const ids = Array.from({ length: 12 }, (_, i) => i + 1);
+    const rules = pairRules([{ giver: 1, receiver: 2 }, { giver: 3, receiver: 1 }], [{ giver: 5, receiver: 6 }]);
+    const wrapped = (a, b) => rules(a, b);
+    assert.equal(wrapped.fillMatrix, undefined);
+    for (const ring of [true, false]) {
+      const a = findAssignment(ids, rules, seeded(seed), { ring });
+      const b = findAssignment(ids, wrapped, seeded(seed), { ring });
+      assert.deepEqual([...b.pairs], [...a.pairs], `seed ${seed}, ring ${ring}`);
+      assert.equal(b.singleCycle, a.singleCycle);
+    }
+  }
+});
