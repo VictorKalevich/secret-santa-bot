@@ -89,8 +89,8 @@ description: "Task list for 017-draw-speed"
 - [X] T021 [P] README: проверить, что установка, команды, роли и использование не изменились — правка не нужна (Конституция: задача на README в каждой фиче); если нашлось расхождение по командам тестов — поправить
 - [X] T022 Память проекта (`refactoring-roadmap.md` в памяти): шаг 2 выполнен, прототипов нет
 - [X] T023 `npm test` 5 раз подряд — зелёный; коммит «017 docs: …»
-- [ ] T024 `npm run test:e2e` — зелёный (8 сценариев), журнал без `budget exceeded`
-- [ ] T025 Слияние в `main` (`--ff-only`), `git push` ветки и `main`; `git branch -a --no-merged main` пуст
+- [X] T024 `npm run test:e2e` — зелёный (8 сценариев), журнал без `budget exceeded`
+- [X] T025 Слияние в `main` (`--ff-only`), `git push` ветки и `main`; `git branch -a --no-merged main` пуст
 
 ---
 
