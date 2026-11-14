@@ -48,10 +48,9 @@
     ));
   }
 
-  // Плашка завершённого эвента
-  function finishedNotice() {
-    if (!finished()) return null;
-    const e = state.ev;
+  // Плашка завершённого эвента; e — данные события (панель передаёт свой ответ, 026), по умолчанию — экрана события
+  function finishedNotice(e = state.ev) {
+    if (!e || e.status !== 'finished') return null;
     const until = new Date(e.chat_until);
     const chat = state.can.chat_write
       ? `Переписка открыта до ${until.getDate()} ${MONTHS[until.getMonth()]}, потом — только чтение.`
@@ -161,7 +160,7 @@
 
   // ---------- вкладка «Подопечный» ----------
   // cached — перерисовать по последнему ответу (после закрытия переписки), не запрашивая ward.get заново
-  async function renderWard({ cached = false } = {}) {
+  const renderWard = screen(async ({ cached = false } = {}) => {
     const nav = state.nav, evId = state.evId;
     let d = cached && state.wardCache && state.wardCache.evId === evId ? state.wardCache.d : null;
     if (!d) {
@@ -218,7 +217,7 @@
       ui.section('Переписка с подопечным'),
       ui.card(ui.hint('Есть вопрос? Напиши подопечному — для него ты «Тайный Санта», имя не раскрывается.'), chatButton('ward')),
     ].filter(Boolean));
-  }
+  });
 
   // ---------- вкладка «Инфо» ----------
   function renderInfo() {

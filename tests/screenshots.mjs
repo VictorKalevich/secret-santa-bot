@@ -3,7 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { startWorld, initData } from './harness.mjs';
+import { startWorld, initData, waitFor } from './harness.mjs';
 
 const OUT = new URL('../test-results/', import.meta.url);
 mkdirSync(OUT, { recursive: true });
@@ -213,6 +213,114 @@ try {
     else console.log('✔ поля даты: значок на отступе поля, высота как у текста, «Сбросить» закрывает календарь');
   }
 
+  // 026: недочёты интерфейса — поведение, которое видно только в браузере (правила по коду — tests/app-ui.test.mjs).
+  // Идёт после всех снимков: событие «Проверка» и открытия обращений снимков не меняют.
+  async function checkUiFixes() {
+    const problems = [];
+    // Шаг — своя страница (без SDK Telegram: подтверждения — окном браузера); сбой ожидания — нарушение, не падение
+    const step = async (what, user, event, fn) => {
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      try {
+        await page.route('https://telegram.org/**', (r) => r.abort());
+        await page.goto(`${w.base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
+        await page.waitForSelector('.ds-tabs:not([hidden])');
+        await fn(page);
+      } catch (e) {
+        problems.push(`${what}: ${e.message.split('\n')[0]}`);
+      } finally {
+        await page.close();
+      }
+    };
+    const tab = (page, name) => page.locator('.ds-tab', { hasText: name }).click();
+    const sheetTitle = (page) => page.locator('.ds-sheet__title').textContent();
+    const closeSheetBtn = (page) => page.locator('.ds-sheet .ds-icon-btn[title="Закрыть"]').click();
+    const loadFailed = (page) => page.locator('#main .ds-empty__title', { hasText: 'Не получилось загрузить' }).waitFor({ timeout: 3000 });
+    const BROKEN = { contentType: 'application/json', body: '{"ok":true}' }; // «успех» без данных панели
+
+    const C = (await w.api(admin, 'admin.events.create', { title: 'Проверка' })).event.id;
+    await w.api(admin, 'admin.participate', { event: C, on: true });
+    await w.say(people[4], '/start ' + (await inv(C)));
+
+    // (1) «Сохранить» в «Параметрах»: панель перестроена по новым данным, экран на месте; (2) событие завершили со
+    // стороны — после перерисовки панель без «Полный сброс» и с плашкой «завершено»
+    await step('сохранение параметров', admin, C, async (page) => {
+      await tab(page, 'Админ');
+      await page.locator('.ds-field', { hasText: 'Название' }).locator('input').fill('Проверка — новое');
+      const save = page.locator('.ds-btn', { hasText: /^Сохранить$/ });
+      await save.scrollIntoViewIfNeeded();
+      await save.click();
+      await page.locator('#toast', { hasText: 'Сохранено' }).waitFor({ timeout: 5000 });
+      const box = await page.locator('.ds-btn', { hasText: /^Сохранить$/ }).boundingBox();
+      if (!box || box.y < 0 || box.y + box.height > 844) problems.push('после «Сохранить» кнопка не на экране — панель прыгнула');
+      const hero = await page.locator('#heroTitle').textContent();
+      if (hero !== 'Проверка — новое') problems.push(`заголовок после «Сохранить» — «${hero}»`);
+      await page.locator('.ds-list-item', { hasText: 'Катя' }).locator('.ds-icon-btn[title="Действия с участником"]').click();
+      let text = null;
+      page.once('dialog', (d) => { text = d.message(); d.dismiss(); });
+      await page.locator('.ds-sheet .ds-btn', { hasText: 'Удалить из события' }).click();
+      await waitFor(() => text !== null, 'окно подтверждения удаления', 3000);
+      if (!text.includes('«Проверка — новое»')) problems.push(`подтверждение удаления после «Сохранить»: «${text}»`);
+      await closeSheetBtn(page);
+      await page.locator('.ds-btn', { hasText: 'Удалить событие' }).click();
+      const doomed = await page.locator('.ds-sheet .ds-bullets li').first().textContent();
+      if (!doomed.includes('«Проверка — новое»')) problems.push(`«Удалить событие» после «Сохранить»: «${doomed}»`);
+      await closeSheetBtn(page);
+
+      await w.api(admin, 'admin.event.finish', { event: C });
+      await tab(page, 'Инфо');
+      await tab(page, 'Админ');
+      await page.locator('.ds-section-title', { hasText: 'Опасная зона' }).waitFor({ timeout: 5000 });
+      if (await page.locator('.ds-btn', { hasText: 'Полный сброс' }).count()) problems.push('событие завершено со стороны — панель предлагает «Полный сброс»');
+      if (!(await page.locator('.ds-btn', { hasText: 'Удалить событие' }).count())) problems.push('событие завершено со стороны — нет «Удалить событие»');
+      if (!(await page.locator('#main .ds-notice', { hasText: 'Событие завершено' }).count())) problems.push('событие завершено со стороны — нет плашки «Событие завершено»');
+    });
+
+    // (3) ответ обращения пришёл, когда открыта уже другая шторка (журнал), — заголовок не её
+    await step('заголовок своей шторки', admin, A, async (page) => {
+      await tab(page, 'Админ');
+      let release;
+      const held = new Promise((r) => { release = r; });
+      let first = true;
+      await page.route('**/api/admin.support.get', async (r) => {
+        if (first) { first = false; await held; }
+        await r.continue();
+      });
+      await page.locator('.ds-list-item--link', { hasText: 'Олег' }).click();
+      await waitFor(() => !first, 'запрос обращения', 3000);
+      await closeSheetBtn(page);
+      // Панель перестраивается после закрытия шторки — click() сам дождётся кнопки и прокрутит к ней
+      await page.locator('#main .ds-btn', { hasText: 'Журнал действий' }).click();
+      await page.locator('.ds-sheet__title', { hasText: 'Журнал события' }).waitFor({ timeout: 5000 });
+      release();
+      await page.waitForTimeout(800);
+      const title = await sheetTitle(page);
+      if (title !== 'Журнал события') problems.push(`ответ обращения пришёл при открытом журнале — заголовок журнала «${title}»`);
+    });
+
+    // (4) сбой построения панели — экран ошибки с повтором, а не вечный загрузчик: вкладка и закрытие шторки обращения
+    await step('вечный загрузчик (вкладка)', admin, C, async (page) => {
+      let broken = true;
+      await page.route('**/api/admin.state', (r) => (broken ? r.fulfill(BROKEN) : r.continue()));
+      await tab(page, 'Админ');
+      await loadFailed(page);
+      if (await page.locator('#main .ds-loader').count()) problems.push('вкладка «Админ» при сбое: загрузчик остался');
+      broken = false;
+      await page.locator('#main .ds-btn', { hasText: 'Попробовать снова' }).click();
+      await page.locator('.ds-btn', { hasText: 'Журнал действий' }).waitFor({ timeout: 5000 });
+    });
+    await step('вечный загрузчик (закрытие шторки)', admin, A, async (page) => {
+      await tab(page, 'Админ');
+      await page.locator('.ds-list-item--link', { hasText: 'Олег' }).click();
+      await page.locator('.ds-sheet__title', { hasText: 'Обращение: Олег' }).waitFor({ timeout: 5000 });
+      await page.route('**/api/admin.state', (r) => r.fulfill(BROKEN));
+      await closeSheetBtn(page);
+      await loadFailed(page);
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'недочёты интерфейса (026): ' + x));
+    else console.log('✔ недочёты интерфейса (026): панель после «Сохранить» и завершения со стороны, заголовок своей шторки, экран ошибки вместо загрузчика');
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -330,6 +438,7 @@ try {
   await shot(admin, '15-finished-ward', { event: A, tab: 'Подопечный' });
   await shot(people[1], '16-home-participant', { dark: true });
   await checkSheetScroll(admin, A);
+  await checkUiFixes();
   console.log('Скриншоты сохранены в test-results/');
   if (colorProblems.length) {
     console.error('✘ Цвета не соответствуют дизайн-системе:\n' + colorProblems.join('\n'));

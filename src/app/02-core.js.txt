@@ -86,10 +86,15 @@
   function haptic(kind) {
     try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred(kind); } catch (e) {}
   }
+  // Окно подтверждения Telegram вмещает 256 символов (длиннее — исключение), у нас — с запасом (009). Тексты
+  // приложения помещаются в предел при самых длинных именах и названиях — это проверяет тест app-ui (026); если текст
+  // всё же длиннее (данные вне пределов), обрезка видна: в конце «…». Окно браузера показывает текст целиком.
+  const CONFIRM_MAX = 250;
   function confirmBox(text) {
     return new Promise((resolve) => {
       if (tg && ver('6.2')) {
-        try { tg.showConfirm(text.slice(0, 250), (ok) => resolve(!!ok)); return; } catch (e) {}
+        const shown = text.length > CONFIRM_MAX ? text.slice(0, CONFIRM_MAX - 1) + '…' : text;
+        try { tg.showConfirm(shown, (ok) => resolve(!!ok)); return; } catch (e) {}
       }
       resolve(window.confirm(text));
     });

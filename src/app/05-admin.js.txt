@@ -1,12 +1,14 @@
 
   // ---------- вкладка «Админ» ----------
-  async function renderAdmin() {
-    // Экран строится для эвента evId (009): все действия — над ним; ответ для покинутого экрана не рисуется
+  const renderAdmin = screen(async ({ quiet = false } = {}) => {
+    // Экран строится для эвента evId (009): все действия — над ним; ответ для покинутого экрана не рисуется.
+    // Событие — только из своего ответа d (026): не из state.ev, которое могло устареть.
+    // quiet (026) — тихая перестройка: без загрузчика, прежняя панель на экране до ответа, прокрутка сохраняется
     const nav = state.nav, evId = state.evId;
     const live = () => nav === state.nav;
     const xapi = (action, body) => api(action, { ...(body || {}), event: evId });
-    const again = () => (live() ? renderAdmin() : undefined);
-    showLoader();
+    const again = (opts) => (live() ? renderAdmin(opts) : undefined);
+    if (!quiet) showLoader();
     let d;
     try { d = await xapi('admin.state'); } catch (e) { if (live()) showError(e); return; }
     if (!live()) return;
@@ -17,7 +19,7 @@
     const me = state.me;
     const done = s.status === 'finished';
     const drafts = state.drafts[evId] || (state.drafts[evId] = {});
-    const refresh = async () => {
+    const refresh = async (opts) => {
       if (!live()) return;
       await reloadMe().catch(() => {});
       await reloadEvent(evId).catch(() => {});
@@ -26,9 +28,9 @@
       if (!state.member && (state.tab === 'my' || state.tab === 'ward')) state.tab = 'admin';
       renderTabs();
       syncBack();
-      await again();
+      await again(opts);
     };
-    const nodes = [finishedNotice()];
+    const nodes = [finishedNotice(s)];
 
     // --- обращения участников (012): без текстов; переписка — в шторке обращения
     const supportNodes = () => {
@@ -322,43 +324,68 @@
       nodes.push(remindBtn);
     }
 
-    // --- исключения
-    if (!done) {
-      const exList = h('div', { class: 'ds-card ds-card--flush' });
+    // --- правила пар (026): исключения и закреплённые пары устроены одинаково — список «кто — кому» (взаимные —
+    // одной строкой, ✕ — убрать) и форма «Кто дарит… / кому… / и наоборот»; разные — тексты, запросы и что можно менять
+    const nameOf = (id) => byId[id]?.name || '?';
+    const rulePairs = (rows) => {
       const seen = new Set();
-      const exPairs = [];
-      for (const e of d.exclusions) {
+      const pairs = [];
+      for (const e of rows) {
         const key = e.giver + ':' + e.receiver;
         if (seen.has(key)) continue;
-        const mutual = d.exclusions.some((x) => x.giver === e.receiver && x.receiver === e.giver);
+        const mutual = rows.some((x) => x.giver === e.receiver && x.receiver === e.giver);
         seen.add(key);
         if (mutual) seen.add(e.receiver + ':' + e.giver);
-        exPairs.push({ ...e, mutual });
+        pairs.push({ ...e, mutual });
       }
-      if (!exPairs.length) exList.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Исключений нет — подарить может кто угодно кому угодно.'));
+      return pairs;
+    };
+    // both / one — слова после имён взаимной пары и между именами односторонней; del — кнопка ✕ { title, run(pair) },
+    // без неё список только для чтения
+    const ruleList = (pairs, { empty, both, one, del }) => {
+      const list = h('div', { class: 'ds-card ds-card--flush' });
+      if (!pairs.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, empty));
+      for (const p of pairs) {
+        list.append(h('div', { class: 'ds-list-item' },
+          h('div', { class: 'ds-grow' }, p.mutual
+            ? [h('b', {}, nameOf(p.giver)), ' и ', h('b', {}, nameOf(p.receiver)), both]
+            : [h('b', {}, nameOf(p.giver)), one, h('b', {}, nameOf(p.receiver))]),
+          del ? h('button', { class: 'ds-icon-btn', title: del.title, onclick: (ev) => busy(ev.currentTarget, async () => { await del.run(p); await again(); }) }, '✕') : null));
+      }
+      return list;
+    };
+    // Форма: «Кто дарит…» и to, флажок «и наоборот» (mutual — включён ли сразу), кнопка label; add(кто, кому, взаимно)
+    const ruleForm = ({ to, label, mutual: on, add }) => {
+      const opts = (ph) => [h('option', { value: '' }, ph), ...players.map((u) => h('option', { value: u.id }, u.name))];
+      const selA = h('select', { class: 'ds-input' }, opts('Кто дарит…'));
+      const selB = h('select', { class: 'ds-input' }, opts(to));
+      const mutual = h('input', { type: 'checkbox', checked: on });
+      const btn = ui.btn(label, 'secondary', 'ds-btn--block');
+      btn.addEventListener('click', () => busy(btn, async () => {
+        if (!selA.value || !selB.value) return toast('Выбери двух людей');
+        if (selA.value === selB.value) return toast('Нужны два разных человека');
+        await add(+selA.value, +selB.value, mutual.checked);
+        await again();
+      }));
+      return { selA, selB, mutualRow: h('label', { class: 'ds-check' }, mutual, 'и наоборот (в обе стороны)'), btn };
+    };
+
+    // --- исключения
+    if (!done) {
       // 009: после жеребьёвки исключения только для чтения — по заменам можно было бы вычислить пары.
       // Владелец пары видит и так — для него заморозки нет (010)
       const exFrozen = s.draw_done && !me.is_owner;
-      for (const e of exPairs) {
-        const a = byId[e.giver]?.name || '?', b = byId[e.receiver]?.name || '?';
-        exList.append(h('div', { class: 'ds-list-item' },
-          h('div', { class: 'ds-grow' }, e.mutual
-            ? [h('b', {}, a), ' и ', h('b', {}, b), ' не дарят друг другу']
-            : [h('b', {}, a), ' не дарит ', h('b', {}, b)]),
-          exFrozen ? null : h('button', { class: 'ds-icon-btn', title: 'Удалить исключение', onclick: (ev) => busy(ev.currentTarget, async () => { await xapi('admin.exclusion.del', e); await again(); }) }, '✕')));
-      }
-      const opts = (ph) => [h('option', { value: '' }, ph), ...players.map((u) => h('option', { value: u.id }, u.name))];
-      const selA = h('select', { class: 'ds-input' }, opts('Кто дарит…'));
-      const selB = h('select', { class: 'ds-input' }, opts('…кому НЕ может дарить'));
-      const mutual = h('input', { type: 'checkbox', checked: true });
-      const addEx = ui.btn('Добавить исключение', 'secondary', 'ds-btn--block');
-      addEx.addEventListener('click', () => busy(addEx, async () => {
-        if (!selA.value || !selB.value) return toast('Выбери двух людей');
-        if (selA.value === selB.value) return toast('Нужны два разных человека');
-        await xapi('admin.exclusion.add', { giver: +selA.value, receiver: +selB.value, mutual: mutual.checked });
-        toast('Исключение добавлено');
-        await again();
-      }));
+      const exList = ruleList(rulePairs(d.exclusions), {
+        empty: 'Исключений нет — подарить может кто угодно кому угодно.', both: ' не дарят друг другу', one: ' не дарит ',
+        del: exFrozen ? null : { title: 'Удалить исключение', run: (e) => xapi('admin.exclusion.del', e) },
+      });
+      const exForm = exFrozen ? null : ruleForm({
+        to: '…кому НЕ может дарить', label: 'Добавить исключение', mutual: true,
+        add: async (giver, receiver, mutual) => {
+          await xapi('admin.exclusion.add', { giver, receiver, mutual });
+          toast('Исключение добавлено');
+        },
+      });
       // 008: семьи эвента и правило «Учитывать семьи»
       const famCard = ui.card();
       const famOn = h('input', { type: 'checkbox', checked: s.families_on, disabled: s.draw_done });
@@ -370,7 +397,7 @@
       famCard.append(ui.toggleRow('👪 Учитывать семьи', s.draw_done ? 'После жеребьёвки не меняется' : 'Члены одной семьи не дарят друг другу. Семьи задаются на главном экране.', famOn));
       for (const f of d.families) {
         famCard.append(h('div', { class: s.families_on ? 'ds-text-sm' : 'ds-text-sm ds-text-muted' },
-          h('b', {}, f.name + ': '), f.members.map((id) => byId[id]?.name || '?').join(', ')));
+          h('b', {}, f.name + ': '), f.members.map(nameOf).join(', ')));
       }
       nodes.push(
         ui.section('Исключения'),
@@ -382,51 +409,31 @@
             ui.hint(s.draw_done
               ? 'После жеребьёвки исключения действуют на будущие замены (удаление и вписывание участников), текущие пары не меняются. Админы их уже не меняют — так они не вычислят пары.'
               : 'Например, пары или члены одной семьи. Бот не даст жеребьёвке нарушить эти правила.'),
-            selA, selB,
-            h('label', { class: 'ds-check' }, mutual, 'и наоборот (в обе стороны)'),
-            addEx));
+            exForm.selA, exForm.selB, exForm.mutualRow, exForm.btn));
     }
 
-    // --- закреплённые пары (014): только владелец — админу поле fixed не приходит. Устроено как блок исключений.
+    // --- закреплённые пары (014): только владелец — админу поле fixed не приходит. Те же помощники, что у исключений.
     let syncFixed = null; // перестраивает форму блока после переключения кольцевой
     // После жеребьёвки блок нужен, только если пары были закреплены (показывается для чтения)
     if (!done && d.fixed && !(s.draw_done && !d.fixed.length)) {
-      const fxName = (id) => byId[id]?.name || '?';
-      const fxList = h('div', { class: 'ds-card ds-card--flush' });
-      const fxSeen = new Set();
-      const fxPairs = [];
-      for (const f of d.fixed) {
-        const key = f.giver + ':' + f.receiver;
-        if (fxSeen.has(key)) continue;
-        const mutual = d.fixed.some((x) => x.giver === f.receiver && x.receiver === f.giver);
-        fxSeen.add(key);
-        if (mutual) fxSeen.add(f.receiver + ':' + f.giver);
-        fxPairs.push({ ...f, mutual });
-      }
-      if (!fxPairs.length) fxList.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Закреплённых пар нет — жеребьёвка распределит всех случайно.'));
-      for (const f of fxPairs) {
-        fxList.append(h('div', { class: 'ds-list-item' },
-          h('div', { class: 'ds-grow' }, f.mutual
-            ? [h('b', {}, fxName(f.giver)), ' и ', h('b', {}, fxName(f.receiver)), ' дарят друг другу']
-            : [h('b', {}, fxName(f.giver)), ' дарит ', h('b', {}, fxName(f.receiver))]),
-          s.draw_done ? null : h('button', { class: 'ds-icon-btn', title: 'Убрать закреплённую пару', onclick: (ev) => busy(ev.currentTarget, async () => { await xapi('admin.fixed.del', f); toast('Закреплённая пара убрана'); await again(); }) }, '✕')));
-      }
-      nodes.push(ui.section('Закреплённые пары'), fxList);
+      const fxPairs = rulePairs(d.fixed);
+      nodes.push(ui.section('Закреплённые пары'), ruleList(fxPairs, {
+        empty: 'Закреплённых пар нет — жеребьёвка распределит всех случайно.', both: ' дарят друг другу', one: ' дарит ',
+        del: s.draw_done ? null : {
+          title: 'Убрать закреплённую пару',
+          run: async (f) => { await xapi('admin.fixed.del', f); toast('Закреплённая пара убрана'); },
+        },
+      }));
       if (s.draw_done) {
         nodes.push(ui.hint('После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.', 'ds-hint--inset'));
       } else {
-        const fxOpts = (ph) => [h('option', { value: '' }, ph), ...players.map((u) => h('option', { value: u.id }, u.name))];
-        const fxA = h('select', { class: 'ds-input' }, fxOpts('Кто дарит…'));
-        const fxB = h('select', { class: 'ds-input' }, fxOpts('…кому дарит'));
-        const fxMutual = h('input', { type: 'checkbox' });
-        const addFx = ui.btn('Закрепить пару', 'secondary', 'ds-btn--block');
-        addFx.addEventListener('click', () => busy(addFx, async () => {
-          if (!fxA.value || !fxB.value) return toast('Выбери двух людей');
-          if (fxA.value === fxB.value) return toast('Нужны два разных человека');
-          await xapi('admin.fixed.add', { giver: +fxA.value, receiver: +fxB.value, mutual: !s.ring && fxMutual.checked });
-          toast('Пара закреплена');
-          await again();
-        }));
+        const fx = ruleForm({
+          to: '…кому дарит', label: 'Закрепить пару', mutual: false,
+          add: async (giver, receiver, mutual) => {
+            await xapi('admin.fixed.add', { giver, receiver, mutual: !s.ring && mutual });
+            toast('Пара закреплена');
+          },
+        });
         const fxForm = ui.card();
         // При кольцевой — только в одну сторону: флажка «и наоборот» нет, взаимные пары — предупреждение
         syncFixed = () => {
@@ -437,10 +444,10 @@
               (s.ring ? ' Кольцевая жеребьёвка включена: пару можно закрепить только в одну сторону.' : '')),
             clash.length ? h('div', { class: 'ds-notice ds-notice--error' },
               'При кольцевой жеребьёвке взаимных пар не бывает. Убери (✕) и закрепи в одну сторону: ' +
-              clash.map((f) => fxName(f.giver) + ' и ' + fxName(f.receiver)).join('; ') + '.') : null,
-            fxA, fxB,
-            s.ring ? null : h('label', { class: 'ds-check' }, fxMutual, 'и наоборот (в обе стороны)'),
-            addFx,
+              clash.map((f) => nameOf(f.giver) + ' и ' + nameOf(f.receiver)).join('; ') + '.') : null,
+            fx.selA, fx.selB,
+            s.ring ? null : fx.mutualRow,
+            fx.btn,
           ].filter(Boolean));
         };
         syncFixed();
@@ -571,10 +578,10 @@
       saveGame.addEventListener('click', () => busy(saveGame, async () => {
         await xapi('admin.game', values());
         delete drafts.game;
-        await reloadEvent(evId).catch(() => {});
-        await reloadMe().catch(() => {});
+        // Панель — заново по сохранённым данным (026): новое название во всех её текстах (подтверждения, «Отправить в
+        // чат», служебный просмотр); тихо — без загрузчика, экран остаётся у «Параметров»
+        await refresh({ quiet: true });
         if (!live()) return;
-        renderHero();
         haptic('success');
         toast('Сохранено');
       }));
@@ -600,7 +607,7 @@
 
     // --- журнал (007): по эвенту, доступен и для завершённого
     const logBtn = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
-    logBtn.addEventListener('click', () => openAudit(state.evId));
+    logBtn.addEventListener('click', () => openAudit(evId));
     nodes.push(ui.section('Журнал'), ui.card(ui.hint('Кто из админов что делал в этом событии и что бот сделал сам. Пар и писем в журнале нет.'), logBtn));
 
     // --- служебный просмотр (010): только владелец, вход словом, каждое открытие — в журнал
@@ -654,11 +661,13 @@
       }
       nodes.push(
         ui.section('Опасная зона'),
-        finished()
+        done // по ответу панели (026): событие могли завершить, пока экран был открыт
           ? ui.card(ui.hint('Завершённое событие нельзя сбросить — только удалить целиком. Другие события это не затронет.'), delBtn)
           : ui.card(ui.hint('Другие события это не затронет. Для тестового прогона удобно потом удалить событие целиком.' +
             (forceBtn ? ' Отменить жеребьёвку здесь можно, даже если подопечных уже открыли, — пока тайна не раскрыта.' : '')), forceBtn, resetBtn, delBtn));
     }
 
+    const y = window.scrollY;
     main.replaceChildren(...nodes.filter(Boolean));
-  }
+    if (quiet) window.scrollTo(0, y);
+  });

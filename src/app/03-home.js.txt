@@ -8,6 +8,7 @@
   const state = {
     me: null, events: [], limits: { chars: 4000 }, view: 'home', nav: 0, drafts: {}, wardCache: null,
     evId: null, ev: null, member: null, can: {}, tab: 'my', dirty: false, wardNameShown: false,
+    announcements: [], // 007: объявления события (вкладка «Инфо»); все поля состояния — здесь (026)
     support: null, supportAdmin: null, // 012: обращения — участнику его статус, админу — ничьи и непрочитанные
   };
   const main = document.getElementById('main');
@@ -65,15 +66,28 @@
       : null;
     main.replaceChildren(ui.empty('⚠️', 'Не получилось загрузить', e.message, [again, home]));
   }
+  // Асинхронный экран («Подопечный», «Админ»; 026): отказ при построении — экран ошибки с повтором, а не вечный
+  // загрузчик, откуда бы экран ни вызвали (render, закрытие шторки, перестройка панели); для покинутого экрана — ничего
+  function screen(build) {
+    return async (...args) => {
+      const nav = state.nav;
+      try { return await build(...args); }
+      catch (e) { if (nav === state.nav) showError(e); }
+    };
+  }
 
   function render() {
     state.nav++;
     window.scrollTo(0, 0);
-    if (state.view === 'home') renderHome();
-    else {
-      renderHero();
-      renderTabs();
-      ({ my: renderMy, ward: renderWard, info: renderInfo, admin: renderAdmin }[state.tab] || renderInfo)();
+    try {
+      if (state.view === 'home') renderHome();
+      else {
+        renderHero();
+        renderTabs();
+        ({ my: renderMy, ward: renderWard, info: renderInfo, admin: renderAdmin }[state.tab] || renderInfo)();
+      }
+    } catch (e) {
+      showError(e); // ошибка вкладки — экран ошибки, а не прежний экран или загрузчик (026)
     }
     syncBack();
   }

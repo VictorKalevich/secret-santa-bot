@@ -1,6 +1,8 @@
 
   // ---------- шторка ----------
-  // beforeClose — проверка перед закрытием пользователем (✕, фон, «Назад»): false — шторка остаётся (009)
+  // beforeClose — проверка перед закрытием пользователем (✕, фон, «Назад»): false — шторка остаётся (009).
+  // Открытую шторку (sheetEl) знает только ядро шторки (026): openSheet возвращает свою шторку, заголовок может быть
+  // узлом — содержимое меняет свой заголовок и опрашивает сервер (poll), только пока открыта именно его шторка
   let sheetEl = null;
   let sheetOnClose = null;
   let sheetBeforeClose = null;
@@ -15,6 +17,15 @@
     document.body.append(sheetEl);
     document.body.classList.add('ds-root--locked'); // страница под шторкой не прокручивается (011)
     syncBack();
+    return sheetEl;
+  }
+  // Опрос шторки own раз в 6 секунд; закрыта или заменена другой — опрос останавливается сам
+  function poll(own, load) {
+    const timer = setInterval(() => {
+      if (sheetEl !== own) return clearInterval(timer);
+      load().catch(() => {});
+    }, 6000);
+    return timer;
   }
   async function requestCloseSheet() {
     if (sheetBeforeClose && !(await sheetBeforeClose())) return;
@@ -27,17 +38,42 @@
     syncBack();
     const cb = sheetOnClose;
     sheetOnClose = null;
-    if (cb) cb();
+    // onClose бывает асинхронной (перечитать событие, перерисовать экран): отказ не теряется молча (026); вызов —
+    // сразу, как раньше (обещание с исполнителем начинает его синхронно)
+    if (cb) new Promise((done) => done(cb())).catch((e) => toast('⚠️ ' + e.message));
+  }
+
+  // ---------- поле ответа: переписка Санты и подопечного, обращения ----------
+  // Текст, «Отправить», счётчик символов (виден за 500 до предела); одно на все переписки (026)
+  function composerParts(placeholder) {
+    const max = state.limits.chars;
+    const ta = ui.textarea({ class: 'ds-input ds-composer__input', rows: 1, placeholder });
+    const send = ui.btn('Отправить', '', 'ds-composer__send');
+    const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
+    const composer = h('div', { class: 'ds-composer' }, ta, send);
+    const update = () => {
+      const n = ta.value.length;
+      counter.hidden = n < max - 500;
+      counter.textContent = `${n} / ${max}`;
+      counter.classList.toggle('ds-counter--over', n > max);
+      send.disabled = !ta.value.trim() || n > max;
+    };
+    ta.addEventListener('input', update);
+    update();
+    const clear = (text) => { if (ta.value === text) { ta.value = ''; ta.style.height = 'auto'; } update(); };
+    // Скрытое поле не измерить: высота, посчитанная до показа, обрезала бы его — пересчитываем при показе
+    const show = (on) => {
+      const was = composer.hidden;
+      composer.hidden = !on;
+      if (on && was) { ta.style.height = 'auto'; if (ta.value) ta.style.height = ta.scrollHeight + 2 + 'px'; }
+    };
+    return { ta, send, counter, composer, update, clear, show };
   }
 
   // ---------- переписка Санты и подопечного (003) ----------
   function openChat(withWhom) {
-    const max = state.limits.chars;
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
-    const ta = ui.textarea({ class: 'ds-input ds-composer__input', rows: 1, placeholder: 'Сообщение…' });
-    const send = ui.btn('Отправить', '', 'ds-composer__send');
-    const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
-    const composer = h('div', { class: 'ds-composer' }, ta, send);
+    const c = composerParts('Сообщение…');
     const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — переписка только для чтения.');
     const evId = state.evId;
     // lastId — только из ответа chat.get (009): своё отправленное сообщение его не двигает, иначе ответ собеседника,
@@ -64,7 +100,7 @@
       }
       list.scrollTop = list.scrollHeight;
     };
-    const setWritable = (w) => { composer.hidden = !w; closedNote.hidden = w; if (!w) counter.hidden = true; };
+    const setWritable = (w) => { c.show(w); closedNote.hidden = w; if (!w) c.counter.hidden = true; };
     const load = async () => {
       const d = await api('chat.get', { event: evId, with: withWhom, after: lastId });
       if (d.state !== 'ok') { list.replaceChildren(h('div', { class: 'ds-chat__empty' }, 'Переписка недоступна: жеребьёвка ещё не проведена.')); return; }
@@ -77,31 +113,22 @@
       }
       add(d.messages);
     };
-    const update = () => {
-      const n = ta.value.length;
-      counter.hidden = n < max - 500;
-      counter.textContent = `${n} / ${max}`;
-      counter.classList.toggle('ds-counter--over', n > max);
-      send.disabled = !ta.value.trim() || n > max;
-    };
-    ta.addEventListener('input', update);
-    send.addEventListener('click', () => busy(send, async () => {
-      const text = ta.value;
+    c.send.addEventListener('click', () => busy(c.send, async () => {
+      const text = c.ta.value;
       const r = await api('message.send', { event: evId, to: withWhom, text });
-      if (ta.value === text) { ta.value = ''; ta.style.height = 'auto'; }
+      c.clear(text);
       add([r.message]);
       haptic('success');
       await load().catch(() => {});
-    }).then(update));
-    update();
+    }).then(c.update));
     setWritable(state.can.chat_write);
 
-    openSheet(withWhom === 'ward' ? 'Переписка с подопечным' : 'Твой Тайный Санта',
+    const own = openSheet(withWhom === 'ward' ? 'Переписка с подопечным' : 'Твой Тайный Санта',
       [ui.hint(withWhom === 'ward' ? 'Для подопечного ты — «Тайный Санта», имя не раскрывается.' : 'Санта знает, кто ты, а ты его — нет.'),
-        list, composer, counter, closedNote],
+        list, c.composer, c.counter, closedNote],
       {
         full: true,
-        beforeClose: async () => !ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть переписку?')),
+        beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть переписку?')),
         onClose: async () => {
           clearInterval(timer);
           const nav = state.nav;
@@ -114,35 +141,10 @@
         },
       });
     load().catch((e) => toast('⚠️ ' + e.message));
-    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
+    timer = poll(own, load);
   }
 
   // ---------- обращения к организатору (012) ----------
-  // Поле ответа со счётчиком — как в переписке Санты
-  function composerParts(placeholder) {
-    const max = state.limits.chars;
-    const ta = ui.textarea({ class: 'ds-input ds-composer__input', rows: 1, placeholder });
-    const send = ui.btn('Отправить', '', 'ds-composer__send');
-    const counter = h('div', { class: 'ds-counter ds-composer__counter', hidden: true });
-    const composer = h('div', { class: 'ds-composer' }, ta, send);
-    const update = () => {
-      const n = ta.value.length;
-      counter.hidden = n < max - 500;
-      counter.textContent = `${n} / ${max}`;
-      counter.classList.toggle('ds-counter--over', n > max);
-      send.disabled = !ta.value.trim() || n > max;
-    };
-    ta.addEventListener('input', update);
-    update();
-    const clear = (text) => { if (ta.value === text) { ta.value = ''; ta.style.height = 'auto'; } update(); };
-    // Скрытое поле не измерить: высота, посчитанная до показа, обрезала бы его — пересчитываем при показе
-    const show = (on) => {
-      const was = composer.hidden;
-      composer.hidden = !on;
-      if (on && was) { ta.style.height = 'auto'; if (ta.value) ta.style.height = ta.scrollHeight + 2 + 'px'; }
-    };
-    return { ta, send, counter, composer, update, clear, show };
-  }
   const supportBubble = (m) => h('div', { class: 'ds-chat__msg ' + (m.mine ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
     m.text, h('div', { class: 'ds-chat__meta' }, (m.mine || !m.author ? '' : m.author + ' · ') + fmtTime(m.created_at)));
 
@@ -190,7 +192,7 @@
       if (!(await confirmBox('Закрыть обращение? Если вопрос появится снова — просто напиши.'))) return;
       busy(resolve, async () => { await api('support.close', { event: evId }); toast('✅ Обращение закрыто'); await load(); });
     });
-    openSheet('Организатору', [status, list, c.composer, c.counter, closedNote, resolve], {
+    const own = openSheet('Организатору', [status, list, c.composer, c.counter, closedNote, resolve], {
       full: true,
       beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть?')),
       onClose: async () => {
@@ -204,7 +206,7 @@
       },
     });
     load().catch((e) => toast('⚠️ ' + e.message));
-    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
+    timer = poll(own, load);
   }
 
   // Админ: одно обращение. Переписка — если её можно видеть (ничьё, своё, владелец); действия — взять, передать, закрыть
@@ -212,6 +214,8 @@
     const me = state.me;
     const c = composerParts('Ответ участнику…');
     c.composer.hidden = true;
+    // Заголовок — свой узел (026): ответ, пришедший после закрытия, не попадёт на другую шторку
+    const titleText = document.createTextNode('Обращение');
     const head = h('div', { class: 'ds-stack' });
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
     let timer = null;
@@ -230,8 +234,7 @@
       const key = JSON.stringify([t.status, t.assignee, t.writable, d.messages.map((m) => m.id)]);
       if (key === sig) return;
       sig = key;
-      const titleEl = sheetEl && sheetEl.querySelector('.ds-sheet__title');
-      if (titleEl) titleEl.textContent = 'Обращение: ' + t.name;
+      titleText.data = 'Обращение: ' + t.name;
       const open = t.status === 'open';
       const lead = t.assignee === me.id || me.is_owner;
       const parts = [ui.hint(!open
@@ -278,7 +281,7 @@
       sig = '';
       await load();
     }).then(c.update));
-    openSheet('Обращение', [head, list, c.composer, c.counter], {
+    const own = openSheet(titleText, [head, list, c.composer, c.counter], {
       full: true,
       beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Ответ не отправлен. Закрыть?')),
       onClose: async () => {
@@ -290,5 +293,5 @@
       },
     });
     load().catch((e) => toast('⚠️ ' + e.message));
-    timer = setInterval(() => { if (sheetEl) load().catch(() => {}); }, 6000);
+    timer = poll(own, load);
   }
