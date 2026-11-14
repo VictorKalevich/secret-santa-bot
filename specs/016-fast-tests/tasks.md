@@ -25,9 +25,9 @@ description: "Task list for 016-fast-tests"
 
 **Purpose**: общие опоры, которые нужны и быстрым тестам, и e2e
 
-- [ ] T001 [P] `tests/support/auth.mjs`: перенести `TOKEN`, `ADMIN_SECRET`, `initData` из `tests/harness.mjs` (без `child_process`); `tests/harness.mjs` импортирует и реэкспортирует их (импорты `e2e.test.mjs`, `screenshots.mjs` не меняются) (FR-1616)
-- [ ] T002 [P] `tests/support/telegram-rules.mjs`: `BLOCKED_CHAT`, `visibleLength`, `brokenUtf16`, `telegramReply(method, params, nextMessageId) → { status, body }` по таблице `data-model.md`; `tests/mock-telegram.mjs` отвечает через неё, реэкспортирует `BLOCKED_CHAT`, заголовок `connection: close` сохраняется (FR-1606, R5)
-- [ ] T003 [P] `package.json`: `engines.node` = `^22.15.0 || >=23.5.0` (FR-1617, R1)
+- [X] T001 [P] `tests/support/auth.mjs`: перенести `TOKEN`, `ADMIN_SECRET`, `initData` из `tests/harness.mjs` (без `child_process`); `tests/harness.mjs` импортирует и реэкспортирует их (импорты `e2e.test.mjs`, `screenshots.mjs` не меняются) (FR-1616)
+- [X] T002 [P] `tests/support/telegram-rules.mjs`: `BLOCKED_CHAT`, `visibleLength`, `brokenUtf16`, `telegramReply(method, params, nextMessageId) → { status, body }` по таблице `data-model.md`; `tests/mock-telegram.mjs` отвечает через неё, реэкспортирует `BLOCKED_CHAT`, заголовок `connection: close` сохраняется (FR-1606, R5)
+- [X] T003 [P] `package.json`: `engines.node` = `^22.15.0 || >=23.5.0` (FR-1617, R1)
 
 ---
 
@@ -35,13 +35,13 @@ description: "Task list for 016-fast-tests"
 
 **Purpose**: «мир» — весь Worker в одном процессе. Без него ни одна история не начинается.
 
-- [ ] T004 `tests/support/text-hooks.mjs` из `docs/refactoring/prototypes/text-hooks.mjs` (R3)
-- [ ] T005 `tests/support/d1-sqlite.mjs` из `docs/refactoring/prototypes/d1-shim.mjs`: класс `sqlite.Database ?? sqlite.DatabaseSync`, поведение прежнее (R2)
-- [ ] T006 `tests/support/world.mjs` из `docs/refactoring/prototypes/world.mjs` по `contracts/test-harness.md`: перехват `fetch` по хосту `TG_API` (`http://tg<N>.test`, неизвестный хост — ошибка), `restoreFetch()`, ответы через `telegramReply`, `api(…, raw)` → `{ status, data, text }`, `setup()` с `inviteCode`, `page()`, `request()`, `query(sql, ...params)`, `log()` с перехватом `console.log` (печать при `WORLD_LOG=1`), `together`, `beforeWrite` без изменений (R4, R6, R13) (depends on T001, T002, T004, T005)
-- [ ] T007 [P] `tests/d1-sqlite.test.mjs`: каждое свойство подмены из R2 — `first()`/`first(col)` и `null`; `meta.changes` этого оператора, у `SELECT` после записи — 0; `batch` — откат всех при ошибке, результат на оператор, `RETURNING` в `results`; `?1`/`?2` с повтором; число → REAL, колонка `INTEGER` — целое; `boolean` → 0/1; `undefined` → `D1_TYPE_ERROR`; счётчик запросов (`batch` = 1) (FR-1605) (depends on T005)
-- [ ] T008 [P] `tests/world.test.mjs`: `GET /app` = `src/app.html` с `/*@design-system*/` → `tokens.css + '\n' + components.css`, плейсхолдера в ответе нет, заголовки `text/html`, `no-store` (FR-1613); `telegramReply` — 403 `BLOCKED_CHAT`, 400 при 4097 видимых символах и при разорванном эмодзи в кнопке, 200 при 4096 символах с HTML-тегами; в «мире» сообщение заблокировавшему отмечает `users.blocked_at`; очередь после вызова API отправлена без ожидания (`waitUntil`) (depends on T006)
-- [ ] T009 `tests/unit.test.mjs`: `fakeD1` с узнаванием SQL по подстроке → `createD1` с миграциями (R12): 100 строк `outbox` вместо «бесконечной очереди»; «падающий шаг cron» — переименованная таблица `events` (`cron step failed daily` в журнале, очередь ушла); «в batch уходят исходные операторы» — перехват `batch` подмены: у каждого оператора `sql` — строка, `raw_stmt` нет; остальные тесты по смыслу прежние (FR-1615) (depends on T005)
-- [ ] T010 `package.json`: в скрипт `test` добавить `tests/d1-sqlite.test.mjs tests/world.test.mjs` (остальные файлы — по мере появления) (depends on T007, T008)
+- [X] T004 `tests/support/text-hooks.mjs` из `docs/refactoring/prototypes/text-hooks.mjs` (R3)
+- [X] T005 `tests/support/d1-sqlite.mjs` из `docs/refactoring/prototypes/d1-shim.mjs`: класс `sqlite.Database ?? sqlite.DatabaseSync`, поведение прежнее (R2)
+- [X] T006 `tests/support/world.mjs` из `docs/refactoring/prototypes/world.mjs` по `contracts/test-harness.md`: перехват `fetch` по хосту `TG_API` (`http://tg<N>.test`, неизвестный хост — ошибка), `restoreFetch()`, ответы через `telegramReply`, `api(…, raw)` → `{ status, data, text }`, `setup()` с `inviteCode`, `page()`, `request()`, `query(sql, ...params)`, `log()` с перехватом `console.log` (печать при `WORLD_LOG=1`), `together`, `beforeWrite` без изменений (R4, R6, R13) (depends on T001, T002, T004, T005)
+- [X] T007 [P] `tests/d1-sqlite.test.mjs`: каждое свойство подмены из R2 — `first()`/`first(col)` и `null`; `meta.changes` этого оператора, у `SELECT` после записи — 0; `batch` — откат всех при ошибке, результат на оператор, `RETURNING` в `results`; `?1`/`?2` с повтором; число → REAL, колонка `INTEGER` — целое; `boolean` → 0/1; `undefined` → `D1_TYPE_ERROR`; счётчик запросов (`batch` = 1) (FR-1605) (depends on T005)
+- [X] T008 [P] `tests/world.test.mjs`: `GET /app` = `src/app.html` с `/*@design-system*/` → `tokens.css + '\n' + components.css`, плейсхолдера в ответе нет, заголовки `text/html`, `no-store` (FR-1613); `telegramReply` — 403 `BLOCKED_CHAT`, 400 при 4097 видимых символах и при разорванном эмодзи в кнопке, 200 при 4096 символах с HTML-тегами; в «мире» сообщение заблокировавшему отмечает `users.blocked_at`; очередь после вызова API отправлена без ожидания (`waitUntil`) (depends on T006)
+- [X] T009 `tests/unit.test.mjs`: `fakeD1` с узнаванием SQL по подстроке → `createD1` с миграциями (R12): 100 строк `outbox` вместо «бесконечной очереди»; «падающий шаг cron» — переименованная таблица `events` (`cron step failed daily` в журнале, очередь ушла); «в batch уходят исходные операторы» — перехват `batch` подмены: у каждого оператора `sql` — строка, `raw_stmt` нет; остальные тесты по смыслу прежние (FR-1615) (depends on T005)
+- [X] T010 `package.json`: в скрипт `test` добавить `tests/d1-sqlite.test.mjs tests/world.test.mjs` (остальные файлы — по мере появления) (depends on T007, T008)
 
 **Checkpoint**: `npm test` зелёный, «мир» работает.
 

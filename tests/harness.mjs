@@ -1,15 +1,15 @@
 // Общая обвязка для локальных тестов: имитация Telegram + `wrangler dev` + помощники.
 import { spawn, spawnSync } from 'node:child_process';
-import { createHmac } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startMockTelegram } from './mock-telegram.mjs';
+import { TOKEN, ADMIN_SECRET, initData } from './support/auth.mjs';
 
-export const TOKEN = '123456TESTTOKEN';
-export const ADMIN_SECRET = 'super-secret-admin';
+// Секреты и подпись initData — общие с быстрыми тестами (016)
+export { TOKEN, ADMIN_SECRET, initData };
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function waitFor(fn, what, ms = 8000) {
@@ -20,18 +20,6 @@ export async function waitFor(fn, what, ms = 8000) {
     await sleep(60);
   }
   throw new Error('Не дождались: ' + what);
-}
-
-// Подпись initData так же, как это делает Telegram.
-export function initData(user, { authDate = Math.floor(Date.now() / 1000), token = TOKEN } = {}) {
-  const p = new URLSearchParams();
-  p.set('auth_date', String(authDate));
-  p.set('query_id', 'AAQ' + user.id);
-  p.set('user', JSON.stringify({ id: user.id, first_name: user.name, username: user.username }));
-  const dcs = [...p.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join('\n');
-  const secret = createHmac('sha256', 'WebAppData').update(token).digest();
-  p.set('hash', createHmac('sha256', secret).update(dcs).digest('hex'));
-  return p.toString();
 }
 
 // Для локального Worker: обращения к 127.0.0.1 не должны идти через HTTP-прокси (если он задан в системе).

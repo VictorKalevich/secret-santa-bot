@@ -1,28 +1,10 @@
 // Юнит-тесты серверных модулей без Worker (009): счётчик запросов, отправка очереди в пределах бюджета, cron.
+// База — подмена D1 на node:sqlite со схемой из миграций (016): запросы не узнаются по подстроке SQL.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { metered, budgetLeft, SUBREQUEST_LIMIT } from '../src/budget.js';
 import { flushOutbox } from '../src/outbox.js';
-
-// Поддельная D1: handler(sql, args, method) возвращает результат запроса
-function fakeD1(handler) {
-  const stmt = (sql, args = []) => ({
-    sql,
-    args,
-    bind: (...a) => stmt(sql, a),
-    first: async () => handler(sql, args, 'first'),
-    all: async () => handler(sql, args, 'all'),
-    run: async () => handler(sql, args, 'run'),
-    raw: async () => handler(sql, args, 'raw'),
-  });
-  return {
-    prepare: (sql) => stmt(sql),
-    batch: async (list) => list.map((s) => {
-      assert.ok(typeof s.sql === 'string', 'в batch уходят исходные операторы, а не обёртки');
-      return handler(s.sql, s.args, 'batch') || { results: [], meta: { changes: 0 } };
-    }),
-  };
-}
+import { createD1, createMigratedD1 } from './support/d1-sqlite.mjs';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -39,48 +21,64 @@ function mockTelegram() {
   return calls;
 }
 
-// Бесконечная очередь: захват отдаёт ровно столько сообщений, сколько попросили
-function endlessOutbox() {
-  let id = 0;
-  return fakeD1((sql, args, method) => {
-    if (sql.includes('UPDATE outbox SET locked_until = ?1')) {
-      const limit = args[2];
-      return { results: Array.from({ length: limit }, () => ({ id: ++id, chat_id: 1000 + id, payload: '{"text":"x"}', created_at: Date.now() })) };
-    }
-    return { results: [], meta: { changes: 1 } };
-  });
+// Очередь из count настоящих сообщений разным людям — «бесконечная» для одного вызова (лимит 25)
+function queued(count = 100) {
+  const db = createMigratedD1();
+  const ins = db.sqlite.prepare('INSERT INTO outbox (chat_id, payload, created_at) VALUES (?, ?, ?)');
+  for (let i = 1; i <= count; i++) ins.run(1000 + i, '{"text":"x"}', Date.now());
+  return db;
 }
+const left = (db) => db.sqlite.prepare('SELECT COUNT(*) AS n FROM outbox').get().n;
 
-test('бюджет: обёртка считает каждый запрос к базе, batch — как один', async () => {
-  const env = metered({ DB: fakeD1(() => ({ results: [] })) });
+test('бюджет: обёртка считает каждый запрос к базе, batch — как один; в batch уходят исходные операторы', async () => {
+  const inner = createD1();
+  inner.sqlite.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER)');
+  const batched = [];
+  const realBatch = inner.batch;
+  inner.batch = (list) => {
+    batched.push(...list);
+    return realBatch(list);
+  };
+  const env = metered({ DB: inner });
   assert.equal(env.meter.used, 0);
-  const s = env.DB.prepare('SELECT 1').bind(1);
-  await s.first();
+  const s = env.DB.prepare('SELECT ? AS v').bind(1);
+  assert.equal(await s.first('v'), 1);
   await s.all();
   await s.run();
-  await env.DB.batch([env.DB.prepare('A').bind(1), env.DB.prepare('B'), env.DB.prepare('C').bind(2, 3)]);
+  const out = await env.DB.batch([
+    env.DB.prepare('INSERT INTO t (id, n) VALUES (?, ?)').bind(1, 1),
+    env.DB.prepare('INSERT INTO t (id, n) VALUES (2, 2)'),
+    env.DB.prepare('UPDATE t SET n = ? WHERE id = ? RETURNING n').bind(5, 2),
+  ]);
+  assert.deepEqual(out[2].results, [{ n: 5 }]);
   assert.equal(env.meter.used, 4);
   assert.equal(budgetLeft(env), SUBREQUEST_LIMIT - 4);
+  assert.equal(batched.length, 3);
+  for (const st of batched) {
+    assert.ok(typeof st.sql === 'string' && !('raw_stmt' in st), 'в batch уходят исходные операторы, а не обёртки');
+  }
   assert.equal(metered(env), env, 'повторная обёртка не создаёт второй счётчик');
 });
 
 test('бюджет: отправка очереди при 40 уже потраченных запросах не выходит за 50', async () => {
   const calls = mockTelegram();
-  const env = metered({ DB: endlessOutbox(), BOT_TOKEN: 't', TG_API: 'http://tg.test' });
+  const db = queued();
+  const env = metered({ DB: db, BOT_TOKEN: 't', TG_API: 'http://tg.test' });
   env.meter.used = 40;
   const sent = await flushOutbox(env, 25);
   assert.ok(env.meter.used <= SUBREQUEST_LIMIT, `потрачено ${env.meter.used}`);
   assert.equal(sent, calls.length);
   assert.ok(sent > 0 && sent <= 8, `отправлено ${sent}`);
+  assert.equal(left(db), 100 - sent, 'отправленные удалены, остальные ждут');
 });
 
 test('бюджет: без трат отправка берёт запрошенное, а при исчерпанном бюджете не начинается', async () => {
   const calls = mockTelegram();
-  const env = metered({ DB: endlessOutbox(), BOT_TOKEN: 't', TG_API: 'http://tg.test' });
+  const env = metered({ DB: queued(), BOT_TOKEN: 't', TG_API: 'http://tg.test' });
   assert.equal(await flushOutbox(env, 25), 25);
   assert.equal(calls.length, 25);
   assert.ok(env.meter.used <= SUBREQUEST_LIMIT);
-  const spent = metered({ DB: endlessOutbox(), BOT_TOKEN: 't', TG_API: 'http://tg.test' });
+  const spent = metered({ DB: queued(), BOT_TOKEN: 't', TG_API: 'http://tg.test' });
   spent.meter.used = 49;
   assert.equal(await flushOutbox(spent, 25), 0);
   assert.equal(spent.meter.used, 49, 'ни одного запроса');
@@ -89,15 +87,10 @@ test('бюджет: без трат отправка берёт запрошен
 test('cron: падающий шаг не мешает отправке очереди', async () => {
   const calls = mockTelegram();
   const { runScheduled } = await import('../src/cron.js');
-  let claimed = 0;
-  const db = fakeD1((sql, args) => {
-    if (sql.includes("FROM events WHERE status = 'active'")) throw new Error('D1 упала на выборке эвентов');
-    if (sql.includes('UPDATE outbox SET locked_until = ?1')) {
-      claimed++;
-      return { results: claimed === 1 ? [{ id: 1, chat_id: 42, payload: '{"text":"привет"}', created_at: Date.now() }] : [] };
-    }
-    return { results: [], meta: { changes: 1 } };
-  });
+  const db = createMigratedD1();
+  db.sqlite.prepare('INSERT INTO outbox (chat_id, payload, created_at) VALUES (?, ?, ?)').run(42, '{"text":"привет"}', Date.now());
+  // «D1 упала на выборке событий»: таблицы нет — шаги notify и daily падают, очередь от событий не зависит
+  db.sqlite.exec('ALTER TABLE events RENAME TO events_gone');
   const env = metered({ DB: db, BOT_TOKEN: 't', TG_API: 'http://tg.test', REMINDER_HOUR: '0' });
   const logged = [];
   const realLog = console.log;
@@ -108,15 +101,16 @@ test('cron: падающий шаг не мешает отправке очер�
     console.log = realLog;
   }
   assert.ok(logged.some((l) => l.includes('cron step failed daily')), 'ошибка шага записана в журнал');
-  assert.ok(claimed >= 1, 'очередь всё равно отправлялась');
-  assert.equal(calls.filter((c) => c.url.endsWith('/sendMessage')).length, 1);
+  assert.equal(calls.filter((c) => c.url.endsWith('/sendMessage')).length, 1, 'очередь всё равно отправлена');
+  assert.equal(calls[0].body.chat_id, 42);
+  assert.equal(left(db), 0);
 });
 
 test('бюджет: запросы к Telegram учитываются, постановка в очередь отмечается', async () => {
   mockTelegram();
   const { tgApi } = await import('../src/telegram.js');
   const { enqueueStmt } = await import('../src/db.js');
-  const env = metered({ DB: fakeD1(() => ({ results: [] })), BOT_TOKEN: 't', TG_API: 'http://tg.test' });
+  const env = metered({ DB: createMigratedD1(), BOT_TOKEN: 't', TG_API: 'http://tg.test' });
   await tgApi(env)('sendMessage', { chat_id: 1, text: 'x' });
   assert.equal(env.meter.used, 1);
   assert.equal(env.meter.enqueued, false);
