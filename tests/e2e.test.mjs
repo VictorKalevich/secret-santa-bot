@@ -1083,7 +1083,9 @@ test('009: исправления перед выкатом', { timeout: 400000 
       const E8 = await newEvent(title, [zhenya, zoya, igor]);
       await zapi(boss, 'admin.draw', { event: E8 });
       await z.say(igor, '/start');
-      const menu = z.mock.messagesTo(igor.id).at(-1).params;
+      // Меню — последнее сообщение со списком событий: уведомление о жеребьёвке уходит из очереди после ответа
+      // (waitUntil) и может прийти позже меню
+      const menu = z.mock.messagesTo(igor.id).findLast((m) => /Твои события/.test(m.params.text || '')).params;
       const buttons = menu.reply_markup.inline_keyboard.flat();
       assert.ok(buttons.some((b) => b.callback_data === `msg:ward:${E8}`), 'кнопка переписки нового эвента');
       assert.ok(buttons.every((b) => b.text.isWellFormed()), 'без разорванных эмодзи');

@@ -125,9 +125,9 @@
   `busy(null…)` — сделано (024); `docs/refactoring/baseline.md`, раздел 4 — строки «решение владельца» → «исправлено
   (024)», таблица «один результат» + новые строки; `docs/refactoring/step-6-app-split.md` — пункт `busy(null…)` —
   сделано (024)
-- [ ] T018 `npm test` (3 прогона, время; `queries` — прежние числа), `npm run test:e2e`, `npm run screenshots`
+- [X] T018 `npm test` (3 прогона, время; `queries` — прежние числа), `npm run test:e2e`, `npm run screenshots`
   (экраны с режимами уведомлений и панелью — вид прежний); `git diff main --stat`
-- [ ] T019 Отметки задач, статус spec/plan — «реализовано»; коммиты; слияние в `main` (`--ff-only`), `git push`;
+- [X] T019 Отметки задач, статус spec/plan — «реализовано»; коммиты; слияние в `main` (`--ff-only`), `git push`;
   память проекта — план решений владельца
 
 ---

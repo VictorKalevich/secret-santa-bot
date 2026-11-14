@@ -1,6 +1,6 @@
 # Implementation Plan: Повторные нажатия — одно действие, один результат
 
-**Branch**: `024-repeat-press` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branch**: `024-repeat-press` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-14)
 
 **Input**: Feature specification from `specs/024-repeat-press/spec.md`; «Решения владельца» плана рефакторинга
 (пункты 6, 7, кнопки из 11), `docs/refactoring/baseline.md` раздел 4.
