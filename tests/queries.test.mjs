@@ -1,7 +1,7 @@
 // Число запросов на действие (016, FR-1610; Конституция, принцип V — не больше 50 внешних запросов на вызов).
-// К базе — не больше базового замера (шаг 4 плана рефакторинга их сокращает, остальные шаги не добавляют);
-// к Telegram — ровно столько же (сообщения — поведение). Таблица — docs/refactoring/baseline.md, раздел 3;
-// посмотреть текущие числа и SQL: node tests/bench/queries.mjs [sql].
+// К базе — не больше базового замера (шаг 4 плана рефакторинга их сократил — числа ниже после 019, до него — в
+// docs/refactoring/baseline.md, раздел 3; остальные шаги не добавляют); к Telegram — ровно столько же (сообщения —
+// поведение). Посмотреть текущие числа и SQL: node tests/bench/queries.mjs [sql].
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
@@ -9,54 +9,73 @@ import { runQueriesScenario } from './support/queries-scenario.mjs';
 
 after(restoreFetch);
 
+// Пороги файла шага 4 (docs/refactoring/step-4-api-table-context.md, приёмка): до 019 → не больше. Таблица ниже их
+// соблюдает; проверка — чтобы следующая правка таблицы не вернула прежние числа незаметно.
+const STEP4 = {
+  'admin.state (пустое событие)': 6,
+  'admin.state (админ, после жеребьёвки)': 6,
+  'admin.state (владелец)': 6,
+  'admin.draw.check': 6,
+  'admin.draw (14 человек)': 10,
+  'admin.remove (после жеребьёвки)': 12,
+  'admin.insert': 11,
+  // действия обращений — базовое (до 019) минус 2
+  'support.send (новое обращение)': 12 - 2,
+  'support.get': 7 - 2,
+  'admin.support.take': 11 - 2,
+  'admin.support.send': 11 - 2,
+  'admin.support.get': 7 - 2,
+  'admin.support.close': 10 - 2,
+};
+
 // действие → [запросов к базе не больше, запросов к Telegram ровно] (вместе с отправкой очереди после ответа)
 const BASELINE = {
   '/setup (POST)': [3, 6],
-  'bot: /start adm_ (ссылка владельца)': [10, 1],
-  'bot: ввод имени': [5, 2],
-  'admin.events.create': [4, 0],
-  'admin.state (пустое событие)': [14, 0],
-  'bot: /start inv_ (новый человек)': [5, 1],
-  'bot: имя после ссылки': [12, 3],
-  'admin.role.grant': [9, 1],
-  'admin.participate (вкл)': [5, 0],
-  'wishlist.save': [5, 0],
-  'me (участник)': [6, 0],
-  'me (админ)': [7, 0],
-  'event.get (участник, до жеребьёвки)': [9, 0],
-  'admin.exclusion.add': [10, 0],
-  'admin.fixed.add': [8, 0],
-  'admin.family.save': [6, 0],
-  'admin.game': [5, 0],
-  'admin.draw.check': [9, 0],
-  'admin.draw (14 человек)': [14, 14],
-  'admin.state (админ, после жеребьёвки)': [14, 0],
-  'admin.state (владелец)': [15, 0],
-  'ward.get (первый раз)': [8, 0],
-  'ward.get (повторно)': [7, 0],
-  'ward.gift': [5, 0],
-  'message.send': [10, 1],
-  'chat.get': [7, 0],
-  'ward.received': [9, 1],
-  'event.get (участник, после жеребьёвки)': [10, 0],
-  'support.send (новое обращение)': [12, 2],
-  'support.get': [7, 0],
-  'admin.support.take': [11, 2],
-  'admin.support.send': [11, 1],
-  'admin.support.get': [7, 0],
-  'admin.support.close': [10, 1],
-  'admin.announce (14 человек)': [10, 14],
-  'admin.remind.santas': [10, 13],
-  'admin.remove (после жеребьёвки)': [16, 2],
-  'admin.registration': [5, 0],
-  'admin.insert': [15, 2],
-  'admin.vault.pairs': [7, 0],
-  'admin.vault.person': [13, 0],
-  'admin.audit (событие)': [5, 0],
-  'admin.event.finish': [10, 14],
-  'cron (обычная минута)': [4, 0],
-  'admin.events.create (по образцу + приглашения)': [12, 14],
-  'admin.event.delete': [9, 14],
+  'bot: /start adm_ (ссылка владельца)': [8, 1],
+  'bot: ввод имени': [4, 2],
+  'admin.events.create': [3, 0],
+  'admin.state (пустое событие)': [4, 0],
+  'bot: /start inv_ (новый человек)': [4, 1],
+  'bot: имя после ссылки': [11, 3],
+  'admin.role.grant': [6, 1],
+  'admin.participate (вкл)': [4, 0],
+  'wishlist.save': [4, 0],
+  'me (участник)': [2, 0],
+  'me (админ)': [2, 0],
+  'event.get (участник, до жеребьёвки)': [4, 0],
+  'admin.exclusion.add': [6, 0],
+  'admin.fixed.add': [6, 0],
+  'admin.family.save': [4, 0],
+  'admin.game': [4, 0],
+  'admin.draw.check': [4, 0],
+  'admin.draw (14 человек)': [8, 14],
+  'admin.state (админ, после жеребьёвки)': [4, 0],
+  'admin.state (владелец)': [4, 0],
+  'ward.get (первый раз)': [7, 0],
+  'ward.get (повторно)': [6, 0],
+  'ward.gift': [4, 0],
+  'message.send': [8, 1],
+  'chat.get': [6, 0],
+  'ward.received': [8, 1],
+  'event.get (участник, после жеребьёвки)': [4, 0],
+  'support.send (новое обращение)': [9, 2],
+  'support.get': [4, 0],
+  'admin.support.take': [8, 2],
+  'admin.support.send': [8, 1],
+  'admin.support.get': [4, 0],
+  'admin.support.close': [8, 1],
+  'admin.announce (14 человек)': [8, 14],
+  'admin.remind.santas': [8, 13],
+  'admin.remove (после жеребьёвки)': [8, 2],
+  'admin.registration': [4, 0],
+  'admin.insert': [8, 2],
+  'admin.vault.pairs': [5, 0],
+  'admin.vault.person': [6, 0],
+  'admin.audit (событие)': [4, 0],
+  'admin.event.finish': [8, 14],
+  'cron (обычная минута)': [3, 0],
+  'admin.events.create (по образцу + приглашения)': [9, 14],
+  'admin.event.delete': [8, 14],
 };
 
 test('запросы: каждое действие сценария не тяжелее базового замера', async () => {
@@ -72,6 +91,11 @@ test('запросы: каждое действие сценария не тяж
   }
   assert.deepEqual(worse, []);
   assert.deepEqual(world.log().filter((l) => l.includes('budget exceeded')), []);
+});
+
+test('запросы: пороги шага 4 (019) выполнены', () => {
+  const over = Object.entries(STEP4).filter(([name, max]) => !(BASELINE[name][0] <= max)).map(([name, max]) => `${name}: ${BASELINE[name][0]} > ${max}`);
+  assert.deepEqual(over, []);
 });
 
 test('запросы: жеребьёвка на 40 человек вместе с отправкой очереди — не больше 50 за вызов', async () => {

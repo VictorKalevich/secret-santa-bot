@@ -109,7 +109,7 @@ tests/secrecy.test.mjs` — зелёные, ожидания прав и тай�
 **Independent Test**: `Select-String -Path src/api.js -Pattern 'prepare\('` — пусто; `npm test` зелёный; таблица запросов
 не больше базовой.
 
-- [ ] T015 [P] [US3] `src/constraints.js` (новый): `changeExclusions(ctx, ev, { add, giver, receiver, mutual })` и
+- [X] T015 [P] [US3] `src/constraints.js` (новый): `changeExclusions(ctx, ev, { add, giver, receiver, mutual })` и
   `changeFixed(ctx, ev, …)` — тела веток `admin.exclusion.*` / `admin.fixed.*` (заморозка исключений для не-владельца —
   внутри, повторное чтение события после записи — как сейчас); из `src/db.js` — `familyExclusions` (чистая: `(ev, ids,
   rows)`, чтение семей — в вызывающих), `familySnapshot`, `FAMILY_SNAPSHOT_SQL`, `fixedSnapshot`, `FIXED_SNAPSHOT_SQL`;
@@ -155,37 +155,39 @@ tests/secrecy.test.mjs` — зелёные, ожидания прав и тай�
 **Independent Test**: `node --test tests/queries.test.mjs tests/unit.test.mjs tests/atomic.test.mjs
 tests/draw-golden.test.mjs` — зелёные; `npm run bench:draw` ×2 — без ухудшения.
 
-- [ ] T024 [P] [US2] `src/db.js`: `BLANK_SQL(col)` — `trim(col, char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,
+- [X] T024 [P] [US2] `src/db.js`: `BLANK_SQL(col)` — `trim(col, char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,
   8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)) = ''`; узкие построители `drawMembersQuery`
   (`user_id, name, username, registered, wishlist_updated_at, delivery_updated_at, wishlist_blank`; `FROM members m JOIN
   users u ON u.tg_id = m.user_id WHERE m.event_id = ? ORDER BY m.joined_at` — как прежняя выборка), `panelMembersQuery`
   (`has_wishlist`, `has_delivery` через `NOT BLANK_SQL`; `NULL` — «нет»), `participantCountQuery`, `memberIdsQuery`,
   `participantIdsQuery`, `unfilledIdsQuery`, `pairLinksQuery`, `panelPairsQuery` (`seen_text IS NOT NULL AS seen`) и
   построители прежних чтений пар, исключений, закреплённых пар, семей, прошлых пар (`contracts/api-actions.md` §4)
-- [ ] T025 [P] [US2] `tests/unit.test.mjs`: паритет пустоты — для каждого n от 1 до 65535 (без суррогатов) значение
+- [X] T025 [P] [US2] `tests/unit.test.mjs`: паритет пустоты — для каждого n от 1 до 65535 (без суррогатов) значение
   `BLANK_SQL` над `char(n)` в `node:sqlite` = `!String.fromCharCode(n).trim()`; плюс строки из нескольких пробельных,
   пустая строка, `NULL` в `panelMembersQuery`
-- [ ] T026 [US2] `src/pairs.js`: `checkDraw` — один пакет (`drawMembersQuery`, исключения, семьи, прошлые пары, закреплённые
+- [X] T026 [US2] `src/pairs.js`: `checkDraw` — один пакет (`drawMembersQuery`, исключения, семьи, прошлые пары, закреплённые
   пары); пустые письма — по `wishlist_blank`, `lastUpdate` — по временам; `runDraw` — те же чтения и настройки из
   контекста; `removeMember` / `insertMember` — чтения перед перестройкой пар одним пакетом, человек — из `ctx.users()`,
   лишняя проверка участия убирается, если её даёт пакет; в `insertMember` пары — полные (`insertRank` смотрит
   `seen_text`); порядок участников и состав переданного в `planDraw` / `insertIntoAssignment` — прежние
-- [ ] T027 [US2] `src/panel.js` `adminState`: одно `ctx.read({ … , users: true })` — участники (`panelMembersQuery`),
+- [X] T027 [US2] `src/panel.js` `adminState`: одно `ctx.read({ … , users: true })` — участники (`panelMembersQuery`),
   пары (`panelPairsQuery`), исключения, закреплённые пары (только владельцу), семьи, заявки, удалённые, объявления,
   расписание, обращения (`adminListQuery` + `adminListView`, `supportCountsQuery`); ответ — те же поля и порядок
-- [ ] T028 [US2] `src/participant.js`: `homeView` — пакет (события, участия, непрочитанные, обращения; админу — с
+  ответ прежний: объявления и счётчики обращений панель и раньше не читала — в пакет не добавлены
+- [X] T028 [US2] `src/participant.js`: `homeView` — пакет (события, участия, непрочитанные, обращения; админу — с
   пользователями); `eventView` — пакет (`participantCountQuery`, объявления, пары, непрочитанные, обращения)
-- [ ] T029 [US2] `src/support.js`: пакеты «обращение + сообщения», «пользователи + обращение»; `adminList` → `adminListQuery`
+- [X] T029 [US2] `src/support.js`: пакеты «обращение + сообщения», «пользователи + обращение»; `adminList` → `adminListQuery`
   + `adminListView`; `supportCounts` / `supportUnreadByEvent` → запрос + разбор; настройки и пользователи — из контекста
-- [ ] T030 [US2] `src/events.js` (`finishEvent`, `announce`, `inviteFromEvent`, `deleteEvent`, `resetEvent`,
+- [X] T030 [US2] `src/events.js` (`finishEvent`, `announce`, `inviteFromEvent`, `deleteEvent`, `resetEvent`,
   `remindUnfilled`) — получатели узкими выборками (`memberIdsQuery`, `participantIdsQuery`, `unfilledIdsQuery`);
   `revealAll`, `vaultPairs` — `pairLinksQuery`; повторные чтения события внутри атомарных действий и после неудачного
   захвата — остаются; `src/cron.js` — настройки читаются, только если есть что отправлять
-- [ ] T031 [US2] `tests/queries.test.mjs`: новые числа «не больше» по факту (`node tests/bench/queries.mjs`), проверка
+- [X] T031 [US2] `tests/queries.test.mjs`: новые числа «не больше» по факту (`node tests/bench/queries.mjs`), проверка
   порогов файла шага (`admin.state` ≤ 6, `admin.draw.check` ≤ 6, `admin.draw` ≤ 10, `admin.remove` ≤ 12, `admin.insert`
   ≤ 11, действия обращений — базовое − 2, остальные ≤ базовых), запросы к Telegram — прежние
-- [ ] T032 [US2] `npm test`; `npm run bench:draw` ×2 — медианы не выше «до» больше разброса; `tests/draw-golden.test.mjs`
+- [X] T032 [US2] `npm test`; `npm run bench:draw` ×2 — медианы не выше «до» больше разброса; `tests/draw-golden.test.mjs`
   без пересоздания эталона; коммит «019 US2: …»
+  медианы холодного вызова 50/100/150/200: 0.93/1.87–1.88/2.80–2.86/3.48–3.50 мс (до: 0.96–1.00/1.97–2.00/2.97–3.02/3.69–3.76); неиспользуемые eventMembers, drawParticipants, getPairs, getExclusions, getFixedPairs, familyRows, getAnnouncements, allEvents удалены
 
 **Checkpoint**: пороги выполнены, ответы прежние, гонки по-прежнему проверяются.
 

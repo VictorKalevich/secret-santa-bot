@@ -119,10 +119,6 @@ export async function getEventByInvite(db, code) {
   return db.prepare('SELECT * FROM events WHERE invite_code = ?').bind(code).first();
 }
 
-export async function allEvents(db) {
-  return (await eventsQuery(db).all()).results;
-}
-
 const EVENT_FIELDS = new Set([
   'title', 'status', 'finished_at', 'invite_code', 'registration_open', 'draw_done', 'draw_at', 'revealed', 'ring',
   'avoid_previous', 'draw_token', 'budget', 'event_date', 'place', 'deadline', 'notes', 'last_daily',
@@ -142,23 +138,41 @@ export async function getMember(db, eventId, userId) {
   return memberQuery(db, eventId, userId).first();
 }
 
-// Участники эвента вместе с данными человека
-export async function eventMembers(db, eventId) {
-  const { results } = await db
-    .prepare(
-      `SELECT m.*, u.name, u.username, u.is_admin, u.registered, u.notify_mode, u.created_at, u.blocked_at
-         FROM members m JOIN users u ON u.tg_id = m.user_id
-        WHERE m.event_id = ? ORDER BY m.joined_at`
-    )
-    .bind(eventId)
-    .all();
-  return results;
-}
+// ---------- узкие чтения участников (019) ----------
 
-// Участники, которые завершили регистрацию (они и попадают в жеребьёвку и рассылки эвента)
-export async function drawParticipants(db, eventId) {
-  return (await eventMembers(db, eventId)).filter((m) => m.registered);
-}
+// Пустота текста в базе — те же символы, что срезает String.prototype.trim() (паритет — tests/unit.test.mjs):
+// trim() SQLite по умолчанию срезает только пробел U+0020
+const TRIM_CHARS = [9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233,
+  8239, 8287, 12288, 65279];
+export const BLANK_SQL = (col) => `(trim(${col}, char(${TRIM_CHARS.join(', ')})) = '')`;
+
+// Те же FROM, WHERE и ORDER BY, что у прежней полной выборки участников (eventMembers до 019): порядок участников
+// (время вступления) и план запроса — прежние; участвуют в жеребьёвке и рассылках зарегистрированные (u.registered)
+const MEMBERS_OF = 'FROM members m JOIN users u ON u.tg_id = m.user_id WHERE m.event_id = ?';
+
+// Жеребьёвка и перестройка пар: без текстов писем и адресов — признак «письмо пустое» считается в базе
+export const drawMembersQuery = (db, eventId) => db.prepare(
+  `SELECT m.user_id, u.name, u.username, u.registered, m.wishlist_updated_at, m.delivery_updated_at,
+          ${BLANK_SQL('m.wishlist')} AS wishlist_blank
+     ${MEMBERS_OF} ORDER BY m.joined_at`
+).bind(eventId);
+
+// Панель организатора: «письмо есть», «адрес указан» вместо текстов
+export const panelMembersQuery = (db, eventId) => db.prepare(
+  `SELECT m.user_id, u.name, u.username, u.registered, u.is_admin, u.blocked_at,
+          NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist, NOT ${BLANK_SQL('m.delivery')} AS has_delivery
+     ${MEMBERS_OF} ORDER BY m.joined_at`
+).bind(eventId);
+
+// Получатели рассылок: все участники / зарегистрированные / зарегистрированные с пустым письмом
+export const memberIdsQuery = (db, eventId) => db.prepare(`SELECT m.user_id ${MEMBERS_OF} ORDER BY m.joined_at`).bind(eventId);
+export const participantIdsQuery = (db, eventId) =>
+  db.prepare(`SELECT m.user_id ${MEMBERS_OF} AND u.registered = 1 ORDER BY m.joined_at`).bind(eventId);
+export const unfilledIdsQuery = (db, eventId) =>
+  db.prepare(`SELECT m.user_id ${MEMBERS_OF} AND u.registered = 1 AND ${BLANK_SQL('m.wishlist')} ORDER BY m.joined_at`).bind(eventId);
+export const participantCountQuery = (db, eventId) => db.prepare(`SELECT COUNT(*) AS n ${MEMBERS_OF} AND u.registered = 1`).bind(eventId);
+
+export const rowsOf = async (stmt) => (await stmt.all()).results;
 
 // Добавить участника — единственное место вставки (вход по ссылке, «Я участвую», решение по заявке).
 // Новое участие предзаполняет адрес доставки последним указанным адресом человека (008, FR-802) — только если
@@ -202,35 +216,29 @@ export async function isRemoved(db, eventId, userId) {
 
 // ---------- pairs / exclusions ----------
 
-export async function getPairs(db, eventId) {
-  const { results } = await db.prepare('SELECT * FROM pairs WHERE event_id = ?').bind(eventId).all();
-  return results;
-}
+export const pairsQuery = (db, eventId) => db.prepare('SELECT * FROM pairs WHERE event_id = ?').bind(eventId);
+// Только связи «Санта → подопечный» (раскрытие, служебный просмотр) — без увиденного письма
+export const pairLinksQuery = (db, eventId) => db.prepare('SELECT santa, ward FROM pairs WHERE event_id = ?').bind(eventId);
+// Панель: статусы пар; «открыл подопечного» — признаком, без текста увиденного письма
+export const panelPairsQuery = (db, eventId) =>
+  db.prepare('SELECT santa, ward, gift_ready, gift_received, seen_text IS NOT NULL AS seen FROM pairs WHERE event_id = ?').bind(eventId);
+export const pairOfSantaQuery = (db, eventId, santa) => db.prepare('SELECT * FROM pairs WHERE event_id = ? AND santa = ?').bind(eventId, santa);
+export const pairOfWardQuery = (db, eventId, ward) => db.prepare('SELECT * FROM pairs WHERE event_id = ? AND ward = ?').bind(eventId, ward);
 
 export async function pairOfSanta(db, eventId, santa) {
-  return db.prepare('SELECT * FROM pairs WHERE event_id = ? AND santa = ?').bind(eventId, santa).first();
+  return pairOfSantaQuery(db, eventId, santa).first();
 }
 
 export async function pairOfWard(db, eventId, ward) {
-  return db.prepare('SELECT * FROM pairs WHERE event_id = ? AND ward = ?').bind(eventId, ward).first();
+  return pairOfWardQuery(db, eventId, ward).first();
 }
 
-// Семьи (008): строки «человек — семья» (все; фильтр по участникам — в функциях ниже)
-export async function familyRows(db) {
-  const { results } = await db.prepare('SELECT user_id, family_id FROM family_members').all();
-  return results;
-}
-
-export async function getExclusions(db, eventId) {
-  const { results } = await db.prepare('SELECT giver, receiver FROM exclusions WHERE event_id = ?').bind(eventId).all();
-  return results;
-}
-
+// Семьи (008): строки «человек — семья» (все; фильтр по участникам — familyExclusions в constraints.js)
+export const familyRowsQuery = (db) => db.prepare('SELECT user_id, family_id FROM family_members');
+export const exclusionsQuery = (db, eventId) => db.prepare('SELECT giver, receiver FROM exclusions WHERE event_id = ?').bind(eventId);
 // Закреплённые пары владельца (014): «giver обязательно дарит receiver». Наружу — только владельцу.
-export async function getFixedPairs(db, eventId) {
-  const { results } = await db.prepare('SELECT giver, receiver FROM fixed_pairs WHERE event_id = ?').bind(eventId).all();
-  return results;
-}
+export const fixedPairsQuery = (db, eventId) => db.prepare('SELECT giver, receiver FROM fixed_pairs WHERE event_id = ?').bind(eventId);
+
 
 // ---------- outbox (очередь сообщений) ----------
 
@@ -280,17 +288,13 @@ export async function getAudit(db, eventId, limit = 100) {
 
 // ---------- объявления (007) ----------
 
-export async function getAnnouncements(db, eventId, limit = 20) {
-  const { results } = await db
+export const announcementsQuery = (db, eventId, limit = 20) => db
     .prepare(
       `SELECT a.id, a.text, a.created_at, COALESCE(NULLIF(u.name, ''), 'Организатор') AS author_name
          FROM announcements a LEFT JOIN users u ON u.tg_id = a.author
         WHERE a.event_id = ? ORDER BY a.id DESC LIMIT ?`
     )
-    .bind(eventId, limit)
-    .all();
-  return results;
-}
+    .bind(eventId, limit);
 
 // Запись журнала только при условии guard (как enqueueIfStmt) — для атомарных действий 006/007
 export function auditIfStmt(db, eventId, actor, action, details, guard, ...args) {

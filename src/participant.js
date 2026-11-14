@@ -1,11 +1,14 @@
 // Участник события (019): экран «мои события», экран события, письмо Санте, адрес доставки (008), подопечный и отметки
 // «подарок готов» / «подарок получен» (007). Права (участник ли, завершено ли событие) проверены в api.js.
 
-import { allEvents, pairOfSanta, pairOfWard, getUser, getMember, eventMembers, getAnnouncements, enqueueIfStmt } from './db.js';
+import {
+  eventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, participantCountQuery, announcementsQuery, getUser, getMember,
+  enqueueIfStmt,
+} from './db.js';
 import { msg, q, openAppButton, cleanText } from './format.js';
 import { isFinished, chatWritable, publicEvent } from './status.js';
-import { MAX_CHARS, unreadCounts, unreadByEvent } from './chat.js';
-import { supportCounts, supportUnreadByEvent } from './support.js';
+import { MAX_CHARS, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
+import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
 
 const DELIVERY_MAX = 500;
 
@@ -15,11 +18,19 @@ const no = (error) => ({ ok: false, error });
 export async function homeView(ctx) {
   const { db, me } = ctx;
   if (!me || !me.registered) return { registered: false };
+  // Одним пакетом чтений (019); админу в нём же — пользователи, чтобы найти владельца
+  const r = await ctx.read({
+    mine: db.prepare('SELECT event_id FROM members WHERE user_id = ?').bind(me.tg_id),
+    unread: unreadByEventQuery(db, me.tg_id),
+    supUnread: supportUnreadQuery(db, me),
+    events: eventsQuery(db),
+    users: !!me.is_admin,
+  });
   const ownerId = me.is_admin ? await ctx.ownerId() : null;
-  const { results: mine } = await db.prepare('SELECT event_id FROM members WHERE user_id = ?').bind(me.tg_id).all();
-  const memberOf = new Set(mine.map((r) => r.event_id));
-  const [unread, supUnread] = await Promise.all([unreadByEvent(db, me.tg_id), supportUnreadByEvent(db, me)]);
-  const events = (await allEvents(db))
+  const memberOf = new Set(r.mine.map((x) => x.event_id));
+  const unread = unreadByEventFrom(r.unread);
+  const supUnread = supportUnreadFrom(r.supUnread);
+  const events = r.events
     .filter((e) => me.is_admin || memberOf.has(e.id))
     .map((e) => ({
       id: e.id, title: e.title, status: e.status, finished_at: e.finished_at, event_date: e.event_date,
@@ -36,15 +47,24 @@ export async function homeView(ctx) {
 // event.get: участнику — его письмо, адрес, есть ли подопечный и Санта, непрочитанное; админу-неучастнику — событие
 export async function eventView(ctx, ev, member) {
   const { db, me } = ctx;
-  const participants = (await eventMembers(db, ev.id)).filter((m) => m.registered).length;
+  // Одним пакетом чтений (019): число участников, объявления, пары и непрочитанное участника, счётчики обращений
+  const r = await ctx.read({
+    count: participantCountQuery(db, ev.id),
+    announcements: announcementsQuery(db, ev.id), // 007, FR-701
+    pair: member && pairOfSantaQuery(db, ev.id, me.tg_id),
+    wardPair: member && pairOfWardQuery(db, ev.id, me.tg_id),
+    unread: member && unreadQuery(db, ev.id, me.tg_id),
+    support: supportCountsQuery(db, ev, me),
+  });
   const out = {
-    event: { ...publicEvent(ev), participants },
-    announcements: await getAnnouncements(db, ev.id), // 007, FR-701
+    event: { ...publicEvent(ev), participants: r.count[0].n },
+    announcements: r.announcements,
     member: null,
     can: { edit_letter: false, chat_write: false },
   };
   if (member) {
-    const [pair, wardPair] = await Promise.all([pairOfSanta(db, ev.id, me.tg_id), pairOfWard(db, ev.id, me.tg_id)]);
+    const pair = r.pair[0] ?? null;
+    const wardPair = r.wardPair[0] ?? null;
     out.member = {
       wishlist: member.wishlist,
       wishlist_updated_at: member.wishlist_updated_at,
@@ -52,12 +72,12 @@ export async function eventView(ctx, ev, member) {
       has_santa: !!wardPair,
       gift_received: !!wardPair?.gift_received, // 007, FR-704
       delivery: member.delivery, // 008: свой адрес доставки
-      unread: pair || wardPair ? await unreadCounts(db, ev.id, me.tg_id) : { from_ward: 0, from_santa: 0 },
+      unread: pair || wardPair ? unreadFrom(r.unread) : { from_ward: 0, from_santa: 0 },
     };
     out.can = { edit_letter: !isFinished(ev), chat_write: chatWritable(ev) };
   }
   // 012: обращения — участнику его статус, админу — ничьи и непрочитанные (для точек на вкладках)
-  Object.assign(out, await supportCounts(db, ev, me, { member: !!member, admin: !!me.is_admin }));
+  Object.assign(out, supportCountsView(r.support, { member: !!member, admin: !!me.is_admin }));
   return out;
 }
 

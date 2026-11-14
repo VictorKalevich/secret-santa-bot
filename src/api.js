@@ -194,9 +194,9 @@ export const ACTIONS = {
       const id = Number(body.id);
       if (id === me.tg_id) return refuse('Нельзя удалить самого себя — выключи «Я участвую».');
       if (id === (await ctx.ownerId())) return refuse('Владельца нельзя удалить из события. Сначала он должен передать права владельца.');
-      const target = await getUser(db, id);
+      // Человек — из списка пользователей вызова (019); «не участвует» отвечает removeMember тем же текстом
+      const target = (await ctx.users()).find((u) => u.tg_id === id);
       if (target?.is_admin && !(await ctx.isOwner())) return refuse('Удалить администратора может только владелец бота.', 403);
-      if (!(await getMember(db, ev.id, id))) return refuse('Человек не участвует в этом событии.');
       // Отметка «удалён организатором» (010): при запрете возврата человек не войдёт по ссылке снова
       return out(await removeMember(ctx, ev, id, { actor: me.tg_id, mark: true }), none);
     },

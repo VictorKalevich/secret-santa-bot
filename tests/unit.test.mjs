@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { metered, budgetLeft, SUBREQUEST_LIMIT } from '../src/budget.js';
 import { flushOutbox } from '../src/outbox.js';
 import { createD1, createMigratedD1 } from './support/d1-sqlite.mjs';
+import { BLANK_SQL } from '../src/db.js';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -132,4 +133,24 @@ test('снимок семей: порядок не важен, смена сем
   assert.notEqual(familySnapshot(swapped, ids), base);
   assert.notEqual(familySnapshot(rows.filter((r) => r.user_id !== 102), ids), base, 'выход из семьи');
   assert.equal(familySnapshot([], ids), '0:0:0');
+});
+
+// 019: «письмо пустое» считается в базе вместо `!wishlist.trim()` — для каждого символа результат должен совпасть
+test('пустота письма: BLANK_SQL в базе = !String.prototype.trim() для каждого символа (кроме суррогатов)', () => {
+  const db = createMigratedD1();
+  const one = db.sqlite.prepare(`SELECT ${BLANK_SQL('char(?)')} AS b`);
+  const wrong = [];
+  for (let n = 1; n <= 0xffff; n++) {
+    if (n >= 0xd800 && n <= 0xdfff) continue;
+    if (!!one.get(n).b !== !String.fromCharCode(n).trim()) wrong.push(n);
+  }
+  assert.deepEqual(wrong, []);
+  const text = db.sqlite.prepare(`SELECT ${BLANK_SQL('?')} AS blank, NOT ${BLANK_SQL('?')} AS has`);
+  for (const t of ['', ' ', '\t\n\r \u00a0\u2028\u3000\ufeff', ' а ', '\u200b', '\u0085']) {
+    const r = text.get(t, t);
+    assert.equal(!!r.blank, !t.trim(), JSON.stringify(t));
+    assert.equal(!!r.has, !!t.trim(), JSON.stringify(t));
+  }
+  // NULL — «нет» и для «письмо есть», и для «адрес указан» (колонки NOT NULL — это страховка)
+  assert.equal(!!text.get(null, null).has, false);
 });

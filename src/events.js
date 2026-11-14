@@ -1,8 +1,8 @@
 // Жизненный цикл эвента: создание, завершение, удаление, сброс, приглашения, раскрытие тайны, напоминания, объявления.
 
 import {
-  getEvent, eventMembers, drawParticipants, getPairs, enqueueStmt, enqueueIfStmt, updateEventStmt,
-  auditStmt, auditIfStmt, eventDataDeleteStmts,
+  getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt, enqueueIfStmt,
+  updateEventStmt, auditStmt, auditIfStmt, eventDataDeleteStmts,
 } from './db.js';
 import { msg, q, escapeHtml, formatDate, formatMs, openAppButton, inviteLink, randomCode, oneLine, cleanText, ISO_DATE } from './format.js';
 
@@ -50,9 +50,8 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
 export async function finishEvent(ctx, ev, actor = 0) {
   const db = ctx.db;
   if (isFinished(ev)) return { ok: false, error: 'Событие уже завершено.' };
-  const settings = await ctx.settings();
+  const { settings, members } = await ctx.read({ members: participantIdsQuery(db, ev.id), settings: true });
   const now = Date.now();
-  const members = await drawParticipants(db, ev.id);
   const until = formatMs(now + CHAT_GRACE_MS, Number(ctx.env.TIMEZONE_OFFSET_HOURS ?? 3));
   // Атомарно (009, FR-920): завершает только первый из одновременных вызовов (админ и cron) — остальные ничего не рассылают
   // Часы Workers у одновременных запросов могут совпасть до миллисекунды, поэтому «наш» захват узнаём ещё и по
@@ -76,7 +75,7 @@ export async function finishEvent(ctx, ev, actor = 0) {
 // и ничего не рассылает и не пишет.
 export async function deleteEvent(ctx, ev, actor = 0) {
   const db = ctx.db;
-  const members = await eventMembers(db, ev.id);
+  const members = await rowsOf(memberIdsQuery(db, ev.id));
   const exists = 'EXISTS (SELECT 1 FROM events WHERE id = ?)';
   const res = await db.batch([
     ...members.map((m) => enqueueIfStmt(db, m.user_id, msg(`🗑 Событие ${q(ev)} удалено организатором вместе с письмами и перепиской.`), exists, ev.id)),
@@ -92,7 +91,7 @@ export async function deleteEvent(ctx, ev, actor = 0) {
 // Полный сброс эвента (004 → 005: в пределах одного эвента). Владелец, если участвовал, остаётся.
 export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
   const db = ctx.db;
-  const members = await eventMembers(db, ev.id);
+  const members = await rowsOf(memberIdsQuery(db, ev.id));
   const removed = members.filter((m) => m.user_id !== ownerId);
   const inviteCode = randomCode();
   await db.batch([
@@ -119,12 +118,14 @@ export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
   const settings = await ctx.settings();
   const link = inviteLink(settings, ev);
   if (!link) return { ok: false, error: 'Сначала открой страницу настройки /setup (см. README).' };
-  const [members, removed] = await Promise.all([
-    eventMembers(db, ev.id),
-    ev.rejoin ? [] : db.prepare('SELECT user_id FROM removed_members WHERE event_id = ?').bind(ev.id).all().then((r) => r.results),
-  ]);
-  const skip = new Set([...members, ...removed].map((m) => m.user_id));
-  const people = (await drawParticipants(db, fromEv.id)).filter((m) => !skip.has(m.user_id));
+  // Участники обоих событий и отметки «удалён» — одним пакетом чтений (019)
+  const r = await ctx.read({
+    members: memberIdsQuery(db, ev.id),
+    removed: !ev.rejoin && db.prepare('SELECT user_id FROM removed_members WHERE event_id = ?').bind(ev.id),
+    from: participantIdsQuery(db, fromEv.id),
+  });
+  const skip = new Set([...r.members, ...r.removed].map((m) => m.user_id));
+  const people = r.from.filter((m) => !skip.has(m.user_id));
   const stmts = people.map((m) => enqueueStmt(db, m.user_id, msg(
     `📨 <b>Приглашение на событие ${q(ev)}</b> — Тайный Санта.\nНажми кнопку, чтобы участвовать.`,
     { reply_markup: { inline_keyboard: [[{ text: '🎄 Участвовать', url: link }]] } }
@@ -141,7 +142,7 @@ export async function revealAll(ctx, ev, actor = 0) {
   const cur = await getEvent(db, ev.id);
   if (!cur?.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
   if (cur.revealed) return { ok: false, error: 'Тайна уже раскрыта.' };
-  const [rows, users] = await Promise.all([getPairs(db, ev.id), ctx.users()]);
+  const { rows, users } = await ctx.read({ rows: pairLinksQuery(db, ev.id), users: true });
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
   // revealed хранит уникальную отметку этого раскрытия (для условий ниже); везде читается как «да/нет».
   // Случайная, а не время: часы Workers у одновременных запросов могут совпасть.
@@ -165,8 +166,8 @@ export async function revealAll(ctx, ev, actor = 0) {
 // extra — операторы, которые выполняются в том же batch, что и рассылка (cron: отметка last_daily, 009)
 export async function remindUnfilled(ctx, ev, actor = 0, extra = []) {
   const db = ctx.db;
-  const settings = await ctx.settings();
-  const people = (await drawParticipants(db, ev.id)).filter((u) => !u.wishlist.trim());
+  // Пустые письма отбираются в базе — тексты не читаются (019)
+  const { settings, people } = await ctx.read({ people: unfilledIdsQuery(db, ev.id), settings: true });
   const deadline = ev.deadline ? ` до <b>${formatDate(ev.deadline)}</b>` : '';
   const stmts = people.map((u) =>
     enqueueStmt(db, u.user_id, msg(
@@ -183,8 +184,9 @@ export async function remindUnfilled(ctx, ev, actor = 0, extra = []) {
 
 export async function remindSantas(ctx, ev, actor = 0, extra = []) {
   const db = ctx.db;
-  const settings = await ctx.settings();
-  const rows = (await getPairs(db, ev.id)).filter((p) => !p.gift_ready);
+  const r = await ctx.read({ rows: pairsQuery(db, ev.id), settings: true });
+  const { settings } = r;
+  const rows = r.rows.filter((p) => !p.gift_ready);
   const when = ev.event_date ? ` Вручение — <b>${formatDate(ev.event_date)}</b>.` : '';
   const stmts = rows.map((p) =>
     enqueueStmt(db, p.santa, msg(
@@ -210,7 +212,7 @@ export async function announce(ctx, ev, actor, rawText) {
   const text = cleanText(rawText);
   if (!text) return { ok: false, error: 'Напиши текст объявления.' };
   if (text.length > ANNOUNCE_MAX) return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${ANNOUNCE_MAX}.` };
-  const [settings, people] = await Promise.all([ctx.settings(), drawParticipants(db, ev.id)]);
+  const { settings, people } = await ctx.read({ people: participantIdsQuery(db, ev.id), settings: true });
   const now = Date.now();
   await db.batch([
     db.prepare('INSERT INTO announcements (event_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(ev.id, actor, text, now),

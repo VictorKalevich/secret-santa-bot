@@ -48,12 +48,12 @@ ctx.forgetUsers()
 | Модуль | Функции |
 |---|---|
 | `events.js` | `createEvent(ctx, title, createdBy, { from, invite })`, `finishEvent(ctx, ev, actor)`, `deleteEvent(ctx, ev, actor)`, `resetEvent(ctx, ev, ownerId, actor)`, `inviteFromEvent(ctx, ev, fromEv, actor)`, `revealAll(ctx, ev, actor)`, `remindUnfilled(ctx, ev, actor, extra)`, `remindSantas(ctx, ev, actor, extra)`, `announce(ctx, ev, actor, text)`, `saveEventSettings(ctx, ev, body, actor)`, `setRing(ctx, ev, on, actor)`, `setRegistration(ctx, ev, open, actor)`, `regenInvite(ctx, ev, actor)`, `setAvoidPrevious(ctx, ev, on, actor)` |
-| `pairs.js` | `checkDraw(ctx, ev)`, `runDraw(ctx, ev, { actor, action })`, `removeMember(ctx, ev, userId, { notify, actor, mark })`, `insertMember(ctx, ev, userId, actor)`, `cancelDraw(ctx, ev, actor)`, `forceCancelDraw(ctx, ev, actor)`; `drawCancelable(db, ev)`, `cancelableQuery(db, ev)`, `insertRank`, `INSERT_BLOCKED` |
+| `pairs.js` | `checkDraw(ctx, ev)`, `runDraw(ctx, ev, { actor, action })`, `removeMember(ctx, ev, userId, { notify, actor, mark })`, `insertMember(ctx, ev, userId, actor)`, `cancelDraw(ctx, ev, actor)`, `forceCancelDraw(ctx, ev, actor)`; `cancelableQuery(db, ev)` (`null` — отменить нельзя без запроса), `insertRank`, `INSERT_BLOCKED`; внутри — `previousPairsQuery(db, ev)` + `previousPairs(rows, ids)` |
 | `constraints.js` | `changeExclusions(ctx, ev, { add, giver, receiver, mutual })`, `changeFixed(ctx, ev, { add, giver, receiver, mutual })`, `familyExclusions(ev, ids, rows)`, `familySnapshot`, `FAMILY_SNAPSHOT_SQL`, `fixedSnapshot`, `FIXED_SNAPSHOT_SQL` |
 | `participant.js` | `homeView(ctx)`, `eventView(ctx, ev, member)`, `saveWishlist(ctx, ev, member, text)`, `saveDelivery(ctx, ev, member, text)`, `wardView(ctx, ev)`, `setGiftReady(ctx, ev, ready)`, `setGiftReceived(ctx, ev, received)` |
 | `panel.js` | `adminState(ctx, ev)`, `memberLetter(ctx, ev, id)`, `usersList(ctx)` |
-| `chat.js` | `sendChatMessage(ctx, ev, fromId, to, text, { expectOther })`, `chatHistory(ctx, ev, withWhom, after)`, `chatPair(db, …)`, `unreadQuery(db, userId, eventId?)`, `unreadTotals(rows)`, `tooLong(n)`, `MAX_CHARS` |
-| `support.js` | `participantView(ctx, ev)`, `sendFromUser(ctx, ev, text)`, `closeByUser(ctx, ev)`, `adminListQuery(db, ev)`, `adminListView(rows, users, me, isOwner)`, `adminThread(ctx, ev, id)`, `take(ctx, ev, id)`, `sendFromAdmin(ctx, ev, id, text)`, `pass(ctx, ev, id, to)`, `closeByAdmin(ctx, ev, id)`, `supportCountsQuery(db, ev, me)`, `supportCountsView(row, { member, admin })`, `supportUnreadQuery(db, me)`, `returnThreadsStmts(db, settings, users, adminId)`, `supportAvailable(users, userId)` |
+| `chat.js` | `sendChatMessage(ctx, ev, fromId, to, text, { expectOther })`, `chatHistory(ctx, ev, withWhom, after)`, `chatPair(db, …)`, `unreadQuery(db, eventId, userId)` + `unreadFrom(rows)`, `unreadByEventQuery(db, userId)` + `unreadByEventFrom(rows)`, `tooLong(n)`, `MAX_CHARS` |
+| `support.js` | `participantView(ctx, ev)`, `sendFromUser(ctx, ev, text)`, `closeByUser(ctx, ev)`, `adminListQuery(db, ev)`, `adminListView(rows, users, me, isOwner)`, `adminThread(ctx, ev, id)`, `take(ctx, ev, id)`, `sendFromAdmin(ctx, ev, id, text)`, `pass(ctx, ev, id, to)`, `closeByAdmin(ctx, ev, id)`, `supportCountsQuery(db, ev, me)`, `supportCountsView(rows, { member, admin })`, `supportUnreadQuery(db, me)` + `supportUnreadFrom(rows)`, `returnThreadsStmts(db, settings, users, adminId)`, `supportAvailable(users, userId)` |
 | `membership.js` | `saveFamily(ctx, actor, { id, name, members })`, `deleteFamily(ctx, actor, id)`, `familiesList(ctx)`, `participate(ctx, ev, on, actor)`, `allowRemoved(ctx, ev, id, actor)`, `joinByInvite(ctx, ev, user)`, `decideRequest(ctx, id, actor, approve, { ev })`, `joinedNoticeStmts(db, users, user, ev)`, `requestRejected(ev)`, `rejoinBlocked(db, ev, userId)` |
 | `roles.js` | `resolveOwner(db, settings, users)`, `setOwner(ctx, id, { via, prevOwnerId, newOwnerLabel })`, `grantAdmin(ctx, id, actor)`, `revokeAdmin(ctx, id, actor)`, `transferOwnership(ctx, fromId, toId)`, `transferAccount(ctx, fromId, toId, actorId)`; `ownerLinkCode(env)`, `ownerLinkUsed(env, settings)`, `claimOwnerLink(env)` — без изменений |
 | `vault.js` | `vaultPerson(ctx, ev, id, actor)`, `vaultPairs(ctx, ev, actor)` |
@@ -62,17 +62,19 @@ ctx.forgetUsers()
 ## 4. Чтения (`src/db.js`)
 
 Построители операторов чтения (`…Query(db, …)`) — для пакетов; прежние асинхронные функции (`getUser`, `getEvent`,
-`getMember`, …) читают тем же оператором. `readMany(db, named)`, `settingsFrom(rows)`, `BLANK_SQL(col)`.
+`getMember`, …) читают тем же оператором. `readMany(db, named)`, `rowsOf(stmt)`, `settingsFrom(rows)`, `BLANK_SQL(col)`.
+Прежние полные чтения, которые больше никто не вызывает (`eventMembers`, `drawParticipants`, `getPairs`, `getExclusions`,
+`getFixedPairs`, `familyRows`, `getAnnouncements`, `allEvents`), удалены.
 
 | Построитель | Колонки | Кто |
 |---|---|---|
 | `userQuery`, `settingsQuery`, `usersQuery`, `eventQuery`, `memberQuery` | как `getUser`, `getSettings`, `allUsers`, `getEvent`, `getMember` | контекст, конвейер |
-| `drawMembersQuery(db, eventId)` | `user_id, name, username, registered, wishlist_updated_at, delivery_updated_at, wishlist_blank` | `checkDraw`, `removeMember`, `insertMember` |
+| `drawMembersQuery(db, eventId)` | `user_id, name, username, registered, wishlist_updated_at, delivery_updated_at, wishlist_blank` | `checkDraw`, `removeMember`, `insertMember`, `changeFixed`, `vaultPairs` |
 | `panelMembersQuery(db, eventId)` | `user_id, name, username, registered, is_admin, blocked_at, has_wishlist, has_delivery` | `adminState` |
 | `participantCountQuery(db, eventId)` | `n` | `eventView` |
-| `memberIdsQuery(db, eventId)`, `participantIdsQuery(db, eventId)`, `unfilledIdsQuery(db, eventId)` | `user_id` | рассылки, `changeFixed` |
+| `memberIdsQuery(db, eventId)`, `participantIdsQuery(db, eventId)`, `unfilledIdsQuery(db, eventId)` | `user_id` | рассылки, сброс и удаление события, приглашение из события |
 | `pairsQuery`, `pairLinksQuery`, `panelPairsQuery`, `pairOfSantaQuery`, `pairOfWardQuery` | все / `santa, ward` / `santa, ward, gift_ready, gift_received, seen` / все | пары |
-| `exclusionsQuery`, `fixedPairsQuery`, `familyRowsQuery`, `previousPairsQuery` | как прежние чтения | жеребьёвка, панель, перестройка пар |
+| `exclusionsQuery`, `fixedPairsQuery`, `familyRowsQuery`, `announcementsQuery` | как прежние чтения | жеребьёвка, панель, перестройка пар, `eventView` |
 
 Порядок строк каждой выборки — прежний (`ORDER BY` и `FROM`/`WHERE` без изменений).
 

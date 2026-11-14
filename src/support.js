@@ -36,8 +36,10 @@ const adminKeyboard = (settings, ev, id, take) => ({ inline_keyboard: [[
 
 export const supportAvailable = (users, userId) => adminRecipients(users, [userId]).length > 0;
 
+const threadQuery = (db, eventId, id) => db.prepare('SELECT * FROM support_threads WHERE id = ? AND event_id = ?').bind(Number(id) || 0, eventId);
+
 async function threadOf(db, eventId, id) {
-  return db.prepare('SELECT * FROM support_threads WHERE id = ? AND event_id = ?').bind(Number(id) || 0, eventId).first();
+  return threadQuery(db, eventId, id).first();
 }
 
 // Условие «обращение id в состоянии …» для операторов batch
@@ -50,16 +52,18 @@ const MINE_SENT = 'EXISTS (SELECT 1 FROM support_messages WHERE thread_id = ? AN
 // Обращения участника в эвенте (до 10 последних, старые сначала); ответы организаторов помечаются прочитанными
 export async function participantView(ctx, ev) {
   const { db, me } = ctx;
-  const [users, threads] = await Promise.all([
-    ctx.users(),
-    db.prepare('SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? ORDER BY id DESC LIMIT 10').bind(ev.id, me.tg_id).all().then((r) => r.results.reverse()),
-  ]);
+  const LAST = 'SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? ORDER BY id DESC LIMIT 10';
+  const r = await ctx.read({
+    threads: db.prepare(LAST).bind(ev.id, me.tg_id),
+    messages: db.prepare(`SELECT * FROM support_messages WHERE thread_id IN (SELECT id FROM (${LAST})) ORDER BY id`).bind(ev.id, me.tg_id),
+    users: true,
+  });
+  const threads = r.threads.reverse();
+  const { users, messages } = r;
   const byId = new Map(users.map((u) => [u.tg_id, u]));
-  let messages = [];
   if (threads.length) {
     const ids = threads.map((t) => t.id);
     const marks = ids.map(() => '?').join(',');
-    messages = (await db.prepare(`SELECT * FROM support_messages WHERE thread_id IN (${marks}) ORDER BY id`).bind(...ids).all()).results;
     if (messages.some((m) => m.from_admin && !m.read_at)) {
       await db.prepare(`UPDATE support_messages SET read_at = ? WHERE thread_id IN (${marks}) AND from_admin = 1 AND read_at = 0`).bind(Date.now(), ...ids).run();
     }
@@ -86,10 +90,12 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
   const t = checkText(rawText);
   if (t.error) return fail(t.error);
   if (!chatWritable(ev)) return fail(READ_ONLY);
-  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
+  const OPEN = "SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'";
+  const r = await ctx.read({ open: db.prepare(OPEN).bind(ev.id, me.tg_id), users: true, settings: true });
+  const { settings, users } = r;
   const admins = adminRecipients(users, [me.tg_id]);
   if (!admins.length) return fail(NOBODY);
-  let thread = await db.prepare("SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'").bind(ev.id, me.tg_id).first();
+  let thread = r.open[0] ?? null;
   let created = false;
   if (!thread) {
     thread = await db
@@ -158,8 +164,7 @@ export async function closeByUser(ctx, ev) {
 const canRead = (t, me, isOwner) => isOwner || !t.assignee || t.assignee === me.tg_id;
 
 // Список обращений эвента для панели: открытые сверху, затем до 20 последних закрытых. Тексты не отдаются.
-export async function adminList(db, ev, me, isOwner, users) {
-  const { results } = await db
+export const adminListQuery = (db, ev) => db
     .prepare(
       `SELECT t.*,
               (SELECT MAX(created_at) FROM support_messages m WHERE m.thread_id = t.id) AS last_at,
@@ -168,8 +173,9 @@ export async function adminList(db, ev, me, isOwner, users) {
         ORDER BY (t.status = 'open') DESC, COALESCE((SELECT MAX(id) FROM support_messages m WHERE m.thread_id = t.id), 0) DESC, t.id DESC
         LIMIT 80`
     )
-    .bind(ev.id)
-    .all();
+    .bind(ev.id);
+
+export function adminListView(results, users, me, isOwner) {
   const byId = new Map(users.map((u) => [u.tg_id, u]));
   const open = results.filter((t) => t.status === 'open');
   const closed = results.filter((t) => t.status !== 'open').slice(0, 20);
@@ -195,14 +201,20 @@ export async function adminList(db, ev, me, isOwner, users) {
 // Одно обращение с перепиской (если её можно видеть); ответственный, открыв его, читает сообщения участника
 export async function adminThread(ctx, ev, id) {
   const { db, me } = ctx;
-  const t = await threadOf(db, ev.id, id);
+  const tid = Number(id) || 0;
+  const r = await ctx.read({
+    thread: threadQuery(db, ev.id, tid),
+    messages: db.prepare(`SELECT * FROM support_messages WHERE thread_id = ? AND ${THREAD} AND event_id = ?) ORDER BY id`).bind(tid, tid, ev.id),
+    users: true,
+  });
+  const t = r.thread[0];
   if (!t) return fail(NOT_FOUND, 404);
-  const users = await ctx.users();
+  const { users } = r;
   const byId = new Map(users.map((u) => [u.tg_id, u]));
   if (!canRead(t, me, await ctx.isOwner())) {
     return fail(`Обращение ведёт ${displayName(byId.get(t.assignee))} — переписку видят он(а) и владелец.`, 403);
   }
-  const { results } = await db.prepare('SELECT * FROM support_messages WHERE thread_id = ? ORDER BY id').bind(t.id).all();
+  const results = r.messages;
   if (t.assignee === me.tg_id && results.some((m) => !m.from_admin && !m.read_at)) {
     await db.prepare('UPDATE support_messages SET read_at = ? WHERE thread_id = ? AND from_admin = 0 AND read_at = 0').bind(Date.now(), t.id).run();
   }
@@ -374,8 +386,7 @@ export async function closeByAdmin(ctx, ev, id) {
 
 // Для event.get: участнику — есть ли кому писать, открытое обращение, непрочитанные ответы; админу — ничьи и
 // непрочитанные во взятых им. Один запрос.
-export async function supportCounts(db, ev, me, { member, admin }) {
-  const r = await db
+export const supportCountsQuery = (db, ev, me) => db
     .prepare(
       `SELECT
          (SELECT COUNT(*) FROM users WHERE is_admin = 1 AND registered = 1 AND tg_id != ?1) AS admins,
@@ -388,8 +399,10 @@ export async function supportCounts(db, ev, me, { member, admin }) {
          (SELECT COUNT(*) FROM support_messages m JOIN support_threads t ON t.id = m.thread_id
            WHERE t.event_id = ?2 AND t.status = 'open' AND t.assignee = ?1 AND m.from_admin = 0 AND m.read_at = 0) AS fresh`
     )
-    .bind(me.tg_id, ev.id)
-    .first();
+    .bind(me.tg_id, ev.id);
+
+export function supportCountsView(rows, { member, admin }) {
+  const r = rows[0];
   const out = {};
   if (member) {
     out.support = {
@@ -404,7 +417,7 @@ export async function supportCounts(db, ev, me, { member, admin }) {
 }
 
 // Для «me»: непрочитанное по эвентам (ответы участнику; админу — ещё ничьи и сообщения во взятых им)
-export async function supportUnreadByEvent(db, me) {
+export function supportUnreadQuery(db, me) {
   const parts = [
     `SELECT t.event_id, COUNT(*) AS n FROM support_messages m JOIN support_threads t ON t.id = m.thread_id
       WHERE t.user_id = ?1 AND m.from_admin = 1 AND m.read_at = 0 GROUP BY t.event_id`,
@@ -416,7 +429,10 @@ export async function supportUnreadByEvent(db, me) {
         WHERE t.status = 'open' AND t.assignee = ?1 AND m.from_admin = 0 AND m.read_at = 0 GROUP BY t.event_id`,
     );
   }
-  const { results } = await db.prepare(parts.join(' UNION ALL ')).bind(me.tg_id).all();
+  return db.prepare(parts.join(' UNION ALL ')).bind(me.tg_id);
+}
+
+export function supportUnreadFrom(results) {
   const out = {};
   for (const r of results) out[r.event_id] = (out[r.event_id] || 0) + r.n;
   return out;

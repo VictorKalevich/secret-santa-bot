@@ -1,7 +1,7 @@
 // Пары эвента: проверка и проведение жеребьёвки, отмена, удаление и вписывание участника после жеребьёвки.
 
 import {
-  getEvent, getExclusions, getPairs, eventMembers, drawParticipants, familyRows, getFixedPairs, enqueueIfStmt, auditIfStmt,
+  getEvent, drawMembersQuery, pairsQuery, pairLinksQuery, exclusionsQuery, familyRowsQuery, fixedPairsQuery, enqueueIfStmt, auditIfStmt,
   markRemovedStmt, memberDataDeleteStmts,
 } from './db.js';
 import { familyExclusions, familySnapshot, FAMILY_SNAPSHOT_SQL, fixedSnapshot, FIXED_SNAPSHOT_SQL } from './constraints.js';
@@ -11,15 +11,15 @@ import { isFinished } from './status.js';
 
 // Пары прошлого эвента с наибольшим числом пар среди этих людей; при равенстве — последнего
 // (для «не повторять пары», FR-510). Так параллельный эвент другой группы не подменяет «свой».
-async function previousPairs(db, ev, ids) {
+const previousPairsQuery = (db, ev) => db
+  .prepare(
+    `SELECT p.event_id, p.santa, p.ward FROM pairs p JOIN events e ON e.id = p.event_id
+      WHERE p.event_id != ? AND e.created_at <= ? ORDER BY e.created_at DESC, e.id DESC`
+  )
+  .bind(ev.id, ev.created_at);
+
+function previousPairs(results, ids) {
   const set = new Set(ids);
-  const { results } = await db
-    .prepare(
-      `SELECT p.event_id, p.santa, p.ward FROM pairs p JOIN events e ON e.id = p.event_id
-        WHERE p.event_id != ? AND e.created_at <= ? ORDER BY e.created_at DESC, e.id DESC`
-    )
-    .bind(ev.id, ev.created_at)
-    .all();
   const byEvent = new Map();
   for (const r of results) {
     if (!set.has(r.santa) || !set.has(r.ward)) continue;
@@ -49,20 +49,28 @@ function describeProblem(p, byId) {
   }
 }
 
+// Всё, по чему считаются пары, — одним пакетом чтений (019); тексты писем не читаются — только признак «пустое»
 export async function checkDraw(ctx, ev) {
   const db = ctx.db;
-  const people = await drawParticipants(db, ev.id);
+  const r = await ctx.read({
+    members: drawMembersQuery(db, ev.id),
+    exclusions: exclusionsQuery(db, ev.id),
+    // 008: семьи — как исключения; строки семей читаются один раз — и для исключений, и для снимка (010)
+    families: ev.families_on && familyRowsQuery(db),
+    previous: ev.avoid_previous && previousPairsQuery(db, ev),
+    // 014: закреплённые пары владельца (planDraw сам берёт только пары участников жеребьёвки)
+    fixed: fixedPairsQuery(db, ev.id),
+  });
+  const people = r.members.filter((u) => u.registered);
   const ids = people.map((u) => u.user_id);
-  const allEx = await getExclusions(db, ev.id);
+  const allEx = r.exclusions;
   const own = allEx.filter((e) => ids.includes(e.giver) && ids.includes(e.receiver));
-  // 008: семьи — как исключения; строки семей читаются один раз — и для исключений, и для снимка (010)
-  const famRows = ev.families_on ? await familyRows(db) : [];
-  const families = await familyExclusions(db, ev, ids, famRows);
-  const prev = ev.avoid_previous ? await previousPairs(db, ev, ids) : [];
+  const famRows = r.families;
+  const families = familyExclusions(ev, ids, famRows);
+  const prev = ev.avoid_previous ? previousPairs(r.previous, ids) : [];
   const history = prev.map((p) => ({ giver: p.santa, receiver: p.ward }));
   const ring = !!ev.ring;
-  // 014: закреплённые пары владельца (planDraw сам берёт только пары участников жеребьёвки)
-  const fixed = await getFixedPairs(db, ev.id);
+  const fixed = r.fixed;
   // 009, FR-923: попытки (с историей, без неё, «мешают ли закреплённые пары и семьи») делят один бюджет поиска
   const { familiesBlock, ...res } = planDraw(ids, { own, families, history, fixed }, Math.random, { ring });
   const byId = Object.fromEntries(people.map((u) => [u.user_id, u]));
@@ -81,7 +89,7 @@ export async function checkDraw(ctx, ev) {
       fixed: fixedSnapshot(fixed), // 014
     },
     // Учтены ли прошлые пары, наружу не сообщается: по этому признаку можно вычислить пары прошлого (009, FR-904)
-    emptyWishlists: people.filter((u) => !u.wishlist.trim()).map((u) => u.name),
+    emptyWishlists: people.filter((u) => u.wishlist_blank).map((u) => u.name),
     problems: res.ok ? [] : [
       ...(familiesBlock ? ['Мешают семьи: члены одной семьи не дарят друг другу, и распределить всех так не получается. Выключи «Учитывать семьи» или кольцевую жеребьёвку.'] : []),
       ...res.problems.map((p) => describeProblem(p, byId)),
@@ -215,17 +223,26 @@ async function applyPairsChange(ctx, ev, oldRows, newMap, changed, members, v) {
 // mark — удаляет организатор: запомнить «удалён» (010, FR-1021), при запрете возврата по ссылке он не вернётся.
 export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, mark = false } = {}) {
   const db = ctx.db;
-  const members = await eventMembers(db, ev.id);
+  // Участники и (после жеребьёвки) всё для перестройки пар — одним пакетом чтений (019)
+  const done = !!ev.draw_done;
+  const read = await ctx.read({
+    members: drawMembersQuery(db, ev.id),
+    pairs: done && pairsQuery(db, ev.id),
+    fixed: done && fixedPairsQuery(db, ev.id),
+    exclusions: done && exclusionsQuery(db, ev.id),
+    families: done && ev.families_on && familyRowsQuery(db),
+  });
+  const { members } = read;
   const target = members.find((m) => m.user_id === userId);
   if (!target) return { ok: false, error: 'Человек не участвует в этом событии.' };
   const v = pairsVersion(db, ev);
   const stmts = v.claim ? [v.claim] : [];
   if (ev.draw_done) {
-    const rows = await getPairs(db, ev.id);
+    const rows = read.pairs;
     if (rows.some((p) => p.santa === userId || p.ward === userId)) {
       // 014: закреплённые пары оставшихся не ломаются (пары с уходящим уже не действуют)
-      const fixed = (await getFixedPairs(db, ev.id)).filter((f) => f.giver !== userId && f.receiver !== userId);
-      const isAllowed = pairRules([...(await getExclusions(db, ev.id)), ...(await familyExclusions(db, ev, members.map((m) => m.user_id)))], fixed);
+      const fixed = read.fixed.filter((f) => f.giver !== userId && f.receiver !== userId);
+      const isAllowed = pairRules([...read.exclusions, ...familyExclusions(ev, members.map((m) => m.user_id), read.families)], fixed);
       const r = removeFromAssignment(pairsToMap(rows), userId, isAllowed, Math.random, { ring: !!ev.ring });
       if (!r) {
         return { ok: false, error: 'Не получается убрать участника, не нарушив исключения или кольцевую жеребьёвку. Ослабь исключения.' };
@@ -267,16 +284,19 @@ export function insertRank(p, talked) {
 export async function insertMember(ctx, ev, userId, actor = 0) {
   const db = ctx.db;
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка ещё не проведена.' };
-  const members = await eventMembers(db, ev.id);
+  // Участники, пары (с отметкой «открыл» — для групп Сант), правила и переписка — одним пакетом чтений (019)
+  const read = await ctx.read({
+    members: drawMembersQuery(db, ev.id),
+    rows: pairsQuery(db, ev.id),
+    ownEx: exclusionsQuery(db, ev.id),
+    families: ev.families_on && familyRowsQuery(db),
+    chats: db.prepare('SELECT DISTINCT santa, ward FROM messages WHERE event_id = ?').bind(ev.id),
+    fixed: fixedPairsQuery(db, ev.id), // 014: вписывание не разрывает закреплённых пар
+  });
+  const { members, rows, ownEx, chats, fixed } = read;
   const u = members.find((x) => x.user_id === userId);
   if (!u || !u.registered) return { ok: false, error: 'Участник не найден.' };
-  const [rows, ownEx, famEx, chats, fixed] = await Promise.all([
-    getPairs(db, ev.id),
-    getExclusions(db, ev.id),
-    familyExclusions(db, ev, members.map((m) => m.user_id)),
-    db.prepare('SELECT DISTINCT santa, ward FROM messages WHERE event_id = ?').bind(ev.id).all().then((r) => r.results),
-    getFixedPairs(db, ev.id), // 014: вписывание не разрывает закреплённых пар
-  ]);
+  const famEx = familyExclusions(ev, members.map((m) => m.user_id), read.families);
   if (rows.some((p) => p.santa === userId)) return { ok: false, error: 'Участник уже в жеребьёвке.' };
   const talked = new Set(chats.map((m) => `${m.santa}:${m.ward}`));
   const bySanta = new Map(rows.map((p) => [p.santa, p]));
@@ -307,10 +327,10 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
 const CANCEL_COND =
   'NOT EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND seen_text IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM messages WHERE event_id = ?)';
 
-export async function drawCancelable(db, ev) {
-  if (!ev.draw_done || ev.revealed || isFinished(ev)) return false;
-  const r = await db.prepare(`SELECT ${CANCEL_COND} AS ok`).bind(ev.id, ev.id).first();
-  return !!r?.ok;
+// null — отменить нельзя и без запроса (не проведена, раскрыта, завершено); иначе строка { ok }
+export function cancelableQuery(db, ev) {
+  if (!ev.draw_done || ev.revealed || isFinished(ev)) return null;
+  return db.prepare(`SELECT ${CANCEL_COND} AS ok`).bind(ev.id, ev.id);
 }
 
 // Отмена жеребьёвки атомарно (research R3): если кто-то открыл подопечного между проверкой и batch — ничего не меняется
@@ -319,7 +339,7 @@ export async function cancelDraw(ctx, ev, actor) {
   if (isFinished(ev)) return { ok: false, error: 'Событие завершено — отменить жеребьёвку нельзя.' };
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
   if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
-  const [settings, rows] = await Promise.all([ctx.settings(), getPairs(db, ev.id)]);
+  const { settings, rows } = await ctx.read({ rows: pairLinksQuery(db, ev.id), settings: true });
   const token = 'cancel:' + randomCode(12);
   const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)';
   const stmts = [
@@ -349,7 +369,7 @@ export async function forceCancelDraw(ctx, ev, actor) {
   if (isFinished(ev)) return { ok: false, error: 'Событие завершено — отменить жеребьёвку нельзя.' };
   if (!ev.draw_done) return { ok: false, error: 'Жеребьёвка не проведена.' };
   if (ev.revealed) return { ok: false, error: 'Тайна уже раскрыта — отменить жеребьёвку нельзя.' };
-  const [settings, rows] = await Promise.all([ctx.settings(), getPairs(db, ev.id)]);
+  const { settings, rows } = await ctx.read({ rows: pairLinksQuery(db, ev.id), settings: true });
   const token = 'force:' + randomCode(12);
   const guard = 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND draw_token = ?)';
   const [claim] = await db.batch([

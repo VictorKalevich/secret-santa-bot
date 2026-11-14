@@ -76,15 +76,13 @@ const UNREAD_SQL = `
     FROM messages m JOIN pairs p ON p.event_id = m.event_id AND p.santa = m.santa AND p.ward = m.ward
    WHERE m.read_at = 0 AND (m.santa = ?1 OR m.ward = ?1)`;
 
-export async function unreadCounts(db, eventId, userId) {
-  const r = await db.prepare(UNREAD_SQL + ' AND m.event_id = ?2 GROUP BY m.event_id').bind(userId, eventId).first();
-  return { from_ward: r?.from_ward || 0, from_santa: r?.from_santa || 0 };
-}
+// Непрочитанное в одном эвенте (от подопечного и от Санты) — для пакета чтений и его разбор
+export const unreadQuery = (db, eventId, userId) => db.prepare(UNREAD_SQL + ' AND m.event_id = ?2 GROUP BY m.event_id').bind(userId, eventId);
+export const unreadFrom = (rows) => ({ from_ward: rows[0]?.from_ward || 0, from_santa: rows[0]?.from_santa || 0 });
 
-export async function unreadByEvent(db, userId) {
-  const { results } = await db.prepare(UNREAD_SQL + ' GROUP BY m.event_id').bind(userId).all();
-  return Object.fromEntries(results.map((r) => [r.event_id, (r.from_ward || 0) + (r.from_santa || 0)]));
-}
+// Непрочитанное по эвентам — для «me»
+export const unreadByEventQuery = (db, userId) => db.prepare(UNREAD_SQL + ' GROUP BY m.event_id').bind(userId);
+export const unreadByEventFrom = (rows) => Object.fromEntries(rows.map((r) => [r.event_id, (r.from_ward || 0) + (r.from_santa || 0)]));
 
 // chat.get: история переписки с подопечным или Сантой; сообщения собеседника помечаются прочитанными.
 // Только текст и «моё/не моё» — без ID и имён собеседника (Конституция, принцип I).

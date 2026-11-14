@@ -1,7 +1,7 @@
 // Правила пар (019): исключения «кто кому не дарит», закреплённые пары владельца (014), семьи как исключения (008) и
 // снимки этих правил для условия записи жеребьёвки (009/010/014). Жеребьёвка и замены — src/pairs.js.
 
-import { getMember, getEvent, getFixedPairs, eventMembers, familyRows, auditIfStmt } from './db.js';
+import { getEvent, memberQuery, drawMembersQuery, fixedPairsQuery, auditIfStmt } from './db.js';
 import { displayName } from './format.js';
 
 const EXCLUSIONS_FROZEN =
@@ -25,8 +25,8 @@ export async function changeExclusions(ctx, ev, { add, giver: rawGiver, receiver
   const receiver = Number(rawReceiver);
   if (add) {
     if (!giver || !receiver || giver === receiver) return no('Выбери двух разных людей');
-    const [g, r] = await Promise.all([getMember(db, ev.id, giver), getMember(db, ev.id, receiver)]);
-    if (!g || !r) return no('Исключение можно задать только между участниками события.');
+    const r = await ctx.read({ g: memberQuery(db, ev.id, giver), r: memberQuery(db, ev.id, receiver) });
+    if (!r.g.length || !r.r.length) return no('Исключение можно задать только между участниками события.');
   }
   const beforeDraw = isOwner ? '? > 0' : 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)';
   const change = (a, b) => add
@@ -57,7 +57,7 @@ export async function changeFixed(ctx, ev, { add, giver: rawGiver, receiver: raw
   const links = mutual ? [[giver, receiver], [receiver, giver]] : [[giver, receiver]];
   if (add) {
     if (!giver || !receiver || giver === receiver) return no('Выбери двух разных людей');
-    const [members, fixed] = await Promise.all([eventMembers(db, ev.id), getFixedPairs(db, ev.id)]);
+    const { members, fixed } = await ctx.read({ members: drawMembersQuery(db, ev.id), fixed: fixedPairsQuery(db, ev.id) });
     const byId = new Map(members.filter((m) => m.registered).map((m) => [m.user_id, m]));
     if (!byId.has(giver) || !byId.has(receiver)) return no('Закрепить пару можно только между участниками события.');
     const name = (id) => displayName(byId.get(id));
@@ -89,12 +89,12 @@ export async function changeFixed(ctx, ev, { add, giver: rawGiver, receiver: raw
 // ---------- семьи как исключения (008) и снимки правил ----------
 
 // Пары «не дарят друг другу» между членами одной семьи среди ids — если в эвенте включено правило семей.
-// rows — уже прочитанные строки familyRows (необязательно).
-export async function familyExclusions(db, ev, ids, rows = null) {
+// rows — строки «человек — семья» (familyRowsQuery), прочитанные вызывающим в его пакете чтений (019).
+export function familyExclusions(ev, ids, rows) {
   if (!ev.families_on || ids.length < 2) return [];
   const set = new Set(ids);
   const byFamily = new Map();
-  for (const r of rows || (await familyRows(db))) {
+  for (const r of rows) {
     if (!set.has(r.user_id)) continue;
     if (!byFamily.has(r.family_id)) byFamily.set(r.family_id, []);
     byFamily.get(r.family_id).push(r.user_id);
