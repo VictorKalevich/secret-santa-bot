@@ -7,8 +7,9 @@ Telegram-бот «Тайный Санта» для небольшой групп
 
 - Любое изменение поведения — через Spec Kit: `/speckit-specify` → (`/speckit-clarify`) → `/speckit-plan` →
   `/speckit-tasks` → `/speckit-implement`. Скилы лежат в `.claude/skills/speckit-*`.
-- Спецификации — источник истины: `specs/NNN-имя/` (spec.md, plan.md, research.md, data-model.md, contracts/,
-  quickstart.md, tasks.md). Активная фича записана в `.specify/feature.json`.
+- Спецификации — источник истины: `specs/NNN-имя/` — всегда spec.md, plan.md, tasks.md; research.md, data-model.md,
+  contracts/, quickstart.md — по необходимости (у 013 нет `data-model.md`, у 015 — `research.md`, `data-model.md`,
+  `contracts/`). Активная фича записана в `.specify/feature.json`.
 - Конституция: `.specify/memory/constitution.md` — проверяй каждый план по всем принципам.
 - Скрипты Spec Kit — PowerShell (`.specify/scripts/powershell/`), платформа разработчика — Windows.
 - Код и спецификация не должны расходиться: поменял поведение — обнови spec/contracts в той же ветке.
@@ -38,18 +39,20 @@ Telegram-бот «Тайный Санта» для небольшой групп
 | `019-api-actions` | `specs/019-api-actions/` | реализовано (шаг 4 рефакторинга): таблица действий API (`ACTIONS` в `src/api.js`, 59 строк: роль, событие, «в завершённом», отказ не владельцу, слово подтверждения) и один конвейер проверок до обработчика; контекст вызова (`src/context.js`: пользователь и настройки — одним пакетом, пользователи и владелец — не больше раза); логика с SQL — в модулях; чтения пакетами, признаки вместо текстов писем (`admin.state` 14→4 запроса, `admin.remove` 16→8); ответы прежние (эталон отказов 1125 ответов) |
 | `020-claims-snapshots` | `specs/020-claims-snapshots/` | реализовано (шаг 5 рефакторинга): один помощник атомарных действий (`atomic` в `src/claim.js`: условие один раз, операторы в порядке вызовов, захват отмечен); захваты без меток времени — при двух нажатиях в одну миллисекунду одно сообщение и одна запись журнала (обращения, заявки, «получил», исключения); снимки жеребьёвки — в `src/snapshots.js` парами «JS и SQL» со сверкой тестом, снимок исключений различает перестановку партнёров; схема, тексты и ответы прежние, число запросов то же |
 | `021-app-parts` | `specs/021-app-parts/` | реализовано (шаг 6 рефакторинга): мини-приложение — восемь частей по областям в `src/app/` (`.html` и `.js.txt`), склейка без сборщика в `src/app-page.js`; страница побайтно прежняя (склейка и ответ `wrangler dev`); проверки дизайн-системы и слов — по склейке, тест частей (`app-parts`); код внутри частей не менялся |
+| `022-docs-contract` | `specs/022-docs-contract/` | реализовано (шаг 7 рефакторинга): сводный контракт `docs/api.md` — 59 действий (кто, событие, в завершённом, запрос, ответ, отказы, журнал), порядок проверок, коды журнала, бот (`pending`, `callback_data`), ссылка `/app`; тест `api-doc` сверяет его с `ACTIONS` и кодами журнала сервера; `CLAUDE.md`, README, Конституция 2.3.1 — по коду; старые контракты — история с указателем; `src/` не менялся |
 
-С 005 почти все действия привязаны к эвенту (`event_id`); актуальный контракт API — `specs/005-events-history/contracts/events.md`
-(контракты 001–004 описывают поведение внутри одного эвента); изменения 006 — `specs/006-fixes/contracts/api-changes.md`; 007 — `specs/007-admin-tools/contracts/api.md`; 008 — `specs/008-delivery-families-requests/contracts/api.md`; 009 — `specs/009-fix-refactor/contracts/api-changes.md`;
-010 — `specs/010-owner-rights/contracts/api.md`; 012 — `specs/012-insert-cancel-support/contracts/api.md`;
-014 — `specs/014-fixed-pairs/contracts/api.md`; внутреннее устройство API (таблица действий, контекст, модули, чтения) —
-`specs/019-api-actions/contracts/api-actions.md`.
+**Актуальное описание API, бота и журнала — `docs/api.md`** (с 022): все 59 действий, порядок проверок и общие отказы, коды
+журнала, `users.pending`, кнопки бота, параметры ссылки `/app`. Тест `tests/api-doc.test.mjs` падает, если действие или код
+журнала есть в коде, но не в документе (и наоборот), или если роль, событие, «в завершённом», отказ не владельцу, слово
+подтверждения расходятся с `ACTIONS`; формат документа — `specs/022-docs-contract/contracts/api-doc.md`. Меняешь API —
+правь `docs/api.md` в той же ветке. Контракты фич 001–014 — история решений (в начале каждого — указатель). Внутреннее
+устройство API (таблица действий, контекст, модули, чтения) — `specs/019-api-actions/contracts/api-actions.md`.
 
 ## План рефакторинга
 
-Рефакторинг архитектуры идёт по плану `docs/refactoring-roadmap.md`: 7 шагов, каждый — отдельная фича Spec Kit,
-начиная с 016. Перед работой над шагом прочитай план и файл шага `docs/refactoring/step-N-….md` — в них
-ограничения, порядок работы и приёмка. Базовые замеры для сравнения «до и после» — `docs/refactoring/baseline.md`.
+Рефакторинг архитектуры шёл по плану `docs/refactoring-roadmap.md`: 7 шагов, каждый — отдельная фича Spec Kit
+(016–022); все шаги выполнены. В плане остаются «Решения владельца» — изменения поведения, не вошедшие в шаги; файлы
+шагов `docs/refactoring/step-N-….md` — история и обоснования. Замеры «до и после» — `docs/refactoring/baseline.md`.
 
 ## Технологии
 
@@ -66,6 +69,7 @@ Telegram-бот «Тайный Санта» для небольшой групп
 ```powershell
 npm test             # быстрые тесты всего Worker + дизайн-система и слова (перед каждым коммитом, секунды)
 npm run test:e2e     # сквозной сценарий (перед выкатом)
+npm run test:all     # npm test и e2e подряд (перед слиянием ветки)
 npm run bench:draw   # замер жеребьёвки 50–200 человек (шаги 2, 4, 5 рефакторинга; в npm test не входит)
 npm run screenshots  # визуальная проверка UI → test-results/
 npm run dev          # локальный Worker
@@ -77,19 +81,20 @@ npm run deploy       # выкат в Cloudflare
 - `src/index.js` — маршруты: `/tg`, `/app`, `/api/*`, `/setup`, `scheduled`; оборачивает `env` счётчиком запросов
   (`metered`) и один раз в конце вызова отправляет очередь (`afterRequest` → `flushOutbox`).
 - `src/setup.js` — страница `/setup` (010; отдельный файл с 019): GET — только форма, ключ — из POST-формы (из адреса
-  не читается), после использования ссылки владельца — 423 до смены `ADMIN_SECRET`; заголовки `no-referrer`, `no-store`,
+  не читается), после использования ссылки владельца — 423 до смены `ADMIN_SECRET` или `BOT_TOKEN` (код ссылки и отметка
+  считаются HMAC с ключом `BOT_TOKEN` от `ADMIN_SECRET`); заголовки `no-referrer`, `no-store`,
   `frame-ancestors 'none'`.
 - `src/bot.js` — чат: `/start` (`inv_<код эвента>`/`adm_`), регистрация, меню со списком эвентов (один запрос),
   режим ответа в переписку (`msg:<сторона>:<eid>` → `pending = msg_<сторона>:<eid>:<собеседник>:<время>`, живёт час,
   сбрасывается любой командой). Обращения (012): `sup:take|a:<обращение>`, `sup:u:<eid>` → `pending = sup_a:<id>:<время>` /
   `sup_u:<eid>:<время>` (те же правила: час, сброс командой). Сборка и разбор `pending` — `replyPending`, `supportPending`,
   `parsePending` (019; старый `msg_<сторона>:<eid>` без собеседника — «время ответа истекло»).
-- `src/api.js` — API мини-приложения: почти все действия с полем `event` (контракт: `specs/005-events-history/contracts/events.md`).
+- `src/api.js` — API мини-приложения: почти все действия с полем `event` (описание — `docs/api.md`).
   От `bot.js` не зависит. 019: таблица `ACTIONS` — строка на действие: `role` (`ROLES`: `ANY`, `USER`, `VIEWER` — участник
   или админ, `MEMBER`, `ADMIN`, `OWNER`), `event` (`true` / `'given'`), `finished` (у действия события обязательно: `true`
   или текст отказа), `owner` (отказ не владельцу, только при `OWNER`), `confirm` (слово и отказ), `run(ctx, body, ev,
   member)`; общие проверки — один конвейер в `handleApi` до обработчика, в прежнем порядке. **Новое действие — строка
-  таблицы**; SQL здесь нет (`db.prepare` — только в модулях), условные права (зависят от данных) — в обработчике.
+  таблицы и раздел в `docs/api.md`** (иначе падает тест `api-doc`); SQL здесь нет (`db.prepare` — только в модулях), условные права (зависят от данных) — в обработчике.
 - `src/context.js` (019) — контекст вызова, первый параметр функций модулей: `openContext(env, userId)` (API и сообщение
   боту — пользователь и настройки одним пакетом), `makeContext(env, { me })` (нажатие кнопки, cron); `ctx.settings()`,
   `ctx.users()`, `ctx.ownerId()`, `ctx.isOwner()` — не больше одного чтения на вызов; `ctx.read({ …, users, settings })` —
@@ -124,7 +129,8 @@ npm run deploy       # выкат в Cloudflare
   - `src/panel.js` (019) — панель организатора: `adminState` (одним пакетом чтений, без текстов писем и адресов),
     письмо участника для админа, список пользователей.
   - `src/roles.js` — владелец, админы, передача владения, перенос участия на новый аккаунт (только владелец, 010),
-    ссылка владельца (`ownerLinkCode`, одноразовая: `claimOwnerLink`, `ownerLinkUsed` — отметка от текущего `ADMIN_SECRET`).
+    ссылка владельца (`ownerLinkCode`, одноразовая: `claimOwnerLink`, `ownerLinkUsed` — отметка от текущих `ADMIN_SECRET` и
+    `BOT_TOKEN`: `derivedSecret` — HMAC с ключом `BOT_TOKEN`, поэтому смена любого из двух снимает блокировку `/setup`).
   - `src/vault.js` — служебный просмотр владельца (010): участник (`vaultPerson`) и все пары (`vaultPairs`); журнал до
     ответа, ни одного UPDATE статусов.
   - `src/membership.js` — вступление по ссылке (`joinByInvite`, одно правило для ссылки и ввода имени; `'removed'` при
@@ -151,7 +157,7 @@ npm run deploy       # выкат в Cloudflare
   группы рангов (012).
 - `src/cron.js` — шаги изолированы (`step`: уведомления → ежедневное → отправка очереди); уведомления об изменениях
   писем, автодействия расписания (`dueAutoAction`/`runAutoAction`) и напоминания — не больше одного тяжёлого действия за вызов.
-- `migrations/` — схема D1 (сейчас 11): `0001_initial.sql` (схема 005), `0002_fixes.sql` (`users.blocked_at`,
+- `migrations/` — схема D1 (версия схемы 11 — `REQUIRED_SCHEMA`, файлов миграций 7): `0001_initial.sql` (схема 005), `0002_fixes.sql` (`users.blocked_at`,
   `outbox.locked_until`, `events.draw_token`), `0003_admin_tools.sql` (`announcements`, `audit`, поля расписания
   эвента, `pairs.gift_received`), `0004_delivery_families_requests.sql` (`members.delivery`, `families`,
   `family_members`, `join_requests`, параметры эвента `delivery_on`/`families_on`/`approval`), `0005_owner_rights.sql`
@@ -167,7 +173,9 @@ npm run deploy       # выкат в Cloudflare
   `mergeMembership` (перенос) — условие `guard` как у `enqueueIfStmt`, якорь (строка события / участника / человека) —
   последний оператор, по нему узнаётся исход; контракт — `specs/018-data-registry/contracts/data-registry.md`;
   `auditStmt`/`auditIfStmt` — запись журнала в том же batch, что и действие
-  (каждое действие админа и бота пишет журнал; без пар, писем и текстов объявлений). Чтения (019): построители `…Query`
+  (журнал пишут меняющие действия админа и автодействия бота — кроме `admin.rename`, ответа организатора в уже взятое
+  обращение и планового напоминания без получателей; чтения — только `admin.wishlist` и `admin.vault.*`; без пар, писем и
+  текстов объявлений; все коды — `docs/api.md`, «Коды журнала»). Чтения (019): построители `…Query`
   для пакетов (`readMany(db, named)`, `ctx.read`); узкие выборки — `drawMembersQuery` (жеребьёвка и замены: без текстов,
   `wishlist_blank`), `panelMembersQuery` (`has_wishlist`, `has_delivery`), получатели рассылок (`memberIdsQuery`,
   `participantIdsQuery`, `unfilledIdsQuery`), `pairLinksQuery`, `panelPairsQuery` (`seen`); `BLANK_SQL(col)` — «текст
@@ -185,6 +193,8 @@ npm run deploy       # выкат в Cloudflare
 - `src/app-page.js` (021) — единственное место с порядком частей: `APP_PARTS` (`[имя, текст]`) и склейка (`default`);
   `src/index.js` вставляет в неё стили дизайн-системы (замена через функцию).
 - `design-system/` — `tokens.css`, `components.css`, `preview.html`, `README.md`.
+- `docs/` — `api.md` (022: сводный контракт API, бота и журнала — актуальное описание), `refactoring-roadmap.md` и
+  `refactoring/` (план рефакторинга, файлы шагов, замеры `baseline.md`).
 - `tests/` (016): `support/` — «мир» (`world.mjs`: `api`, `say`, `press`, `cron`, `query`, `last` — запросы вызова,
   `log()`, `together` — «все читают, затем пишут», `beforeWrite`; контракт — `specs/016-fast-tests/contracts/test-harness.md`),
   `d1-sqlite.mjs`, `auth.mjs` (подпись `initData`), `telegram-rules.mjs`, `text-hooks.mjs` (`.html`, `.css`, `.txt` —
@@ -202,7 +212,9 @@ npm run deploy       # выкат в Cloudflare
   столько же; `Math.random` сценария — с зерном, 017), `draw-golden`
   (`fixtures/draw-golden.json` — не пересоздавать), `draw` (в т.ч. `fillMatrix` = перебор правил, 017), `data-registry` (018: `REGISTRY` = схема в обе стороны, «от
   противного»; после пяти действий не остаётся строк события и человека), `d1-sqlite` (019: `batch` только из чтений
-  не ждёт барьера `together`), `world` (в т.ч. `GET /app` = склейка со стилями). Замеры — `bench/` (`node tests/bench/queries.mjs [sql]`).
+  не ждёт барьера `together`), `world` (в т.ч. `GET /app` = склейка со стилями), `api-doc` (022: `docs/api.md` ↔ `ACTIONS`
+  — имена в обе стороны, роль, событие, «в завершённом», отказ не владельцу, слово подтверждения; коды журнала документа =
+  коды, которые пишет `src/*.js`; «от противного»). Замеры — `bench/` (`node tests/bench/queries.mjs [sql]`).
   Новый тестовый файл — в скрипт `test` в `package.json` (файлы перечислены явно, чтобы не подхватить e2e).
 
 ## Жёсткие правила
@@ -213,7 +225,7 @@ npm run deploy       # выкат в Cloudflare
    меняются, админам сообщений нет; участникам честно сказано в README (с 011 — не в «Как это работает»; Конституция 2.1.0).
    Роли: владелец один (`settings.owner_id`, `resolveOwner`), только он назначает/снимает админов и переносит участие.
    **Владелец ⊇ админ (принцип VII).** Каждое `admin.*` доступно владельцу (e2e-автотест и тест прав берут список
-   действий из таблицы `ACTIONS` в `src/api.js`; новое действие — строка таблицы с ролью, событием и «в завершённом»);
+   действий из таблицы `ACTIONS` в `src/api.js`; новое действие — строка таблицы с ролью, событием и «в завершённом» и раздел в `docs/api.md`);
    ограничения «чтобы админ не вычислил пары» на владельца не действуют. Ссылка владельца одноразовая.
    Тексты уведомлений — без имени подопечного и без текста письма. Пользовательский текст — только через
    `textContent` / `escapeHtml`. Админ видит любой эвент (`event.get`), но `ward.get`/`chat.get` — только участникам.

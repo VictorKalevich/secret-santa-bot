@@ -1,4 +1,5 @@
-// Сквозной тест: локальный Worker (wrangler dev) + имитация Telegram. Сценарии 001–008.
+// Сквозной тест: локальный Worker (wrangler dev) + имитация Telegram. Сценарии: сквозной (события, жеребьёвка, переписка,
+// история), 006 (миграции), 007, 008, 009, 010, 012, 014.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
