@@ -1,16 +1,16 @@
-// Замер жеребьёвки «до и после». Запуск из корня проекта:
-//   node docs/refactoring/prototypes/bench-draw.mjs                 — текущий src/draw.js
-//   node docs/refactoring/prototypes/bench-draw.mjs <путь к draw.js> — другой вариант файла
+// Замер жеребьёвки «до и после» (016; в npm test не входит). Запуск из корня проекта:
+//   npm run bench:draw                         — текущий src/draw.js
+//   npm run bench:draw -- <путь к draw.js>     — другой вариант файла
 // «Холодный» — первый вызов в свежем процессе (так чаще всего и бывает в Worker), «прогретый» — после 60 вызовов.
-// Числа на коммите 24b85d3 записаны в docs/refactoring/baseline.md. Сравнивай медианы на той же машине и в том же
-// режиме питания: ноутбук от батареи даёт числа в 1,5–2 раза хуже.
+// Базовые числа — docs/refactoring/baseline.md, раздел 2. Сравнивай медианы на той же машине и в том же режиме
+// питания (ноутбук от батареи даёт числа в 1,5–2 раза хуже); запускай дважды и бери диапазон.
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { scenario, seeded } from './draw-scenario.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const drawPath = path.resolve(process.argv[2] || path.join(here, '../../../src/draw.js'));
+const drawPath = path.resolve(process.argv[2] || path.join(here, '../../src/draw.js'));
 const { planDraw } = await import(pathToFileURL(drawPath).href);
 const q = (a, p) => a[Math.min(a.length - 1, Math.floor(a.length * p))];
 const fmt = (x) => x.toFixed(2).padStart(6);

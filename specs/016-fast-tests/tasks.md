@@ -103,11 +103,11 @@ description: "Task list for 016-fast-tests"
 **Independent Test**: `node --test tests/draw-golden.test.mjs` зелёный; правка порядка случайных выборов в
 `src/draw.js` роняет его и называет случаи (quickstart, раздел 4).
 
-- [ ] T026 [P] [US4] `tests/support/draw-cases.mjs`: `seeded`, `drawCases(count = 400)` — генератор случаев из `docs/refactoring/prototypes/draw-equivalence.mjs` (зерна 1–count), `runCase(draw, c)` → строка: `JSON.stringify` (Map/Set → массивы) результатов `planDraw`, `findAssignment` с `pairRules` и с функцией-обёрткой, `removeFromAssignment`, `insertIntoAssignment` без ранга и с рангом (R11)
-- [ ] T027 [US4] `tests/fixtures/make-draw-golden.mjs` (заголовок: «эталон не пересоздаётся в шагах плана рефакторинга») и созданный им `tests/fixtures/draw-golden.json` от текущего `src/draw.js` (`{ note, count, cases }`, по строке на случай) (depends on T026)
-- [ ] T028 [US4] `tests/draw-golden.test.mjs`: пересчитать все случаи текущим `src/draw.js`, сравнить строки с эталоном, при расхождении — номера первых случаев и обе строки; число случаев = `count` (FR-1611) (depends on T027)
-- [ ] T029 [P] [US4] `tests/bench/`: перенести `bench-draw.mjs`, `bench-draw-cold.mjs`, `draw-scenario.mjs` (`seeded` — из `tests/support/draw-cases.mjs`), путь по умолчанию — `src/draw.js` от корня; `package.json` — скрипт `"bench:draw": "node tests/bench/bench-draw.mjs"`, в `npm test` не входит; `docs/refactoring/prototypes/draw-equivalence.mjs` — импорт `seeded` из нового места (FR-1612)
-- [ ] T030 [US4] `package.json`: `tests/draw-golden.test.mjs` в скрипт `test`
+- [X] T026 [P] [US4] `tests/support/draw-cases.mjs`: `seeded`, `drawCases(count = 400)` — генератор случаев из `docs/refactoring/prototypes/draw-equivalence.mjs` (зерна 1–count), `runCase(draw, c)` → строка: `JSON.stringify` (Map/Set → массивы) результатов `planDraw`, `findAssignment` с `pairRules` и с функцией-обёрткой, `removeFromAssignment`, `insertIntoAssignment` без ранга и с рангом (R11)
+- [X] T027 [US4] `tests/fixtures/make-draw-golden.mjs` (заголовок: «эталон не пересоздаётся в шагах плана рефакторинга») и созданный им `tests/fixtures/draw-golden.json` от текущего `src/draw.js` (`{ note, count, cases }`, по строке на случай) (depends on T026)
+- [X] T028 [US4] `tests/draw-golden.test.mjs`: пересчитать все случаи текущим `src/draw.js`, сравнить строки с эталоном, при расхождении — номера первых случаев и обе строки; число случаев = `count` (FR-1611) (depends on T027)
+- [X] T029 [P] [US4] `tests/bench/`: перенести `bench-draw.mjs`, `bench-draw-cold.mjs`, `draw-scenario.mjs` (`seeded` — из `tests/support/draw-cases.mjs`), путь по умолчанию — `src/draw.js` от корня; `package.json` — скрипт `"bench:draw": "node tests/bench/bench-draw.mjs"`, в `npm test` не входит; `docs/refactoring/prototypes/draw-equivalence.mjs` — импорт `seeded` из нового места (FR-1612)
+- [X] T030 [US4] `package.json`: `tests/draw-golden.test.mjs` в скрипт `test`
 
 **Checkpoint**: US4 готова.
 

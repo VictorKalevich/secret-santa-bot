@@ -7,8 +7,5 @@ export function scenario(n) {
   return { ids, families, history };
 }
 
-// Тот же генератор с зерном, что в tests/draw.test.mjs
-export function seeded(seed) {
-  let s = seed >>> 0;
-  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32);
-}
+// Тот же генератор с зерном, что в tests/draw.test.mjs и в эталоне жеребьёвки
+export { seeded } from '../support/draw-cases.mjs';

@@ -6,7 +6,7 @@
 // с людьми не из списка), кольцевая и обычная, малый бюджет поиска; плюс удаление и вписывание после жеребьёвки.
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { seeded } from './draw-scenario.mjs';
+import { seeded } from '../../../tests/support/draw-cases.mjs';
 
 const [, , oldPath, newPath] = process.argv;
 if (!oldPath || !newPath) {
