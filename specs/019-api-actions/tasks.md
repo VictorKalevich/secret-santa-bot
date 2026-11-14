@@ -220,20 +220,23 @@ tests/draw-golden.test.mjs` — зелёные; `npm run bench:draw` ×2 — б�
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T039 [P] `CLAUDE.md`: строка `019-api-actions` в таблице фич; «Структура» — `src/api.js` (таблица `ACTIONS`,
+- [X] T039 [P] `CLAUDE.md`: строка `019-api-actions` в таблице фич; «Структура» — `src/api.js` (таблица `ACTIONS`,
   конвейер, без SQL), `src/context.js`, `src/status.js`, `src/constraints.js`, `src/participant.js`, `src/panel.js`,
   `src/setup.js`, `readMany`/узкие чтения/`BLANK_SQL` в `src/db.js`; жёсткое правило «владелец ⊇ админ»: e2e-автотест и
   тест прав берут список из `ACTIONS`; новое действие — строка таблицы (роль, событие, «в завершённом»); `tests/` —
   `api-table`, `api-refusals` (эталон не пересоздавать), пакет чтений в подмене D1
-- [ ] T040 [P] `docs/refactoring-roadmap.md`: статус шага 4 «выполнен (019, 2026-11-14)»;
+- [X] T040 [P] `docs/refactoring-roadmap.md`: статус шага 4 «выполнен (019, 2026-11-14)»;
   `docs/refactoring/step-4-api-table-context.md` — пометка в начале «Выполнен в 019»
-- [ ] T041 [P] `docs/refactoring/baseline.md`: числа запросов после шага 4 (раздел 3), `npm test` после шага 4 (раздел 1),
+- [X] T041 [P] `docs/refactoring/baseline.md`: числа запросов после шага 4 (раздел 3), `npm test` после шага 4 (раздел 1),
   замер жеребьёвки «после» (раздел 2)
-- [ ] T042 [P] README: проверить, что установка, настройка, секреты, команды, роли и использование не изменились — правка
+- [X] T042 [P] README: проверить, что установка, настройка, секреты, команды, роли и использование не изменились — правка
   не нужна (Конституция: задача на README в каждой фиче)
-- [ ] T043 Память проекта (`refactoring-roadmap.md` в памяти): шаг 4 выполнен (019), опоры — `ACTIONS`, контекст
-- [ ] T044 `npm test` 5 раз подряд — зелёный; коммит «019 docs: …»
-- [ ] T045 `npm run test:e2e` — 8 сценариев зелёные, журнал без `budget exceeded`
+  установка, настройка, секреты, команды, роли и использование не изменились; в разделе для разработчика дописаны таблица действий (права) и эталон отказов в списке проверок npm test и в папке fixtures/
+- [X] T043 Память проекта (`refactoring-roadmap.md` в памяти): шаг 4 выполнен (019), опоры — `ACTIONS`, контекст
+- [X] T044 `npm test` 5 раз подряд — зелёный; коммит «019 docs: …»
+  138 тестов: 136 прошли, 2 todo; 0,72–0,76 с, 5 прогонов
+- [X] T045 `npm run test:e2e` — 8 сценариев зелёные, журнал без `budget exceeded`
+  8 сценариев, 69 тестов, 185 с, budget exceeded нет
 - [ ] T046 Слияние в `main` (`--ff-only`), `git push` ветки и `main`; `git branch -a --no-merged main` пуст
 
 ---

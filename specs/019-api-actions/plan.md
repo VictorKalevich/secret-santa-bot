@@ -1,6 +1,6 @@
 # Implementation Plan: Таблица действий API и контекст запроса
 
-**Branch**: `019-api-actions` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branch**: `019-api-actions` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-14)
 
 **Input**: Feature specification from `specs/019-api-actions/spec.md`; шаг 4 плана рефакторинга
 (`docs/refactoring/step-4-api-table-context.md`), замеры `docs/refactoring/baseline.md` (разделы 2, 3, 6).
