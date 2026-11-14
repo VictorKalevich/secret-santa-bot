@@ -14,10 +14,13 @@ git diff main -- tests/fixtures            # пусто: эталон не пе�
 Сверка двух вариантов файла на 6000 случаях (до удаления прототипа, задача в `tasks.md`):
 
 ```bash
-git show main:src/draw.js > "$TEMP/draw-old.mjs"
+git show b9fe434:src/draw.js   # main до 017 > "$TEMP/draw-old.mjs"
 node docs/refactoring/prototypes/draw-equivalence.mjs "$TEMP/draw-old.mjs" src/draw.js
 # ожидается: «расхождений: 0», код выхода 0
 ```
+
+Выполнено (T014): 6000 случаев, 0 расхождений. Затем прототип удалён (T016); вернуть его для повторной сверки:
+`git checkout 18a9398 -- docs/refactoring/prototypes/draw-equivalence.mjs` (после — удалить снова).
 
 ## 2. Быстрее
 

@@ -1,5 +1,5 @@
 // Подмена D1 на node:sqlite (016): каждое свойство настоящей D1, на которое опирается src/
-// (docs/refactoring/prototypes/README.md, «Что учтено в подмене D1»; specs/016-fast-tests/research.md, R2).
+// (specs/016-fast-tests/research.md, R2; прежний список — docs/refactoring/prototypes/README.md в git до 017).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createD1, createMigratedD1 } from './support/d1-sqlite.mjs';
