@@ -1,6 +1,6 @@
 # Implementation Plan: Журнал закреплённых пар — одна запись на одно изменение
 
-**Branch**: `023-fixed-pairs-audit` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
+**Branch**: `023-fixed-pairs-audit` | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-14)
 
 **Input**: Feature specification from `specs/023-fixed-pairs-audit/spec.md`; research R9 фичи 020.
 

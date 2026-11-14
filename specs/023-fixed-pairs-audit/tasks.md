@@ -98,9 +98,9 @@
   проверок после 023
 - [X] T011 [P] Память проекта `refactoring-roadmap.md`: снять «`admin.fixed.add` ×2 пишет две записи журнала»
   (исправлено в 023)
-- [ ] T012 `npm test` (3 прогона, время; `queries` — `admin.fixed.add` 6 / 0), `npm run test:e2e` (без
+- [X] T012 `npm test` (3 прогона, время; `queries` — `admin.fixed.add` 6 / 0), `npm run test:e2e` (без
   `budget exceeded`); `git diff main --stat -- src/` — только `src/constraints.js`
-- [ ] T013 Отметки задач, статус `spec.md`/`plan.md` — «реализовано»; коммиты; слияние в `main` (`--ff-only`) и
+- [X] T013 Отметки задач, статус `spec.md`/`plan.md` — «реализовано»; коммиты; слияние в `main` (`--ff-only`) и
   `git push` после зелёных `npm test` и e2e
 
 ---
