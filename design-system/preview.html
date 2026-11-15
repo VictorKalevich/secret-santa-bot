@@ -135,9 +135,11 @@
       <label class="ds-check"><input type="checkbox" checked> и наоборот (в обе стороны)</label>
     </div>
 
-    <!-- Календарь (027): свой выбор дня в шторке — дни до сегодня бледные, выбранный — цветом кнопки -->
+    <!-- Календарь (027) в шторке с драгером (028): дни до сегодня бледные, выбранный — цветом кнопки; сетка всегда на 6 недель -->
     <div class="ds-section-title">Календарь</div>
-    <div class="ds-card ds-stack">
+    <div class="ds-sheet ds-sheet--handle ds-stack">
+      <div class="ds-sheet__handle"></div>
+      <div class="ds-row ds-row--between"><h2 class="ds-sheet__title">Автожеребьёвка</h2><button class="ds-icon-btn">✕</button></div>
       <div class="ds-calendar">
         <div class="ds-row ds-row--between"><button class="ds-icon-btn" title="Предыдущий месяц">‹</button><div class="ds-calendar__title">Декабрь 2026</div><button class="ds-icon-btn" title="Следующий месяц">›</button></div>
         <div class="ds-calendar__grid">
@@ -151,7 +153,8 @@
       <button class="ds-btn ds-btn--block">Готово</button>
       <button class="ds-btn ds-btn--secondary ds-btn--block">Сбросить</button>
       <button class="ds-btn ds-btn--block" disabled>Готово</button>
-      <div class="ds-hint">Без выбранного дня «Готово» недоступна.</div>
+      <button class="ds-btn ds-btn--secondary ds-btn--block">Закрыть</button>
+      <div class="ds-hint">Без даты: «Готово» недоступна до выбора дня, вторая кнопка — «Закрыть». Полоска сверху — драгер: свайп вниз сворачивает шторку.</div>
     </div>
 
 

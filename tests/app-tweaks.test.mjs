@@ -69,7 +69,10 @@ export function doneGated(text) {
       found.push([head + i, '«Готово» становится доступной не при выборе дня']);
     }
   });
-  if (!/\bconst reset = value \? ui\.btn\('Сбросить'/.test(fn.text)) found.push([head, '«Сбросить» — только при заданной дате']);
+  // 028: вторая кнопка — всегда: «Сбросить» при дате, «Закрыть» без неё
+  if (!/\bconst reset = ui\.btn\(value \? 'Сбросить' : 'Закрыть', 'secondary'/.test(fn.text)) {
+    found.push([head, 'вторая кнопка — не всегда: «Сбросить» при дате, «Закрыть» без неё']);
+  }
   return found;
 }
 
@@ -105,6 +108,39 @@ export function resolveSpaced(text, css) {
   return found;
 }
 
+// ---------- 6. Шторка календаря одной высоты: сетка всегда на 6 недель (028) ----------
+export function sixWeeks(css) {
+  const grid = /\.ds-calendar__grid\s*\{([^}]*)\}/.exec(css);
+  if (!grid) return [[0, 'components.css: нет .ds-calendar__grid']];
+  return /grid-template-rows:\s*auto repeat\(6, var\(--ds-size-control\)\)/.test(grid[1]) ? []
+    : [[0, 'components.css: .ds-calendar__grid без grid-template-rows: auto repeat(6, var(--ds-size-control)) — высота шторки зависит от месяца']];
+}
+
+// ---------- 7. Драгер — только у шторки календаря; на время календаря жест Telegram выключен (028) ----------
+export function handleRule(text) {
+  const found = [];
+  const cal = fnText(text, 'openCalendar');
+  const drag = fnText(text, 'sheetHandle');
+  const open = fnText(text, 'openSheet');
+  if (!cal) return [[1, 'нет function openCalendar(']];
+  const head = cal.start + 1;
+  if (!/\bconst own = openSheet\(/.test(cal.text) || !/\bsheetHandle\(own\);/.test(cal.text)) {
+    found.push([head, 'у шторки календаря нет драгера (const own = openSheet(…); sheetHandle(own);)']);
+  }
+  if (!/\bdisableVerticalSwipes\(\)/.test(cal.text) || !/onClose[\s\S]*enableVerticalSwipes\(\)/.test(cal.text)) {
+    found.push([head, 'жест Telegram «свайп вниз» не выключен на время календаря (disableVerticalSwipes, enableVerticalSwipes в onClose)']);
+  }
+  if (!drag) found.push([1, 'нет function sheetHandle(']);
+  else {
+    for (const [re, why] of [[/ds-sheet__handle/, 'полоса ds-sheet__handle'], [/setPointerCapture\(/, 'захват указателя'],
+      [/'pointerup'/, 'pointerup'], [/'pointercancel'/, 'pointercancel'], [/requestCloseSheet\(\)/, 'закрытие requestCloseSheet()']]) {
+      if (!re.test(drag.text)) found.push([drag.start + 1, `в sheetHandle нет: ${why}`]);
+    }
+  }
+  if (open && /ds-sheet__handle|sheetHandle/.test(open.text)) found.push([open.start + 1, 'драгер в openSheet — он появился бы у всех шторок']);
+  return found;
+}
+
 // ---------- тесты ----------
 test('1. «Автожеребьёвка» — свой календарь (ui.datePick), «Дата вручения» и «Письмо до» — системный (ui.date)', () => {
   const found = autoDrawField(APP);
@@ -122,7 +158,7 @@ test('2. клетки календаря: неделя с понедельник
   assert.deepEqual(cellsProblems(cells), []);
 });
 
-test('3. «Готово» недоступна, пока не выбран день; без даты ничего не выделено; «Сбросить» — при дате', () => {
+test('3. «Готово» недоступна, пока не выбран день; без даты ничего не выделено; вторая кнопка — «Сбросить» или «Закрыть»', () => {
   const found = doneGated(APP);
   assert.equal(found.length, 0, report(found));
 });
@@ -136,6 +172,16 @@ test('4. подсказки без года числом; подсказка н�
 
 test('5. над «Вопрос решён» — отступ, как между элементами обычной шторки', () => {
   const found = resolveSpaced(APP, CSS);
+  assert.equal(found.length, 0, report(found));
+});
+
+test('6. шторка календаря одной высоты: сетка на 6 недель', () => {
+  const found = sixWeeks(CSS);
+  assert.equal(found.length, 0, report(found));
+});
+
+test('7. драгер только у шторки календаря, жест Telegram выключен на время календаря', () => {
+  const found = handleRule(APP);
   assert.equal(found.length, 0, report(found));
 });
 
@@ -177,7 +223,9 @@ test('от противного 3: «Готово» без выбора, выд�
   assert.ok(found.some((w) => w.includes('без даты ничего')), 'выделение сегодня не найдено');
   assert.ok(found.some((w) => w.includes('done.disabled = !picked')), '«Готово» без недоступности не найдена');
   assert.ok(found.some((w) => w.includes('не при выборе дня')), 'включение «Готово» вне выбора не найдено');
-  assert.ok(found.some((w) => w.includes('«Сбросить»')), '«Сбросить» без даты не найден');
+  assert.ok(found.some((w) => w.includes('«Закрыть»')), 'вторая кнопка без «Закрыть» не найдена');
+  const onlyWithDate = "    const reset = value ? ui.btn('Сбросить', 'secondary', 'ds-btn--block') : null;";
+  assert.ok(doneGated(bad.replace(/^.*const reset.*$/m, onlyWithDate)).some(([, w]) => w.includes('«Закрыть»')), '«Сбросить» только при дате не найден');
   assert.deepEqual(doneGated('  function other() {\n  }').map(([, w]) => w), ['нет function openCalendar(']);
 });
 
@@ -195,4 +243,25 @@ test('от противного 5: кнопка без отступа и отс�
   const cssBad = '.ds-stack > * + * { margin-top: var(--ds-space-3); }\n.ds-sheet__action { margin-top: var(--ds-space-1); }';
   assert.ok(resolveSpaced(btnOk, cssBad).some(([, why]) => why.includes('не как у ds-stack')));
   assert.ok(resolveSpaced(btnOk, '.ds-stack > * + * { margin-top: var(--ds-space-3); }').some(([, why]) => why.includes('нет .ds-sheet__action')));
+});
+
+test('от противного 6: сетка без строк фиксированной высоты находится', () => {
+  assert.equal(sixWeeks('.ds-calendar__grid { display: grid; grid-template-columns: repeat(7, 1fr); }').length, 1);
+  assert.equal(sixWeeks('.ds-x {}').length, 1);
+});
+
+test('от противного 7: календарь без драгера и драгер во всех шторках находятся', () => {
+  const bad = [
+    '  function openSheet(title, content) {',
+    "    const handle = h('div', { class: 'ds-sheet__handle' });",
+    '  }',
+    '  function openCalendar(value, onPick) {',
+    '    openSheet(title, []);',
+    '  }',
+  ].join('\n');
+  const found = handleRule(bad).map(([, w]) => w);
+  assert.ok(found.some((w) => w.includes('нет драгера')), 'календарь без драгера не найден');
+  assert.ok(found.some((w) => w.includes('жест Telegram')), 'невыключенный жест Telegram не найден');
+  assert.ok(found.some((w) => w.includes('нет function sheetHandle')), 'нет sheetHandle — не найдено');
+  assert.ok(found.some((w) => w.includes('у всех шторок')), 'драгер в openSheet не найден');
 });

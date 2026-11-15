@@ -119,6 +119,8 @@
   --ds-border-spinner: 3px;
   --ds-blur-hidden: 11px;
   --ds-size-badge-min: 20px;
+  --ds-size-handle-w: 36px;      /* драгер шторки (028): полоска, как у шторок iOS */
+  --ds-size-handle-h: 5px;
   --ds-bubble-max-w: 82%;
   --ds-composer-max-h: 160px;
   --ds-sheet-full-h: var(--tg-viewport-stable-height, 100vh);

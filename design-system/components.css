@@ -1,5 +1,5 @@
 /*
- * Secret Santa Design System — компоненты v1.5.0
+ * Secret Santa Design System — компоненты v1.6.0
  * Только var(--ds-*) из tokens.css: здесь нет «сырых» цветов и px (проверяет tests/design-system.test.mjs).
  * Именование: .ds-<блок>, .ds-<блок>__<элемент>, .ds-<блок>--<модификатор>.
  */
@@ -286,13 +286,30 @@ select.ds-input {
 .ds-sheet__title { margin: 0 var(--ds-space-1); font-size: var(--ds-text-lg); }
 /* Действие под полем ввода шторки на весь экран (027): там нет ds-stack — отступ сверху тот же, что у ds-stack */
 .ds-sheet__action { margin-top: var(--ds-space-3); }
+/* Драгер (028): полоса сверху шторки, как у шторок iOS, — свайп вниз за неё сворачивает шторку. Верхний отступ шторки
+ * даёт сама полоса; заголовок — сразу под ней. --settle — плавный возврат на место или уход вниз. */
+.ds-sheet--handle { padding-top: 0; }
+.ds-sheet__handle {
+  display: flex; justify-content: center; padding: var(--ds-space-2) 0;
+  touch-action: none; cursor: grab;
+}
+.ds-sheet__handle::before {
+  content: ""; width: var(--ds-size-handle-w); height: var(--ds-size-handle-h);
+  border-radius: var(--ds-radius-pill); background: var(--ds-color-text-muted); opacity: var(--ds-opacity-disabled);
+}
+.ds-stack > .ds-sheet__handle + * { margin-top: 0; }
+.ds-sheet--settle { transition: transform var(--ds-duration-base); }
 
 /* ========== Календарь (027) ==========
  * Свой выбор дня в шторке: месяц с листанием («‹ Месяц ГГГГ ›» — ds-row и ds-icon-btn), неделя с понедельника;
  * выбранный день — цветом кнопки, недоступные (прошедшие) — бледные, как недоступная кнопка. */
 .ds-calendar { user-select: none; -webkit-user-select: none; }
 .ds-calendar__title { font-weight: var(--ds-weight-semibold); }
-.ds-calendar__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--ds-space-1); margin-top: var(--ds-space-2); }
+/* Строка дней недели и всегда шесть недель (028): шторка одной высоты в любом месяце, пустые строки — внизу */
+.ds-calendar__grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto repeat(6, var(--ds-size-control));
+  gap: var(--ds-space-1); margin-top: var(--ds-space-2);
+}
 .ds-calendar__weekday { padding: var(--ds-space-1) 0; text-align: center; font-size: var(--ds-text-xs); color: var(--ds-color-text-muted); }
 .ds-calendar__day {
   min-height: var(--ds-size-control); border: 0; border-radius: var(--ds-radius-md); cursor: pointer;

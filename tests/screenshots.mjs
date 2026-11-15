@@ -255,6 +255,8 @@ try {
       const selected = sheet.locator('.ds-calendar__day--selected');
       const done = sheet.locator('.ds-btn', { hasText: /^Готово$/ });
       const reset = sheet.locator('.ds-btn', { hasText: /^Сбросить$/ });
+      const closeBtn = sheet.locator('.ds-btn', { hasText: /^Закрыть$/ });
+      const height = () => sheet.evaluate((e) => e.getBoundingClientRect().height); // sheet — сама .ds-sheet
       const prev = sheet.locator('.ds-icon-btn[title="Предыдущий месяц"]');
       const next = sheet.locator('.ds-icon-btn[title="Следующий месяц"]');
       const day = (n) => sheet.locator('.ds-calendar__day', { hasText: new RegExp(`^${n}$`) });
@@ -273,6 +275,7 @@ try {
       if (await selected.count()) problems.push('без даты выделен день');
       if (!(await done.isDisabled())) problems.push('без выбранного дня «Готово» доступна');
       if (await reset.count()) problems.push('без даты есть «Сбросить»');
+      if (!(await closeBtn.count())) problems.push('без даты нет «Закрыть» (028: вторая кнопка видна всегда)');
       if (!(await prev.isDisabled())) problems.push('на текущем месяце «‹» доступна');
       if (now.getDate() > 1 && !(await day(now.getDate() - 1).isDisabled())) problems.push('вчерашний день доступен');
       if (await day(now.getDate()).isDisabled()) problems.push('сегодняшний день недоступен');
@@ -289,6 +292,37 @@ try {
       if ((await text()) !== 'Не выбрана') problems.push(`закрытие ✕ поменяло поле: «${await text()}»`);
       await open();
       if (await selected.count()) problems.push('после закрытия ✕ при новом открытии выделен день');
+      // 028: высота шторки одна на месяцах с 4, 5 и 6 неделями (неделя с понедельника)
+      const heights = new Map();
+      for (let k = 0, d = new Date(now.getFullYear(), now.getMonth(), 1); k < 24 && heights.size < 3; k++, d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+        const weeks = Math.ceil(((d.getDay() + 6) % 7 + new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()) / 7);
+        if (!heights.has(weeks)) heights.set(weeks, await height());
+        await next.click();
+      }
+      if (new Set(heights.values()).size !== 1) problems.push(`высота шторки по числу недель: ${JSON.stringify(Object.fromEntries(heights))} — должна быть одна`);
+      // 028: «Закрыть» без даты — шторка закрыта, поле прежнее
+      await day(15).click();
+      await closeBtn.click();
+      if (await sheet.count()) problems.push('«Закрыть» не закрыла календарь');
+      if ((await text()) !== 'Не выбрана') problems.push(`«Закрыть» поменяла поле: «${await text()}»`);
+      // 028: драгер — короткий свайп возвращает шторку, длинный закрывает
+      await open();
+      const handle = sheet.locator('.ds-sheet__handle');
+      if (!(await handle.count())) problems.push('у шторки календаря нет драгера');
+      else {
+        const box = await handle.boundingBox();
+        const x = box.x + box.width / 2, y = box.y + box.height / 2;
+        await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 20, { steps: 4 }); await page.mouse.up();
+        await page.waitForTimeout(500);
+        if (!(await sheet.count())) problems.push('короткий свайп драгера закрыл шторку');
+        else if ((await sheet.evaluate((e) => getComputedStyle(e).transform)) !== 'none') problems.push('после короткого свайпа шторка не вернулась на место');
+        const h = await height();
+        await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + h / 2, { steps: 12 }); await page.mouse.up();
+        await page.waitForTimeout(800);
+        if (await sheet.count()) problems.push('свайп драгера на половину высоты не закрыл шторку');
+        if ((await text()) !== 'Не выбрана') problems.push(`свайп поменял поле: «${await text()}»`);
+      }
+      await open();
       // «Готово» → дата в поле → «Сохранить» → на сервере
       await next.click();
       await day(15).click();
@@ -325,8 +359,8 @@ try {
       if (gap < 12) problems.push(`между полем ввода и «Вопрос решён» ${gap} px, ожидалось не меньше 12`);
     });
 
-    if (problems.length) colorProblems.push(...problems.map((x) => 'правки 027: ' + x));
-    else console.log('✔ правки 027: календарь автожеребьёвки без выбранного дня, «Готово» после выбора, подсказка названия — следующий год, отступ над «Вопрос решён»');
+    if (problems.length) colorProblems.push(...problems.map((x) => 'правки 027–028: ' + x));
+    else console.log('✔ правки 027–028: календарь автожеребьёвки без выбранного дня, «Готово» после выбора, «Закрыть» без даты, одна высота, драгер, подсказка названия — следующий год, отступ над «Вопрос решён»');
   }
 
   // 026: недочёты интерфейса — поведение, которое видно только в браузере (правила по коду — tests/app-ui.test.mjs).

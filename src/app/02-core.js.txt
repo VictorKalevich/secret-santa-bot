@@ -122,11 +122,53 @@
     prev.addEventListener('click', () => shift(-1));
     next.addEventListener('click', () => shift(1));
     done.addEventListener('click', () => { closeSheet(); onPick(picked); });
-    const reset = value ? ui.btn('Сбросить', 'secondary', 'ds-btn--block') : null;
-    if (reset) reset.addEventListener('click', () => { closeSheet(); onPick(''); });
+    // Вторая кнопка — всегда (028): при дате «Сбросить» (поле пустое), без неё «Закрыть» (поле прежнее)
+    const reset = ui.btn(value ? 'Сбросить' : 'Закрыть', 'secondary', 'ds-btn--block');
+    reset.addEventListener('click', () => { closeSheet(); if (value) onPick(''); });
     draw();
-    openSheet(title, [hint ? ui.hint(hint) : null,
-      h('div', { class: 'ds-calendar' }, h('div', { class: 'ds-row ds-row--between' }, prev, label, next), grid), done, reset]);
+    // Свайп вниз за драгер сворачивает шторку календаря — на это время жест Telegram «свайп вниз сворачивает
+    // приложение» выключен (Bot API 7.7), после закрытия — как было (028)
+    let swipes = false;
+    try { if (tg && tg.isVerticalSwipesEnabled) { tg.disableVerticalSwipes(); swipes = true; } } catch (e) {}
+    const own = openSheet(title, [hint ? ui.hint(hint) : null,
+      h('div', { class: 'ds-calendar' }, h('div', { class: 'ds-row ds-row--between' }, prev, label, next), grid), done, reset], {
+      onClose: () => { try { if (swipes) tg.enableVerticalSwipes(); } catch (e) {} },
+    });
+    sheetHandle(own);
+  }
+  // Драгер шторки own (028): полоса сверху; шторка едет за пальцем вниз (вверх — нет). Отпустили дальше четверти высоты
+  // или быстрым свайпом — уходит вниз и закрывается, иначе возвращается на место. Другие шторки драгера не получают.
+  function sheetHandle(own) {
+    const sheet = own.firstElementChild;
+    const handle = h('div', { class: 'ds-sheet__handle', 'aria-hidden': 'true' });
+    sheet.classList.add('ds-sheet--handle');
+    sheet.prepend(handle);
+    let drag = null;
+    const shift = (dy) => { sheet.style.transform = dy ? `translateY(${dy}px)` : ''; };
+    handle.addEventListener('pointerdown', (e) => {
+      drag = { id: e.pointerId, y: e.clientY, t: Date.now() };
+      handle.setPointerCapture(e.pointerId);
+      sheet.classList.remove('ds-sheet--settle');
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (drag && e.pointerId === drag.id) shift(Math.max(0, e.clientY - drag.y));
+    });
+    const release = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dy = Math.max(0, e.clientY - drag.y);
+      const fast = dy > 30 && dy / Math.max(1, Date.now() - drag.t) > 0.5;
+      drag = null;
+      sheet.classList.add('ds-sheet--settle');
+      if (e.type === 'pointerup' && (dy > sheet.offsetHeight / 4 || fast)) {
+        let gone = false;
+        const close = () => { if (!gone) { gone = true; requestCloseSheet(); } };
+        sheet.addEventListener('transitionend', close, { once: true });
+        setTimeout(close, 400);
+        sheet.style.transform = 'translateY(100%)';
+      } else shift(0);
+    };
+    handle.addEventListener('pointerup', release);
+    handle.addEventListener('pointercancel', release);
   }
 
   async function api(action, body) {

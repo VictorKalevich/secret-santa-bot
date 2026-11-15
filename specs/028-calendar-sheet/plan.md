@@ -1,6 +1,6 @@
 # Implementation Plan: Шторка календаря автожеребьёвки (028)
 
-**Branch**: `028-calendar-sheet` | **Date**: 2026-11-15 | **Spec**: [spec.md](spec.md)
+**Branch**: `028-calendar-sheet` | **Date**: 2026-11-15 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-15)
 
 ## Summary
 
