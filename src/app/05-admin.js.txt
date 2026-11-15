@@ -552,8 +552,12 @@
         deadline: ui.date(val('deadline')),
         notes: ui.textarea({ value: val('notes'), placeholder: 'Любые правила и детали для всех', rows: 2, maxlength: 2000 }),
       };
-      // Расписание (007): автожеребьёвка (до жеребьёвки), авто-раскрытие и автозавершение
-      if (!s.draw_done) f.draw_auto_date = ui.date(val('draw_auto_date'));
+      // Расписание (007): автожеребьёвка (до жеребьёвки), авто-раскрытие и автозавершение. У автожеребьёвки свой календарь
+      // (027): системный сам выделяет сегодня и подставляет его по «Готово» — жеребьёвка включалась бы случайно
+      if (!s.draw_done) {
+        f.draw_auto_date = ui.datePick(val('draw_auto_date'), {
+          title: 'Автожеребьёвка', hint: 'В выбранный день бот сам проведёт жеребьёвку — в час ежедневных напоминаний.' });
+      }
       const checks = {
         delivery_on: h('input', { type: 'checkbox', checked: val('delivery_on') }),
         reveal_auto: h('input', { type: 'checkbox', checked: val('reveal_auto') }),

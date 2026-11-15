@@ -171,7 +171,7 @@
       if (others.length) nodes.push(ui.section('Другие события'), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
       const create = ui.btn('🎄 Создать', 'festive', 'ds-btn--block');
       create.addEventListener('click', () => {
-        const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: 'Например: Новый год 2026 — семья' });
+        const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: `Например: Новый год ${new Date().getFullYear() + 1} — семья` });
         // Образец (007): параметры и исключения прошлого эвента, по желанию — приглашение его участников
         const from = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Без образца — с чистого листа'),
           ...state.events.map((e) => h('option', { value: e.id }, 'По образцу: ' + e.title)));

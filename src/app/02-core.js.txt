@@ -43,6 +43,7 @@
     chip: (text, kind) => h('span', { class: 'ds-chip' + (kind ? ' ds-chip--' + kind : '') }, text),
     textarea: (attrs) => autosize(h('textarea', { class: 'ds-input', ...attrs })),
     date: (value) => closeOnReset(h('input', { class: 'ds-input', type: 'date', value })),
+    datePick: (value, opts) => datePick(value, opts),
   };
 
   // Поле даты (011): «Сбросить» в системном календаре очищает поле и закрывает календарь (iOS сам его не закрывает).
@@ -57,6 +58,75 @@
     el.addEventListener('input', onClear);
     el.addEventListener('change', onClear);
     return el;
+  }
+
+  // ---------- свой календарь (027) ----------
+  // Системный календарь сам выделяет сегодняшний день и по «Готово» подставляет его (iOS) — там, где дата сама включает
+  // действие (автожеребьёвка), календарь свой: без даты ничего не выделено, «Готово» — только после выбора дня.
+  const isoDay = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  // Клетки месяца m (1–12) года y: null — пустые до 1-го числа (неделя с понедельника), затем { iso, day } по порядку
+  function calendarCells(y, m) {
+    const cells = [];
+    const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+    for (let i = 0; i < lead; i++) cells.push(null);
+    const days = new Date(y, m, 0).getDate();
+    for (let d = 1; d <= days; d++) cells.push({ iso: isoDay(y, m, d), day: d });
+    return cells;
+  }
+  // Поле — кнопка в виде поля ввода; value — 'YYYY-MM-DD' или '' (панель читает его, как у полей ввода); выбор шлёт change
+  function datePick(value, { title, hint } = {}) {
+    const el = h('button', { type: 'button', class: 'ds-input ds-input--pick' });
+    const show = (iso) => {
+      const m = /^(\d{4})-\d{2}-\d{2}$/.exec(iso || '');
+      el.value = m ? iso : '';
+      el.textContent = m ? `${fmtDate(iso)} ${m[1]}` : 'Не выбрана';
+      el.classList.toggle('ds-input--placeholder', !m);
+    };
+    const set = (iso) => { show(iso); el.dispatchEvent(new Event('change', { bubbles: true })); };
+    show(value);
+    el.addEventListener('click', () => openCalendar(el.value, set, { title, hint }));
+    return el;
+  }
+  // Шторка календаря: месяц даты (без неё — текущий); дни раньше сегодня недоступны (кроме уже заданной даты); назад —
+  // не раньше текущего месяца и месяца даты. «Готово» → onPick(день), «Сбросить» (только при дате) → onPick('')
+  function openCalendar(value, onPick, { title = 'Дата', hint } = {}) {
+    const now = new Date();
+    const today = isoDay(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    let picked = value;
+    const start = (value || today).slice(0, 7);
+    const min = start < today.slice(0, 7) ? start : today.slice(0, 7);
+    let view = { y: +start.slice(0, 4), m: +start.slice(5, 7) };
+    const label = h('div', { class: 'ds-calendar__title' });
+    const prev = h('button', { type: 'button', class: 'ds-icon-btn', title: 'Предыдущий месяц', 'aria-label': 'Предыдущий месяц' }, '‹');
+    const next = h('button', { type: 'button', class: 'ds-icon-btn', title: 'Следующий месяц', 'aria-label': 'Следующий месяц' }, '›');
+    const grid = h('div', { class: 'ds-calendar__grid' });
+    const done = ui.btn('Готово', '', 'ds-btn--block');
+    done.disabled = !picked;
+    const draw = () => {
+      label.textContent = `${MONTHS_NOM[view.m - 1]} ${view.y}`;
+      prev.disabled = isoDay(view.y, view.m, 1).slice(0, 7) <= min;
+      grid.replaceChildren(...WEEKDAYS.map((d) => h('div', { class: 'ds-calendar__weekday' }, d)),
+        ...calendarCells(view.y, view.m).map((c) => (!c ? h('div', {}) : h('button', {
+          type: 'button',
+          class: c.iso === picked ? 'ds-calendar__day ds-calendar__day--selected' : 'ds-calendar__day',
+          'aria-pressed': c.iso === picked ? 'true' : 'false',
+          disabled: c.iso < today && c.iso !== value,
+          onclick: () => { picked = c.iso; done.disabled = false; draw(); },
+        }, c.day))));
+    };
+    const shift = (n) => {
+      const d = new Date(view.y, view.m - 1 + n, 1);
+      view = { y: d.getFullYear(), m: d.getMonth() + 1 };
+      draw();
+    };
+    prev.addEventListener('click', () => shift(-1));
+    next.addEventListener('click', () => shift(1));
+    done.addEventListener('click', () => { closeSheet(); onPick(picked); });
+    const reset = value ? ui.btn('Сбросить', 'secondary', 'ds-btn--block') : null;
+    if (reset) reset.addEventListener('click', () => { closeSheet(); onPick(''); });
+    draw();
+    openSheet(title, [hint ? ui.hint(hint) : null,
+      h('div', { class: 'ds-calendar' }, h('div', { class: 'ds-row ds-row--between' }, prev, label, next), grid), done, reset]);
   }
 
   async function api(action, body) {
@@ -127,6 +197,9 @@
     return input;
   }
   const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  // Заголовок календаря (027): месяц в именительном падеже; неделя с понедельника
+  const MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   function fmtDate(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
     return m ? `${+m[3]} ${MONTHS[+m[2] - 1]}` : '';

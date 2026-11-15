@@ -179,7 +179,8 @@ try {
     const problems = [];
     const dates = page.locator('input.ds-input[type="date"]');
     const count = await dates.count();
-    if (count !== 3) problems.push(`полей даты ${count}, ожидалось 3 (вручение, письмо до, автожеребьёвка)`);
+    // 027: у «Автожеребьёвки» свой календарь (checkTweaks) — системных полей два
+    if (count !== 2) problems.push(`полей даты ${count}, ожидалось 2 (вручение, письмо до)`);
     const textH = await page.locator('input.ds-input[type="text"]').first().evaluate((e) => e.getBoundingClientRect().height);
     const cdp = await page.context().newCDPSession(page);
     const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
@@ -204,33 +205,135 @@ try {
     if (await dates.nth(0).inputValue()) problems.push('Backspace не очистил дату вручения — проверка клавиатуры не сработала');
     if (!(await focused(0))) problems.push('стирание с клавиатуры сняло фокус с поля даты');
     // «Сбросить»: календарь сам ставит пустое значение и шлёт input/change (без нажатий клавиш)
-    await dates.nth(2).focus();
-    await dates.nth(2).evaluate((e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); });
+    await dates.nth(1).focus();
+    await dates.nth(1).evaluate((e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); });
     await page.waitForTimeout(100);
-    if (await focused(2)) problems.push('«Сбросить» не закрыл календарь: поле осталось в фокусе');
+    if (await focused(1)) problems.push('«Сбросить» не закрыл календарь: поле осталось в фокусе');
     await page.close();
     if (problems.length) colorProblems.push(...problems.map((x) => 'дата: ' + x));
     else console.log('✔ поля даты: значок на отступе поля, высота как у текста, «Сбросить» закрывает календарь');
+  }
+
+  // Проверка на своей странице (без SDK Telegram: подтверждения — окном браузера); сбой ожидания — нарушение в problems,
+  // а не падение скрипта. event — экран события; без него — главный экран
+  async function onPage(problems, what, user, event, fn) {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    try {
+      await page.route('https://telegram.org/**', (r) => r.abort());
+      await page.goto(`${w.base}/app${event ? `?event=${event}` : ''}#tgWebAppData=${encodeURIComponent(initData(user))}`);
+      await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : '.ds-list-item--link, .ds-tabs:not([hidden])');
+      await fn(page);
+    } catch (e) {
+      problems.push(`${what}: ${e.message.split('\n')[0]}`);
+    } finally {
+      await page.close();
+    }
+  }
+
+  // 027: свой календарь автожеребьёвки, подсказка названия, отступ над «Вопрос решён» (правила по коду —
+  // tests/app-tweaks.test.mjs). Событие B — до жеребьёвки (поле «Автожеребьёвка» есть, дата не задана); в A у people[3]
+  // открыто обращение. Дата, которую ставит проверка, к концу снята — снимки после неё B не меняют.
+  async function checkTweaks() {
+    const problems = [];
+    const NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    const GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const now = new Date();
+    const nx = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const cur = `${NOM[now.getMonth()]} ${now.getFullYear()}`;
+    const nextTitle = `${NOM[nx.getMonth()]} ${nx.getFullYear()}`;
+    const pickedIso = `${nx.getFullYear()}-${String(nx.getMonth() + 1).padStart(2, '0')}-15`;
+    const pickedText = `15 ${GEN[nx.getMonth()]} ${nx.getFullYear()}`;
+    const serverDate = async () => (await w.api(admin, 'admin.state', { event: B })).settings.draw_auto_date;
+
+    await onPage(problems, 'календарь автожеребьёвки', admin, B, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      const field = page.locator('.ds-field', { hasText: 'Автожеребьёвка' }).locator('button.ds-input--pick');
+      await field.waitFor({ timeout: 5000 });
+      const text = () => field.textContent();
+      const sheet = page.locator('.ds-sheet');
+      const title = sheet.locator('.ds-calendar__title');
+      const selected = sheet.locator('.ds-calendar__day--selected');
+      const done = sheet.locator('.ds-btn', { hasText: /^Готово$/ });
+      const reset = sheet.locator('.ds-btn', { hasText: /^Сбросить$/ });
+      const prev = sheet.locator('.ds-icon-btn[title="Предыдущий месяц"]');
+      const next = sheet.locator('.ds-icon-btn[title="Следующий месяц"]');
+      const day = (n) => sheet.locator('.ds-calendar__day', { hasText: new RegExp(`^${n}$`) });
+      const open = async () => { await field.click(); await page.locator('.ds-sheet__title', { hasText: 'Автожеребьёвка' }).waitFor({ timeout: 3000 }); };
+      // «Сохранено» — после тихой перестройки панели (026): до неё поле на экране ещё прежнее
+      const save = async (want) => {
+        await page.locator('.ds-btn', { hasText: /^Сохранить$/ }).click();
+        await waitFor(async () => (await serverDate()) === want, `на сервере draw_auto_date = «${want}»`, 5000);
+        await page.locator('#toast.ds-toast--visible', { hasText: 'Сохранено' }).waitFor({ timeout: 5000 });
+      };
+
+      if ((await text()) !== 'Не выбрана') problems.push(`пустое поле — «${await text()}», ожидалось «Не выбрана»`);
+      // Без даты: текущий месяц, ничего не выделено, «Готово» недоступна, «Сбросить» нет, назад нельзя, вчера бледное
+      await open();
+      if ((await title.textContent()) !== cur) problems.push(`без даты открыт месяц «${await title.textContent()}», ожидался «${cur}»`);
+      if (await selected.count()) problems.push('без даты выделен день');
+      if (!(await done.isDisabled())) problems.push('без выбранного дня «Готово» доступна');
+      if (await reset.count()) problems.push('без даты есть «Сбросить»');
+      if (!(await prev.isDisabled())) problems.push('на текущем месяце «‹» доступна');
+      if (now.getDate() > 1 && !(await day(now.getDate() - 1).isDisabled())) problems.push('вчерашний день доступен');
+      if (await day(now.getDate()).isDisabled()) problems.push('сегодняшний день недоступен');
+      await next.click();
+      if ((await title.textContent()) !== nextTitle) problems.push(`«›» — «${await title.textContent()}», ожидался «${nextTitle}»`);
+      await prev.click();
+      if ((await title.textContent()) !== cur) problems.push(`«‹» — «${await title.textContent()}», ожидался «${cur}»`);
+      // Выбор дня делает «Готово» доступной; закрытие ✕ поле не меняет
+      await next.click();
+      await day(15).click();
+      if ((await selected.count()) !== 1 || (await selected.textContent()) !== '15') problems.push('выбранный день не выделен (или выделен не один)');
+      if (await done.isDisabled()) problems.push('после выбора дня «Готово» недоступна');
+      await sheet.locator('.ds-icon-btn[title="Закрыть"]').click();
+      if ((await text()) !== 'Не выбрана') problems.push(`закрытие ✕ поменяло поле: «${await text()}»`);
+      await open();
+      if (await selected.count()) problems.push('после закрытия ✕ при новом открытии выделен день');
+      // «Готово» → дата в поле → «Сохранить» → на сервере
+      await next.click();
+      await day(15).click();
+      await done.click();
+      if (await sheet.count()) problems.push('«Готово» не закрыла календарь');
+      if ((await text()) !== pickedText) problems.push(`после «Готово» поле — «${await text()}», ожидалось «${pickedText}»`);
+      await save(pickedIso);
+      // С датой: её месяц, день выделен, «Готово» доступна; «Сбросить» → пусто → на сервере ''
+      await open();
+      if ((await title.textContent()) !== nextTitle) problems.push(`с датой открыт месяц «${await title.textContent()}», ожидался «${nextTitle}»`);
+      if ((await selected.count()) !== 1 || (await selected.textContent()) !== '15') problems.push('с датой её день не выделен');
+      if (await done.isDisabled()) problems.push('с датой «Готово» недоступна');
+      await reset.click();
+      if (await sheet.count()) problems.push('«Сбросить» не закрыл календарь');
+      if ((await text()) !== 'Не выбрана') problems.push(`после «Сбросить» поле — «${await text()}»`);
+      await save('');
+    });
+
+    await onPage(problems, 'подсказка названия', admin, null, async (page) => {
+      await page.locator('.ds-btn', { hasText: 'Создать' }).click();
+      const hint = await page.locator('.ds-sheet input.ds-input[type="text"]').getAttribute('placeholder');
+      const want = `Например: Новый год ${now.getFullYear() + 1} — семья`;
+      if (hint !== want) problems.push(`подсказка названия — «${hint}», ожидалось «${want}»`);
+    });
+
+    await onPage(problems, 'отступ над «Вопрос решён»', people[3], A, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
+      await page.locator('.ds-btn', { hasText: 'Написать организатору' }).click();
+      const btn = page.locator('.ds-sheet .ds-btn', { hasText: 'Вопрос решён' });
+      await btn.waitFor({ timeout: 5000 });
+      const a = await page.locator('.ds-sheet .ds-composer').boundingBox();
+      const b = await btn.boundingBox();
+      const gap = Math.round(b.y - (a.y + a.height));
+      if (gap < 12) problems.push(`между полем ввода и «Вопрос решён» ${gap} px, ожидалось не меньше 12`);
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'правки 027: ' + x));
+    else console.log('✔ правки 027: календарь автожеребьёвки без выбранного дня, «Готово» после выбора, подсказка названия — следующий год, отступ над «Вопрос решён»');
   }
 
   // 026: недочёты интерфейса — поведение, которое видно только в браузере (правила по коду — tests/app-ui.test.mjs).
   // Идёт после всех снимков: событие «Проверка» и открытия обращений снимков не меняют.
   async function checkUiFixes() {
     const problems = [];
-    // Шаг — своя страница (без SDK Telegram: подтверждения — окном браузера); сбой ожидания — нарушение, не падение
-    const step = async (what, user, event, fn) => {
-      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      try {
-        await page.route('https://telegram.org/**', (r) => r.abort());
-        await page.goto(`${w.base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
-        await page.waitForSelector('.ds-tabs:not([hidden])');
-        await fn(page);
-      } catch (e) {
-        problems.push(`${what}: ${e.message.split('\n')[0]}`);
-      } finally {
-        await page.close();
-      }
-    };
+    const step = (what, user, event, fn) => onPage(problems, what, user, event, fn);
     const tab = (page, name) => page.locator('.ds-tab', { hasText: name }).click();
     const sheetTitle = (page) => page.locator('.ds-sheet__title').textContent();
     const closeSheetBtn = (page) => page.locator('.ds-sheet .ds-icon-btn[title="Закрыть"]').click();
@@ -427,6 +530,11 @@ try {
   await w.api(admin, 'admin.remove', { event: B, id: people[1].id });
   await shot(admin, '22-removed-list', { event: B, tab: 'Админ' });
   await checkDateFields(admin, B);
+  // 027: свой календарь автожеребьёвки — дата не задана: текущий месяц, ничего не выделено, «Готово» недоступна
+  const openAutoDraw = (p) => p.locator('.ds-field', { hasText: 'Автожеребьёвка' }).locator('button').click();
+  await shot(admin, '29-auto-draw-calendar', { event: B, fullPage: false, tab: 'Админ', before: openAutoDraw });
+  await shot(admin, '29-auto-draw-calendar', { event: B, fullPage: false, tab: 'Админ', dark: true, before: openAutoDraw });
+  await checkTweaks();
   await shot(people[0], '02-my-letter', { event: A, dark: true });
   await shot(people[2], '05-ward-hidden', { event: A, tab: 'Подопечный', dark: true });
   await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ', dark: true });

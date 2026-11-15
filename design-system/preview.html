@@ -127,11 +127,33 @@
       <label class="ds-field"><span class="ds-field__label">Бюджет подарка</span><input class="ds-input" type="text" placeholder="например, до 50 BYN"></label>
       <select class="ds-input"><option value="">Кто дарит…</option><option>Маша</option><option>Петя</option><option>Оля</option></select>
       <input class="ds-input" type="date" value="2026-12-25">
+      <label class="ds-field"><span class="ds-field__label">Автожеребьёвка — свой календарь</span><button class="ds-input ds-input--pick" type="button">20 декабря 2026</button></label>
+      <button class="ds-input ds-input--pick ds-input--placeholder" type="button">Не выбрана</button>
       <div class="ds-hint">Раскрытый список, календарь и флажки — в схеме темы (<code>--ds-color-scheme</code>).</div>
       <textarea class="ds-input ds-input--letter" placeholder="Дорогой Санта!…"></textarea>
       <div class="ds-row ds-row--between"><span class="ds-counter">120 / 1000 слов</span><span class="ds-counter ds-counter--over">1012 / 1000 слов</span></div>
       <label class="ds-check"><input type="checkbox" checked> и наоборот (в обе стороны)</label>
     </div>
+
+    <!-- Календарь (027): свой выбор дня в шторке — дни до сегодня бледные, выбранный — цветом кнопки -->
+    <div class="ds-section-title">Календарь</div>
+    <div class="ds-card ds-stack">
+      <div class="ds-calendar">
+        <div class="ds-row ds-row--between"><button class="ds-icon-btn" title="Предыдущий месяц">‹</button><div class="ds-calendar__title">Декабрь 2026</div><button class="ds-icon-btn" title="Следующий месяц">›</button></div>
+        <div class="ds-calendar__grid">
+          <div class="ds-calendar__weekday">Пн</div><div class="ds-calendar__weekday">Вт</div><div class="ds-calendar__weekday">Ср</div><div class="ds-calendar__weekday">Чт</div><div class="ds-calendar__weekday">Пт</div><div class="ds-calendar__weekday">Сб</div><div class="ds-calendar__weekday">Вс</div>
+          <div></div><button class="ds-calendar__day" disabled>1</button><button class="ds-calendar__day" disabled>2</button><button class="ds-calendar__day" disabled>3</button><button class="ds-calendar__day" disabled>4</button><button class="ds-calendar__day" disabled>5</button><button class="ds-calendar__day" disabled>6</button><button class="ds-calendar__day" disabled>7</button>
+          <button class="ds-calendar__day" disabled>8</button><button class="ds-calendar__day" disabled>9</button><button class="ds-calendar__day" disabled>10</button><button class="ds-calendar__day" disabled>11</button><button class="ds-calendar__day" disabled>12</button><button class="ds-calendar__day" disabled>13</button><button class="ds-calendar__day" disabled>14</button><button class="ds-calendar__day">15</button>
+          <button class="ds-calendar__day">16</button><button class="ds-calendar__day">17</button><button class="ds-calendar__day">18</button><button class="ds-calendar__day">19</button><button class="ds-calendar__day ds-calendar__day--selected" aria-pressed="true">20</button><button class="ds-calendar__day">21</button><button class="ds-calendar__day">22</button><button class="ds-calendar__day">23</button>
+          <button class="ds-calendar__day">24</button><button class="ds-calendar__day">25</button><button class="ds-calendar__day">26</button><button class="ds-calendar__day">27</button><button class="ds-calendar__day">28</button><button class="ds-calendar__day">29</button><button class="ds-calendar__day">30</button><button class="ds-calendar__day">31</button>
+        </div>
+      </div>
+      <button class="ds-btn ds-btn--block">Готово</button>
+      <button class="ds-btn ds-btn--secondary ds-btn--block">Сбросить</button>
+      <button class="ds-btn ds-btn--block" disabled>Готово</button>
+      <div class="ds-hint">Без выбранного дня «Готово» недоступна.</div>
+    </div>
+
 
     <!-- Переключатель, сегменты -->
     <div class="ds-section-title">Переключатели</div>
@@ -230,6 +252,7 @@
             <button class="ds-btn ds-composer__send">Отправить</button>
           </div>
           <div class="ds-counter ds-composer__counter">3620 / 4000</div>
+          <button class="ds-btn ds-btn--secondary ds-btn--block ds-sheet__action">✅ Вопрос решён</button>
         </div>
       </div>
       <div class="ds-card ds-chat__empty">Здесь пока пусто — напиши первым.</div>

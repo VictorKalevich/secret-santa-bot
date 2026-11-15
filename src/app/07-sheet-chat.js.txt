@@ -155,7 +155,8 @@
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
     const status = ui.hint('');
     const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — обращения только для чтения.');
-    const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block');
+    // Под полем ввода: в шторке на весь экран нет ds-stack — отступ сверху даёт ds-sheet__action (027)
+    const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block ds-sheet__action');
     resolve.hidden = true;
     let timer = null;
     let sig = '';

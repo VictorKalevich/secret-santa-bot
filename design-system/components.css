@@ -1,5 +1,5 @@
 /*
- * Secret Santa Design System — компоненты v1.4.0
+ * Secret Santa Design System — компоненты v1.5.0
  * Только var(--ds-*) из tokens.css: здесь нет «сырых» цветов и px (проверяет tests/design-system.test.mjs).
  * Именование: .ds-<блок>, .ds-<блок>__<элемент>, .ds-<блок>--<модификатор>.
  */
@@ -161,6 +161,13 @@ select.ds-input {
 .ds-input::-webkit-calendar-picker-indicator {
   margin: 0 calc(-1 * var(--ds-date-icon-bleed)) 0 var(--ds-space-2); padding: 0; cursor: pointer;
 }
+/* Поле со своим выбором (027): кнопка в виде поля ввода (свой календарь) — значение слева, высота как у поля даты;
+ * пусто — подпись приглушённо, как подсказка в поле ввода. */
+.ds-input--pick {
+  text-align: start; cursor: pointer;
+  min-height: calc(2 * var(--ds-space-3) + var(--ds-leading-base) * 1em);
+}
+.ds-input--placeholder { color: var(--ds-color-text-muted); }
 .ds-input--letter { min-height: var(--ds-size-letter-min); line-height: var(--ds-leading-relaxed); }
 .ds-field { display: block; }
 .ds-field__label { display: block; margin: 0 0 var(--ds-space-1) var(--ds-space-0-5); font-size: var(--ds-text-sm); color: var(--ds-color-text-muted); }
@@ -277,6 +284,22 @@ select.ds-input {
   border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0; background: var(--ds-color-bg);
 }
 .ds-sheet__title { margin: 0 var(--ds-space-1); font-size: var(--ds-text-lg); }
+/* Действие под полем ввода шторки на весь экран (027): там нет ds-stack — отступ сверху тот же, что у ds-stack */
+.ds-sheet__action { margin-top: var(--ds-space-3); }
+
+/* ========== Календарь (027) ==========
+ * Свой выбор дня в шторке: месяц с листанием («‹ Месяц ГГГГ ›» — ds-row и ds-icon-btn), неделя с понедельника;
+ * выбранный день — цветом кнопки, недоступные (прошедшие) — бледные, как недоступная кнопка. */
+.ds-calendar { user-select: none; -webkit-user-select: none; }
+.ds-calendar__title { font-weight: var(--ds-weight-semibold); }
+.ds-calendar__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--ds-space-1); margin-top: var(--ds-space-2); }
+.ds-calendar__weekday { padding: var(--ds-space-1) 0; text-align: center; font-size: var(--ds-text-xs); color: var(--ds-color-text-muted); }
+.ds-calendar__day {
+  min-height: var(--ds-size-control); border: 0; border-radius: var(--ds-radius-md); cursor: pointer;
+  background: transparent; font-variant-numeric: tabular-nums;
+}
+.ds-calendar__day--selected { background: var(--ds-color-accent); color: var(--ds-color-on-accent); font-weight: var(--ds-weight-semibold); }
+.ds-calendar__day:disabled { opacity: var(--ds-opacity-disabled); cursor: default; }
 
 /* ========== Шторка на весь экран (переписка) ========== */
 .ds-sheet--full {
