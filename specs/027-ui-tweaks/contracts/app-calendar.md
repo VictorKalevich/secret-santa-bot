@@ -7,17 +7,17 @@
 | Элемент | `<button type="button" class="ds-input ds-input--pick">`; без даты — ещё `ds-input--placeholder` |
 | `el.value` | `'YYYY-MM-DD'` или `''` — так его читает `values()` панели, как у остальных полей |
 | Текст | дата словами «20 декабря 2026» или «Не выбрана» |
-| Нажатие | `openCalendar(el, { title, hint })` |
+| Нажатие | `openCalendar(el.value, set, { title, hint })` — `set(iso)` ставит значение, текст и класс и шлёт `change` |
 | После «Готово» / «Сбросить» | новое `value`, текст и класс; `el.dispatchEvent(new Event('change', { bubbles: true }))` — черновик `drafts.game` |
 
 Где: только «Автожеребьёвка» в «Параметрах» (`05-admin`, `f.draw_auto_date`). «Дата вручения» и «Написать письмо
 до» — `ui.date` (системный календарь, `closeOnReset`, 011); `type: 'date'` в склейке — по-прежнему один раз.
 
-## Шторка календаря — `openCalendar(field, { title, hint })`
+## Шторка календаря — `openCalendar(value, onPick, { title, hint })`
 
 - `openSheet(title, [hint?, календарь, «Готово», «Сбросить»?])` — обычная шторка (`ds-stack`), закрытие ✕ / фоном /
   «Назад» не меняет поле.
-- Состояние: `picked` — выбранный день (`field.value` или `''`), `view` — показанный месяц: месяц `picked`, без него —
+- Состояние: `picked` — выбранный день (`value` поля или `''`), `view` — показанный месяц: месяц `picked`, без него —
   текущий. `today` — сегодня по часам телефона (`isoDay(y, m, d)` — дата `YYYY-MM-DD`); нижний предел листания — меньший из месяцев `today` и `picked`.
 - Разметка календаря:
 
@@ -34,9 +34,9 @@ div.ds-calendar
 ```
 
 - «Готово» — `ui.btn('Готово', '', 'ds-btn--block')`, `disabled`, пока `picked` пуст; нажатие дня ставит `picked`,
-  перерисовывает сетку и снимает `disabled`. «Готово» → поле = `picked`, `closeSheet()`.
-- «Сбросить» — `ui.btn('Сбросить', 'secondary', 'ds-btn--block')`, только если у поля была дата при открытии: поле
-  = `''`, `closeSheet()`.
+  перерисовывает сетку и снимает `disabled`. «Готово» → `closeSheet()`, `onPick(picked)`.
+- «Сбросить» — `ui.btn('Сбросить', 'secondary', 'ds-btn--block')`, только если у поля была дата при открытии:
+  `closeSheet()`, `onPick('')`.
 - `calendarCells(y, m)` — чистая (без DOM): массив клеток месяца `m` (1–12) года `y`: сначала `null` по числу дней от
   понедельника до 1-го, затем `{ iso: 'YYYY-MM-DD', day }` для каждого дня.
 - `MONTHS_NOM` — «Январь» … «Декабрь» (заголовок); дата в поле — `MONTHS` (родительный падеж) и год.
