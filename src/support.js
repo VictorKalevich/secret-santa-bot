@@ -7,12 +7,11 @@
 
 import { getUser, enqueueIfStmt, auditIfStmt } from './db.js';
 import { atomic } from './claim.js';
-import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppButton, cleanText } from './format.js';
+import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppButton, cleanText, SUPPORT_READ_ONLY } from './format.js';
 import { chatWritable } from './status.js';
 import { MAX_CHARS, tooLong } from './chat.js';
 import { no } from './result.js';
 
-const READ_ONLY = 'Событие завершено больше недели назад: обращения только для чтения.';
 const NOBODY = 'Сейчас некому написать: в боте нет других организаторов.';
 export const CLOSED = 'Обращение уже закрыто.';
 export const NOT_FOUND = 'Обращение не найдено.';
@@ -106,7 +105,7 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
   const { db, me } = ctx;
   const t = checkText(rawText);
   if (t.error) return no(t.error);
-  if (!chatWritable(ev)) return no(READ_ONLY);
+  if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const MY_OPEN = "SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'";
   const r = await ctx.read({ open: db.prepare(MY_OPEN).bind(ev.id, me.tg_id), users: true, settings: true });
   const { settings, users } = r;
@@ -158,7 +157,7 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
 
 export async function closeByUser(ctx, ev) {
   const { db, me } = ctx;
-  if (!chatWritable(ev)) return no(READ_ONLY);
+  if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const thread = await db.prepare("SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'").bind(ev.id, me.tg_id).first();
   if (!thread) return no('Открытого обращения нет.');
   const users = await ctx.users();
@@ -289,7 +288,7 @@ export async function take(ctx, ev, id) {
   if (t.user_id === me.tg_id) return no('Своё обращение взять нельзя.');
   if (t.assignee === me.tg_id) return { ok: true, thread: t };
   if (t.assignee) return taken(db, t);
-  if (!chatWritable(ev)) return no(READ_ONLY);
+  if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const users = await ctx.users();
   const free = ledBy(db, t, 0);
   free.claim(takeInto(free, db, users, ev, t, me));
@@ -307,7 +306,7 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   const blocks = replyBlocks(t, me, ev);
   if (blocks.closed) return no(CLOSED);
   if (blocks.own) return no(OWN_THREAD);
-  if (blocks.readOnly) return no(READ_ONLY);
+  if (blocks.readOnly) return no(SUPPORT_READ_ONLY);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   if (blocks.other) return no(`Обращение ведёт ${displayName(users.find((u) => u.tg_id === t.assignee))}.`);
   const now = Date.now();
@@ -341,7 +340,7 @@ export async function pass(ctx, ev, id, toId) {
   if (!t) return no(NOT_FOUND, 404);
   if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return no('Передать обращение может тот, кто его ведёт, или владелец.', 403);
   if (t.status !== 'open') return no(CLOSED);
-  if (!chatWritable(ev)) return no(READ_ONLY);
+  if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const to = users.find((u) => u.tg_id === Number(toId));
   if (!to || !to.is_admin || !to.registered || to.tg_id === t.user_id) return no('Передать можно другому администратору.');
@@ -375,7 +374,7 @@ export async function closeByAdmin(ctx, ev, id) {
   if (!t) return no(NOT_FOUND, 404);
   if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return no('Закрыть обращение может тот, кто его ведёт, или владелец.', 403);
   if (t.status !== 'open') return no(CLOSED);
-  if (!chatWritable(ev)) return no(READ_ONLY);
+  if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const users = await ctx.users();
   const author = users.find((u) => u.tg_id === t.user_id);
   // Уведомления и журнал — пока обращение открыто, закрытие — последним (020)

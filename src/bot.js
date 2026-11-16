@@ -5,7 +5,9 @@ import {
   getUser, createUser, updateUser, pairOfSanta, pairOfWard, getEvent, getEventByInvite, getMember, addMemberStmt, clearRemovedStmt,
 } from './db.js';
 import { tgApi } from './telegram.js';
-import { escapeHtml, msg, q, openAppButton, appKeyboard, oneLine, shortTitle, NOT_REGISTERED, ADMIN_ONLY } from './format.js';
+import {
+  escapeHtml, msg, q, openAppButton, appKeyboard, oneLine, shortTitle, NOT_REGISTERED, ADMIN_ONLY, CHAT_READ_ONLY, SUPPORT_READ_ONLY,
+} from './format.js';
 import { isFinished, chatWritable } from './status.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
@@ -27,7 +29,6 @@ const registrationClosed = (ev) => `Регистрация на событие $
 const REPLY_EXPIRED = '⌛ Время ответа истекло — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз и пришли его снова.';
 // Хвост подсказки «напиши сообщение» — у переписки и обращений
 const REPLY_HINT = `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`;
-const SUPPORT_READ_ONLY = 'Событие завершено больше недели назад — обращения только для чтения.';
 
 // ---------- режим ответа (pending): сборка и разбор в одном месте (019) ----------
 // В переписку: msg_<ward|santa>:<эвент>:<собеседник>:<время нажатия>; старый формат (до 009) — без двух последних
@@ -363,7 +364,7 @@ async function onReplyButton(k, [, side, eventId]) {
   if (!ev) return k.refuse('Событие не найдено.');
   const p = toWard ? await pairOfSanta(db, ev.id, from.id) : await pairOfWard(db, ev.id, from.id);
   if (!p) return k.refuse(toWard ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.');
-  if (!chatWritable(ev)) return k.refuse('Событие завершено больше недели назад — переписка только для чтения.');
+  if (!chatWritable(ev)) return k.refuse(CHAT_READ_ONLY);
   // Режим ответа помнит собеседника и время нажатия (только на сервере): msg_<сторона>:<эвент>:<собеседник>:<мс>
   await k.setPending(replyPending(side, ev.id, toWard ? p.ward : p.santa));
   return k.prompt(toWard

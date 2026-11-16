@@ -4259,7 +4259,7 @@
   },
   "finished-old-member support.close": {
    "status": 400,
-   "error": "Событие завершено больше недели назад: обращения только для чтения."
+   "error": "Событие завершено больше недели назад — обращения только для чтения."
   },
   "finished-old-member admin.events.create": {
    "status": 403,

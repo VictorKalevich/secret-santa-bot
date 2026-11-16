@@ -90,6 +90,9 @@ export const NOT_REGISTERED = 'Сначала зарегистрируйся п�
 export const ADMIN_ONLY = 'Только для администратора.';
 export const NO_DRAW = 'Жеребьёвка ещё не проведена.';
 export const PAIRS_RACE = 'Пары изменились одновременно с этим действием — попробуй ещё раз.';
+// 034: те же тексты показывает приложение (свои копии в 07-sheet-chat — сверяет тест behavior)
+export const CHAT_READ_ONLY = 'Событие завершено больше недели назад — переписка только для чтения.';
+export const SUPPORT_READ_ONLY = 'Событие завершено больше недели назад — обращения только для чтения.';
 
 export function inviteLink(settings, ev) {
   if (!settings.bot_username || !ev?.invite_code) return '';

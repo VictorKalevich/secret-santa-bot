@@ -40,6 +40,13 @@ async function familyMembers(db, familyId) {
   return results.map((r) => r.user_id);
 }
 
+// Сохранение изменит семью: другое название или другой состав (n — число людей нового состава). Параметры: id,
+// название, id, n, id, люди
+const familyChanges = (n) =>
+  `EXISTS (SELECT 1 FROM families WHERE id = ? AND name IS NOT ?)
+    OR (SELECT COUNT(*) FROM family_members WHERE family_id = ?) <> ?
+    OR EXISTS (SELECT 1 FROM family_members WHERE family_id = ? AND user_id NOT IN (${Array(n).fill('?').join(',')}))`;
+
 // Действует владелец бота — заморозка против вычисления пар на него не распространяется (010, FR-1008)
 export async function saveFamily(ctx, actor, { id = 0, name, members }) {
   const db = ctx.db;
@@ -48,7 +55,8 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
   const ids = [...new Set((Array.isArray(members) ? members : []).map(Number).filter(Boolean))];
   if (ids.length < 2 || ids.length > FAMILY_MAX) return no(`В семье должно быть от 2 до ${FAMILY_MAX} человек.`);
   id = Number(id) || 0;
-  if (id && !(await db.prepare('SELECT id FROM families WHERE id = ?').bind(id).first())) return no('Семья не найдена.');
+  const old = id ? await db.prepare('SELECT id, name FROM families WHERE id = ?').bind(id).first() : null;
+  if (id && !old) return no('Семья не найдена.');
   const users = await ctx.users();
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
   for (const uid of ids) if (!byId[uid]?.registered) return no('Участник не найден.');
@@ -66,6 +74,8 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
   // Переименование без смены состава разрешено всегда
   const before = id ? await familyMembers(db, id) : [];
   const changed = [...ids.filter((x) => !before.includes(x)), ...before.filter((x) => !ids.includes(x))];
+  // Без изменений — успех без записи (034)
+  if (old && old.name === clean && !changed.length) return { ok: true };
   const frozen = (await ctx.isOwner()) ? null : await frozenFamilyEvent(db, changed, [...new Set([...before, ...ids])]);
   if (frozen) return no(familyFrozen(frozen));
   const now = Date.now();
@@ -76,9 +86,16 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
     ? [db.prepare('UPDATE families SET name = ? WHERE id = ?').bind(clean, id), db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(id)]
     : [db.prepare('INSERT INTO families (name, created_by, created_at) VALUES (?, ?, ?)').bind(clean, actor, now)];
   for (const uid of ids) stmts.push(db.prepare(`INSERT INTO family_members (user_id, family_id) VALUES (?, ${famId})`).bind(uid, ...famArgs));
-  stmts.push(auditStmt(db, 0, actor, 'family.save', `«${clean}»: ${ids.map((x) => displayName(byId[x])).join(', ')}`));
+  const details = `«${clean}»: ${ids.map((x) => displayName(byId[x])).join(', ')}`;
   try {
-    await db.batch(stmts);
+    if (id) {
+      // Запись журнала — по прежнему состоянию, перед изменением (034): из одинаковых одновременных сохранений (даже в
+      // одну миллисекунду) её пишет только первое — второе видит уже сохранённую семью
+      const a = atomic(db, familyChanges(ids.length), id, clean, id, ids.length, id, ...ids);
+      a.audit(0, actor, 'family.save', details);
+      a.add(...stmts);
+      await a.run();
+    } else await db.batch([...stmts, auditStmt(db, 0, actor, 'family.save', details)]);
   } catch (e) {
     // Одновременное сохранение (024): человек уже попал в другую семью — пакет откатился целиком; ответ — тот же, что
     // при последовательном повторе. Прочие ошибки — как раньше.

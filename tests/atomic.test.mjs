@@ -1,13 +1,13 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 48 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 49 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
 // проверка повторов без изменений), одиннадцать — повторные нажатия (024: объявление, напоминания и приглашение —
-// раз в минуту, роли, владение, полный сброс, новая семья), одна — переименование (025: запись журнала — только при
-// настоящем изменении). Известный дефект — todo с номером фичи, которая его чинит: фича снимает пометку; сейчас
-// таких нет.
+// раз в минуту, роли, владение, полный сброс, новая семья), по одной — переименование (025) и сохранение семьи (034):
+// запись журнала — только при настоящем изменении. Известный дефект — todo с номером фичи, которая его чинит: фича
+// снимает пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
@@ -210,6 +210,15 @@ describe('атомарность: повторные нажатия (024)', () =
       assert.deepEqual(statuses(rs), [200, 200], 'имя стало тем, что просили, — у обоих успех');
       assert.equal(z.w.query('SELECT name FROM users WHERE tg_id = ?', u.id)[0].name, 'Переименованный');
       assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'rename'")[0].n, 1);
+    });
+    it('admin.family.save ×2 существующей семьи с одним изменением — одна запись журнала (034)', async () => {
+      const fam = z.w.query("SELECT id FROM families WHERE name = 'Ивановы'")[0].id;
+      const was = z.audit('family.save');
+      const want = [z.people[0].id, z.people[1].id, z.people[3].id];
+      const rs = await z.twice(adm, 'admin.family.save', { id: fam, name: 'Ивановы', members: want }, once);
+      assert.deepEqual(statuses(rs), [200, 200], 'семья стала такой, как просили, — у обоих успех');
+      assert.deepEqual(z.w.query('SELECT user_id FROM family_members WHERE family_id = ? ORDER BY user_id', fam).map((r) => r.user_id), want);
+      assert.equal(z.audit('family.save'), was + 1);
     });
     it('admin.role.grant ×2 — одно уведомление', async () => {
       const rs = await z.twice(boss, 'admin.role.grant', { id: z.people[2].id }, once);

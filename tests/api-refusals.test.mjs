@@ -7,6 +7,8 @@
 //   ОТКРЫТЬ.»; admin.request.decide без approve на завершённых событиях — 4 ответа (finished-owner, finished-admin,
 //   finished-old-owner, finished-old-admin) → 400 «Заявка не найдена.» (отклонение разрешено); новые случаи extra
 //   vault.pairs-word, vault.person-word-wrong, vault.pairs-word-admin, request.decide-approve-finished.
+//   034 (specs/034-small-consistency/spec.md, FR-001): один текст с ботом и приложением — 1 ответ (finished-old-member
+//   support.close) → 400 «Событие завершено больше недели назад — обращения только для чтения.»
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

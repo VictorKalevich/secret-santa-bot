@@ -2,10 +2,15 @@
 // переименования, отклонение заявки в завершённом событии (specs/025-behavior-fixes/).
 // 031: отказ проигравшему спор закреплений — текст обычной проверки; журнал каждого ответа организатора в обращение
 // (specs/031-pins-audit-index/).
+// 034: один текст «только для чтения» в API, боте и приложении; журнал семьи — только при изменении
+// (specs/034-small-consistency/).
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
+import { APP } from './support/app-source.mjs';
 import { fixedRefusal } from '../src/constraints.js';
+import { CHAT_READ_ONLY, SUPPORT_READ_ONLY } from '../src/format.js';
 
 after(restoreFetch);
 
@@ -258,5 +263,90 @@ describe('журнал: каждый ответ организатора в об
     await w.api(anya, 'support.close', { event: E });
     assert.equal((await w.api(adm, 'admin.support.send', { event: E, thread: th, text: 'Поздно' }, true)).status, 400);
     assert.equal(replies().length, 3);
+  });
+});
+
+describe('«только для чтения»: один текст в API, боте и приложении (034, US1)', () => {
+  let w, E;
+  const refusal = async (user, action, body) => {
+    const r = await w.api(user, action, body, true);
+    return [r.status, r.data.error];
+  };
+  const botAnswer = async (user, data) => {
+    await w.press(user, data);
+    return w.calls.filter((c) => c.method === 'answerCallbackQuery').at(-1).params.text;
+  };
+  before(async () => {
+    ({ w, E } = await world());
+    await w.api(boss, 'admin.draw', { event: E });
+    await w.api(anya, 'support.send', { event: E, text: 'Вопрос' });
+    await w.api(boss, 'admin.event.finish', { event: E });
+    w.query('UPDATE events SET finished_at = finished_at - ? WHERE id = ?', 8 * 24 * 3600 * 1000, E);
+  });
+
+  it('тексты — с тире, без «доступна»', () => {
+    assert.equal(CHAT_READ_ONLY, 'Событие завершено больше недели назад — переписка только для чтения.');
+    assert.equal(SUPPORT_READ_ONLY, 'Событие завершено больше недели назад — обращения только для чтения.');
+  });
+
+  it('API: переписка и обращения', async () => {
+    assert.deepEqual(await refusal(anya, 'message.send', { event: E, to: 'ward', text: 'Привет' }), [400, CHAT_READ_ONLY]);
+    assert.deepEqual(await refusal(anya, 'support.send', { event: E, text: 'Ещё вопрос' }), [400, SUPPORT_READ_ONLY]);
+    assert.deepEqual(await refusal(anya, 'support.close', { event: E }), [400, SUPPORT_READ_ONLY]);
+  });
+
+  it('бот: «↩️ Ответить» в переписку и организатору', async () => {
+    assert.equal(await botAnswer(anya, `msg:ward:${E}`), CHAT_READ_ONLY);
+    assert.equal(await botAnswer(anya, `sup:u:${E}`), SUPPORT_READ_ONLY);
+  });
+
+  it('приложение показывает те же тексты; в модулях сервера — только общие из format.js', () => {
+    for (const text of [CHAT_READ_ONLY, SUPPORT_READ_ONLY]) assert.ok(APP.includes(`'${text}'`), `в приложении нет «${text}»`);
+    const appLines = APP.split('\n').filter((l) => l.includes('больше недели назад'));
+    assert.equal(appLines.length, 2);
+    for (const l of appLines) assert.ok(l.includes(CHAT_READ_ONLY) || l.includes(SUPPORT_READ_ONLY), `другой текст в приложении: ${l.trim()}`);
+    const src = new URL('../src/', import.meta.url);
+    for (const f of readdirSync(src).filter((x) => x.endsWith('.js') && x !== 'format.js')) {
+      assert.ok(!readFileSync(new URL(f, src), 'utf8').includes('больше недели назад'), `src/${f}: свой текст «только для чтения» — бери из format.js`);
+    }
+  });
+});
+
+describe('семья: запись журнала только при настоящем изменении (034, US2)', () => {
+  let w, fam;
+  const saves = () => records(w, 'family.save', 0);
+  const members = () => w.query('SELECT user_id FROM family_members WHERE family_id = ? ORDER BY user_id', fam).map((r) => r.user_id);
+  before(async () => {
+    ({ w } = await world());
+    await w.api(adm, 'admin.family.save', { name: 'Ивановы', members: [anya.id, borya.id] });
+    fam = w.query('SELECT id FROM families')[0].id;
+  });
+
+  it('новая семья — одна запись', () => {
+    assert.equal(saves().length, 1);
+    assert.equal(saves()[0].details, '«Ивановы»: Аня, Боря');
+  });
+
+  it('то же название и состав (другой порядок, повтор, лишние пробелы) — успех без записи', async () => {
+    await w.api(adm, 'admin.family.save', { id: fam, name: 'Ивановы', members: [anya.id, borya.id] });
+    await w.api(adm, 'admin.family.save', { id: fam, name: '  Ивановы ', members: [borya.id, anya.id, anya.id, 0] });
+    assert.equal(saves().length, 1);
+    assert.deepEqual(members(), [anya.id, borya.id]);
+  });
+
+  it('новое название — одна запись; новый состав — ещё одна', async () => {
+    await w.api(adm, 'admin.family.save', { id: fam, name: 'Ивановы-Петровы', members: [anya.id, borya.id] });
+    assert.equal(saves().length, 2);
+    assert.equal(w.query('SELECT name FROM families WHERE id = ?', fam)[0].name, 'Ивановы-Петровы');
+    await w.api(boss, 'admin.family.save', { id: fam, name: 'Ивановы-Петровы', members: [anya.id, borya.id, vera.id] });
+    assert.equal(saves().length, 3);
+    assert.deepEqual([saves()[2].actor, saves()[2].details], [boss.id, '«Ивановы-Петровы»: Аня, Боря, Вера']);
+    assert.deepEqual(members(), [anya.id, borya.id, vera.id]);
+  });
+
+  it('состав той же длины, другой человек — запись', async () => {
+    await w.api(adm, 'admin.family.save', { id: fam, name: 'Ивановы-Петровы', members: [anya.id, borya.id, adm.id] });
+    assert.equal(saves().length, 4);
+    assert.deepEqual(members(), [anya.id, borya.id, adm.id].sort((a, b) => a - b));
   });
 });

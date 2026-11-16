@@ -1,7 +1,7 @@
 // Анонимная переписка Санты и подопечного (003, по эвентам).
 
 import { pairOfSanta, pairOfWard, enqueueIfStmt } from './db.js';
-import { msg, q, escapeHtml, shortTitle, appUrl, cleanText } from './format.js';
+import { msg, q, escapeHtml, shortTitle, appUrl, cleanText, CHAT_READ_ONLY } from './format.js';
 import { chatWritable } from './status.js';
 import { no } from './result.js';
 
@@ -43,7 +43,7 @@ export async function sendChatMessage(ctx, ev, fromId, to, rawText, { expectOthe
   if (text.length > MAX_CHARS) {
     return no(tooLong(text.length));
   }
-  if (!chatWritable(ev)) return no('Событие завершено больше недели назад: переписка доступна только для чтения.');
+  if (!chatWritable(ev)) return no(CHAT_READ_ONLY);
   const pair = await chatPair(db, ev.id, fromId, to);
   if (!pair) return no(to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.');
   if (expectOther && pair.other !== expectOther) return { ...no(PAIR_CHANGED), pairChanged: true };
