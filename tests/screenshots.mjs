@@ -4,9 +4,21 @@ import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { startWorld, initData, waitFor } from './harness.mjs';
+import { TELEGRAM_SCRIPT } from '../src/csp.js';
 
 const OUT = new URL('../test-results/', import.meta.url);
 mkdirSync(OUT, { recursive: true });
+
+// 032: настоящий скрипт Telegram — для проверки фрейма веб-клиента (checkCsp); без сети эта часть пропускается
+async function telegramScript() {
+  try {
+    const res = await fetch(TELEGRAM_SCRIPT, { signal: AbortSignal.timeout(10000) });
+    return res.ok ? { text: await res.text() } : { error: 'HTTP ' + res.status };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+const TG_SCRIPT = await telegramScript();
 
 // Telegram SDK ставит --tg-color-scheme на <html>; здесь SDK заблокирован — ставим сами (011)
 const LIGHT = { '--tg-color-scheme': 'light' };
@@ -106,6 +118,21 @@ try {
   const launch = process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' };
   browser = await chromium.launch(launch);
 
+  // Каждая страница прогона: скрипт Telegram заблокирован (снимки не зависят от сети), нарушения политики страницы (032)
+  // собираются — обработчик ставят средства отладки браузера, политика страницы его не ограничивает. own — свой список
+  // нарушений (пробы «от противного»), иначе — общий: на обычных страницах нарушений быть не должно.
+  const cspSeen = [];
+  let pagesOpened = 0;
+  async function openPage(what, options, { own = null } = {}) {
+    const page = await browser.newPage(options);
+    if (!own) pagesOpened++;
+    await page.exposeFunction('__cspViolation', (v) => (own ? own.push(v) : cspSeen.push(`${what}: ${v.directive} ${v.blocked}`)));
+    await page.addInitScript(() => document.addEventListener('securitypolicyviolation', (e) =>
+      window.__cspViolation({ directive: e.effectiveDirective, blocked: e.blockedURI || '', sample: e.sample || '' })));
+    await page.route('https://telegram.org/**', (r) => r.abort());
+    return page;
+  }
+
   // 011: раскрытый список и пункты — в схеме темы: color-scheme как у Telegram, пункты — surface/text
   async function checkScheme(page, label, expected) {
     const r = await page.evaluate(() => {
@@ -138,8 +165,7 @@ try {
 
   // 011: открытая шторка не отдаёт прокрутку колеса странице; после закрытия страница прокручивается и стоит на месте
   async function checkSheetScroll(user, event) {
-    const page = await browser.newPage({ viewport: { width: 390, height: 600 } });
-    await page.route('https://telegram.org/**', (r) => r.abort());
+    const page = await openPage('шторка: прокрутка', { viewport: { width: 390, height: 600 } });
     await page.goto(`${w.base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
     await page.waitForSelector('.ds-tabs:not([hidden])');
     await page.locator('.ds-tab', { hasText: 'Админ' }).click();
@@ -170,8 +196,7 @@ try {
   // 011: поле даты — рисунок календаря справа на отступе поля (как «галочка» списка), высота как у текстового поля;
   // «Сбросить» в календаре (очистка без клавиатуры) закрывает календарь — снимает фокус; стирание с клавиатуры — нет
   async function checkDateFields(user, event) {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await page.route('https://telegram.org/**', (r) => r.abort());
+    const page = await openPage('поля даты', { viewport: { width: 390, height: 844 } });
     await page.goto(`${w.base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
     await page.waitForSelector('.ds-tabs:not([hidden])');
     await page.locator('.ds-tab', { hasText: 'Админ' }).click();
@@ -217,9 +242,8 @@ try {
   // Проверка на своей странице (без SDK Telegram: подтверждения — окном браузера); сбой ожидания — нарушение в problems,
   // а не падение скрипта. event — экран события; без него — главный экран
   async function onPage(problems, what, user, event, fn) {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const page = await openPage(what, { viewport: { width: 390, height: 844 } });
     try {
-      await page.route('https://telegram.org/**', (r) => r.abort());
       await page.goto(`${w.base}/app${event ? `?event=${event}` : ''}#tgWebAppData=${encodeURIComponent(initData(user))}`);
       await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : '.ds-list-item--link, .ds-tabs:not([hidden])');
       await fn(page);
@@ -517,10 +541,122 @@ try {
     else console.log('✔ переключатель регистрации (030): кнопка приглашения и подсказки — сразу, без перестройки; выбор, черновик и прокрутка на месте; отказ — всё прежнее');
   }
 
+  // 032: политика страницы в браузере (контракт — specs/032-app-csp/contracts/app-csp.md). «От противного» — внедрённое
+  // в открытое приложение заблокировано и замечено; фрейм веб-клиента: на https://web.telegram.org приложение работает и
+  // принимает блок стилей (так скрипт Telegram ставит тему), на чужом сайте — заблокировано. Адреса https обслуживает
+  // перехват Playwright: приложение — https://santa.test (запросы пересылаются в Worker теста).
+  async function checkCsp() {
+    const problems = [];
+    const home = `#tgWebAppData=${encodeURIComponent(initData(admin))}`;
+    const ready = '.ds-list-item--link, .ds-tabs:not([hidden])';
+
+    const seen = [];
+    const page = await openPage('CSP: от противного', { viewport: { width: 390, height: 844 } }, { own: seen });
+    try {
+      await page.goto(`${w.base}/app${home}`);
+      await page.waitForSelector(ready);
+      // fn(arg) → 'заблокировано', если внедрённое не сработало; нарушение нужного вида должно прийти. Код самой пробы
+      // выполняют средства отладки — политика его не ограничивает, поэтому пробы внедряют то, что выполняет страница
+      const probe = async (what, directive, fn, blocked = '', arg = null) => {
+        const from = seen.length;
+        const got = await page.evaluate(fn, arg).catch((e) => 'ошибка пробы: ' + e.message.split('\n')[0]);
+        await page.waitForTimeout(300);
+        const mine = seen.slice(from);
+        if (got !== 'заблокировано') problems.push(`${what}: ${got}`);
+        if (!mine.some((v) => v.directive === directive && v.blocked.includes(blocked))) problems.push(`${what}: нет нарушения ${directive} ${blocked} (пришло: ${JSON.stringify(mine)})`);
+      };
+      await probe('встроенный скрипт', 'script-src-elem', () => new Promise((done) => {
+        const s = document.createElement('script');
+        s.textContent = 'window.__cspInline = 1';
+        document.head.append(s);
+        setTimeout(() => done(window.__cspInline ? 'выполнился' : 'заблокировано'), 100);
+      }));
+      await probe('обработчик в разметке', 'script-src-attr', () => {
+        const d = document.createElement('div');
+        d.setAttribute('onclick', 'window.__cspAttr = 1');
+        document.body.append(d);
+        d.click();
+        d.remove();
+        return window.__cspAttr ? 'выполнился' : 'заблокировано';
+      });
+      // Строка в таймере компилируется уже страницей (не в вызове средств отладки) — как eval
+      await probe('строка как код (таймер)', 'script-src', () => new Promise((done) => {
+        setTimeout('window.__cspEval = 1', 0);
+        setTimeout(() => done(window.__cspEval ? 'выполнилась' : 'заблокировано'), 100);
+      }), 'eval');
+      const external = (src) => new Promise((done) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = () => done('загрузился');
+        s.onerror = () => done('заблокировано');
+        document.head.append(s);
+      });
+      await probe('скрипт с чужого адреса', 'script-src-elem', external, 'csp-check.example', 'https://csp-check.example/x.js');
+      await probe('другой скрипт telegram.org', 'script-src-elem', external, 'telegram.org/js/other.js', 'https://telegram.org/js/other.js');
+      await probe('запрос на чужой адрес', 'connect-src', () => fetch('https://csp-check.example/').then(() => 'ответ получен', () => 'заблокировано'), 'csp-check.example');
+    } catch (e) {
+      problems.push(`от противного: ${e.message.split('\n')[0]}`);
+    } finally {
+      await page.close();
+    }
+
+    // Фрейм: родитель parent — страница с <iframe> приложения; tg — текст скрипта Telegram (иначе он заблокирован).
+    // Родитель на iframe_ready шлёт set_custom_style, как веб-клиент Telegram; без скрипта блок стилей создаёт проба.
+    const STYLE = ':root { --csp-check: 7px; }';
+    async function frame(what, parent, { tg = null, allowed }) {
+      const own = [];
+      const p = await openPage(what, { viewport: { width: 430, height: 900 } }, { own });
+      try {
+        if (tg) await p.route(TELEGRAM_SCRIPT, (r) => r.fulfill({ contentType: 'application/javascript', body: tg }));
+        await p.route('https://santa.test/**', async (r) => {
+          const u = new URL(r.request().url());
+          await r.fulfill({ response: await r.fetch({ url: w.base + u.pathname + u.search }) });
+        });
+        await p.route(parent + '/**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html><meta charset="utf-8">
+<iframe id="app" src="https://santa.test/app${home}" width="390" height="844"></iframe>
+<script>
+addEventListener('message', (e) => {
+  let d; try { d = JSON.parse(e.data); } catch (_) { return; }
+  if (d.eventType === 'iframe_ready') e.source.postMessage(JSON.stringify({ eventType: 'set_custom_style', eventData: ${JSON.stringify(STYLE)} }), '*');
+});
+</script>` }));
+        await p.goto(parent + '/k/');
+        const app = await (await p.waitForSelector('iframe#app', { state: 'attached' })).contentFrame();
+        if (!allowed) {
+          await p.waitForTimeout(1500);
+          const shown = await app.evaluate(() => !!document.querySelector('#main')).catch(() => false);
+          if (shown) problems.push(`${what}: приложение показано во фрейме чужого сайта`);
+          if (!app.url().startsWith('chrome-error:')) problems.push(`${what}: во фрейме ${app.url()}, ожидалась страница ошибки`);
+          return;
+        }
+        await app.waitForSelector(ready, { timeout: 15000 });
+        const mark = () => app.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--csp-check').trim());
+        if (!tg) {
+          if ((await mark()) !== '') problems.push(`${what}: метка стиля есть до проверки`);
+          await app.evaluate((css) => { const s = document.createElement('style'); s.textContent = css; document.head.append(s); }, STYLE);
+        }
+        else if (!(await app.evaluate(() => !!(window.Telegram && window.Telegram.WebApp)))) problems.push(`${what}: скрипт Telegram не выполнился`);
+        await waitFor(async () => (await mark()) === '7px', `${what}: блок стилей применён`, 5000)
+          .catch((e) => problems.push(e.message));
+        if (own.length) problems.push(`${what}: нарушения политики ${JSON.stringify(own)}`);
+      } catch (e) {
+        problems.push(`${what}: ${e.message.split('\n')[0]}`);
+      } finally {
+        await p.close();
+      }
+    }
+    await frame('фрейм веб-клиента', 'https://web.telegram.org', { allowed: true });
+    if (TG_SCRIPT.text) await frame('фрейм веб-клиента со скриптом Telegram', 'https://web.telegram.org', { tg: TG_SCRIPT.text, allowed: true });
+    await frame('фрейм чужого сайта', 'https://csp-check.example', { allowed: false });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'CSP (032): ' + x));
+    else console.log(`✔ CSP (032): внедрённые скрипт, обработчик, строка как код, чужие скрипты и запрос заблокированы; фрейм веб-клиента работает и принимает тему${TG_SCRIPT.text ? ' (и с настоящим скриптом Telegram)' : ''}; на чужом сайте — заблокирован`);
+    if (!TG_SCRIPT.text) console.log(`⚠ CSP (032): настоящий скрипт Telegram не скачан (${TG_SCRIPT.error}) — проверка фрейма с ним пропущена`);
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-    await page.route('https://telegram.org/**', (r) => r.abort());
+    const page = await openPage(name + (dark ? ' (тёмная)' : ''), { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
     await page.addInitScript((vars) => {
       document.addEventListener('DOMContentLoaded', () => {
         for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
@@ -641,9 +777,12 @@ try {
   await checkSheetScroll(admin, A);
   await checkUiFixes();
   await checkRegistration();
+  await checkCsp();
+  if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
+  else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);
   console.log('Скриншоты сохранены в test-results/');
   if (colorProblems.length) {
-    console.error('✘ Цвета не соответствуют дизайн-системе:\n' + colorProblems.join('\n'));
+    console.error('✘ Проверки не прошли:\n' + colorProblems.join('\n'));
     process.exitCode = 1;
   } else {
     console.log('✔ цвета вкладок и кнопок соответствуют дизайн-системе');

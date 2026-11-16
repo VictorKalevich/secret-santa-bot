@@ -15,7 +15,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Снять «до»: `npm test` (число тестов, зелёные); заголовки `GET /app` «мира» — `content-type`, `cache-control`
+- [X] T001 Снять «до»: `npm test` (число тестов, зелёные); заголовки `GET /app` «мира» — `content-type`, `cache-control`
   и нет `content-security-policy`
 
 ---
@@ -24,12 +24,12 @@
 
 **Goal**: заголовок по контракту `contracts/app-csp.md`, отпечаток — по отдаваемой странице (research R1, R2, R4).
 
-- [ ] T002 `tests/app-csp.test.mjs` (новый) и `package.json` (файл в скрипт `test` после `migrations.test.mjs`): блок
+- [X] T002 `tests/app-csp.test.mjs` (новый) и `package.json` (файл в скрипт `test` после `migrations.test.mjs`): блок
   «заголовок /app»: `GET /app` «мира» — `content-security-policy` равна строке контракта, где отпечаток — base64 SHA-256
   (`node:crypto`) текста единственного `<script>` без атрибутов из тела ответа (CRLF/CR → LF); `content-type`,
   `cache-control: no-store` и тело (склейка со стилями) — прежние; у `/setup` (GET) — прежняя
   `frame-ancestors 'none'`. Запустить — падает
-- [ ] T003 `src/csp.js` (новый, без импортов; комментарий в начале — 032 и путь контракта): `TELEGRAM_SCRIPT`,
+- [X] T003 `src/csp.js` (новый, без импортов; комментарий в начале — 032 и путь контракта): `TELEGRAM_SCRIPT`,
   `inlineScripts(page)` (`/<script>([\s\S]*?)<\/script>/g`, CRLF/CR → LF), `appPolicy(page)` (`crypto.subtle.digest`
   SHA-256 от `TextEncoder`, base64 через `btoa`; директивы в порядке контракта через `; `); `src/index.js`: импорт,
   `let appCsp;` у `APP_PAGE` с комментарием (один раз на экземпляр), в `/app` — `appCsp ??= appPolicy(APP_PAGE)` и
@@ -43,12 +43,12 @@
 
 **Independent Test**: `npm run screenshots` — строка `✔ CSP (032): …`, код выхода 0.
 
-- [ ] T004 [US1] `tests/screenshots.mjs`: помощник `openPage(viewport)` — `browser.newPage`, перехват
+- [X] T004 [US1] `tests/screenshots.mjs`: помощник `openPage(viewport)` — `browser.newPage`, перехват
   `https://telegram.org/**` → `abort`, сборщик нарушений (`exposeFunction` + `addInitScript` с обработчиком
   `securitypolicyviolation`: вид директивы, адрес, начало кода) в массив страницы; все четыре места `browser.newPage`
   (`checkSheetScroll`, `checkDateFields`, `onPage`, `shot`) — через него; нарушения обычных страниц — в `colorProblems`
   с префиксом `CSP:` и названием страницы. Заголовок итоговой ошибки — не только про цвета («Проверки не прошли»)
-- [ ] T005 [US1] `tests/screenshots.mjs`: `checkCsp()` — часть «фрейм веб-клиента»: перехват `https://santa.test/**` →
+- [X] T005 [US1] `tests/screenshots.mjs`: `checkCsp()` — часть «фрейм веб-клиента»: перехват `https://santa.test/**` →
   `route.fetch` к `w.base` того же пути (ответ с заголовками Worker), `https://web.telegram.org/**` → страница-родитель
   с `<iframe src="https://santa.test/app#tgWebAppData=…">`; во фрейме приложение загрузилось (главный экран), блок
   `<style>`, созданный в фрейме (как скрипт Telegram), применён (вычисленный стиль), нарушений 0. Настоящий скрипт
@@ -65,7 +65,7 @@
 
 **Independent Test**: `npm run screenshots` — `checkCsp` без ошибок.
 
-- [ ] T006 [US2] `tests/screenshots.mjs`, `checkCsp()` — часть «от противного» на главном экране приложения
+- [X] T006 [US2] `tests/screenshots.mjs`, `checkCsp()` — часть «от противного» на главном экране приложения
   (`openPage`, свои нарушения не в общий список): встроенный `<script>` (`script-src-elem`, `window` без отметки),
   `onclick` в разметке + `click()` (`script-src-attr`), `eval('1')` — исключение и нарушение `script-src`,
   `<script src="https://csp-check.example/x.js">` и `<script src="https://telegram.org/js/other.js">`
@@ -81,14 +81,14 @@
 
 **Independent Test**: `node --test tests/app-csp.test.mjs`.
 
-- [ ] T007 [US3] `tests/app-csp.test.mjs`, блок «отпечаток»: `inlineScripts` и `appPolicy` из `src/csp.js` — CRLF, CR и
+- [X] T007 [US3] `tests/app-csp.test.mjs`, блок «отпечаток»: `inlineScripts` и `appPolicy` из `src/csp.js` — CRLF, CR и
   LF дают один отпечаток, изменённый на символ скрипт — другой, страница с двумя встроенными скриптами — два отпечатка
   по порядку, `<script src>` в отпечатки не попадает
-- [ ] T008 [US3] `tests/app-csp.test.mjs`, блок «правила страницы»: функция `pageProblems(page)` — каждый `<script…>`
+- [X] T008 [US3] `tests/app-csp.test.mjs`, блок «правила страницы»: функция `pageProblems(page)` — каждый `<script…>`
   либо `<script>` (встроенный, ровно один), либо `<script src="TELEGRAM_SCRIPT">`; на странице `/app` — `[]`; «от
   противного»: второй встроенный, `<script type="module">`, `<script src="https://cdn.example/x.js">`,
   `<script src="TELEGRAM_SCRIPT" defer>`, без встроенного — каждое замечено
-- [ ] T009 [US3] `tests/app-csp.test.mjs`, блок «код приложения»: функция `codeProblems(text, name)` по строкам склейки
+- [X] T009 [US3] `tests/app-csp.test.mjs`, блок «код приложения»: функция `codeProblems(text, name)` по строкам склейки
   (`APP`, место — `where`; комментарии — `code`): `eval(`, `new Function`, `setTimeout`/`setInterval` со строкой первым
   аргументом, `javascript:`, `setAttribute('on…'`; в HTML-частях (`PARTS`, `.html`) — атрибуты `on…=` в тегах; на
   склейке — `[]`; «от противного» — по примеру на каждое правило (с местом), и пример без нарушений (`addEventListener`,
