@@ -1,6 +1,6 @@
 # Implementation Plan: Заголовок Content-Security-Policy для мини-приложения
 
-**Branch**: `032-app-csp` | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md)
+**Branch**: `032-app-csp` | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-16)
 
 **Input**: Feature specification from `specs/032-app-csp/spec.md`; пункт `docs/todo.md` «Ждёт проверки на iPhone» → 1,
 решение владельца 2026-11-16.

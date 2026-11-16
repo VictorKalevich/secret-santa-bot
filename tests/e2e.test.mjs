@@ -1,8 +1,9 @@
 // Сквозной тест: локальный Worker (wrangler dev) + имитация Telegram. Сценарии: сквозной (события, жеребьёвка, переписка,
-// история), 006 (миграции), 007, 008, 009, 010, 012, 014.
+// история), 006 (миграции), 007, 008, 009, 010, 012, 014, 032 (политика страницы).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { startWorld, initData, waitFor, sleep, ADMIN_SECRET } from './harness.mjs';
 import { BLOCKED_CHAT } from './mock-telegram.mjs';
 
@@ -1938,4 +1939,20 @@ test('014: закреплённые пары владельца', { timeout: 400
     await z.stop();
     assertBudget(log);
   }
+});
+
+// 032: политику страницы отдаёт настоящий workerd; отпечаток — встроенного скрипта именно этой страницы
+test('032: политика безопасности /app', async () => {
+  const res = await fetch(BASE + '/app');
+  assert.equal(res.status, 200);
+  const page = await res.text();
+  const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.equal(scripts.length, 1);
+  const hash = createHash('sha256').update(scripts[0].replace(/\r\n?/g, '\n'), 'utf8').digest('base64');
+  const csp = res.headers.get('content-security-policy') || '';
+  assert.match(csp, /(^|; )script-src 'sha256-[^']+' https:\/\/telegram\.org\/js\/telegram-web-app\.js(;|$)/);
+  assert.ok(csp.includes(`'sha256-${hash}'`), 'отпечаток = встроенный скрипт отданной страницы');
+  assert.match(csp, /(^|; )frame-ancestors https:\/\/\*\.telegram\.org(;|$)/);
+  assert.match(csp, /(^|; )connect-src 'self'(;|$)/);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
 });

@@ -102,33 +102,33 @@
 
 **Independent Test**: `npm run test:e2e`; `quickstart.md` и README читаются от выката до отката.
 
-- [ ] T010 [P] [US4] `tests/e2e.test.mjs`: тест «032: политика безопасности /app» — `fetch(BASE + '/app')`: 200,
+- [X] T010 [P] [US4] `tests/e2e.test.mjs`: тест «032: политика безопасности /app» — `fetch(BASE + '/app')`: 200,
   `content-security-policy` есть, `script-src` содержит `'sha256-<B64>'` встроенного скрипта отданной страницы
   (`node:crypto`) и `https://telegram.org/js/telegram-web-app.js`, `frame-ancestors https://*.telegram.org`; заголовок
   файла (список сценариев) — 032
-- [ ] T011 [P] [US4] `README.md`: раздел «Обновление бота» — после обновления открыть приложение и проверить; пустой
+- [X] T011 [P] [US4] `README.md`: раздел «Обновление бота» — после обновления открыть приложение и проверить; пустой
   экран или без оформления — откат `npx wrangler rollback <прежняя версия>` (база не меняется), номер версии записывать
   до `npm run deploy` (`npx wrangler deployments list`); строка в «Если что-то не так» (приложение пустое после
   обновления); «Для разработки» — `npm test` проверяет политику страницы (`src/csp.js`), `npm run screenshots` — нарушения
   политики на всех экранах; про защиту (раздел о тайне/безопасности, если есть) — страница приложения не выполняет
   чужие скрипты и не отправляет данные на чужие адреса
-- [ ] T012 [US4] `specs/032-app-csp/quickstart.md`: сверить шаги проверки на iPhone с приложением (названия кнопок и
+- [X] T012 [US4] `specs/032-app-csp/quickstart.md`: сверить шаги проверки на iPhone с приложением (названия кнопок и
   вкладок по `src/app/`), команды — с README
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T013 [P] `docs/api.md`: строка `/app` в таблице адресов — `content-security-policy` (032, `src/csp.js`, контракт
+- [X] T013 [P] `docs/api.md`: строка `/app` в таблице адресов — `content-security-policy` (032, `src/csp.js`, контракт
   `specs/032-app-csp/contracts/app-csp.md`)
-- [ ] T014 [P] `docs/todo.md`: убрать раздел «Ждёт проверки на iPhone» (пункт CSP сделан в 032); вводный абзац — 031 и
+- [X] T014 [P] `docs/todo.md`: убрать раздел «Ждёт проверки на iPhone» (пункт CSP сделан в 032); вводный абзац — 031 и
   032 сделаны, осталось «Решено: не делаем»
-- [ ] T015 [P] `CLAUDE.md`: строка 032 в таблице фич; «Отложено» — 032 сделана; «Структура» — `src/csp.js`, `/app` в
+- [X] T015 [P] `CLAUDE.md`: строка 032 в таблице фич; «Отложено» — 032 сделана; «Структура» — `src/csp.js`, `/app` в
   `src/index.js` с политикой; тесты — `app-csp`, `screenshots` (`openPage`, `checkCsp`); правило: новый внешний
   скрипт/адрес — правка контракта 032 и проверка на iPhone
-- [ ] T016 `npm test` ×3, `npm run test:e2e`, `npm run screenshots`; `git diff main --stat` — `src/` меняется только
+- [X] T016 `npm test` ×3, `npm run test:e2e`, `npm run screenshots`; `git diff main --stat` — `src/` меняется только
   `csp.js` и `index.js`
-- [ ] T017 Отметки задач, статус spec/plan — «реализовано»; коммиты; слияние в `main` (`--ff-only`), `git push`; память
+- [X] T017 Отметки задач, статус spec/plan — «реализовано»; коммиты; слияние в `main` (`--ff-only`), `git push`; память
   проекта (32-я фича, выкат 031+032 — по `quickstart.md`)
 
 ---

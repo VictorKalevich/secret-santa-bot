@@ -987,7 +987,7 @@ Webhook `POST /tg`: принимаются `message` (только личные 
 | Маршрут | Что делает |
 |---|---|
 | `POST /tg` | webhook бота; заголовок `x-telegram-bot-api-secret-token` должен совпасть с производным секретом (`derivedSecret(env, 'webhook')`), иначе 403 `forbidden`; ответ всегда `ok` (ошибка — в лог `update failed`) |
-| `/app` | страница мини-приложения (склейка `src/app/` со стилями дизайн-системы), `cache-control: no-store` |
+| `/app` | страница мини-приложения (склейка `src/app/` со стилями дизайн-системы), `cache-control: no-store`, `content-security-policy` (032, `src/csp.js`): скрипты — встроенный по отпечатку SHA-256 и `https://telegram.org/js/telegram-web-app.js`, стили — встроенные, запросы и прочее — свой адрес, без `object`/`<base>`/форм, встраивание — `https://*.telegram.org`; строка и правила — `specs/032-app-csp/contracts/app-csp.md` |
 | `/api/<действие>` | этот документ |
 | `/setup` | GET — форма ключа; POST — ключ `ADMIN_SECRET`: неверный — 403, ссылка владельца уже использована — 423 до смены `ADMIN_SECRET` или `BOT_TOKEN`, нет `ADMIN_SECRET` (или короче 8) — 500; верный — настройка бота (webhook, команды `/start` и `/cancel`, кнопка меню, описания), `base_url` и имя бота в `settings`, ссылка владельца. Заголовки `no-store`, `no-referrer`, `frame-ancestors 'none'`, `noindex` (`src/setup.js`) |
 | остальные пути | 200 «🎄 Бот Тайного Санты работает.» |

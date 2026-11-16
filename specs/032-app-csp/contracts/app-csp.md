@@ -50,8 +50,12 @@ content-security-policy: default-src 'self'; script-src 'sha256-<B64>' https://t
 - Каждая страница прогона (`openPage`) собирает нарушения политики (`securitypolicyviolation`); на обычных страницах их
   0.
 - `checkCsp()`: на открытом приложении «от противного» — встроенный `<script>` (`script-src-elem`), `onclick` в
-  разметке (`script-src-attr`), `eval` (`script-src`), `<script src>` с чужого адреса и с другого пути `telegram.org`
-  (`script-src-elem`), `fetch` на чужой адрес (`connect-src`): нарушение нужного вида есть, код не выполнен.
+  разметке (`script-src-attr`), строка в `setTimeout` (`script-src`, `eval`; прямой `eval` из `page.evaluate` Chrome не
+  проверяет — это код средств отладки, а строку таймера компилирует сама страница), `<script src>` с чужого адреса и с
+  другого пути `telegram.org` (`script-src-elem`), `fetch` на чужой адрес (`connect-src`): нарушение нужного вида есть,
+  код не выполнен.
+- Проверка проверок: с ослабленной политикой (`'unsafe-inline' 'unsafe-eval' https:`, `style-src 'self'`,
+  `connect-src *`, `frame-ancestors *`) прогон падает на каждой пробе, на обоих фреймах и на каждой странице (2026-11-16).
 - Фрейм: родитель `https://web.telegram.org` — приложение загружено, `<style>`, созданный в странице, применён;
   родитель `https://csp-check.example` — фрейм заблокирован. При доступной сети — то же с настоящим
   `telegram-web-app.js` и событием `set_custom_style` от родителя.

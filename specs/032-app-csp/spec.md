@@ -4,7 +4,8 @@
 
 **Created**: 2026-11-16
 
-**Status**: Draft
+**Status**: Реализовано (2026-11-16; задачи — `tasks.md`, все выполнены); выкат и проверка на iPhone — владелец по
+`quickstart.md`
 
 **Input**: User description: "032-app-csp: заголовок Content-Security-Policy для страницы мини-приложения /app. Скрипт —
 только встроенный скрипт страницы (по хешу sha256) и https://telegram.org (telegram-web-app.js); стили — свои встроенные
