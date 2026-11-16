@@ -5,6 +5,7 @@ import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
+// Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
 export const REQUIRED_SCHEMA = 11;
 
 export class SchemaError extends Error {

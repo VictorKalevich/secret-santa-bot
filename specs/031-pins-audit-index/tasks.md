@@ -14,7 +14,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Снять «до»: `npm test` (число тестов, зелёные), `node tests/bench/queries.mjs` — строки `admin.fixed.add`,
+- [X] T001 Снять «до»: `npm test` (число тестов, зелёные), `node tests/bench/queries.mjs` — строки `admin.fixed.add`,
   `admin.support.send`, `me`
 
 ---
@@ -25,7 +25,7 @@
 
 **Independent Test**: `node --test tests/atomic.test.mjs tests/behavior.test.mjs` — блоки закреплённых пар.
 
-- [ ] T002 [US1] `tests/atomic.test.mjs`, блок «атомарность: закреплённые пары (023)»: заголовок — ответы 031;
+- [X] T002 [US1] `tests/atomic.test.mjs`, блок «атомарность: закреплённые пары (023)»: заголовок — ответы 031;
   «один Санта» (`А → Б` ∥ `А → В`) — статусы `[200, 400]` в любом порядке, у отказа текст «У «<Санта>» уже есть
   закреплённый подопечный — сначала убери ту пару.», сохранённая пара — у вызова с 200; «один подопечный» — то же с «Санта
   для «<подопечный>» уже закреплён — сначала убери ту пару.»; новые случаи: при кольцевой `А → Б` ∥ `Б → А` — одна пара,
@@ -34,12 +34,12 @@
   сторона взаимной, у проигравшего — отказ; один Санта в одну миллисекунду (`sameMoment` не годится — разные тела;
   `together` с навязанным чередованием) — та же проверка; запись `fixed.add` — одна во всех случаях; повтор ×2 —
   по-прежнему `[200, 200]`. Запустить — падают
-- [ ] T003 [US1] `tests/behavior.test.mjs`: блок «закреплённые пары: отказ проигравшему (031)» — `fixedRefusal` (экспорт
+- [X] T003 [US1] `tests/behavior.test.mjs`: блок «закреплённые пары: отказ проигравшему (031)» — `fixedRefusal` (экспорт
   `src/constraints.js`) на подставленных строках: занят Санта, занят подопечный, встречная при кольцевой (без кольцевой —
   не отказ), сторона уже есть, взаимная с одной занятой стороной — тексты обычной проверки, свободно — `null`; через мир:
   `beforeWrite` перед пакетом закрепления вставляет мешающую пару (чужой вызов между чтением и записью) — ответ с текстом
   обычной проверки, пара вызова не сохранена, записей `fixed.add` не прибавилось. Запустить — падает
-- [ ] T004 [US1] `src/constraints.js`: `fixedRefusal(ev, fixed, links, name)` — прежние проверки в прежнем порядке
+- [X] T004 [US1] `src/constraints.js`: `fixedRefusal(ev, fixed, links, name)` — прежние проверки в прежнем порядке
   (кольцевая — встречная; по сторонам — уже есть подопечный, уже есть Санта), `FIXED_CHANGED`; `changeFixed` — у
   добавления условие `FREE` по сторонам (`AND`; при `ev.ring` — без встречной), `claim(SELECT 1 WHERE …)` первым,
   журнал `fixed.add` и вставки под `FREE`, последним — `SELECT giver, receiver FROM fixed_pairs WHERE event_id = ?`;
@@ -54,16 +54,16 @@
 
 **Independent Test**: `node --test tests/behavior.test.mjs tests/atomic.test.mjs tests/api-doc.test.mjs`.
 
-- [ ] T005 [US2] `tests/behavior.test.mjs`: блок «журнал ответов в обращение (031)» — участник открыл обращение; ответ
+- [X] T005 [US2] `tests/behavior.test.mjs`: блок «журнал ответов в обращение (031)» — участник открыл обращение; ответ
   админа в ничьё — записи `support.take` и `support.reply` (автор — админ, подробности — имя участника, текста ответа в
   подробностях нет); второй ответ во взятое — ещё одна `support.reply`; ответ из бота (`press` `sup:a:<обращение>`, затем
   `say` с текстом) — ещё одна; отказы — второй админ в чужое, ответ в закрытое, автор отвечает в своё через
   `admin.support.send` — записей не прибавилось; ответ участника — без записи. `tests/atomic.test.mjs`: два админа
   одновременно отвечают в ничьё — `support.take` и `support.reply` по одной, сообщение участнику одно. Запустить — падают
-- [ ] T006 [US2] `src/support.js`: `sendFromAdmin` — `mine.audit(ev.id, me.tg_id, 'support.reply', displayName(author))`
+- [X] T006 [US2] `src/support.js`: `sendFromAdmin` — `mine.audit(ev.id, me.tg_id, 'support.reply', displayName(author))`
   перед захватом (`author` — из уже прочитанных `users`). T005 — зелёный; `tests/queries.test.mjs` — прежние числа
-- [ ] T007 [P] [US2] `src/app/06-vault-audit.js.txt`: `AUDIT_LABELS` — `'support.reply': '💬 Ответ в обращение'`
-- [ ] T008 [P] [US2] `docs/api.md`: `admin.support.send` — «Журнал: `support.reply` на каждый сохранённый ответ; в ничьё —
+- [X] T007 [P] [US2] `src/app/06-vault-audit.js.txt`: `AUDIT_LABELS` — `'support.reply': '💬 Ответ в обращение'`
+- [X] T008 [P] [US2] `docs/api.md`: `admin.support.send` — «Журнал: `support.reply` на каждый сохранённый ответ; в ничьё —
   ещё `support.take`»; таблица «Коды журнала» — строка `support.reply` (кто пишет: `admin.support.send`, ответ в боте
   `sup_a`; подробности — имя автора обращения); список «не пишут» — без «ответ организатора в уже взятое обращение»;
   бот (`sup_a`), если там описан журнал. Тест `api-doc` — зелёный
@@ -76,17 +76,17 @@
 
 **Independent Test**: `node --test tests/migrations.test.mjs tests/d1-sqlite.test.mjs`; `npm run test:e2e`.
 
-- [ ] T009 [US3] `tests/migrations.test.mjs` (новый) и `package.json` (файл в скрипт `test`): последний файл
+- [X] T009 [US3] `tests/migrations.test.mjs` (новый) и `package.json` (файл в скрипт `test`): последний файл
   `migrations/` — только `CREATE INDEX IF NOT EXISTS … ON messages …` (без `INSERT`/`UPDATE`/`DELETE`/`DROP`/`ALTER`/
   `CREATE TABLE`, без `settings`); мир после сценария с данными во всех таблицах (участники, жеребьёвка, переписка с
   прочитанными и непрочитанными, обращения, журнал) → удалить два индекса (база «до 0008») → снимок всех таблиц →
   применить `0008` → снимок тот же, индексы есть → применить ещё раз — снимок тот же; план `EXPLAIN QUERY PLAN` запроса
   `unreadByEventQuery` (текст — через подставной `db.prepare`) — без `SCAN m` и с обоими индексами; версия схемы в базе
   — `REQUIRED_SCHEMA` (11); `me` возвращает те же числа непрочитанных, что до применения. Запустить — падает
-- [ ] T010 [US3] `migrations/0008_unread_index.sql`: комментарий (031: только индексы, данные и версию схемы не меняет,
+- [X] T010 [US3] `migrations/0008_unread_index.sql`: комментарий (031: только индексы, данные и версию схемы не меняет,
   код от них не зависит) и два `CREATE INDEX IF NOT EXISTS` — `messages_unread_santa (santa, read_at)`,
   `messages_unread_ward (ward, read_at)`. T009 — зелёный; `tests/d1-sqlite.test.mjs` — версия схемы прежняя
-- [ ] T011 [US3] `src/db.js`: комментарий у `REQUIRED_SCHEMA` — 0008 (индексы) версию не поднимает
+- [X] T011 [US3] `src/db.js`: комментарий у `REQUIRED_SCHEMA` — 0008 (индексы) версию не поднимает
 
 ---
 
