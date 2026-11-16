@@ -70,6 +70,17 @@
     return { ta, send, counter, composer, update, clear, show };
   }
 
+  // После шторки события (переписка, обращения участника): событие — заново, экран — если пользователь ещё на нём.
+  // «Подопечный» — по прежнему ответу: подсветка изменений письма сохраняется (009)
+  async function backToEvent(evId) {
+    const nav = state.nav;
+    await reloadEvent(evId).catch(() => {});
+    if (nav !== state.nav || state.evId !== evId) return;
+    if (state.dirty) renderTabs();
+    else if (state.tab === 'ward') { renderHero(); renderTabs(); renderWard({ cached: true }); }
+    else render();
+  }
+
   // ---------- переписка Санты и подопечного (003) ----------
   function openChat(withWhom) {
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
@@ -131,13 +142,7 @@
         beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть переписку?')),
         onClose: async () => {
           clearInterval(timer);
-          const nav = state.nav;
-          await reloadEvent(evId).catch(() => {});
-          if (nav !== state.nav || state.evId !== evId) return;
-          // «Подопечный» — по прежнему ответу: подсветка изменений письма сохраняется (009)
-          if (state.dirty) renderTabs();
-          else if (state.tab === 'ward') { renderHero(); renderTabs(); renderWard({ cached: true }); }
-          else render();
+          await backToEvent(evId);
         },
       });
     load().catch((e) => toast('⚠️ ' + e.message));
@@ -198,12 +203,7 @@
       beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть?')),
       onClose: async () => {
         clearInterval(timer);
-        const nav = state.nav;
-        await reloadEvent(evId).catch(() => {});
-        if (nav !== state.nav || state.evId !== evId) return;
-        if (state.dirty) renderTabs();
-        else if (state.tab === 'ward') { renderHero(); renderTabs(); renderWard({ cached: true }); }
-        else render();
+        await backToEvent(evId);
       },
     });
     load().catch((e) => toast('⚠️ ' + e.message));

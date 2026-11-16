@@ -38,11 +38,11 @@ US1 строится на связи секций (`p.watch`/`p.set`), а све
 
 ## Phase 4: User Story 3 — без копий (P3)
 
-- [ ] T010 [US3] Тест «без копий»: `'  @' +` — только в `personTitle`, `renderWard({ cached: true })` — только в
+- [x] T010 [US3] Тест «без копий»: `'  @' +` — только в `personTitle`, `renderWard({ cached: true })` — только в
   `backToEvent` («от противного»; на прежнем коде падает)
-- [ ] T011 [US3] `personTitle(u)` в `05-admin` (заявки, удалённые, участники); `backToEvent(evId)` в `07-sheet-chat`
+- [x] T011 [US3] `personTitle(u)` в `05-admin` (заявки, удалённые, участники); `backToEvent(evId)` в `07-sheet-chat`
   (`openChat`, `openSupport`)
-- [ ] T012 [US3] Слепки — как после T009; `npm test`; коммит
+- [x] T012 [US3] Слепки — как после T009; `npm test`; коммит
 
 ## Phase 5: Polish
 

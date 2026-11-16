@@ -4,7 +4,7 @@
 // checkRegistration в tests/screenshots.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { APP, where, partLines, indent, code, blockAt } from './support/app-source.mjs';
+import { APP, where, partLines, indent, code, blockAt, ownerOf } from './support/app-source.mjs';
 
 const PANEL = partLines('05-admin.js.txt');
 const PANEL_MAX = 100;
@@ -52,10 +52,29 @@ export function togglesUpdate(text, [from, to] = PANEL) {
   return found;
 }
 
+// ---------- 3. Без копий ----------
+// [что, образец строки, единственное объявление верхнего уровня, где он может стоять]
+const ONCE = [
+  ['заголовок строки «имя  @username»', /'  @' \+/, 'personTitle'],
+  ['возврат к событию после шторки', /\brenderWard\(\{ cached: true \}\)/, 'backToEvent'],
+];
+export function copies(text) {
+  const lines = text.split('\n');
+  const found = [];
+  lines.forEach((l, i) => {
+    for (const [what, re, home] of ONCE) {
+      const owner = ownerOf(lines, i).name;
+      if (re.test(code(l)) && owner !== home) found.push([i + 1, `${what} в ${owner || 'коде верхнего уровня'} — только в ${home}`]);
+    }
+  });
+  return found;
+}
+
 // ---------- тесты ----------
 const RULES = [
   [`1. функции панели не длиннее ${PANEL_MAX} строк`, longPanelFunctions],
   ['2. переключатель, от которого зависит другая часть панели, обновляет её', togglesUpdate],
+  ['3. без копий: заголовок «имя  @username» и возврат к событию после шторки — по одному помощнику', copies],
 ];
 for (const [name, rule] of RULES) {
   test(name, () => {
@@ -100,4 +119,20 @@ test('от противного 2: переключатель без обнов�
   assert.deepEqual(togglesUpdate(text.replace('{ open: on });', '{ open: on }); await again();'), [0, 13]), []);
   // Зависимой части нет — обновлять нечего
   assert.deepEqual(togglesUpdate(text, [0, 9]), []);
+});
+
+test('от противного 3: копия вне своего помощника находится, в помощнике и в комментарии — нет', () => {
+  const text = lines(
+    "  const personTitle = (u) => h('div', {}, u.name, u.username ? h('span', {}, '  @' + u.username) : null);",
+    '  function adminRemoved(p) {',
+    "    remList.append(h('div', {}, r.name, r.username ? h('span', {}, '  @' + r.username) : null));",
+    "    // раньше: '  @' + r.username",
+    '  }',
+    '  async function backToEvent(evId) {',
+    '    renderWard({ cached: true });',
+    '  }',
+    '  function openSupport() {',
+    '    const own = openSheet(t, [], { onClose: async () => { renderWard({ cached: true }); } });',
+    '  }');
+  assert.deepEqual(at(copies(text)), [3, 10]);
 });

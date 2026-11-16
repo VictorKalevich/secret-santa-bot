@@ -53,6 +53,9 @@
     if (quiet) window.scrollTo(0, y);
   });
 
+  // Заголовок строки списка: имя и @username (заявки, удалённые, участники)
+  const personTitle = (u) => h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null);
+
   // --- приглашение (только для идущего эвента)
   function adminInvite(p) {
     const { s, d, xapi, again, refresh } = p;
@@ -130,7 +133,7 @@
       pick.append(h('button', { class: 'ds-icon-btn', title: 'Отклонить', onclick: () => decide(false) }, '❌'));
       reqList.append(h('div', { class: 'ds-list-item' },
         h('div', { class: 'ds-grow' },
-          h('div', { class: 'ds-list-item__title' }, r.name || 'без имени', r.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + r.username) : null),
+          personTitle(r),
           ui.hint(fmtTime(r.created_at))),
         pick));
     }
@@ -159,7 +162,7 @@
       }));
       remList.append(h('div', { class: 'ds-list-item' },
         h('div', { class: 'ds-grow' },
-          h('div', { class: 'ds-list-item__title' }, r.name || 'без имени', r.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + r.username) : null),
+          personTitle(r),
           ui.hint('удалён ' + fmtTime(r.removed_at))),
         allow));
     }
@@ -339,7 +342,7 @@
         h('button', { class: 'ds-icon-btn', title: 'Действия с участником', onclick: () => adminMemberMenu(p, u, chips.map((c) => c.cloneNode(true))) }, '⋯'));
       list.append(h('div', { class: 'ds-list-item' },
         h('div', { class: 'ds-grow' },
-          h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null),
+          personTitle(u),
           h('div', { class: 'ds-chips' }, chips)),
         actions));
       // Вписывает только владелец (012): админ по отметкам «не открыл» и «готов» понял бы, кто дарит новичку
