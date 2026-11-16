@@ -11,9 +11,12 @@ import { runScheduled } from './cron.js';
 import { flushOutbox } from './outbox.js';
 import { metered, reportBudget } from './budget.js';
 import { setup } from './setup.js';
+import { appPolicy } from './csp.js';
 
 // Страница мини-приложения (склейка частей src/app/, 021) со встроенной дизайн-системой (без сборщика).
 const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS);
+// Политика страницы (032): отпечаток встроенного скрипта считается при первом /app — один раз на экземпляр Worker
+let appCsp;
 
 // Единственная точка отправки очереди после запроса (009): если обработчик ставил сообщения в очередь —
 // отправить их уже после ответа, в пределах оставшегося бюджета вызова; остаток уйдёт в cron.
@@ -62,8 +65,13 @@ export default {
     }
 
     if (url.pathname === '/app') {
+      appCsp ??= appPolicy(APP_PAGE);
       return new Response(APP_PAGE, {
-        headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+          'content-security-policy': await appCsp,
+        },
       });
     }
 
