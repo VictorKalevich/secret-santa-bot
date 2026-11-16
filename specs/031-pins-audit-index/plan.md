@@ -1,6 +1,6 @@
 # Implementation Plan: Честный отказ при одновременных закреплениях, журнал ответов в обращения, индекс непрочитанных
 
-**Branch**: `031-pins-audit-index` | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md)
+**Branch**: `031-pins-audit-index` | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-16)
 
 **Input**: Feature specification from `specs/031-pins-audit-index/spec.md`; три пункта «Решено: не делаем» из
 `docs/todo.md`, которые владелец 2026-11-16 решил сделать (главное — стабильность и сохранность данных).

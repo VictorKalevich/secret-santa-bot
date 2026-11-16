@@ -1717,7 +1717,11 @@ test('012: вписывание по группам, принудительна�
       assert.deepEqual(view.threads.map((x) => x.status), ['closed', 'closed']);
 
       const log = (await zapi(helper, 'admin.audit', { event: S })).entries;
-      for (const a of ['support.open', 'support.take', 'support.pass', 'support.close']) assert.ok(log.some((e) => e.action === a), a);
+      for (const a of ['support.open', 'support.take', 'support.reply', 'support.pass', 'support.close']) assert.ok(log.some((e) => e.action === a), a);
+      // 031: каждый сохранённый ответ организатора — запись support.reply
+      assert.equal(log.filter((e) => e.action === 'support.reply').length,
+        await count(`SELECT COUNT(*) AS n FROM support_messages m JOIN support_threads t ON t.id = m.thread_id WHERE t.event_id = ${S} AND m.from_admin = 1`));
+      assert.ok(!JSON.stringify(log).includes('Отвечаю как владелец'), 'текста ответа нет');
       assert.ok(!JSON.stringify(log).includes('Не вижу подопечного') && !JSON.stringify(log).includes('Новый вопрос'), 'журнал без текстов');
     });
 
