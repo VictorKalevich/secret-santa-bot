@@ -3,6 +3,7 @@
 import { pairOfSanta, pairOfWard, enqueueIfStmt } from './db.js';
 import { msg, q, escapeHtml, shortTitle, appUrl, cleanText } from './format.js';
 import { chatWritable } from './status.js';
+import { no } from './result.js';
 
 // Лимит письма и сообщения переписки: одно сообщение Telegram вмещает 4096 символов (UTF-16, как String.length),
 // 96 оставляем под заголовок уведомления (003, FR-309).
@@ -38,14 +39,14 @@ const PAIR_CHANGED = '🔄 Пара изменилась после нажати
 export async function sendChatMessage(ctx, ev, fromId, to, rawText, { expectOther = 0 } = {}) {
   const db = ctx.db;
   const text = cleanText(rawText);
-  if (!text) return { ok: false, error: 'Пустое сообщение.' };
+  if (!text) return no('Пустое сообщение.');
   if (text.length > MAX_CHARS) {
-    return { ok: false, error: tooLong(text.length) };
+    return no(tooLong(text.length));
   }
-  if (!chatWritable(ev)) return { ok: false, error: 'Событие завершено больше недели назад: переписка доступна только для чтения.' };
+  if (!chatWritable(ev)) return no('Событие завершено больше недели назад: переписка доступна только для чтения.');
   const pair = await chatPair(db, ev.id, fromId, to);
-  if (!pair) return { ok: false, error: to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.' };
-  if (expectOther && pair.other !== expectOther) return { ok: false, error: PAIR_CHANGED, pairChanged: true };
+  if (!pair) return no(to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.');
+  if (expectOther && pair.other !== expectOther) return { ...no(PAIR_CHANGED), pairChanged: true };
   const settings = await ctx.settings();
   const now = Date.now();
   // Заголовок + текст до MAX_CHARS всегда помещаются в одно сообщение Telegram: название эвента сокращаем
@@ -67,7 +68,7 @@ export async function sendChatMessage(ctx, ev, fromId, to, rawText, { expectOthe
     }), pairAlive, ...alive),
   ]);
   const row = inserted.results[0];
-  if (!row) return { ok: false, error: expectOther ? PAIR_CHANGED : 'Пара изменилась — обнови экран.', pairChanged: true };
+  if (!row) return { ...no(expectOther ? PAIR_CHANGED : 'Пара изменилась — обнови экран.'), pairChanged: true };
   return { ok: true, message: { id: row.id, mine: true, text, created_at: row.created_at } };
 }
 

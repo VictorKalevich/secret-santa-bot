@@ -4,14 +4,13 @@
 import { getEvent, memberQuery, drawMembersQuery, fixedPairsQuery } from './db.js';
 import { displayName } from './format.js';
 import { atomic } from './claim.js';
+import { no } from './result.js';
 
 const EXCLUSIONS_FROZEN =
   'После жеребьёвки исключения не меняются: иначе по заменам участников можно было бы вычислить пары. ' +
   'Чтобы поменять исключения, отмени жеребьёвку (пока никто не открыл подопечного).';
 const FIXED_FROZEN = 'После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.'; // 014
 const RING_ONE_WAY = 'При кольцевой жеребьёвке пару можно закрепить только в одну сторону';
-
-const no = (error) => ({ ok: false, error });
 
 // ---------- исключения ----------
 

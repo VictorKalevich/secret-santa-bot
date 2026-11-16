@@ -10,6 +10,7 @@ import { atomic } from './claim.js';
 import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppButton, cleanText } from './format.js';
 import { chatWritable } from './status.js';
 import { MAX_CHARS, tooLong } from './chat.js';
+import { no } from './result.js';
 
 const READ_ONLY = 'Событие завершено больше недели назад: обращения только для чтения.';
 const NOBODY = 'Сейчас некому написать: в боте нет других организаторов.';
@@ -17,7 +18,6 @@ export const CLOSED = 'Обращение уже закрыто.';
 export const NOT_FOUND = 'Обращение не найдено.';
 export const OWN_THREAD = 'Это твоё обращение — отвечать на него будут другие организаторы.';
 
-const fail = (error, status = 400) => ({ ok: false, error, status });
 const title = (ev) => q({ title: shortTitle(ev.title) });
 const bold = (u) => `<b>${escapeHtml(displayName(u))}</b>`;
 
@@ -105,13 +105,13 @@ export async function participantView(ctx, ev) {
 export async function sendFromUser(ctx, ev, rawText, retry = true) {
   const { db, me } = ctx;
   const t = checkText(rawText);
-  if (t.error) return fail(t.error);
-  if (!chatWritable(ev)) return fail(READ_ONLY);
+  if (t.error) return no(t.error);
+  if (!chatWritable(ev)) return no(READ_ONLY);
   const MY_OPEN = "SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'";
   const r = await ctx.read({ open: db.prepare(MY_OPEN).bind(ev.id, me.tg_id), users: true, settings: true });
   const { settings, users } = r;
   const admins = adminRecipients(users, [me.tg_id]);
-  if (!admins.length) return fail(NOBODY);
+  if (!admins.length) return no(NOBODY);
   let thread = r.open[0] ?? null;
   let created = false;
   if (!thread) {
@@ -122,7 +122,7 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
     created = !!thread;
     // Одновременно открыли из другого окна — пишем в него
     if (!thread) thread = await db.prepare(MY_OPEN).bind(ev.id, me.tg_id).first();
-    if (!thread) return fail('Не получилось отправить — попробуй ещё раз.');
+    if (!thread) return no('Не получилось отправить — попробуй ещё раз.');
   }
   const now = Date.now();
   const body = '\n\n' + escapeHtml(t.text);
@@ -151,16 +151,16 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
   const row = claim.results[0];
   if (!row) {
     // Обращение закрыли между чтением и записью — следующее сообщение открывает новое
-    return retry ? sendFromUser(ctx, ev, rawText, false) : fail('Не получилось отправить — попробуй ещё раз.');
+    return retry ? sendFromUser(ctx, ev, rawText, false) : no('Не получилось отправить — попробуй ещё раз.');
   }
   return { ok: true, thread: thread.id, created, message: { id: row.id, mine: true, author: '', text: t.text, created_at: row.created_at } };
 }
 
 export async function closeByUser(ctx, ev) {
   const { db, me } = ctx;
-  if (!chatWritable(ev)) return fail(READ_ONLY);
+  if (!chatWritable(ev)) return no(READ_ONLY);
   const thread = await db.prepare("SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'").bind(ev.id, me.tg_id).first();
-  if (!thread) return fail('Открытого обращения нет.');
+  if (!thread) return no('Открытого обращения нет.');
   const users = await ctx.users();
   // Уведомления и журнал — пока обращение открыто, закрытие — последним (020)
   const open = atomic(db, OPEN, thread.id);
@@ -170,7 +170,7 @@ export async function closeByUser(ctx, ev) {
   }
   open.audit(ev.id, me.tg_id, 'support.close', displayName(me));
   open.claim(db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'").bind(Date.now(), me.tg_id, thread.id));
-  if (!(await open.run()).won) return fail('Открытого обращения нет.');
+  if (!(await open.run()).won) return no('Открытого обращения нет.');
   return { ok: true };
 }
 
@@ -224,11 +224,11 @@ export async function adminThread(ctx, ev, id) {
     users: true,
   });
   const t = r.thread[0];
-  if (!t) return fail(NOT_FOUND, 404);
+  if (!t) return no(NOT_FOUND, 404);
   const { users } = r;
   const byId = new Map(users.map((u) => [u.tg_id, u]));
   if (!canRead(t, me, await ctx.isOwner())) {
-    return fail(`Обращение ведёт ${displayName(byId.get(t.assignee))} — переписку видят он(а) и владелец.`, 403);
+    return no(`Обращение ведёт ${displayName(byId.get(t.assignee))} — переписку видят он(а) и владелец.`, 403);
   }
   const results = r.messages;
   if (t.assignee === me.tg_id && results.some((m) => !m.from_admin && !m.read_at)) {
@@ -276,20 +276,20 @@ const ledBy = (db, t, assignee) => atomic(db, OPEN, t.id).and(LED_BY, t.id, assi
 
 async function taken(db, t) {
   const cur = await threadById(db, t.id);
-  if (!cur || cur.status !== 'open') return fail(CLOSED);
+  if (!cur || cur.status !== 'open') return no(CLOSED);
   const who = await getUser(db, cur.assignee);
-  return fail(`Обращение уже взял(а) ${displayName(who)}.`);
+  return no(`Обращение уже взял(а) ${displayName(who)}.`);
 }
 
 export async function take(ctx, ev, id) {
   const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
-  if (!t) return fail(NOT_FOUND, 404);
-  if (t.status !== 'open') return fail(CLOSED);
-  if (t.user_id === me.tg_id) return fail('Своё обращение взять нельзя.');
+  if (!t) return no(NOT_FOUND, 404);
+  if (t.status !== 'open') return no(CLOSED);
+  if (t.user_id === me.tg_id) return no('Своё обращение взять нельзя.');
   if (t.assignee === me.tg_id) return { ok: true, thread: t };
   if (t.assignee) return taken(db, t);
-  if (!chatWritable(ev)) return fail(READ_ONLY);
+  if (!chatWritable(ev)) return no(READ_ONLY);
   const users = await ctx.users();
   const free = ledBy(db, t, 0);
   free.claim(takeInto(free, db, users, ev, t, me));
@@ -301,15 +301,15 @@ export async function take(ctx, ev, id) {
 export async function sendFromAdmin(ctx, ev, id, rawText) {
   const { db, me } = ctx;
   const tx = checkText(rawText);
-  if (tx.error) return fail(tx.error);
+  if (tx.error) return no(tx.error);
   const t = await threadOf(db, ev.id, id);
-  if (!t) return fail(NOT_FOUND, 404);
+  if (!t) return no(NOT_FOUND, 404);
   const blocks = replyBlocks(t, me, ev);
-  if (blocks.closed) return fail(CLOSED);
-  if (blocks.own) return fail(OWN_THREAD);
-  if (blocks.readOnly) return fail(READ_ONLY);
+  if (blocks.closed) return no(CLOSED);
+  if (blocks.own) return no(OWN_THREAD);
+  if (blocks.readOnly) return no(READ_ONLY);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
-  if (blocks.other) return fail(`Обращение ведёт ${displayName(users.find((u) => u.tg_id === t.assignee))}.`);
+  if (blocks.other) return no(`Обращение ведёт ${displayName(users.find((u) => u.tg_id === t.assignee))}.`);
   const now = Date.now();
   // Ничьё берётся этим ответом: уведомления о взятии — пока обращение ничьё, затем взятие (020)
   const open = atomic(db, OPEN, t.id);
@@ -329,21 +329,21 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
     .bind(t.id, me.tg_id, tx.text, now, ...mine.args));
   const { claim } = await open.run();
   const row = claim.results[0];
-  if (!row) return t.assignee ? fail(CLOSED) : taken(db, t);
+  if (!row) return t.assignee ? no(CLOSED) : taken(db, t);
   return { ok: true, message: { id: row.id, mine: true, from_admin: true, author: displayName(me), text: tx.text, created_at: row.created_at } };
 }
 
 export async function pass(ctx, ev, id, toId) {
   const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
-  if (!t) return fail(NOT_FOUND, 404);
-  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return fail('Передать обращение может тот, кто его ведёт, или владелец.', 403);
-  if (t.status !== 'open') return fail(CLOSED);
-  if (!chatWritable(ev)) return fail(READ_ONLY);
+  if (!t) return no(NOT_FOUND, 404);
+  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return no('Передать обращение может тот, кто его ведёт, или владелец.', 403);
+  if (t.status !== 'open') return no(CLOSED);
+  if (!chatWritable(ev)) return no(READ_ONLY);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const to = users.find((u) => u.tg_id === Number(toId));
-  if (!to || !to.is_admin || !to.registered || to.tg_id === t.user_id) return fail('Передать можно другому администратору.');
-  if (to.tg_id === t.assignee) return fail(`Обращение и так ведёт ${displayName(to)}.`);
+  if (!to || !to.is_admin || !to.registered || to.tg_id === t.user_id) return no('Передать можно другому администратору.');
+  if (to.tg_id === t.assignee) return no(`Обращение и так ведёт ${displayName(to)}.`);
   const author = users.find((u) => u.tg_id === t.user_id);
   const prev = users.find((u) => u.tg_id === t.assignee);
   // Уведомления и журнал — пока обращение открыто и его ведёт прежний ответственный; передача — последней (020)
@@ -363,17 +363,17 @@ export async function pass(ctx, ev, id, toId) {
   }
   before.claim(db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = ?")
     .bind(to.tg_id, Date.now(), t.id, t.assignee));
-  if (!(await before.run()).won) return fail('Обращение изменилось одновременно с этим действием — обнови экран и попробуй ещё раз.');
+  if (!(await before.run()).won) return no('Обращение изменилось одновременно с этим действием — обнови экран и попробуй ещё раз.');
   return { ok: true };
 }
 
 export async function closeByAdmin(ctx, ev, id) {
   const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
-  if (!t) return fail(NOT_FOUND, 404);
-  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return fail('Закрыть обращение может тот, кто его ведёт, или владелец.', 403);
-  if (t.status !== 'open') return fail(CLOSED);
-  if (!chatWritable(ev)) return fail(READ_ONLY);
+  if (!t) return no(NOT_FOUND, 404);
+  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return no('Закрыть обращение может тот, кто его ведёт, или владелец.', 403);
+  if (t.status !== 'open') return no(CLOSED);
+  if (!chatWritable(ev)) return no(READ_ONLY);
   const users = await ctx.users();
   const author = users.find((u) => u.tg_id === t.user_id);
   // Уведомления и журнал — пока обращение открыто, закрытие — последним (020)
@@ -387,7 +387,7 @@ export async function closeByAdmin(ctx, ev, id) {
   }
   open.claim(db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'")
     .bind(Date.now(), me.tg_id, t.id));
-  if (!(await open.run()).won) return fail(CLOSED);
+  if (!(await open.run()).won) return no(CLOSED);
   return { ok: true };
 }
 

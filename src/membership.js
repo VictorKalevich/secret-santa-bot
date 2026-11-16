@@ -7,6 +7,7 @@ import {
 import { msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine } from './format.js';
 import { isFinished } from './status.js';
 import { atomic } from './claim.js';
+import { no } from './result.js';
 
 // ---------- семьи ----------
 
@@ -43,14 +44,14 @@ async function familyMembers(db, familyId) {
 export async function saveFamily(ctx, actor, { id = 0, name, members }) {
   const db = ctx.db;
   const clean = oneLine(name);
-  if (!clean || clean.length > 40) return { ok: false, error: 'Название семьи — от 1 до 40 символов.' };
+  if (!clean || clean.length > 40) return no('Название семьи — от 1 до 40 символов.');
   const ids = [...new Set((Array.isArray(members) ? members : []).map(Number).filter(Boolean))];
-  if (ids.length < 2 || ids.length > FAMILY_MAX) return { ok: false, error: `В семье должно быть от 2 до ${FAMILY_MAX} человек.` };
+  if (ids.length < 2 || ids.length > FAMILY_MAX) return no(`В семье должно быть от 2 до ${FAMILY_MAX} человек.`);
   id = Number(id) || 0;
-  if (id && !(await db.prepare('SELECT id FROM families WHERE id = ?').bind(id).first())) return { ok: false, error: 'Семья не найдена.' };
+  if (id && !(await db.prepare('SELECT id FROM families WHERE id = ?').bind(id).first())) return no('Семья не найдена.');
   const users = await ctx.users();
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
-  for (const uid of ids) if (!byId[uid]?.registered) return { ok: false, error: 'Участник не найден.' };
+  for (const uid of ids) if (!byId[uid]?.registered) return no('Участник не найден.');
   // Один человек — одна семья (FR-805)
   const alreadyIn = async () => {
     const { results: taken } = await db
@@ -58,7 +59,7 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
                  WHERE fm.family_id != ? AND fm.user_id IN (${ids.map(() => '?').join(',')})`)
       .bind(id, ...ids)
       .all();
-    return taken.length ? { ok: false, error: `${displayName(byId[taken[0].user_id])} уже в семье «${taken[0].name}».` } : null;
+    return taken.length ? no(`${displayName(byId[taken[0].user_id])} уже в семье «${taken[0].name}».`) : null;
   };
   const taken = await alreadyIn();
   if (taken) return taken;
@@ -66,7 +67,7 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
   const before = id ? await familyMembers(db, id) : [];
   const changed = [...ids.filter((x) => !before.includes(x)), ...before.filter((x) => !ids.includes(x))];
   const frozen = (await ctx.isOwner()) ? null : await frozenFamilyEvent(db, changed, [...new Set([...before, ...ids])]);
-  if (frozen) return { ok: false, error: familyFrozen(frozen) };
+  if (frozen) return no(familyFrozen(frozen));
   const now = Date.now();
   // Новая семья в остальных операторах batch — по автору и времени создания
   const famId = id ? '?' : '(SELECT MAX(id) FROM families WHERE created_by = ? AND created_at = ?)';
@@ -92,10 +93,10 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
 export async function deleteFamily(ctx, actor, id) {
   const db = ctx.db;
   const fam = await db.prepare('SELECT * FROM families WHERE id = ?').bind(Number(id) || 0).first();
-  if (!fam) return { ok: false, error: 'Семья не найдена.' };
+  if (!fam) return no('Семья не найдена.');
   const all = await familyMembers(db, fam.id);
   const frozen = (await ctx.isOwner()) ? null : await frozenFamilyEvent(db, all, all);
-  if (frozen) return { ok: false, error: familyFrozen(frozen) };
+  if (frozen) return no(familyFrozen(frozen));
   await db.batch([
     db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(fam.id),
     db.prepare('DELETE FROM families WHERE id = ?').bind(fam.id),
@@ -127,7 +128,7 @@ const AFTER_DRAW = 'После жеребьёвки так нельзя. Поп�
 // «Я участвую» админа: вход и выход — только до жеребьёвки (вписывает после неё только владелец, 012)
 export async function participate(ctx, ev, on, actor) {
   const db = ctx.db;
-  if (ev.draw_done) return { ok: false, error: AFTER_DRAW };
+  if (ev.draw_done) return no(AFTER_DRAW);
   if (on) {
     await db.batch([
       addMemberStmt(db, ev, actor), clearRemovedStmt(db, ev.id, actor),
@@ -141,7 +142,7 @@ export async function participate(ctx, ev, on, actor) {
   const beforeDraw = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)', ev.id);
   beforeDraw.claim(beforeDraw.audit(ev.id, actor, 'participate', 'не участвует'));
   beforeDraw.add(...memberDataDeleteStmts(db, ev.id, actor, ...beforeDraw.guard));
-  return (await beforeDraw.run()).won ? { ok: true } : { ok: false, error: AFTER_DRAW };
+  return (await beforeDraw.run()).won ? { ok: true } : no(AFTER_DRAW);
 }
 
 // Разрешить удалённому организатором вернуться по ссылке (010)
@@ -149,7 +150,7 @@ export async function allowRemoved(ctx, ev, rawId, actor) {
   const db = ctx.db;
   const id = Number(rawId) || 0;
   const row = await db.prepare('SELECT 1 FROM removed_members WHERE event_id = ? AND user_id = ?').bind(ev.id, id).first();
-  if (!row) return { ok: false, error: 'Этого человека нет среди удалённых.' };
+  if (!row) return no('Этого человека нет среди удалённых.');
   const users = await ctx.users();
   await db.batch([clearRemovedStmt(db, ev.id, id), auditStmt(db, ev.id, actor, 'member.allow', displayName(users.find((u) => u.tg_id === id)))]);
   return { ok: true };
@@ -226,14 +227,14 @@ async function requestJoin(ctx, ev, user) {
 export async function decideRequest(ctx, id, actor, approve, { inEvent = null } = {}) {
   const db = ctx.db;
   const req = await db.prepare('SELECT * FROM join_requests WHERE id = ?').bind(Number(id) || 0).first();
-  if (!req || (inEvent && req.event_id !== inEvent.id)) return { ok: false, error: 'Заявка не найдена.' };
-  if (req.status !== 'pending') return { ok: false, error: 'Заявка уже рассмотрена.' };
+  if (!req || (inEvent && req.event_id !== inEvent.id)) return no('Заявка не найдена.');
+  if (req.status !== 'pending') return no('Заявка уже рассмотрена.');
   const ev = await getEvent(db, req.event_id);
-  if (!ev) return { ok: false, error: 'Событие не найдено.' };
-  if (approve && isFinished(ev)) return { ok: false, error: 'Событие завершено — принять в него уже нельзя.' };
+  if (!ev) return no('Событие не найдено.');
+  if (approve && isFinished(ev)) return no('Событие завершено — принять в него уже нельзя.');
   // Закрытая регистрация — значит никто (010, FR-1016): заявка ждёт открытия, отклонить можно
   const closed = `Регистрация на событие «${ev.title}» закрыта — открой её, чтобы принять заявку.`;
-  if (approve && !ev.registration_open) return { ok: false, error: closed };
+  if (approve && !ev.registration_open) return no(closed);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const person = users.find((u) => u.tg_id === req.user_id);
   const by = users.find((u) => u.tg_id === actor);
@@ -261,7 +262,7 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
   p.claim(p.where('UPDATE join_requests SET status = ?, decided_by = ?, decided_at = ? WHERE id = ?', status, actor, Date.now(), req.id));
   if (!(await p.run()).won) {
     const cur = approve ? await getEvent(db, ev.id) : null;
-    return { ok: false, error: cur && !cur.registration_open ? closed : 'Заявка уже рассмотрена.' };
+    return no(cur && !cur.registration_open ? closed : 'Заявка уже рассмотрена.');
   }
   return { ok: true, ev, name: displayName(person) };
 }

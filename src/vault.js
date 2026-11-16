@@ -4,6 +4,7 @@
 
 import { memberQuery, pairLinksQuery, drawMembersQuery, pairOfSantaQuery, pairOfWardQuery, auditStmt } from './db.js';
 import { displayName } from './format.js';
+import { no } from './result.js';
 
 const CHAT_LIMIT = 200;
 
@@ -27,7 +28,7 @@ export async function vaultPerson(ctx, ev, id, actor) {
   const byId = new Map(first.users.map((u) => [u.tg_id, u]));
   const user = byId.get(id);
   const member = first.member[0];
-  if (!user || !member) return { ok: false, error: 'Участник не найден' };
+  if (!user || !member) return no('Участник не найден');
   // Сначала журнал: если запись не удалась, данные не отдаются
   await auditStmt(db, ev.id, actor, 'vault.person', displayName(user)).run();
   const r = await ctx.read({

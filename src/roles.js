@@ -8,6 +8,7 @@ import { msg, escapeHtml, appKeyboard, displayName, adminRecipients } from './fo
 import { derivedSecret } from './telegram.js';
 import { returnThreadsStmts } from './support.js';
 import { atomic } from './claim.js';
+import { no } from './result.js';
 
 // Сообщение остальным админам (без звука): получатели — adminRecipients(users, кроме перечисленных)
 const adminNotice = (text) => msg(text, { disable_notification: true });
@@ -92,8 +93,8 @@ export async function grantAdmin(ctx, id, actor = 0) {
   const db = ctx.db;
   const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id);
-  if (!u || !u.registered) return { ok: false, error: 'Назначить можно только зарегистрированного человека.' };
-  if (u.is_admin) return { ok: false, error: ALREADY_ADMIN };
+  if (!u || !u.registered) return no('Назначить можно только зарегистрированного человека.');
+  if (u.is_admin) return no(ALREADY_ADMIN);
   // По прежнему состоянию (024): сообщения и журнал — пока он не админ, назначение — последним (захват)
   const a = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND is_admin = 0)', id);
   a.enqueue(id, msg(
@@ -103,7 +104,7 @@ export async function grantAdmin(ctx, id, actor = 0) {
   for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(`ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`));
   a.audit(0, actor || ownerId, 'role.grant', displayName(u));
   a.claim(db.prepare('UPDATE users SET is_admin = 1 WHERE tg_id = ? AND is_admin = 0').bind(id));
-  if (!(await a.run()).won) return { ok: false, error: ALREADY_ADMIN };
+  if (!(await a.run()).won) return no(ALREADY_ADMIN);
   return { ok: true };
 }
 
@@ -111,8 +112,8 @@ export async function revokeAdmin(ctx, id, actor = 0) {
   const db = ctx.db;
   const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id);
-  if (!u || !u.is_admin) return { ok: false, error: NOT_ADMIN };
-  if (id === ownerId) return { ok: false, error: 'Нельзя снять права владельца. Сначала передай владение другому.' };
+  if (!u || !u.is_admin) return no(NOT_ADMIN);
+  if (id === ownerId) return no('Нельзя снять права владельца. Сначала передай владение другому.');
   // По прежнему состоянию (024): всё — пока он админ, снятие прав — последним (захват)
   const a = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND is_admin = 1)', id);
   // 012: обращения, которые он вёл, снова ничьи — остальные админы получают их с кнопкой «Взять»
@@ -121,16 +122,16 @@ export async function revokeAdmin(ctx, id, actor = 0) {
   for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(`ℹ️ <b>${escapeHtml(displayName(u))}</b> больше не администратор.`));
   a.audit(0, actor || ownerId, 'role.revoke', displayName(u));
   a.claim(db.prepare('UPDATE users SET is_admin = 0 WHERE tg_id = ? AND is_admin = 1').bind(id));
-  if (!(await a.run()).won) return { ok: false, error: NOT_ADMIN };
+  if (!(await a.run()).won) return no(NOT_ADMIN);
   return { ok: true };
 }
 
 export async function transferOwnership(ctx, fromId, toId) {
   const users = await ctx.users();
   const u = users.find((x) => x.tg_id === toId);
-  if (!u || !u.registered) return { ok: false, error: 'Передать владение можно только зарегистрированному человеку.' };
-  if (toId === fromId) return { ok: false, error: 'Ты и так владелец.' };
-  if (!(await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId })).won) return { ok: false, error: 'Права владельца уже переданы.' };
+  if (!u || !u.registered) return no('Передать владение можно только зарегистрированному человеку.');
+  if (toId === fromId) return no('Ты и так владелец.');
+  if (!(await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId })).won) return no('Права владельца уже переданы.');
   return { ok: true };
 }
 
@@ -138,11 +139,11 @@ export async function transferOwnership(ctx, fromId, toId) {
 
 export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   const db = ctx.db;
-  if (!fromId || !toId || fromId === toId) return { ok: false, error: 'Выбери две разные записи.' };
+  if (!fromId || !toId || fromId === toId) return no('Выбери две разные записи.');
   const from = await getUser(db, fromId);
   const to = await getUser(db, toId);
-  if (!from) return { ok: false, error: 'Старая запись не найдена.' };
-  if (!to || !to.registered) return { ok: false, error: 'Новый аккаунт должен завершить регистрацию (написать боту имя).' };
+  if (!from) return no('Старая запись не найдена.');
+  if (!to || !to.registered) return no('Новый аккаунт должен завершить регистрацию (написать боту имя).');
   const { results: fromMembers } = await db.prepare('SELECT * FROM members WHERE user_id = ?').bind(fromId).all();
   const { results: toMembers } = await db.prepare('SELECT * FROM members WHERE user_id = ?').bind(toId).all();
   const toByEvent = new Map(toMembers.map((m) => [m.event_id, m]));
@@ -151,7 +152,7 @@ export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   for (const m of fromMembers) {
     if (toByEvent.has(m.event_id) && toInDraw.has(m.event_id)) {
       const ev = await getEvent(db, m.event_id);
-      return { ok: false, error: `Новый аккаунт уже участвует в жеребьёвке события «${ev?.title || ''}» — выбери другую запись.` };
+      return no(`Новый аккаунт уже участвует в жеребьёвке события «${ev?.title || ''}» — выбери другую запись.`);
     }
   }
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
@@ -177,6 +178,6 @@ export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   // Участия, письма, пары, переписка, исключения, семья, заявки, отметки «удалён», обращения — по списку REGISTRY
   // (018); ссылки «кто сделал» переходят тоже (025); запись старого аккаунта удаляется последней: она и есть захват
   fromExists.claim(fromExists.add(...personTransferStmts(db, fromId, toId, { merge }, ...fromExists.guard)));
-  if (!(await fromExists.run()).won) return { ok: false, error: 'Старая запись не найдена.' };
+  if (!(await fromExists.run()).won) return no('Старая запись не найдена.');
   return { ok: true, events: fromMembers.length };
 }

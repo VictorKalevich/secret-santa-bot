@@ -9,6 +9,7 @@ import { EVENT_PARAMS, EVENT_STATE_RESET, eventDefaults, templateValues, paramVa
 
 import { CHAT_GRACE_MS, isFinished } from './status.js';
 import { atomic } from './claim.js';
+import { no } from './result.js';
 
 // Повторные нажатия (024): та же рассылка по желанию в том же событии чаще раза в минуту — повтор. Условие — по
 // прежнему состоянию: сообщения — перед опорой (объявление или запись журнала), опора — захват, последней. Время —
@@ -23,7 +24,7 @@ const REMIND_AGAIN = 'Напоминание уже отправлено — п�
 export async function createEvent(ctx, title, createdBy, { from = null, invite = false } = {}) {
   const db = ctx.db;
   const clean = oneLine(title);
-  if (!clean || clean.length > 80) return { ok: false, error: 'Название события — от 1 до 80 символов.' };
+  if (!clean || clean.length > 80) return no('Название события — от 1 до 80 символов.');
   const code = randomCode();
   // Параметры — по списку EVENT_PARAMS (029): копируемые — из образца, остальные задаёт схема
   const fields = { title: clean, created_at: Date.now(), created_by: createdBy, invite_code: code, ...templateValues(from) };
@@ -54,7 +55,7 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
 
 export async function finishEvent(ctx, ev, actor = 0) {
   const db = ctx.db;
-  if (isFinished(ev)) return { ok: false, error: 'Событие уже завершено.' };
+  if (isFinished(ev)) return no('Событие уже завершено.');
   const { settings, members } = await ctx.read({ members: participantIdsQuery(db, ev.id), settings: true });
   const now = Date.now();
   const until = formatMs(now + CHAT_GRACE_MS, Number(ctx.env.TIMEZONE_OFFSET_HOURS ?? 3));
@@ -72,7 +73,7 @@ export async function finishEvent(ctx, ev, actor = 0) {
     ));
   }
   finished.audit(ev.id, actor, 'finish');
-  if (!(await finished.run()).won) return { ok: false, error: 'Событие уже завершено.' };
+  if (!(await finished.run()).won) return no('Событие уже завершено.');
   return { ok: true };
 }
 
@@ -88,7 +89,7 @@ export async function deleteEvent(ctx, ev, actor = 0) {
   exists.audit(0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`);
   // Данные эвента — по списку REGISTRY (018), строка эвента — последней: она и есть захват
   exists.claim(exists.add(...eventDataDeleteStmts(db, ev.id, {}, ...exists.guard)));
-  if (!(await exists.run()).won) return { ok: false, error: 'Событие уже удалено.' };
+  if (!(await exists.run()).won) return no('Событие уже удалено.');
   return { ok: true, count: members.length };
 }
 
@@ -112,7 +113,7 @@ export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
   // Данные эвента — по списку REGISTRY (018): участие владельца остаётся, его письмо и адрес стираются
   mine.add(...eventDataDeleteStmts(db, ev.id, { keepMember: ownerId, keepEvent: true }, ...mine.guard));
   mine.audit(ev.id, actor, 'reset', `удалено участников: ${removed.length}`);
-  if (!(await mine.run()).won) return { ok: false, error: 'Событие уже сброшено или изменилось одновременно со сбросом — обнови экран.' };
+  if (!(await mine.run()).won) return no('Событие уже сброшено или изменилось одновременно со сбросом — обнови экран.');
   return { ok: true, removed: removed.length, inviteCode };
 }
 
@@ -120,10 +121,10 @@ export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
 // Закрытая регистрация — значит никто (010, FR-1017); удалённым организатором при запрете возврата — не приглашаем.
 export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
   const db = ctx.db;
-  if (!ev.registration_open) return { ok: false, error: 'Регистрация закрыта — открой её, чтобы приглашать.' };
+  if (!ev.registration_open) return no('Регистрация закрыта — открой её, чтобы приглашать.');
   const settings = await ctx.settings();
   const link = inviteLink(settings, ev);
-  if (!link) return { ok: false, error: 'Сначала открой страницу настройки /setup (см. README).' };
+  if (!link) return no('Сначала открой страницу настройки /setup (см. README).');
   // Участники обоих событий и отметки «удалён» — одним пакетом чтений (019)
   const r = await ctx.read({
     members: memberIdsQuery(db, ev.id),
@@ -141,7 +142,7 @@ export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
     ));
   }
   fresh.claim(fresh.audit(ev.id, actor, 'invite.from', `из «${fromEv.title}», приглашено: ${people.length}`));
-  if (!(await fresh.run()).won) return { ok: false, error: 'Приглашения уже отправлены — повторить можно через минуту.' };
+  if (!(await fresh.run()).won) return no('Приглашения уже отправлены — повторить можно через минуту.');
   return { ok: true, count: people.length };
 }
 
@@ -150,8 +151,8 @@ export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
 export async function revealAll(ctx, ev, actor = 0) {
   const db = ctx.db;
   const cur = await getEvent(db, ev.id);
-  if (!cur?.draw_done) return { ok: false, error: NO_DRAW };
-  if (cur.revealed) return { ok: false, error: 'Тайна уже раскрыта.' };
+  if (!cur?.draw_done) return no(NO_DRAW);
+  if (cur.revealed) return no('Тайна уже раскрыта.');
   const { rows, users } = await ctx.read({ rows: pairLinksQuery(db, ev.id), users: true });
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
   // revealed хранит уникальную отметку этого раскрытия (для условий ниже); везде читается как «да/нет».
@@ -168,7 +169,7 @@ export async function revealAll(ctx, ev, actor = 0) {
   shown.audit(ev.id, actor, 'reveal', `пар: ${rows.length}`);
   if (!(await shown.run()).won) {
     const now = await getEvent(db, ev.id);
-    return { ok: false, error: now?.revealed ? 'Тайна уже раскрыта.' : PAIRS_RACE };
+    return no(now?.revealed ? 'Тайна уже раскрыта.' : PAIRS_RACE);
   }
   return { ok: true, count: rows.length };
 }
@@ -189,7 +190,7 @@ async function sendReminder(ctx, ev, { actor, action, letters, extra }) {
   for (const [to, payload] of letters) fresh.enqueue(to, payload);
   fresh.claim(fresh.audit(ev.id, actor, action, `получили: ${letters.length}`));
   fresh.add(...extra);
-  if (!(await fresh.run()).won) return { ok: false, error: REMIND_AGAIN };
+  if (!(await fresh.run()).won) return no(REMIND_AGAIN);
   return { ok: true, count: letters.length };
 }
 
@@ -226,10 +227,10 @@ const ANNOUNCE_MAX = 2000;
 // Объявление всем зарегистрированным участникам эвента (FR-701): хранится и рассылается через outbox
 export async function announce(ctx, ev, actor, rawText) {
   const db = ctx.db;
-  if (isFinished(ev)) return { ok: false, error: 'Событие завершено — объявления в нём уже не отправить.' };
+  if (isFinished(ev)) return no('Событие завершено — объявления в нём уже не отправить.');
   const text = cleanText(rawText);
-  if (!text) return { ok: false, error: 'Напиши текст объявления.' };
-  if (text.length > ANNOUNCE_MAX) return { ok: false, error: `Слишком длинно: ${text.length} символов, максимум ${ANNOUNCE_MAX}.` };
+  if (!text) return no('Напиши текст объявления.');
+  if (text.length > ANNOUNCE_MAX) return no(`Слишком длинно: ${text.length} символов, максимум ${ANNOUNCE_MAX}.`);
   const { settings, people } = await ctx.read({ people: participantIdsQuery(db, ev.id), settings: true });
   const now = Date.now();
   // Повтор (024): то же объявление в событии за минуту не рассылается; другой текст — уходит. Опора — само объявление,
@@ -243,7 +244,7 @@ export async function announce(ctx, ev, actor, rawText) {
   }
   fresh.audit(ev.id, actor, 'announce', `получили: ${people.length}`);
   fresh.claim(fresh.select('INSERT INTO announcements (event_id, author, text, created_at) SELECT ?, ?, ?, ?', ev.id, actor, text, now));
-  if (!(await fresh.run()).won) return { ok: false, error: 'Это объявление уже отправлено.' };
+  if (!(await fresh.run()).won) return no('Это объявление уже отправлено.');
   return { ok: true, count: people.length };
 }
 
@@ -253,7 +254,7 @@ export async function announce(ctx, ev, actor, rawText) {
 export async function saveEventSettings(ctx, ev, body, actor) {
   const db = ctx.db;
   const title = oneLine(body.title ?? ev.title);
-  if (!title || title.length > 80) return { ok: false, error: 'Название события — от 1 до 80 символов.' };
+  if (!title || title.length > 80) return no('Название события — от 1 до 80 символов.');
   const fields = { title };
   // Виды, пределы и «только до жеребьёвки» — по списку EVENT_PARAMS (029); параметры со своим действием пропускаются
   for (const [k, p] of Object.entries(EVENT_PARAMS)) {
@@ -261,7 +262,7 @@ export async function saveEventSettings(ctx, ev, body, actor) {
     const value = paramValue(p, body[k]);
     if (p.beforeDraw) {
       if (value === ev[k]) continue;
-      if (ev.draw_done) return { ok: false, error: p.beforeDraw };
+      if (ev.draw_done) return no(p.beforeDraw);
     }
     fields[k] = value;
   }
@@ -270,7 +271,7 @@ export async function saveEventSettings(ctx, ev, body, actor) {
 }
 
 export async function setRing(ctx, ev, on, actor) {
-  if (ev.draw_done) return { ok: false, error: 'После жеребьёвки кольцевую жеребьёвку менять нельзя.' };
+  if (ev.draw_done) return no('После жеребьёвки кольцевую жеребьёвку менять нельзя.');
   const db = ctx.db;
   await db.batch([
     updateEventStmt(db, ev.id, { ring: on ? 1 : 0 }),

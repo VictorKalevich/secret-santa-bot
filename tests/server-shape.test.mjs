@@ -124,7 +124,7 @@ function longFunctions(text, max) {
 }
 
 // Литералы отказа в тексте модуля: [строка, текст]
-const refusalLiterals = (text) => text.split('\n').map((l, i) => [i + 1, code(l)]).filter(([, l]) => /\bok: false\b/.test(l));
+const refusalLiterals = (text) => text.split('\n').map((l, i) => [i + 1, code(l)]).filter(([, l]) => /\bok: false, error\b/.test(l));
 
 // HTTP-ответы (а не отказы модулей) и сам помощник
 const REFUSAL_EXEMPT = new Set(['result.js', 'index.js', 'api.js']);
@@ -147,7 +147,7 @@ describe('029: бот', () => {
 });
 
 describe('029: отказы модулей', () => {
-  it('отказ создаётся помощником no (src/result.js) — литералов в модулях нет', { todo: 'US3' }, () => {
+  it('отказ создаётся помощником no (src/result.js) — литералов в модулях нет', () => {
     const found = modules().filter((f) => !REFUSAL_EXEMPT.has(f))
       .flatMap((f) => refusalLiterals(source(f)).map(([n, l]) => `src/${f}:${n}: ${l.trim()}`));
     assert.deepEqual(found, []);

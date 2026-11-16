@@ -9,6 +9,7 @@ import { atomic } from './claim.js';
 import { publicEvent } from './status.js';
 import { cancelableQuery } from './pairs.js';
 import { adminListQuery, adminListView } from './support.js';
+import { no } from './result.js';
 
 export async function adminState(ctx, ev) {
   const { db, me } = ctx;
@@ -98,7 +99,7 @@ export async function memberLetter(ctx, ev, rawId) {
   const { db, me } = ctx;
   const id = Number(rawId);
   const [u, m] = await Promise.all([getUser(db, id), getMember(db, ev.id, id)]);
-  if (!u || !m) return { ok: false, error: 'Участник не найден' };
+  if (!u || !m) return no('Участник не найден');
   await auditStmt(db, ev.id, me.tg_id, 'wishlist.view', u.name).run();
   return { ok: true, name: u.name, wishlist: m.wishlist, updated_at: m.wishlist_updated_at };
 }

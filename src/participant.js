@@ -9,10 +9,9 @@ import { msg, q, appKeyboard, cleanText } from './format.js';
 import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
+import { no } from './result.js';
 
 const DELIVERY_MAX = 500;
-
-const no = (error) => ({ ok: false, error });
 
 // Меню бота: события человека с признаками «есть подопечный» и «есть Санта» — один запрос на любое число событий
 // (009, FR-913; 029 — из bot.js)
