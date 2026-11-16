@@ -93,6 +93,7 @@
     'family.save': '👪 Семья сохранена', 'family.delete': '👪 Семья удалена', 'request.approve': '✅ Заявка принята', 'request.reject': '❌ Заявка отклонена',
     'member.allow': '↩️ Разрешено вернуться', rename: '✏️ Переименован', 'vault.person': '🔐 Служебный просмотр участника', 'vault.pairs': '🔐 Служебный просмотр: все пары',
     'draw.cancel.force': '↩️ Жеребьёвка отменена владельцем', 'support.open': '🆘 Новое обращение', 'support.take': '🙋 Обращение взято',
+    'support.reply': '💬 Ответ в обращение',
     'support.pass': '↪️ Обращение передано', 'support.close': '✅ Обращение закрыто', 'support.return': '🔄 Обращение снова ничьё',
   };
   function openAudit(eventId) {

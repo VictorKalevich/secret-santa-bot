@@ -325,6 +325,8 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   }));
   // Отвечая, организатор видел сообщения участника — помечаем их прочитанными (как в переписке Сант)
   mine.where('UPDATE support_messages SET read_at = ? WHERE thread_id = ? AND from_admin = 0 AND read_at = 0', now, t.id);
+  // Каждый ответ — запись журнала без текста (031); условие то же, что у записи ответа, поэтому они есть только вместе
+  mine.audit(ev.id, me.tg_id, 'support.reply', displayName(users.find((u) => u.tg_id === t.user_id)));
   mine.claim(db.prepare(`INSERT INTO support_messages (thread_id, sender, from_admin, text, created_at) SELECT ?, ?, 1, ?, ? WHERE ${mine.sql} RETURNING id, created_at`)
     .bind(t.id, me.tg_id, tx.text, now, ...mine.args));
   const { claim } = await open.run();

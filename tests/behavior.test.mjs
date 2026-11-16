@@ -1,8 +1,11 @@
 // 025: решения владельца — слово «ОТКРЫТЬ» в API служебного просмотра, «кто сделал» при переносе участия, журнал
 // переименования, отклонение заявки в завершённом событии (specs/025-behavior-fixes/).
+// 031: отказ проигравшему спор закреплений — текст обычной проверки; журнал каждого ответа организатора в обращение
+// (specs/031-pins-audit-index/).
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
+import { fixedRefusal } from '../src/constraints.js';
 
 after(restoreFetch);
 
@@ -178,5 +181,82 @@ describe('заявка в завершённом событии: отклони�
     const again = await w.api(adm, 'admin.request.decide', { event: E, id: req.id, approve: false }, true);
     assert.deepEqual([again.status, again.data.error], [400, 'Заявка уже рассмотрена.']);
     assert.equal(records(w, 'request.reject', E).length, 1);
+  });
+});
+
+describe('закреплённые пары: отказ проигравшему — текст обычной проверки (031, US1)', () => {
+  const NAMES = { 1: 'Аня', 2: 'Боря', 3: 'Вера', 4: 'Гена' };
+  const name = (id) => NAMES[id];
+  const refusal = (ev, fixed, links) => fixedRefusal(ev, fixed, links, name)?.error ?? null;
+  const SANTA_TAKEN = 'У «Аня» уже есть закреплённый подопечный — сначала убери ту пару.';
+
+  it('занят Санта, занят подопечный, встречная при кольцевой — те же тексты; свободно — нет отказа', () => {
+    const fixed = [{ giver: 1, receiver: 2 }];
+    assert.equal(refusal({ ring: 0 }, fixed, [[1, 3]]), SANTA_TAKEN);
+    assert.equal(refusal({ ring: 0 }, fixed, [[3, 2]]), 'Санта для «Боря» уже закреплён — сначала убери ту пару.');
+    assert.equal(refusal({ ring: 1 }, fixed, [[2, 1]]),
+      'При кольцевой жеребьёвке пару можно закрепить только в одну сторону: «Аня» уже дарит «Боря».');
+    assert.equal(refusal({ ring: 0 }, fixed, [[2, 1]]), null, 'без кольцевой встречная — не отказ');
+    assert.equal(refusal({ ring: 0 }, fixed, [[1, 2]]), null, 'та же пара — не спор');
+    assert.equal(refusal({ ring: 0 }, fixed, [[3, 4]]), null);
+    assert.equal(refusal({ ring: 0 }, [], [[1, 2], [2, 1]]), null);
+  });
+
+  it('взаимная: сторона уже есть — не мешает, занятая вторая сторона — отказ', () => {
+    assert.equal(refusal({ ring: 0 }, [{ giver: 1, receiver: 2 }], [[1, 2], [2, 1]]), null);
+    assert.equal(refusal({ ring: 0 }, [{ giver: 3, receiver: 1 }], [[1, 2], [2, 1]]), 'Санта для «Аня» уже закреплён — сначала убери ту пару.');
+  });
+
+  it('чужое закрепление между чтением и записью — отказ, пара вызова не сохранена, журнала нет', async () => {
+    const { w, E } = await world();
+    await w.api(boss, 'admin.ring', { event: E, on: false });
+    w.beforeWrite('INTO fixed_pairs', () => w.sql(`INSERT INTO fixed_pairs (event_id, giver, receiver) VALUES (${E}, ${anya.id}, ${vera.id})`));
+    const r = await w.api(boss, 'admin.fixed.add', { event: E, giver: anya.id, receiver: borya.id }, true);
+    assert.deepEqual([r.status, r.data.error], [400, SANTA_TAKEN]);
+    assert.deepEqual(w.query('SELECT giver, receiver FROM fixed_pairs WHERE event_id = ?', E), [{ giver: anya.id, receiver: vera.id }]);
+    assert.equal(records(w, 'fixed.add', E).length, 0);
+  });
+});
+
+describe('журнал: каждый ответ организатора в обращение (031, US2)', () => {
+  let w, E, th;
+  const replies = () => records(w, 'support.reply', E);
+  before(async () => {
+    ({ w, E } = await world());
+    await w.api(anya, 'support.send', { event: E, text: 'Помогите с адресом' });
+    th = w.query('SELECT id FROM support_threads WHERE user_id = ?', anya.id)[0].id;
+  });
+
+  it('ответ в ничьё — support.take и support.reply; подробности — имя автора, без текста', async () => {
+    await w.api(adm, 'admin.support.send', { event: E, thread: th, text: 'Секретный ответ' });
+    assert.equal(records(w, 'support.take', E).length, 1);
+    const rows = replies();
+    assert.equal(rows.length, 1);
+    assert.deepEqual([rows[0].actor, rows[0].details], [adm.id, 'Аня']);
+    const entry = (await w.api(boss, 'admin.audit', { event: E })).entries.find((e) => e.action === 'support.reply');
+    assert.equal(entry.actor_name, adm.name);
+    assert.ok(!JSON.stringify(entry).includes('Секретный'), 'текста ответа в журнале нет');
+  });
+
+  it('ответ во взятое — ещё одна запись; из чата бота — тоже', async () => {
+    await w.api(adm, 'admin.support.send', { event: E, thread: th, text: 'Ещё ответ' });
+    assert.equal(replies().length, 2);
+    await w.press(adm, `sup:a:${th}`);
+    await w.say(adm, 'Ответ из бота');
+    assert.equal(w.query('SELECT COUNT(*) AS n FROM support_messages WHERE thread_id = ? AND from_admin = 1', th)[0].n, 3, 'ответ из бота сохранён');
+    assert.equal(replies().length, 3);
+    assert.equal(records(w, 'support.take', E).length, 1, 'взятие — одно');
+  });
+
+  it('отказы и ответы участника — без записи', async () => {
+    const other = await w.api(boss, 'admin.support.send', { event: E, thread: th, text: 'Влезу' }, true);
+    assert.deepEqual([other.status, other.data.error], [400, `Обращение ведёт ${adm.name}.`]);
+    await w.api(anya, 'support.send', { event: E, text: 'Спасибо' });
+    await w.api(adm, 'support.send', { event: E, text: 'Свой вопрос' });
+    const own = w.query('SELECT id FROM support_threads WHERE user_id = ?', adm.id)[0].id;
+    assert.equal((await w.api(adm, 'admin.support.send', { event: E, thread: own, text: 'Сам себе' }, true)).status, 400);
+    await w.api(anya, 'support.close', { event: E });
+    assert.equal((await w.api(adm, 'admin.support.send', { event: E, thread: th, text: 'Поздно' }, true)).status, 400);
+    assert.equal(replies().length, 3);
   });
 });

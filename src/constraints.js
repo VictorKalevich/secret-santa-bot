@@ -11,6 +11,12 @@ const EXCLUSIONS_FROZEN =
   'Чтобы поменять исключения, отмени жеребьёвку (пока никто не открыл подопечного).';
 const FIXED_FROZEN = 'После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.'; // 014
 const RING_ONE_WAY = 'При кольцевой жеребьёвке пару можно закрепить только в одну сторону';
+const FIXED_CHANGED = 'Закреплённые пары только что изменились — обнови экран и попробуй ещё раз.'; // 031
+// Сторона «Санта → подопечный» закрепления возможна (031): она уже есть или Санта и подопечный свободны (параметры: событие,
+// Санта, подопечный; событие, Санта; событие, подопечный). При кольцевой — ещё без встречной (событие, подопечный, Санта).
+const LINK_FREE = `(EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ?)
+  OR (NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND giver = ?) AND NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND receiver = ?)))`;
+const NO_REVERSE = 'NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ?)';
 
 // ---------- исключения ----------
 
@@ -52,6 +58,22 @@ export async function changeExclusions(ctx, ev, { add, giver: rawGiver, receiver
 
 // ---------- закреплённые пары (014) ----------
 
+// Отказ закрепления сторон links при закреплённых парах fixed или null (014). Одно правило для проверки перед записью и
+// для вызова, который проиграл спор одновременных закреплений (031): тексты одинаковые.
+export function fixedRefusal(ev, fixed, links, name) {
+  // Кольцевая — без взаимных пар (взаимную при кольцевой вызывающий отклоняет раньше: сторона одна)
+  const [[giver, receiver]] = links;
+  if (ev.ring && fixed.some((f) => f.giver === receiver && f.receiver === giver)) {
+    return no(`${RING_ONE_WAY}: «${name(receiver)}» уже дарит «${name(giver)}».`);
+  }
+  for (const [a, b] of links) {
+    if (fixed.some((f) => f.giver === a && f.receiver === b)) continue; // уже закреплена
+    if (fixed.some((f) => f.giver === a)) return no(`У «${name(a)}» уже есть закреплённый подопечный — сначала убери ту пару.`);
+    if (fixed.some((f) => f.receiver === b)) return no(`Санта для «${name(b)}» уже закреплён — сначала убери ту пару.`);
+  }
+  return null;
+}
+
 // Будущие пары жеребьёвки; видит и меняет только владелец (админ узнал бы пары — проверка в api.js). Только до
 // жеребьёвки — и для владельца: пары действуют лишь при её проведении (research R5).
 export async function changeFixed(ctx, ev, { add, giver: rawGiver, receiver: rawReceiver, mutual }) {
@@ -60,27 +82,32 @@ export async function changeFixed(ctx, ev, { add, giver: rawGiver, receiver: raw
   const giver = Number(rawGiver);
   const receiver = Number(rawReceiver);
   const links = mutual ? [[giver, receiver], [receiver, giver]] : [[giver, receiver]];
+  let name;
   if (add) {
     if (!giver || !receiver || giver === receiver) return no('Выбери двух разных людей');
     const { members, fixed } = await ctx.read({ members: drawMembersQuery(db, ev.id), fixed: fixedPairsQuery(db, ev.id) });
     const byId = new Map(members.filter((m) => m.registered).map((m) => [m.user_id, m]));
     if (!byId.has(giver) || !byId.has(receiver)) return no('Закрепить пару можно только между участниками события.');
-    const name = (id) => displayName(byId.get(id));
-    // Кольцевая — без взаимных пар: закрепить можно только в одну сторону
-    if (ev.ring) {
-      if (mutual) return no(RING_ONE_WAY + '.');
-      if (fixed.some((f) => f.giver === receiver && f.receiver === giver)) {
-        return no(`${RING_ONE_WAY}: «${name(receiver)}» уже дарит «${name(giver)}».`);
-      }
-    }
-    for (const [a, b] of links) {
-      if (fixed.some((f) => f.giver === a && f.receiver === b)) continue; // уже закреплена
-      if (fixed.some((f) => f.giver === a)) return no(`У «${name(a)}» уже есть закреплённый подопечный — сначала убери ту пару.`);
-      if (fixed.some((f) => f.receiver === b)) return no(`Санта для «${name(b)}» уже закреплён — сначала убери ту пару.`);
-    }
+    name = (id) => displayName(byId.get(id));
+    if (ev.ring && mutual) return no(RING_ONE_WAY + '.');
+    const refusal = fixedRefusal(ev, fixed, links, name);
+    if (refusal) return refusal;
   }
   // Условие повторено в SQL — на случай жеребьёвки в эту же секунду (как у исключений)
   const beforeDraw = atomic(db, 'NOT EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 1)', ev.id);
+  // Добавление (031) — только если закрепление возможно и в момент записи: проверки выше шли по чтению до неё, и два
+  // одновременных спорящих вызова прошли бы их оба. Стороны — через AND: взаимная пара целиком или никак; после своих
+  // вставок условие остаётся истинным (сторона уже есть), повтор того же закрепления его тоже проходит.
+  let target = beforeDraw;
+  if (add) {
+    const side = ev.ring ? `${LINK_FREE} AND ${NO_REVERSE}` : LINK_FREE;
+    target = beforeDraw.and(
+      links.map(() => side).join(' AND '),
+      ...links.flatMap(([a, b]) => [ev.id, a, b, ev.id, a, ev.id, b, ...(ev.ring ? [ev.id, b, a] : [])])
+    );
+    // Исход — по прежнему состоянию, первым оператором пакета: строка есть — закрепление сохраняется
+    target.claim(db.prepare(`SELECT 1 AS ok WHERE ${target.sql}`).bind(...target.args));
+  }
   // Журнал — по прежнему состоянию, перед изменением (023): пока хотя бы одна сторона действительно изменится.
   // Закрепление вставляется, если у Санты нет закреплённого подопечного и у подопечного — Санты (первичный ключ и
   // уникальный индекс fixed_pairs); стороны взаимной пары друг другу не мешают. Второй из двух одновременных вызовов
@@ -88,15 +115,18 @@ export async function changeFixed(ctx, ev, { add, giver: rawGiver, receiver: raw
   const change = add
     ? '(NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND giver = ?) AND NOT EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND receiver = ?))'
     : 'EXISTS (SELECT 1 FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ?)';
-  beforeDraw
+  target
     .and(links.map(() => change).join(' OR '), ...links.flatMap(([a, b]) => (add ? [ev.id, a, ev.id, b] : [ev.id, a, b])))
     .audit(ev.id, me.tg_id, add ? 'fixed.add' : 'fixed.del', '');
   for (const [a, b] of links) {
-    if (add) beforeDraw.select('INSERT OR IGNORE INTO fixed_pairs (event_id, giver, receiver) SELECT ?, ?, ?', ev.id, a, b);
-    else beforeDraw.where('DELETE FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ?', ev.id, a, b);
+    if (add) target.select('INSERT OR IGNORE INTO fixed_pairs (event_id, giver, receiver) SELECT ?, ?, ?', ev.id, a, b);
+    else target.where('DELETE FROM fixed_pairs WHERE event_id = ? AND giver = ? AND receiver = ?', ev.id, a, b);
   }
-  await beforeDraw.run();
+  // Пары после записи — для текста отказа проигравшему: та же транзакция, отдельного запроса нет
+  if (add) target.add(fixedPairsQuery(db, ev.id));
+  const { claim, results } = await target.run();
   if ((await getEvent(db, ev.id))?.draw_done) return no(FIXED_FROZEN);
+  if (add && !claim.results.length) return fixedRefusal(ev, results.at(-1).results, links, name) || no(FIXED_CHANGED);
   return { ok: true };
 }
 

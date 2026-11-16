@@ -1,9 +1,10 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 44 проверки «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 48 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
-// узнаётся по прежнему состоянию, а не по времени, 020), шесть — закреплённые пары (023: журнал — только при изменении;
-// там же проверка повторов без изменений), одиннадцать — повторные нажатия (024: объявление, напоминания и приглашение —
+// узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
+// 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
+// проверка повторов без изменений), одиннадцать — повторные нажатия (024: объявление, напоминания и приглашение —
 // раз в минуту, роли, владение, полный сброс, новая семья), одна — переименование (025: запись журнала — только при
 // настоящем изменении). Известный дефект — todo с номером фичи, которая его чинит: фича снимает пометку; сейчас
 // таких нет.
@@ -262,9 +263,10 @@ describe('атомарность: повторные нажатия (024)', () =
   });
 });
 
-// 023: журнал закреплённых пар — по прежнему состоянию, только когда пара действительно добавлена или убрана. Ответы
-// прежние: второй из одновременных вызовов тоже получает успех (research R3 фичи 023).
-describe('атомарность: закреплённые пары (023)', () => {
+// 023: журнал закреплённых пар — по прежнему состоянию, только когда пара действительно добавлена или убрана.
+// 031: из спорящих закреплений (один Санта, один подопечный, встречные при кольцевой) сохраняется одно, второй вызов
+// получает отказ обычной проверки; взаимная пара — целиком или никак; повтор того же закрепления — успех.
+describe('атомарность: закреплённые пары (023, 031)', () => {
   let z, p;
   before(async () => {
     z = await world();
@@ -307,22 +309,54 @@ describe('атомарность: закреплённые пары (023)', () =
     assert.equal(rows().length, 2, 'в обе стороны');
     assert.equal(added, 1, 'записей журнала');
   });
-  it('одновременно «А → Б» и «А → В» (один Санта) — одна пара, одна запись', async () => {
-    const { added, out } = await counted('fixed.add', () => z.w.together([
-      () => z.w.api(boss, 'admin.fixed.add', fix(p[0], p[1]), true),
-      () => z.w.api(boss, 'admin.fixed.add', fix(p[0], p[2]), true),
-    ]));
-    assert.deepEqual(statuses(out), [200, 200], 'ответы прежние');
-    assert.equal(rows().length, 1, 'у Санты один закреплённый подопечный');
-    assert.equal(added, 1, 'записей журнала');
+  // Спор двух закреплений в обоих порядках записи: ровно один успех, у другого — отказ обычной проверки; сохранено
+  // закрепление вызова с успехом; запись журнала одна
+  async function dispute(bodies, refusal, opts = {}) {
+    for (const writeOrder of [[0, 1], [1, 0]]) {
+      const { added, out } = await counted('fixed.add', () => z.w.together(
+        bodies.map((b) => () => z.w.api(boss, 'admin.fixed.add', b, true)), { writeOrder, ...opts }));
+      assert.deepEqual(sorted(out), [200, 400], `ответы, порядок ${writeOrder}`);
+      const lost = out.findIndex((r) => r.status === 400);
+      assert.equal(out[lost].data.error, refusal(bodies[lost]), `текст отказа, порядок ${writeOrder}`);
+      const won = bodies[1 - lost];
+      const expect = won.mutual
+        ? [[won.giver, won.receiver], [won.receiver, won.giver]]
+        : [[won.giver, won.receiver]];
+      assert.deepEqual(rows().map((r) => [r.giver, r.receiver]).sort(), expect.sort(), `сохранено закрепление успеха, порядок ${writeOrder}`);
+      assert.equal(added, 1, `записей журнала, порядок ${writeOrder}`);
+      await clear();
+    }
+  }
+  const named = (id) => p.find((u) => u.id === id).name;
+  const SANTA_TAKEN = (b) => `У «${named(b.giver)}» уже есть закреплённый подопечный — сначала убери ту пару.`;
+  const WARD_TAKEN = (b) => `Санта для «${named(b.receiver)}» уже закреплён — сначала убери ту пару.`;
+
+  it('одновременно «А → Б» и «А → В» (один Санта) — одна пара, второму отказ', async () => {
+    await dispute([fix(p[0], p[1]), fix(p[0], p[2])], SANTA_TAKEN);
   });
-  it('одновременно «А → Б» и «В → Б» (один подопечный) — одна пара, одна запись', async () => {
-    const { added } = await counted('fixed.add', () => z.w.together([
-      () => z.w.api(boss, 'admin.fixed.add', fix(p[0], p[1]), true),
-      () => z.w.api(boss, 'admin.fixed.add', fix(p[2], p[1]), true),
-    ]));
-    assert.equal(rows().length, 1, 'у подопечного один закреплённый Санта');
-    assert.equal(added, 1, 'записей журнала');
+  it('одновременно «А → Б» и «А → В» в одну миллисекунду — одна пара, второму отказ', async () => {
+    await dispute([fix(p[0], p[1]), fix(p[0], p[2])], SANTA_TAKEN, { sameMoment: true });
+  });
+  it('одновременно «А → Б» и «В → Б» (один подопечный) — одна пара, второму отказ', async () => {
+    await dispute([fix(p[0], p[1]), fix(p[2], p[1])], WARD_TAKEN);
+  });
+  it('при кольцевой одновременно «А → Б» и «Б → А» — одна пара, второму отказ', async () => {
+    await z.w.api(boss, 'admin.ring', { event: z.ev.id, on: true });
+    try {
+      await dispute([fix(p[0], p[1]), fix(p[1], p[0])],
+        (b) => `При кольцевой жеребьёвке пару можно закрепить только в одну сторону: «${named(b.receiver)}» уже дарит «${named(b.giver)}».`);
+    } finally {
+      await z.w.api(boss, 'admin.ring', { event: z.ev.id, on: false });
+    }
+  });
+  it('одновременно взаимная «А ↔ Б» и «А → В» — взаимная целиком или никак', async () => {
+    // Кто бы ни проиграл, у Санты «А» уже есть подопечный
+    await dispute([fix(p[0], p[1], { mutual: true }), fix(p[0], p[2])], SANTA_TAKEN);
+  });
+  it('одновременно взаимная «А ↔ Б» и «В → А» — взаимная целиком или никак', async () => {
+    // Кто бы ни проиграл, у «А» уже есть Санта (у взаимной мешает сторона «Б → А»)
+    await dispute([fix(p[0], p[1], { mutual: true }), fix(p[2], p[0])],
+      () => `Санта для «${named(p[0].id)}» уже закреплён — сначала убери ту пару.`);
   });
   it('без изменений — без записи; взаимная с одной новой стороной — одна', async () => {
     await add(fix(p[0], p[1]));
@@ -406,9 +440,10 @@ describe('атомарность: заявки и обращения', () => {
       assert.equal(z.audit('support.take'), 1);
       assert.equal(z.sent(z.people[0], 'взял(а)'), 1);
     });
-    it('ответ двух админов на ничьё обращение — один ответ', async () => {
+    it('ответ двух админов на ничьё обращение — один ответ, одно взятие и одна запись ответа (031)', async () => {
       await z.w.api(z.people[1], 'support.send', { event: z.ev.id, text: 'И мне' });
       const th = z.w.query('SELECT id FROM support_threads ORDER BY id DESC')[0].id;
+      const taken = z.audit('support.take');
       const rs = await z.w.together([
         () => z.w.api(adm, 'admin.support.send', { event: z.ev.id, thread: th, text: 'Отвечаю' }, true),
         () => z.w.api(adm2, 'admin.support.send', { event: z.ev.id, thread: th, text: 'И я' }, true),
@@ -416,6 +451,8 @@ describe('атомарность: заявки и обращения', () => {
       assert.deepEqual(sorted(rs), [200, 400]);
       assert.equal(z.w.query('SELECT COUNT(*) AS n FROM support_messages WHERE thread_id = ? AND from_admin = 1', th)[0].n, 1);
       assert.equal(z.sent(z.people[1], 'отвечает'), 1);
+      assert.equal(z.audit('support.take'), taken + 1, 'взятие');
+      assert.equal(z.audit('support.reply'), 1, 'ответ');
     });
     it('закрытие обращения админом и участником одновременно — одно закрытие', async () => {
       const th = z.w.query('SELECT id, assignee FROM support_threads ORDER BY id DESC')[0];
