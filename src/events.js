@@ -4,7 +4,8 @@ import {
   getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt,
   updateEventStmt, updateEventIfStmt, auditStmt, eventDataDeleteStmts,
 } from './db.js';
-import { msg, q, escapeHtml, formatDate, formatMs, appKeyboard, inviteLink, randomCode, oneLine, cleanText, ISO_DATE, NO_DRAW, PAIRS_RACE } from './format.js';
+import { msg, q, escapeHtml, formatDate, formatMs, appKeyboard, inviteLink, randomCode, oneLine, cleanText, NO_DRAW, PAIRS_RACE } from './format.js';
+import { EVENT_PARAMS, EVENT_STATE_RESET, eventDefaults, templateValues, paramValue } from './event-params.js';
 
 import { CHAT_GRACE_MS, isFinished } from './status.js';
 import { atomic } from './claim.js';
@@ -24,19 +25,14 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
   const clean = oneLine(title);
   if (!clean || clean.length > 80) return { ok: false, error: 'Название события — от 1 до 80 символов.' };
   const code = randomCode();
-  const t = from || {
-    budget: '', place: '', notes: '', ring: 1, avoid_previous: 1, reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0,
-    rejoin: 1,
-  };
+  // Параметры — по списку EVENT_PARAMS (029): копируемые — из образца, остальные задаёт схема
+  const fields = { title: clean, created_at: Date.now(), created_by: createdBy, invite_code: code, ...templateValues(from) };
+  const cols = Object.keys(fields);
   // Новый эвент в остальных операторах batch находим по уникальному коду приглашения
   const newId = '(SELECT id FROM events WHERE invite_code = ?)';
   const stmts = [
-    db.prepare(
-      `INSERT INTO events (title, created_at, created_by, invite_code, budget, place, notes, ring, avoid_previous, reveal_auto, finish_auto,
-                           delivery_on, families_on, approval, rejoin)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
-    ).bind(clean, Date.now(), createdBy, code, t.budget, t.place, t.notes, t.ring, t.avoid_previous, t.reveal_auto, t.finish_auto,
-      t.delivery_on, t.families_on, t.approval, t.rejoin ?? 1),
+    db.prepare(`INSERT INTO events (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')}) RETURNING *`)
+      .bind(...cols.map((k) => fields[k])),
   ];
   if (from) {
     stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions WHERE event_id = ?`)
@@ -105,11 +101,9 @@ export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
   // Захват мой (024): новый случайный код приглашения — захват первым, пока код прежний; остальное — после него,
   // пока код новый. Второй из одновременных сбросов (или сброс одновременно со сменой ссылки) ничего не меняет.
   const mine = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND invite_code = ?)', ev.id, inviteCode);
-  mine.claim(mine.add(updateEventIfStmt(db, ev.id, {
-    status: 'active', finished_at: 0, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, registration_open: 1, invite_code: inviteCode,
-    ring: 1, avoid_previous: 1, budget: '', event_date: '', place: '', deadline: '', notes: '', last_daily: '',
-    draw_auto_date: '', reveal_auto: 0, finish_auto: 0, delivery_on: 0, families_on: 1, approval: 0, rejoin: 1,
-  }, 'invite_code = ?', ev.invite_code)));
+  // Состояние и все параметры — к значениям по спискам event-params.js (029); название остаётся
+  mine.claim(mine.add(updateEventIfStmt(db, ev.id, { ...EVENT_STATE_RESET, invite_code: inviteCode, ...eventDefaults() },
+    'invite_code = ?', ev.invite_code)));
   for (const m of removed) {
     mine.enqueue(m.user_id, msg(
       `🎄 Организатор начал событие ${q(ev)} заново. Прежние данные удалены. Чтобы участвовать, попроси новую пригласительную ссылку.`
@@ -258,32 +252,19 @@ export async function announce(ctx, ev, actor, rawText) {
 // admin.game: меняются только переданные поля (008) — отдельные переключатели не стирают остальные параметры
 export async function saveEventSettings(ctx, ev, body, actor) {
   const db = ctx.db;
-  const clean = (v, n) => String(v ?? '').slice(0, n);
-  const date = (v) => (ISO_DATE.test(v || '') ? v : '');
   const title = oneLine(body.title ?? ev.title);
   if (!title || title.length > 80) return { ok: false, error: 'Название события — от 1 до 80 символов.' };
   const fields = { title };
-  const limits = { budget: 100, place: 200, notes: 2000 };
-  for (const [k, n] of Object.entries(limits)) if (k in body) fields[k] = clean(body[k], n);
-  for (const k of ['event_date', 'deadline']) if (k in body) fields[k] = date(body[k]);
-  // Расписание (007, FR-702): дату автожеребьёвки после жеребьёвки не изменить
-  if ('draw_auto_date' in body) {
-    const auto = date(body.draw_auto_date);
-    if (auto !== ev.draw_auto_date) {
-      if (ev.draw_done) return { ok: false, error: 'Дату автожеребьёвки после жеребьёвки не задать.' };
-      fields.draw_auto_date = auto;
+  // Виды, пределы и «только до жеребьёвки» — по списку EVENT_PARAMS (029); параметры со своим действием пропускаются
+  for (const [k, p] of Object.entries(EVENT_PARAMS)) {
+    if (p.own || !(k in body)) continue;
+    const value = paramValue(p, body[k]);
+    if (p.beforeDraw) {
+      if (value === ev[k]) continue;
+      if (ev.draw_done) return { ok: false, error: p.beforeDraw };
     }
+    fields[k] = value;
   }
-  // 008: адрес доставки, одобрение заявок, семьи (семьи — только до жеребьёвки)
-  if ('delivery_on' in body) fields.delivery_on = body.delivery_on ? 1 : 0;
-  if ('approval' in body) fields.approval = body.approval ? 1 : 0;
-  if ('rejoin' in body) fields.rejoin = body.rejoin ? 1 : 0; // 010
-  if ('families_on' in body && (body.families_on ? 1 : 0) !== ev.families_on) {
-    if (ev.draw_done) return { ok: false, error: 'После жеребьёвки правило семей не изменить.' };
-    fields.families_on = body.families_on ? 1 : 0;
-  }
-  if ('reveal_auto' in body) fields.reveal_auto = body.reveal_auto ? 1 : 0;
-  if ('finish_auto' in body) fields.finish_auto = body.finish_auto ? 1 : 0;
   await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, actor, 'event.settings', 'параметры')]);
   return { ok: true };
 }

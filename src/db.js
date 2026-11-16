@@ -1,6 +1,8 @@
 // Работа с базой D1 (SQLite). Схема 11: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014
 // (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
+import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
+
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 export const REQUIRED_SCHEMA = 11;
@@ -120,11 +122,8 @@ export async function getEventByInvite(db, code) {
   return db.prepare('SELECT * FROM events WHERE invite_code = ?').bind(code).first();
 }
 
-const EVENT_FIELDS = new Set([
-  'title', 'status', 'finished_at', 'invite_code', 'registration_open', 'draw_done', 'draw_at', 'revealed', 'ring',
-  'avoid_previous', 'draw_token', 'budget', 'event_date', 'place', 'deadline', 'notes', 'last_daily',
-  'draw_auto_date', 'reveal_auto', 'finish_auto', 'delivery_on', 'families_on', 'approval', 'rejoin',
-]);
+// Поля события, допустимые к записи: название, код приглашения, состояние и параметры — по спискам event-params.js (029)
+const EVENT_FIELDS = new Set(['title', 'invite_code', ...Object.keys(EVENT_STATE_RESET), ...Object.keys(EVENT_PARAMS)]);
 
 export function updateEventStmt(db, id, fields) {
   const keys = Object.keys(fields).filter((k) => EVENT_FIELDS.has(k));
