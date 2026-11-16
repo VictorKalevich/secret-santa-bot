@@ -7,16 +7,16 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Спецификация, план, исследование, контракт, quickstart, задачи — `specs/033-sheet-handle/`; `.specify/feature.json`
+- [X] T001 Спецификация, план, исследование, контракт, quickstart, задачи — `specs/033-sheet-handle/`; `.specify/feature.json`
 
 ## Phase 2: Foundational — правила (падают до правок)
 
-- [ ] T002 [P] Правило дизайн-системы «у каждой шторки драгер (033)» и «от противного» в `tests/design-system.test.mjs`
+- [X] T002 [P] Правило дизайн-системы «у каждой шторки драгер (033)» и «от противного» в `tests/design-system.test.mjs`
   (контракт, раздел «Проверки»)
-- [ ] T003 [P] Правило 7 «драгер и жест Telegram — в ядре шторки» и «от противного 7» в `tests/app-tweaks.test.mjs`
+- [X] T003 [P] Правило 7 «драгер и жест Telegram — в ядре шторки» и «от противного 7» в `tests/app-tweaks.test.mjs`
   (вместо «только у календаря»)
-- [ ] T004 [P] `sheetHandle` и `mayCloseSheet` — в списке ядра шторки `SHEET_CORE` в `tests/app-ui.test.mjs`
-- [ ] T005 Убедиться, что T002–T003 падают на прежнем коде (`npm test`) — проверки ловят «драгер только у календаря»
+- [X] T004 [P] `sheetHandle` и `mayCloseSheet` — в списке ядра шторки `SHEET_CORE` в `tests/app-ui.test.mjs`
+- [X] T005 Убедиться, что T002–T003 падают на прежнем коде (`npm test`) — проверки ловят «драгер только у календаря»
 
 ## Phase 3: User Story 1 + 2 — драгер у каждой шторки (P1) 🎯 MVP
 
@@ -26,14 +26,14 @@
 **Independent Test**: журнал — свайп закрывает, короткий — нет, прокрученный — полоса у края; переписка с текстом —
 вопрос, «Отмена» — на месте.
 
-- [ ] T006 [US1] Ядро шторки в `src/app/07-sheet-chat.js.txt`: `openSheet` → `sheetHandle(sheetEl)` и выключение жеста
+- [X] T006 [US1] Ядро шторки в `src/app/07-sheet-chat.js.txt`: `openSheet` → `sheetHandle(sheetEl)` и выключение жеста
   Telegram (`sheetSwipes`), `closeSheet` → включение; `mayCloseSheet()` и `requestCloseSheet()` через неё; `sheetHandle`
   переезжает сюда — закрытие после `mayCloseSheet()`, отказ — возврат на место, `closeSheet()` только при `sheetEl === own`
-- [ ] T007 [US1] `src/app/02-core.js.txt`: `openCalendar` — без своего жеста и `sheetHandle`; функция `sheetHandle`
+- [X] T007 [US1] `src/app/02-core.js.txt`: `openCalendar` — без своего жеста и `sheetHandle`; функция `sheetHandle`
   отсюда удалена
-- [ ] T008 [US1] `design-system/components.css`: `.ds-sheet__handle` — `position: sticky; top: 0`, `z-index:
+- [X] T008 [US1] `design-system/components.css`: `.ds-sheet__handle` — `position: sticky; top: 0`, `z-index:
   var(--ds-z-sticky)`, фон `--ds-color-bg`; `.ds-sheet--full` без `padding-top`; комментарии 028 → 033
-- [ ] T009 [US2] `checkSheetHandle` в `tests/screenshots.mjs` (контракт, «Проверки»): журнал, прокрученный журнал,
+- [X] T009 [US2] `checkSheetHandle` в `tests/screenshots.mjs` (контракт, «Проверки»): журнал, прокрученный журнал,
   меню участника, переписка без текста и с текстом («Отмена»/«ОК»), жест Telegram на заглушке SDK; вызов после
   `checkTweaks`
 
@@ -43,19 +43,19 @@
 
 **Independent Test**: `npm test` — `design-system` зелёный, «от противного» находит шторку в обход и второй драгер.
 
-- [ ] T010 [US3] `design-system/preview.html`: у каждой шторки (`ds-sheet`, в т.ч. `--full`) — `ds-sheet--handle` и полоса
+- [X] T010 [US3] `design-system/preview.html`: у каждой шторки (`ds-sheet`, в т.ч. `--full`) — `ds-sheet--handle` и полоса
   первым ребёнком
-- [ ] T011 [US3] `design-system/README.md`: строки «Всплывающие» и «Переписка» (драгер у всех шторок, sticky), правило в
+- [X] T011 [US3] `design-system/README.md`: строки «Всплывающие» и «Переписка» (драгер у всех шторок, sticky), правило в
   разделе «Правила»
-- [ ] T012 [US3] `CLAUDE.md`: строка 033 в таблице фич, жёсткое правило 2 (у каждой шторки драгер), структура
+- [X] T012 [US3] `CLAUDE.md`: строка 033 в таблице фич, жёсткое правило 2 (у каждой шторки драгер), структура
   (`02-core` без `sheetHandle`, `07-sheet-chat` — ядро шторки с драгером и жестом), тесты (`design-system`, `app-tweaks`
   правило 7, `checkSheetHandle`)
 
 ## Phase 5: Polish
 
-- [ ] T013 `npm test`, `npm run test:e2e`, `npm run screenshots` — зелёные; снимки шторок — с полосой; quickstart
+- [X] T013 `npm test`, `npm run test:e2e`, `npm run screenshots` — зелёные; снимки шторок — с полосой; quickstart
   сверен
-- [ ] T014 Отметить задачи, статус spec «Реализовано», коммиты, push ветки `033-sheet-handle`
+- [X] T014 Отметить задачи, статус spec «Реализовано», коммиты, push ветки `033-sheet-handle`
 
 ## Dependencies
 

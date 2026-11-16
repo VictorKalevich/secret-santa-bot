@@ -1,5 +1,8 @@
 # Contract: шторка календаря (028) — дополнение к `specs/027-ui-tweaks/contracts/app-calendar.md`
 
+> С 033 драгер и жест Telegram — у каждой шторки и ставятся в ядре шторки (`openSheet`), не в `openCalendar`: разделы
+> «`sheetHandle(own)`» и жест Telegram ниже заменены `specs/033-sheet-handle/contracts/sheet-handle.md`.
+
 ## `openCalendar(value, onPick, { title, hint })` — изменения
 
 - Вторая кнопка — всегда: `ui.btn(value ? 'Сбросить' : 'Закрыть', 'secondary', 'ds-btn--block')`; «Сбросить» →

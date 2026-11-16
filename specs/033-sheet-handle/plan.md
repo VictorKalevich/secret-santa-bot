@@ -1,6 +1,6 @@
 # Implementation Plan: Драгер у каждой шторки (033)
 
-**Branch**: `033-sheet-handle` | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md)
+**Branch**: `033-sheet-handle` | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md) | **Статус**: выполнен (2026-11-16)
 
 ## Summary
 
