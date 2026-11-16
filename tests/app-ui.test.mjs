@@ -4,40 +4,7 @@
 // Поведение, которое видно только в браузере, проверяет checkUiFixes в tests/screenshots.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { APP, where } from './support/app-source.mjs';
-
-// ---------- разбор текста ----------
-const indent = (line) => /^ */.exec(line)[0].length;
-// Комментарий до конца строки: целая строка «// …» или « // …» после кода (у адресов «://» пробела перед нет)
-const code = (line) => (/^\s*\/\//.test(line) ? '' : line.replace(/\s\/\/\s.*$/, ''));
-
-// Блок по отступам (стиль частей): строка start и следующие — до первой строки с тем же отступом, которая начинается
-// с } или ) (включительно); если скобки строки start закрылись на ней же — одна строка. → номера строк (с 0)
-function blockAt(lines, start) {
-  const line = code(lines[start]);
-  const open = (line.match(/[({[]/g) || []).length - (line.match(/[)}\]]/g) || []).length;
-  if (open <= 0) return [start, start];
-  for (let i = start + 1; i < lines.length; i++) {
-    if (indent(lines[i]) === indent(lines[start]) && /^\s*[)}]/.test(lines[i])) return [start, i];
-  }
-  return [start, lines.length - 1];
-}
-// Объявление верхнего уровня (отступ 2): function name / async function name / const name = / let name =
-const TOP = (name) => new RegExp(`^  (?:(?:async )?function ${name}\\b|(?:const|let) ${name} = )`);
-function topBlock(lines, name) {
-  const i = lines.findIndex((l) => TOP(name).test(l));
-  return i < 0 ? null : blockAt(lines, i);
-}
-// Имя объявления верхнего уровня, в котором стоит строка i (или текст самой строки, если это не объявление)
-function ownerOf(lines, i) {
-  for (let j = i; j >= 0; j--) {
-    const l = lines[j];
-    if (indent(l) !== 2 || !l.trim() || /^\s*(\/\/|[)}\]])/.test(l)) continue;
-    const m = /^  (?:(?:async )?function (\w+)|(?:const|let) (\w+))/.exec(l);
-    return { name: m ? m[1] || m[2] : null, line: j };
-  }
-  return { name: null, line: 0 };
-}
+import { APP, where, partLines, indent, code, blockAt, topBlock, ownerOf } from './support/app-source.mjs';
 
 // ---------- 1. «Сохранить» в «Параметрах» перестраивает панель ----------
 // Обработчик, в котором уходит admin.game со значениями формы, вызывает refresh() или again()
@@ -58,6 +25,8 @@ export function saveRebuilds(text) {
 }
 
 // ---------- 2. Панель берёт событие только из своего ответа ----------
+// Панель — вся часть 05-admin (030: renderAdmin и секции adminXxx(p) — функции верхнего уровня); range — строки с 0
+const PANEL = partLines('05-admin.js.txt');
 const PANEL_FORBIDDEN = [
   [/\bstate\.ev\b/, 'state.ev — прежние данные события; в панели — её ответ (s, done)'],
   [/\bstate\.can\b/, 'state.can — данные экрана события; в панели — её ответ'],
@@ -65,12 +34,12 @@ const PANEL_FORBIDDEN = [
   [/\beapi\(/, 'eapi() берёт state.evId; в панели — xapi (захваченный evId)'],
   [/\bfinishedNotice\(\)/, 'finishedNotice() без события берёт state.ev; в панели — finishedNotice(s)'],
 ];
-export function panelOwnData(text) {
+export function panelOwnData(text, [from, to] = PANEL) {
   const lines = text.split('\n');
   const found = [];
   const block = topBlock(lines, 'renderAdmin');
-  if (!block) return [[1, 'нет renderAdmin']];
-  for (let i = block[0]; i <= block[1]; i++) {
+  if (!block || block[0] < from || block[1] > to) return [[1, 'renderAdmin нет в части панели']];
+  for (let i = from; i <= to; i++) {
     const l = code(lines[i]);
     for (const [re, why] of PANEL_FORBIDDEN) if (re.test(l)) found.push([i + 1, why]);
     if (/\bstate\.evId\b/.test(l) && !/\bevId = state\.evId\b/.test(l)) {
@@ -335,15 +304,19 @@ test('от противного 2: прежние данные события в
     "    eapi('admin.x');",
     '    const w = state.can.chat_write, t = state.ev.title; // state.ev в комментарии не считается',
     '  });',
+    '  function adminLog(p) { return openAudit(state.evId); }',
     '  function other() { return finished() && state.ev; }');
-  assert.deepEqual(at(panelOwnData(bad)), [3, 4, 5, 6, 7, 7]);
+  // Часть панели — строки 1–9 (секция вне renderAdmin — тоже панель); строка 10 — другая часть
+  assert.deepEqual(at(panelOwnData(bad, [0, 8])), [3, 4, 5, 6, 7, 7, 9]);
+  assert.deepEqual(at(panelOwnData(bad, [1, 9])), [1]); // renderAdmin вне части панели
   const good = lines(
     '  const renderAdmin = screen(async () => {',
     '    const nav = state.nav, evId = state.evId; // захват: state.evId',
     '    const nodes = [finishedNotice(s)];',
     '    if (done) openAudit(evId);',
-    '  });');
-  assert.deepEqual(panelOwnData(good), []);
+    '  });',
+    '  function adminLog(p) { return openAudit(p.evId); }');
+  assert.deepEqual(panelOwnData(good, [0, 5]), []);
 });
 
 test('от противного 3: чужая шторка и опрос вне poll находятся', () => {
