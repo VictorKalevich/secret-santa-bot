@@ -11,7 +11,7 @@ const CSS = readFileSync(new URL('../design-system/components.css', import.meta.
 // Верхнеуровневая функция name (отступ 2) до её закрывающей строки «  }» → { start (номер строки с 0), text }; null — нет
 function fnText(text, name) {
   const lines = text.split('\n');
-  const i = lines.findIndex((l) => new RegExp(`^  function ${name}\\(`).test(l));
+  const i = lines.findIndex((l) => new RegExp(`^  (?:async )?function ${name}\\(`).test(l));
   if (i < 0) return null;
   const j = lines.findIndex((l, k) => k > i && l === '  }');
   return { start: i, text: lines.slice(i, j < 0 ? lines.length : j + 1).join('\n') };
@@ -116,28 +116,38 @@ export function sixWeeks(css) {
     : [[0, 'components.css: .ds-calendar__grid без grid-template-rows: auto repeat(6, var(--ds-size-control)) — высота шторки зависит от месяца']];
 }
 
-// ---------- 7. Драгер — только у шторки календаря; на время календаря жест Telegram выключен (028) ----------
+// ---------- 7. Драгер и жест Telegram — в ядре шторки (028; у каждой шторки — 033) ----------
+// Что у каждой шторки драгер (его ставит только openSheet) — правило дизайн-системы, tests/design-system.test.mjs
 export function handleRule(text) {
   const found = [];
   const cal = fnText(text, 'openCalendar');
   const drag = fnText(text, 'sheetHandle');
   const open = fnText(text, 'openSheet');
-  if (!cal) return [[1, 'нет function openCalendar(']];
-  const head = cal.start + 1;
-  if (!/\bconst own = openSheet\(/.test(cal.text) || !/\bsheetHandle\(own\);/.test(cal.text)) {
-    found.push([head, 'у шторки календаря нет драгера (const own = openSheet(…); sheetHandle(own);)']);
+  const close = fnText(text, 'closeSheet');
+  const request = fnText(text, 'requestCloseSheet');
+  if (!cal) found.push([1, 'нет function openCalendar(']);
+  else if (/sheetHandle|VerticalSwipes/.test(cal.text)) {
+    found.push([cal.start + 1, 'календарь ставит драгер или жест Telegram сам — это делает openSheet для каждой шторки']);
   }
-  if (!/\bdisableVerticalSwipes\(\)/.test(cal.text) || !/onClose[\s\S]*enableVerticalSwipes\(\)/.test(cal.text)) {
-    found.push([head, 'жест Telegram «свайп вниз» не выключен на время календаря (disableVerticalSwipes, enableVerticalSwipes в onClose)']);
+  if (!open || !/\bdisableVerticalSwipes\(\)/.test(open.text)) {
+    found.push([open ? open.start + 1 : 1, 'openSheet не выключает жест Telegram «свайп вниз» — свайп за полосу свернёт всё приложение']);
+  }
+  if (!close || !/\benableVerticalSwipes\(\)/.test(close.text)) {
+    found.push([close ? close.start + 1 : 1, 'closeSheet не возвращает жест Telegram «свайп вниз»']);
+  }
+  if (!request || !/\bif \(await mayCloseSheet\(\)\) closeSheet\(\);/.test(request.text)) {
+    found.push([request ? request.start + 1 : 1, 'requestCloseSheet — не через mayCloseSheet(): ✕ и драгер спрашивали бы по-разному']);
   }
   if (!drag) found.push([1, 'нет function sheetHandle(']);
   else {
     for (const [re, why] of [[/ds-sheet__handle/, 'полоса ds-sheet__handle'], [/setPointerCapture\(/, 'захват указателя'],
-      [/'pointerup'/, 'pointerup'], [/'pointercancel'/, 'pointercancel'], [/requestCloseSheet\(\)/, 'закрытие requestCloseSheet()']]) {
+      [/'pointerup'/, 'pointerup'], [/'pointercancel'/, 'pointercancel'],
+      [/!\(await mayCloseSheet\(\)\)\) return shift\(0\);/, 'отказ в вопросе перед закрытием возвращает шторку на место (mayCloseSheet → shift(0))'],
+      [/if \(sheetEl === own\) closeSheet\(\);/, 'закрывается только своя шторка (sheetEl === own → closeSheet())']]) {
       if (!re.test(drag.text)) found.push([drag.start + 1, `в sheetHandle нет: ${why}`]);
     }
+    if (/requestCloseSheet\(\)/.test(drag.text)) found.push([drag.start + 1, 'sheetHandle закрывает через requestCloseSheet() после ухода вниз — вопрос пришёл бы, когда шторки уже не видно']);
   }
-  if (open && /ds-sheet__handle|sheetHandle/.test(open.text)) found.push([open.start + 1, 'драгер в openSheet — он появился бы у всех шторок']);
   return found;
 }
 
@@ -180,7 +190,7 @@ test('6. шторка календаря одной высоты: сетка н�
   assert.equal(found.length, 0, report(found));
 });
 
-test('7. драгер только у шторки календаря, жест Telegram выключен на время календаря', () => {
+test('7. драгер и жест Telegram — в ядре шторки: свайп закрывает, как ✕, отказ — шторка на месте (033)', () => {
   const found = handleRule(APP);
   assert.equal(found.length, 0, report(found));
 });
@@ -250,18 +260,37 @@ test('от противного 6: сетка без строк фиксиров
   assert.equal(sixWeeks('.ds-x {}').length, 1);
 });
 
-test('от противного 7: календарь без драгера и драгер во всех шторках находятся', () => {
-  const bad = [
+test('от противного 7: драгер и жест у календаря, жест без возврата, закрытие мимо вопроса находятся', () => {
+  // как было в 028: драгер и жест — только в календаре, sheetHandle закрывает через requestCloseSheet() после ухода
+  const old = [
     '  function openSheet(title, content) {',
-    "    const handle = h('div', { class: 'ds-sheet__handle' });",
+    '  }',
+    '  async function requestCloseSheet() {',
+    '    if (sheetBeforeClose && !(await sheetBeforeClose())) return;',
+    '    closeSheet();',
+    '  }',
+    '  function closeSheet() {',
     '  }',
     '  function openCalendar(value, onPick) {',
-    '    openSheet(title, []);',
+    '    try { if (tg && tg.isVerticalSwipesEnabled) { tg.disableVerticalSwipes(); swipes = true; } } catch (e) {}',
+    '    const own = openSheet(title, [], { onClose: () => { try { if (swipes) tg.enableVerticalSwipes(); } catch (e) {} } });',
+    '    sheetHandle(own);',
+    '  }',
+    '  function sheetHandle(own) {',
+    "    const handle = h('div', { class: 'ds-sheet__handle', 'aria-hidden': 'true' });",
+    '    handle.setPointerCapture(e.pointerId);',
+    "    const close = () => { if (!gone) { gone = true; requestCloseSheet(); } };",
+    "    handle.addEventListener('pointerup', release);",
+    "    handle.addEventListener('pointercancel', release);",
     '  }',
   ].join('\n');
-  const found = handleRule(bad).map(([, w]) => w);
-  assert.ok(found.some((w) => w.includes('нет драгера')), 'календарь без драгера не найден');
-  assert.ok(found.some((w) => w.includes('жест Telegram')), 'невыключенный жест Telegram не найден');
-  assert.ok(found.some((w) => w.includes('нет function sheetHandle')), 'нет sheetHandle — не найдено');
-  assert.ok(found.some((w) => w.includes('у всех шторок')), 'драгер в openSheet не найден');
+  const found = handleRule(old).map(([, w]) => w);
+  assert.ok(found.some((w) => w.includes('календарь ставит')), 'драгер и жест в календаре не найдены');
+  assert.ok(found.some((w) => w.includes('openSheet не выключает')), 'невыключенный жест у шторок не найден');
+  assert.ok(found.some((w) => w.includes('closeSheet не возвращает')), 'невозвращённый жест не найден');
+  assert.ok(found.some((w) => w.includes('не через mayCloseSheet')), 'requestCloseSheet мимо mayCloseSheet не найден');
+  assert.ok(found.some((w) => w.includes('отказ в вопросе')), 'закрытие без возврата при отказе не найдено');
+  assert.ok(found.some((w) => w.includes('только своя шторка')), 'закрытие чужой шторки не найдено');
+  assert.ok(found.some((w) => w.includes('вопрос пришёл бы')), 'requestCloseSheet после ухода не найден');
+  assert.ok(handleRule('  function other() {\n  }').some(([, w]) => w.includes('нет function sheetHandle')), 'нет sheetHandle — не найдено');
 });

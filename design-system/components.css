@@ -286,12 +286,15 @@ select.ds-input {
 .ds-sheet__title { margin: 0 var(--ds-space-1); font-size: var(--ds-text-lg); }
 /* Действие под полем ввода шторки на весь экран (027): там нет ds-stack — отступ сверху тот же, что у ds-stack */
 .ds-sheet__action { margin-top: var(--ds-space-3); }
-/* Драгер (028): полоса сверху шторки, как у шторок iOS, — свайп вниз за неё сворачивает шторку. Верхний отступ шторки
- * даёт сама полоса; заголовок — сразу под ней. --settle — плавный возврат на место или уход вниз. */
+/* Драгер (028; у каждой шторки — 033): полоса сверху шторки, как у шторок iOS, — свайп вниз за неё сворачивает шторку.
+ * Верхний отступ шторки даёт сама полоса; заголовок — сразу под ней. Шторка — сама область прокрутки: полоса прилипает
+ * к её верху (фон шторки, содержимое уходит под неё) и видна у прокрученной шторки. --settle — плавный возврат на место
+ * или уход вниз. */
 .ds-sheet--handle { padding-top: 0; }
 .ds-sheet__handle {
+  position: sticky; top: 0; z-index: var(--ds-z-sticky);
   display: flex; justify-content: center; padding: var(--ds-space-2) 0;
-  touch-action: none; cursor: grab;
+  background: var(--ds-color-bg); touch-action: none; cursor: grab;
 }
 .ds-sheet__handle::before {
   content: ""; width: var(--ds-size-handle-w); height: var(--ds-size-handle-h);
@@ -318,11 +321,12 @@ select.ds-input {
 .ds-calendar__day--selected { background: var(--ds-color-accent); color: var(--ds-color-on-accent); font-weight: var(--ds-weight-semibold); }
 .ds-calendar__day:disabled { opacity: var(--ds-opacity-disabled); cursor: default; }
 
-/* ========== Шторка на весь экран (переписка) ========== */
+/* ========== Шторка на весь экран (переписка) ==========
+ * Верхний отступ, как у любой шторки, даёт драгер (033) — своего padding-top нет. */
 .ds-sheet--full {
   display: flex; flex-direction: column;
   height: var(--ds-sheet-full-h); max-height: none;
-  border-radius: 0; padding-top: var(--ds-space-3);
+  border-radius: 0;
 }
 
 /* ========== Переписка ========== */

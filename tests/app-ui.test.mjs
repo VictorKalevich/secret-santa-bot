@@ -50,7 +50,7 @@ export function panelOwnData(text, [from, to] = PANEL) {
 }
 
 // ---------- 3. Заголовок и опрос — только своей шторки ----------
-const SHEET_CORE = new Set(['openSheet', 'requestCloseSheet', 'closeSheet', 'poll', 'syncBack', 'sheetEl']);
+const SHEET_CORE = new Set(['openSheet', 'requestCloseSheet', 'mayCloseSheet', 'closeSheet', 'sheetHandle', 'poll', 'syncBack', 'sheetEl']);
 export function sheetOwners(text) {
   const lines = text.split('\n');
   const found = [];

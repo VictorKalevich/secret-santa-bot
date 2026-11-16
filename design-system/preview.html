@@ -243,7 +243,8 @@
     <div class="ds-card ds-stack">
       <button class="ds-btn ds-btn--secondary ds-btn--block">💬 Написать подопечному <span class="ds-badge">2</span></button>
       <div class="pv-chat-wrap">
-        <div class="ds-sheet ds-sheet--full">
+        <div class="ds-sheet ds-sheet--full ds-sheet--handle">
+          <div class="ds-sheet__handle"></div>
           <div class="ds-row ds-row--between"><h2 class="ds-sheet__title">Переписка с подопечным</h2><button class="ds-icon-btn">✕</button></div>
           <div class="ds-chat">
             <div class="ds-chat__msg ds-chat__msg--mine">Привет! Какой у тебя размер перчаток?<div class="ds-chat__meta">сегодня в 14:02</div></div>
@@ -273,14 +274,17 @@
       <div class="ds-toast ds-toast--visible pv-static">✅ Письмо сохранено</div>
       <div class="pv-sheet-wrap">
         <div class="ds-sheet-backdrop">
-          <div class="ds-sheet ds-stack">
+          <div class="ds-sheet ds-sheet--handle ds-stack">
+            <div class="ds-sheet__handle"></div>
             <div class="ds-row ds-row--between"><h2 class="ds-sheet__title">Письмо: Маша</h2><button class="ds-icon-btn">✕</button></div>
             <div class="ds-card ds-letter">Хочу настольную игру.</div>
           </div>
         </div>
       </div>
-      <div class="ds-hint">Пока шторка открыта, на &lt;body&gt; стоит <code>ds-root--locked</code>: страница под ней не
-        прокручивается; шторка и лента переписки не передают прокрутку дальше (<code>overscroll-behavior</code>).</div>
+      <div class="ds-hint">У каждой шторки сверху драгер (<code>ds-sheet__handle</code>): свайп вниз за него закрывает
+        шторку, полоса прилипает к верху прокрученной шторки. Пока шторка открыта, на &lt;body&gt; стоит
+        <code>ds-root--locked</code>: страница под ней не прокручивается; шторка и лента переписки не передают прокрутку
+        дальше (<code>overscroll-behavior</code>).</div>
     </div>
   </main>
 </template>

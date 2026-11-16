@@ -387,6 +387,124 @@ try {
     else console.log('✔ правки 027–028: календарь автожеребьёвки без выбранного дня, «Готово» после выбора, «Закрыть» без даты, одна высота, драгер, подсказка названия — следующий год, отступ над «Вопрос решён»');
   }
 
+  // 033: драгер у каждой шторки (правила по коду — tests/design-system.test.mjs, правило 7 tests/app-tweaks.test.mjs).
+  // Журнал — длинная шторка (полоса у верха прокрученной), переписка — на весь экран и с вопросом о неотправленном,
+  // меню участника → «Имя участника» — смена шторки; жест Telegram — на заглушке SDK. Событие A — после жеребьёвки,
+  // admin — Санта; ничего не отправляется и не сохраняется.
+  async function checkSheetHandle() {
+    const problems = [];
+    const sheetOpen = (page) => page.locator('.ds-sheet').count();
+    // Полоса — первая в шторке и у её верхнего края; null — всё так, иначе что не так
+    const topProblem = (page) => page.evaluate(() => {
+      const s = document.querySelector('.ds-sheet');
+      const bar = s && s.firstElementChild;
+      if (!bar || !bar.classList.contains('ds-sheet__handle')) return 'первая в шторке — не полоса драгера';
+      const gap = Math.round(bar.getBoundingClientRect().top - s.getBoundingClientRect().top);
+      return !gap ? null : gap > 0 ? `полоса на ${gap} px ниже верха шторки` : `полоса уехала с прокруткой на ${-gap} px выше верха шторки`;
+    });
+    const atTop = async (page, what) => { const p = await topProblem(page); if (p) problems.push(`${what}: ${p}`); };
+    // Свайп за полосу на dy px (по центру полосы); после — время на возврат или уход шторки
+    const swipe = async (page, dy) => {
+      const box = await page.locator('.ds-sheet__handle').boundingBox();
+      const x = box.x + box.width / 2, y = box.y + box.height / 2;
+      await page.mouse.move(x, y); await page.mouse.down();
+      await page.mouse.move(x, y + dy, { steps: dy > 50 ? 12 : 4 }); await page.mouse.up();
+      await page.waitForTimeout(800);
+    };
+    const half = (page) => page.locator('.ds-sheet').evaluate((e) => e.getBoundingClientRect().height / 2);
+    const settled = (page) => page.locator('.ds-sheet').evaluate((e) => getComputedStyle(e).transform === 'none');
+
+    await onPage(problems, 'драгер: журнал', admin, A, async (page) => {
+      await page.setViewportSize({ width: 390, height: 500 });
+      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('#main .ds-btn', { hasText: 'Журнал действий' }).click();
+      await page.waitForSelector('.ds-sheet .ds-list-item');
+      await atTop(page, 'журнал');
+      const scrolled = await page.locator('.ds-sheet').evaluate((e) => { e.scrollTop = e.scrollHeight; return e.scrollTop; });
+      if (!scrolled) problems.push('журнал не прокручивается — прилипание полосы не проверено');
+      await atTop(page, 'прокрученный журнал');
+      await swipe(page, 20);
+      if (!(await sheetOpen(page))) problems.push('журнал: короткий свайп закрыл шторку');
+      else if (!(await settled(page))) problems.push('журнал: после короткого свайпа шторка не вернулась на место');
+      await swipe(page, await half(page));
+      if (await sheetOpen(page)) problems.push('журнал: свайп на половину высоты не закрыл шторку');
+      if (await page.evaluate(() => document.body.classList.contains('ds-root--locked'))) problems.push('журнал: после свайпа осталась ds-root--locked');
+    });
+
+    await onPage(problems, 'драгер: переписка', admin, A, async (page) => {
+      const open = async () => {
+        await page.locator('.ds-btn', { hasText: 'Написать подопечному' }).click();
+        await page.locator('.ds-sheet__title', { hasText: 'Переписка с подопечным' }).waitFor({ timeout: 5000 });
+      };
+      await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
+      await open();
+      await atTop(page, 'переписка (на весь экран)');
+      await swipe(page, await half(page));
+      if (await sheetOpen(page)) problems.push('переписка без текста: свайп на половину высоты не закрыл шторку');
+      await open();
+      const input = page.locator('.ds-sheet .ds-composer__input');
+      await input.fill('Черновик Санты');
+      let asked = null;
+      page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
+      await swipe(page, await half(page));
+      if (asked === null) problems.push('переписка с текстом: свайп закрыл без вопроса о неотправленном');
+      if (!(await sheetOpen(page))) problems.push('переписка с текстом: «Отмена» в вопросе, а шторка закрыта');
+      else {
+        if (!(await settled(page))) problems.push('переписка: после «Отмена» шторка не вернулась на место');
+        if ((await input.inputValue()) !== 'Черновик Санты') problems.push(`переписка: после «Отмена» в поле «${await input.inputValue()}»`);
+        page.once('dialog', (d) => d.accept());
+        await swipe(page, await half(page));
+        if (await sheetOpen(page)) problems.push('переписка с текстом: «ОК» в вопросе, а шторка открыта');
+      }
+    });
+
+    // Жест Telegram «свайп вниз»: заглушка SDK (скрипт Telegram на страницах прогона заблокирован), версия «старая» —
+    // подтверждения окном браузера, данные — из адреса
+    const page = await openPage('драгер: жест Telegram', { viewport: { width: 390, height: 844 } });
+    try {
+      await page.addInitScript(() => {
+        window.__swipes = [];
+        window.Telegram = { WebApp: {
+          initData: '', isVerticalSwipesEnabled: true, ready() {}, expand() {}, isVersionAtLeast: () => false,
+          disableVerticalSwipes() { this.isVerticalSwipesEnabled = false; window.__swipes.push('off'); },
+          enableVerticalSwipes() { this.isVerticalSwipesEnabled = true; window.__swipes.push('on'); },
+        } };
+      });
+      await page.goto(`${w.base}/app?event=${A}#tgWebAppData=${encodeURIComponent(initData(admin))}`);
+      await page.waitForSelector('.ds-tabs:not([hidden])');
+      const swipes = () => page.evaluate(() => [window.Telegram.WebApp.isVerticalSwipesEnabled, window.__swipes.join(' ')]);
+      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-icon-btn[title="Действия с участником"]').first().click();
+      await page.locator('.ds-sheet .ds-btn', { hasText: 'Переименовать' }).waitFor({ timeout: 5000 });
+      await atTop(page, 'меню участника');
+      let [on, log] = await swipes();
+      if (on) problems.push(`жест Telegram при открытой шторке включён (${log})`);
+      await page.locator('.ds-sheet .ds-btn', { hasText: 'Переименовать' }).click();
+      await page.locator('.ds-sheet__title', { hasText: 'Имя участника' }).waitFor({ timeout: 3000 });
+      await atTop(page, '«Имя участника»');
+      [on, log] = await swipes();
+      if (on || log !== 'off on off') problems.push(`шторка сменила шторку — жест Telegram ${on ? 'включён' : 'выключен'}, вызовы «${log}», ожидалось «off on off»`);
+      await swipe(page, await half(page));
+      if (await sheetOpen(page)) problems.push('«Имя участника»: свайп на половину высоты не закрыл шторку');
+      [on, log] = await swipes();
+      if (!on || log !== 'off on off on') problems.push(`после закрытия жест Telegram ${on ? 'включён' : 'выключен'}, вызовы «${log}», ожидалось «off on off on»`);
+      // Жест выключен до шторки (клиент или другой код) — шторка его не включает
+      await page.evaluate(() => { window.Telegram.WebApp.isVerticalSwipesEnabled = false; window.__swipes = []; });
+      await page.locator('#main .ds-btn', { hasText: 'Журнал действий' }).click();
+      await page.locator('.ds-sheet__title', { hasText: 'Журнал события' }).waitFor({ timeout: 5000 });
+      await page.locator('.ds-sheet .ds-icon-btn[title="Закрыть"]').click();
+      [on, log] = await swipes();
+      if (on || log) problems.push(`жест был выключен до шторки — после неё ${on ? 'включён' : 'выключен'}, вызовы «${log}»`);
+    } catch (e) {
+      problems.push(`драгер: жест Telegram: ${e.message.split('\n')[0]}`);
+    } finally {
+      await page.close();
+    }
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'драгер (033): ' + x));
+    else console.log('✔ драгер у шторок (033): полоса первой и у верха (журнал, прокрученный журнал, переписка, меню, «Имя участника»), свайп закрывает, короткий — нет, вопрос о неотправленном — «Отмена» оставляет шторку с текстом, жест Telegram выключен на время шторок и возвращён');
+  }
+
   // 026: недочёты интерфейса — поведение, которое видно только в браузере (правила по коду — tests/app-ui.test.mjs).
   // Идёт после всех снимков: событие «Проверка» и открытия обращений снимков не меняют.
   async function checkUiFixes() {
@@ -764,6 +882,7 @@ addEventListener('message', (e) => {
   await shot(admin, '29-auto-draw-calendar', { event: B, fullPage: false, tab: 'Админ', before: openAutoDraw });
   await shot(admin, '29-auto-draw-calendar', { event: B, fullPage: false, tab: 'Админ', dark: true, before: openAutoDraw });
   await checkTweaks();
+  await checkSheetHandle();
   await shot(people[0], '02-my-letter', { event: A, dark: true });
   await shot(people[2], '05-ward-hidden', { event: A, tab: 'Подопечный', dark: true });
   await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ', dark: true });

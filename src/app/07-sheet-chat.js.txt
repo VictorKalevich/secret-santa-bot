@@ -1,23 +1,63 @@
 
   // ---------- шторка ----------
-  // beforeClose — проверка перед закрытием пользователем (✕, фон, «Назад»): false — шторка остаётся (009).
+  // beforeClose — проверка перед закрытием пользователем (✕, фон, «Назад», драгер): false — шторка остаётся (009).
   // Открытую шторку (sheetEl) знает только ядро шторки (026): openSheet возвращает свою шторку, заголовок может быть
-  // узлом — содержимое меняет свой заголовок и опрашивает сервер (poll), только пока открыта именно его шторка
+  // узлом — содержимое меняет свой заголовок и опрашивает сервер (poll), только пока открыта именно его шторка.
+  // У каждой шторки драгер (033) — его ставит openSheet; пока шторка открыта, жест Telegram «свайп вниз сворачивает
+  // приложение» выключен (Bot API 7.7), иначе свайп за полосу свернул бы всё приложение; после закрытия — как было
   let sheetEl = null;
   let sheetOnClose = null;
   let sheetBeforeClose = null;
+  let sheetSwipes = false;
   function openSheet(title, content, { full = false, onClose = null, beforeClose = null } = {}) {
     closeSheet();
     const header = h('div', { class: 'ds-row ds-row--between' }, h('h2', { class: 'ds-sheet__title' }, title),
       h('button', { class: 'ds-icon-btn', title: 'Закрыть', onclick: requestCloseSheet }, '✕'));
     sheetEl = h('div', { class: 'ds-sheet-backdrop', onclick: (e) => { if (e.target === sheetEl) requestCloseSheet(); } },
       h('div', { class: full ? 'ds-sheet ds-sheet--full' : 'ds-sheet ds-stack' }, header, ...[].concat(content)));
+    sheetHandle(sheetEl);
     sheetOnClose = onClose;
     sheetBeforeClose = beforeClose;
     document.body.append(sheetEl);
     document.body.classList.add('ds-root--locked'); // страница под шторкой не прокручивается (011)
+    try { if (tg && tg.isVerticalSwipesEnabled) { tg.disableVerticalSwipes(); sheetSwipes = true; } } catch (e) {}
     syncBack();
     return sheetEl;
+  }
+  // Драгер шторки own (028; у каждой шторки — 033): полоса сверху; шторка едет за пальцем вниз (вверх — нет). Отпустили
+  // дальше четверти высоты или быстрым свайпом — закрытие, как ✕: сначала вопрос beforeClose (шторка ждёт ответа там,
+  // где её отпустили), отказ — возврат на место, иначе уходит вниз и закрывается — если открыта всё ещё она
+  function sheetHandle(own) {
+    const sheet = own.firstElementChild;
+    const handle = h('div', { class: 'ds-sheet__handle', 'aria-hidden': 'true' });
+    sheet.classList.add('ds-sheet--handle');
+    sheet.prepend(handle);
+    let drag = null;
+    const shift = (dy) => { sheet.style.transform = dy ? `translateY(${dy}px)` : ''; };
+    handle.addEventListener('pointerdown', (e) => {
+      drag = { id: e.pointerId, y: e.clientY, t: Date.now() };
+      handle.setPointerCapture(e.pointerId);
+      sheet.classList.remove('ds-sheet--settle');
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (drag && e.pointerId === drag.id) shift(Math.max(0, e.clientY - drag.y));
+    });
+    const release = async (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dy = Math.max(0, e.clientY - drag.y);
+      const fast = dy > 30 && dy / Math.max(1, Date.now() - drag.t) > 0.5;
+      drag = null;
+      sheet.classList.add('ds-sheet--settle');
+      if (e.type !== 'pointerup' || !(dy > sheet.offsetHeight / 4 || fast)) return shift(0);
+      if (sheetEl !== own || !(await mayCloseSheet())) return shift(0);
+      let gone = false;
+      const close = () => { if (!gone) { gone = true; if (sheetEl === own) closeSheet(); } };
+      sheet.addEventListener('transitionend', close, { once: true });
+      setTimeout(close, 400);
+      sheet.style.transform = 'translateY(100%)';
+    };
+    handle.addEventListener('pointerup', release);
+    handle.addEventListener('pointercancel', release);
   }
   // Опрос шторки own раз в 6 секунд; закрыта или заменена другой — опрос останавливается сам
   function poll(own, load) {
@@ -27,13 +67,16 @@
     }, 6000);
     return timer;
   }
+  async function mayCloseSheet() {
+    return !sheetBeforeClose || !!(await sheetBeforeClose());
+  }
   async function requestCloseSheet() {
-    if (sheetBeforeClose && !(await sheetBeforeClose())) return;
-    closeSheet();
+    if (await mayCloseSheet()) closeSheet();
   }
   function closeSheet() {
     if (sheetEl) { sheetEl.remove(); sheetEl = null; }
     document.body.classList.remove('ds-root--locked');
+    if (sheetSwipes) { sheetSwipes = false; try { tg.enableVerticalSwipes(); } catch (e) {} }
     sheetBeforeClose = null;
     syncBack();
     const cb = sheetOnClose;

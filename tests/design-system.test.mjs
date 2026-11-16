@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { APP } from './support/app-source.mjs';
+import { APP, where, code, topBlock } from './support/app-source.mjs';
 
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const tokens = read('design-system/tokens.css');
@@ -122,4 +122,79 @@ test('поле даты: значок на отступе поля, «Сброс
   assert.match(fn, /addEventListener\('input', onClear\)/);
   assert.match(fn, /addEventListener\('change', onClear\)/);
   assert.match(fn, /el\.blur\(\)/);
+});
+
+// 033: у каждой шторки драгер. Шторку собирает только openSheet, драгер ставит только он (sheetHandle) — новая шторка
+// получает полосу сама; в витрине у каждой шторки полоса первой; полоса прилипает к верху прокрученной шторки.
+// → [номер строки склейки или 0 — вне склейки, что не так]
+export function sheetHandleRule(text, html, css) {
+  const lines = text.split('\n');
+  const open = topBlock(lines, 'openSheet');
+  const drag = topBlock(lines, 'sheetHandle');
+  if (!open) return [[1, 'нет function openSheet(']];
+  const found = [];
+  const inside = (b, i) => !!b && i >= b[0] && i <= b[1];
+  let placed = false;
+  lines.forEach((raw, i) => {
+    const l = code(raw);
+    if (/['" ]ds-sheet(?:-backdrop)?['" ]/.test(l) && !inside(open, i)) found.push([i + 1, 'шторка собрана в обход openSheet — у неё не будет драгера']);
+    if (/ds-sheet__handle/.test(l) && !inside(drag, i)) found.push([i + 1, 'полоса драгера вне sheetHandle — свой или второй драгер']);
+    if (/\bsheetHandle\(/.test(l) && !/^ {2}function sheetHandle\(/.test(l)) {
+      if (inside(open, i) && /\bsheetHandle\(sheetEl\);/.test(l)) placed = true;
+      else found.push([i + 1, 'sheetHandle вне openSheet — драгер ставит только openSheet, у каждой шторки он один']);
+    }
+  });
+  if (!drag) found.push([1, 'нет function sheetHandle(']);
+  if (!placed) found.push([open[0] + 1, 'openSheet не ставит драгер (sheetHandle(sheetEl);) — у шторок не будет полосы']);
+  for (const m of html.matchAll(/<div class="ds-sheet((?: [^"]*)?)">\s*(<[^>]*>)?/g)) {
+    const cls = 'ds-sheet' + m[1];
+    if (!m[1].includes('ds-sheet--handle') || !/^<div class="ds-sheet__handle"/.test(m[2] || '')) {
+      found.push([0, `preview.html: шторка «${cls}» без драгера (ds-sheet--handle и полоса ds-sheet__handle первой)`]);
+    }
+  }
+  const handle = /\.ds-sheet__handle\s*\{([^}]*)\}/.exec(css);
+  if (!handle) found.push([0, 'components.css: нет .ds-sheet__handle']);
+  else {
+    for (const [re, what] of [[/position:\s*sticky/, 'position: sticky'], [/(?:^|[;\s])top:\s*0/, 'top: 0'],
+      [/background:\s*var\(--ds-color-bg\)/, 'background: var(--ds-color-bg)'], [/z-index:\s*var\(--ds-z-sticky\)/, 'z-index: var(--ds-z-sticky)']]) {
+      if (!re.test(handle[1])) found.push([0, `components.css: у .ds-sheet__handle нет ${what} — у прокрученной шторки полоса уедет вверх`]);
+    }
+  }
+  const full = [...css.matchAll(/\.ds-sheet--full\s*\{([^}]*)\}/g)];
+  if (full.some((m) => /padding-top/.test(m[1]))) found.push([0, 'components.css: .ds-sheet--full задаёт padding-top — перебивает .ds-sheet--handle, полоса не у верхнего края']);
+  return found;
+}
+const report = (found) => found.map(([n, why]) => (n ? `${where(n)}: ${why}` : why)).join('\n');
+
+test('у каждой шторки драгер: шторку строит openSheet, драгер — только он; витрина и стиль полосы (033)', () => {
+  const found = sheetHandleRule(app, preview, stripComments(components));
+  assert.equal(found.length, 0, report(found));
+});
+
+test('от противного (033): шторка в обход, второй драгер, шторка без полосы и полоса без прилипания находятся', () => {
+  const good = [
+    '  function openSheet(title, content) {',
+    "    sheetEl = h('div', { class: 'ds-sheet-backdrop' }, h('div', { class: 'ds-sheet ds-stack' }, header));",
+    '    sheetHandle(sheetEl);',
+    '  }',
+    '  function sheetHandle(own) {',
+    "    const handle = h('div', { class: 'ds-sheet__handle' });",
+    '  }',
+  ].join('\n');
+  const html = '<div class="ds-sheet ds-sheet--handle ds-stack">\n  <div class="ds-sheet__handle"></div>\n</div>';
+  const css = '.ds-sheet__handle { position: sticky; top: 0; z-index: var(--ds-z-sticky); background: var(--ds-color-bg); }\n.ds-sheet--full { height: 100%; }';
+  assert.deepEqual(sheetHandleRule(good, html, css), [], 'верный образец — без нарушений');
+  const has = (found, part) => found.some(([, why]) => why.includes(part));
+  const own = good + "\n  function letter() {\n    const box = h('div', { class: 'ds-sheet-backdrop' }, h('div', { class: 'ds-sheet' }));\n  }";
+  assert.ok(has(sheetHandleRule(own, html, css), 'в обход openSheet'), 'шторка в обход openSheet не найдена');
+  const second = good + "\n  function letter() {\n    const own = openSheet('Письмо', []);\n    sheetHandle(own);\n  }";
+  assert.ok(has(sheetHandleRule(second, html, css), 'sheetHandle вне openSheet'), 'второй вызов sheetHandle не найден');
+  const strip = good + "\n  function calendar() {\n    own.prepend(h('div', { class: 'ds-sheet__handle' }));\n  }";
+  assert.ok(has(sheetHandleRule(strip, html, css), 'вне sheetHandle'), 'своя полоса не найдена');
+  assert.ok(has(sheetHandleRule(good.replace('    sheetHandle(sheetEl);\n', ''), html, css), 'openSheet не ставит'), 'openSheet без драгера не найден');
+  const bare = html + '\n<div class="ds-sheet ds-sheet--full">\n  <div class="ds-row"></div>\n</div>';
+  assert.ok(has(sheetHandleRule(good, bare, css), '«ds-sheet ds-sheet--full» без драгера'), 'шторка витрины без полосы не найдена');
+  assert.ok(has(sheetHandleRule(good, html, css.replace('position: sticky; ', '')), 'position: sticky'), 'полоса без sticky не найдена');
+  assert.ok(has(sheetHandleRule(good, html, css + '\n.ds-sheet--full { padding-top: var(--ds-space-3); }'), 'перебивает'), 'padding-top у --full не найден');
+  assert.deepEqual(sheetHandleRule('  function other() {\n  }', html, css).map(([, w]) => w), ['нет function openSheet(']);
 });
