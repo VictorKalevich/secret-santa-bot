@@ -1,4 +1,5 @@
 // Обработка сообщений в чате с ботом (webhook от Telegram).
+// 029: у каждой команды и каждого вида кнопки — свой обработчик; запросов к базе здесь нет (чтения — функциями модулей).
 
 import {
   getUser, createUser, updateUser, pairOfSanta, pairOfWard, getEvent, getEventByInvite, getMember, addMemberStmt, clearRemovedStmt,
@@ -10,7 +11,11 @@ import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
 import { joinByInvite, decideRequest, rejoinBlocked, requestRejected, joinedNoticeStmts } from './membership.js';
 import { openContext, makeContext } from './context.js';
-import { sendFromUser, sendFromAdmin, take, supportAvailable } from './support.js';
+import {
+  sendFromUser, sendFromAdmin, take, supportAvailable, threadById, replyBlocks,
+  CLOSED as THREAD_CLOSED, NOT_FOUND as THREAD_NOT_FOUND, OWN_THREAD,
+} from './support.js';
+import { menuEvents } from './participant.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта и организатор.';
@@ -20,6 +25,9 @@ const STALE_INVITE = 'Эта пригласительная ссылка уст�
 const REMOVED = (ev) => `Организатор удалил тебя из события ${q(ev)} — вернуться по ссылке нельзя. Если это ошибка — напиши ему.`;
 const registrationClosed = (ev) => `Регистрация на событие ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`;
 const REPLY_EXPIRED = '⌛ Время ответа истекло — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз и пришли его снова.';
+// Хвост подсказки «напиши сообщение» — у переписки и обращений
+const REPLY_HINT = `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`;
+const SUPPORT_READ_ONLY = 'Событие завершено больше недели назад — обращения только для чтения.';
 
 // ---------- режим ответа (pending): сборка и разбор в одном месте (019) ----------
 // В переписку: msg_<ward|santa>:<эвент>:<собеседник>:<время нажатия>; старый формат (до 009) — без двух последних
@@ -43,16 +51,7 @@ const expired = (since) => !since || Date.now() - since > REPLY_WINDOW_MS;
 
 // Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913).
 async function buildMenu(db, user, settings) {
-  const { results } = await db
-    .prepare(
-      `SELECT e.id, e.title, e.status, e.draw_done, m.wishlist,
-              EXISTS (SELECT 1 FROM pairs p WHERE p.event_id = e.id AND p.santa = ?1) AS has_ward,
-              EXISTS (SELECT 1 FROM pairs p WHERE p.event_id = e.id AND p.ward = ?1) AS has_santa
-         FROM members m JOIN events e ON e.id = m.event_id
-        WHERE m.user_id = ?1 ORDER BY e.created_at DESC`
-    )
-    .bind(user.tg_id)
-    .all();
+  const results = await menuEvents(db, user.tg_id);
   const active = results.filter((e) => e.status === 'active');
   const finishedCount = results.length - active.length;
   const items = active.slice(0, 5);
@@ -89,210 +88,235 @@ async function buildMenu(db, user, settings) {
   return { text: lines.join('\n'), parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } };
 }
 
-export async function handleUpdate(update, env) {
+// ---------- сообщение боту ----------
+
+// Чат с человеком на время одного сообщения (029): контекст вызова, пользователь и ответы. Пользователь и настройки —
+// одним пакетом (019); c.user обновляется вместе с ctx.me, когда запись перечитана (reload).
+async function openChat(env, m) {
   const db = env.DB;
   const call = tgApi(env);
+  const from = m.from;
+  const ctx = await openContext(env, from.id);
+  const settings = await ctx.settings();
+  const c = {
+    env, db, ctx, from, settings,
+    text: (m.text || '').trim(),
+    user: ctx.me,
+    reply: (payload) => call('sendMessage', { chat_id: from.id, ...(typeof payload === 'string' ? msg(payload) : payload) }),
+    sendMenu: async () => c.reply(await buildMenu(db, c.user, settings)),
+    menuIfRegistered: () => (c.user?.registered ? c.sendMenu() : undefined),
+    writeLetter: (text, ev) => ({ ...msg(text), ...appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }) }),
+    setPending: (pending) => updateUser(db, from.id, { pending }),
+    async reload() {
+      c.user = ctx.me = await getUser(db, from.id);
+    },
+  };
+  return c;
+}
 
-  if (update.callback_query) return handleCallback(update.callback_query, env, call);
+export async function handleUpdate(update, env) {
+  if (update.callback_query) return handleCallback(update.callback_query, env);
 
   const m = update.message;
   if (!m || !m.from || m.chat?.type !== 'private') return;
-  const from = m.from;
-  const text = (m.text || '').trim();
-  // Пользователь и настройки — одним пакетом (019); ctx.me обновляется, когда пользователь перечитан
-  const ctx = await openContext(env, from.id);
-  const settings = await ctx.settings();
-  let user = ctx.me;
+  const c = await openChat(env, m);
+  const { db, from, text } = c;
   // Человек пишет боту — значит, бот у него не заблокирован (006, FR-609)
-  if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 });
-
-  const reply = (payload) => call('sendMessage', { chat_id: from.id, ...(typeof payload === 'string' ? msg(payload) : payload) });
-  const sendMenu = async (u) => reply(await buildMenu(db, u, settings));
-  const writeLetter = (text, ev) => ({ ...msg(text), ...appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }) });
-  // Ответ на вступление по ссылке (joinByInvite); true — показать меню следом
-  const replyJoin = async (ev, status) => {
-    switch (status) {
-      case 'joined':
-        await reply(writeLetter(`🎄 Ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`, ev));
-        return true;
-      case 'closed':
-        await reply(registrationClosed(ev));
-        return false;
-      case 'removed':
-        await reply(REMOVED(ev));
-        return false;
-      case 'request_pending':
-        await reply(`⏳ Заявка на участие в событии ${q(ev)} уже отправлена — ждём решения организатора.`);
-        return false;
-      case 'request_rejected':
-        await reply(requestRejected(ev));
-        return false;
-      default:
-        await reply(`⏳ Заявка на участие в событии ${q(ev)} отправлена организатору. Как только он её рассмотрит, я напишу.`);
-        return false;
-    }
-  };
+  if (c.user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 });
 
   // Любая команда выключает режим ответа в переписку (009, FR-916) и в обращение (012): текст после неё не уйдёт собеседнику
-  if (user && text.startsWith('/') && inReplyMode(user.pending)) {
-    await updateUser(db, from.id, { pending: '' });
-    user.pending = '';
+  if (c.user && text.startsWith('/') && inReplyMode(c.user.pending)) {
+    await c.setPending('');
+    c.user.pending = '';
   }
 
-  // ---------- /start ----------
-  if (text.startsWith('/start')) {
-    const payload = text.split(/\s+/)[1] || '';
-    // Ссылка со страницы /setup делает владельцем бота (002, FR-102) — один раз для текущего секрета (010, FR-1004)
-    if (payload.startsWith('adm_') && payload === (await ownerLinkCode(env))) {
-      if (!(await claimOwnerLink(env))) {
-        await reply('Ссылка владельца уже использована. Чтобы получить новую — смени ADMIN_SECRET и снова открой страницу настройки.');
-        return user?.registered ? sendMenu(user) : undefined;
-      }
-      const prevOwnerId = await ctx.ownerId();
-      if (!user) await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
-      ctx.forgetUsers(); // список пользователей изменился — setOwner читает его заново
-      await setOwner(ctx, from.id, {
-        via: 'link',
-        prevOwnerId,
-        newOwnerLabel: user?.name || from.first_name || (from.username ? '@' + from.username : ''),
-      });
-      settings.owner_id = String(from.id);
-      user = ctx.me = await getUser(db, from.id);
-      if (!user.registered) {
-        await updateUser(db, from.id, { pending: 'name' });
-        return reply('👑 Ты — владелец бота «Тайный Санта»: создаёшь события и назначаешь администраторов.\n\n' + NAME_PROMPT);
-      }
-      await reply('👑 Теперь ты владелец бота: события и администраторы — в приложении.');
-      return sendMenu(user);
-    }
+  if (text.startsWith('/start')) return onStart(c);
+  if (!c.user) return c.reply(CLOSED_BOT);
+  if (text === '/cancel') return onCancel(c);
+  if (c.user.pending.startsWith('name')) return onName(c);
+  if (!c.user.registered) return c.reply(NAME_PROMPT);
 
-    // Пригласительная ссылка эвента (005; 009 — единая логика с вводом имени)
-    if (payload.startsWith('inv_')) {
-      const code = payload.slice(4);
-      const ev = await getEventByInvite(db, code);
-      if (!ev) {
-        await reply(STALE_INVITE);
-        return user?.registered ? sendMenu(user) : undefined;
-      }
-      const member = user ? await getMember(db, ev.id, from.id) : null;
-      if (user?.registered) {
-        // Участник открыл ссылку снова — даже после жеребьёвки и закрытия регистрации (009, FR-921)
-        if (member) {
-          await reply(`🎄 Ты уже участвуешь в событии ${q(ev)}.`);
-          return sendMenu(user);
-        }
-        if (await replyJoin(ev, await joinByInvite(ctx, ev, user))) return sendMenu(user);
-        return;
-      }
-      // Ещё без имени: сначала имя, вступление — после него (joinByInvite). Код ссылки запоминаем, чтобы после имени
-      // не вступить по уже сменённой ссылке.
-      if (!member && (isFinished(ev) || !ev.registration_open)) {
-        return reply(registrationClosed(ev));
-      }
-      // Удалили ещё до ввода имени, а возврат запрещён (010): не добавляем и имя не спрашиваем
-      if (!member && user && (await rejoinBlocked(db, ev, from.id))) return reply(REMOVED(ev));
-      const pending = `name:${ev.id}:${code}`;
-      if (!user) await createUser(db, from.id, from.username, { pending });
-      else await updateUser(db, from.id, { pending });
-      // Без одобрения человек сразу виден организатору в списке (ещё без имени)
-      if (!member && !ev.approval) await db.batch([addMemberStmt(db, ev, from.id), clearRemovedStmt(db, ev.id, from.id)]);
-      return reply(`🎄 Привет! Это бот для игры в Тайного Санту, ${q(ev)}.\n\n` + NAME_PROMPT);
-    }
+  const mode = parsePending(c.user.pending);
+  if (mode?.kind === 'reply') return onChatReply(c, mode);
+  if (mode?.kind === 'support') return onSupportReply(c, mode);
+  return c.sendMenu();
+}
 
-    if (user?.registered) return sendMenu(user);
-    if (user && user.pending.startsWith('name')) return reply(NAME_PROMPT);
-    return reply(CLOSED_BOT);
+// Ответ на вступление по ссылке (joinByInvite); true — показать меню следом
+async function replyJoin(c, ev, status) {
+  switch (status) {
+    case 'joined':
+      await c.reply(c.writeLetter(`🎄 Ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`, ev));
+      return true;
+    case 'closed':
+      await c.reply(registrationClosed(ev));
+      return false;
+    case 'removed':
+      await c.reply(REMOVED(ev));
+      return false;
+    case 'request_pending':
+      await c.reply(`⏳ Заявка на участие в событии ${q(ev)} уже отправлена — ждём решения организатора.`);
+      return false;
+    case 'request_rejected':
+      await c.reply(requestRejected(ev));
+      return false;
+    default:
+      await c.reply(`⏳ Заявка на участие в событии ${q(ev)} отправлена организатору. Как только он её рассмотрит, я напишу.`);
+      return false;
   }
+}
 
-  if (!user) return reply(CLOSED_BOT);
+// ---------- /start ----------
+async function onStart(c) {
+  const payload = c.text.split(/\s+/)[1] || '';
+  // Ссылка со страницы /setup делает владельцем бота (002, FR-102) — один раз для текущего секрета (010, FR-1004)
+  if (payload.startsWith('adm_') && payload === (await ownerLinkCode(c.env))) return onOwnerLink(c);
+  // Пригласительная ссылка эвента (005; 009 — единая логика с вводом имени)
+  if (payload.startsWith('inv_')) return onInvite(c, payload.slice(4));
+  if (c.user?.registered) return c.sendMenu();
+  if (c.user && c.user.pending.startsWith('name')) return c.reply(NAME_PROMPT);
+  return c.reply(CLOSED_BOT);
+}
 
-  if (text === '/cancel') {
-    if (!user.registered) return reply(NAME_PROMPT);
-    await updateUser(db, from.id, { pending: '' });
-    return reply('Отменено.');
+async function onOwnerLink(c) {
+  const { env, db, ctx, from, settings } = c;
+  if (!(await claimOwnerLink(env))) {
+    await c.reply('Ссылка владельца уже использована. Чтобы получить новую — смени ADMIN_SECRET и снова открой страницу настройки.');
+    return c.menuIfRegistered();
   }
+  const prevOwnerId = await ctx.ownerId();
+  if (!c.user) await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
+  ctx.forgetUsers(); // список пользователей изменился — setOwner читает его заново
+  await setOwner(ctx, from.id, {
+    via: 'link',
+    prevOwnerId,
+    newOwnerLabel: c.user?.name || from.first_name || (from.username ? '@' + from.username : ''),
+  });
+  settings.owner_id = String(from.id);
+  await c.reload();
+  if (!c.user.registered) {
+    await c.setPending('name');
+    return c.reply('👑 Ты — владелец бота «Тайный Санта»: создаёшь события и назначаешь администраторов.\n\n' + NAME_PROMPT);
+  }
+  await c.reply('👑 Теперь ты владелец бота: события и администраторы — в приложении.');
+  return c.sendMenu();
+}
 
-  // ---------- ввод имени при регистрации ----------
-  if (user.pending.startsWith('name')) {
-    const name = oneLine(text);
-    if (!name || name.startsWith('/') || name.length > 40) {
-      return reply('Напиши, пожалуйста, имя обычным текстом (до 40 символов).');
+async function onInvite(c, code) {
+  const { db, ctx, from, user } = c;
+  const ev = await getEventByInvite(db, code);
+  if (!ev) {
+    await c.reply(STALE_INVITE);
+    return c.menuIfRegistered();
+  }
+  const member = user ? await getMember(db, ev.id, from.id) : null;
+  if (user?.registered) {
+    // Участник открыл ссылку снова — даже после жеребьёвки и закрытия регистрации (009, FR-921)
+    if (member) {
+      await c.reply(`🎄 Ты уже участвуешь в событии ${q(ev)}.`);
+      return c.sendMenu();
     }
-    const [, eid, code] = user.pending.split(':');
-    await updateUser(db, from.id, { name, username: from.username || '', registered: 1, pending: '' });
-    user = ctx.me = await getUser(db, from.id);
-    const hello = `Приятно познакомиться, ${escapeHtml(name)}! 🎉`;
-    const ev = Number(eid) ? await getEvent(db, eid) : null;
-    if (!ev) {
-      if (eid) await reply(hello + '\n\n' + STALE_INVITE);
-      else await reply(hello + (user.is_admin ? '\n\nСоздай первое событие в приложении — там появится пригласительная ссылка.' : ''));
-      return sendMenu(user);
-    }
-    // Уже участник (вступил до имени) — приветствие, организатору «присоединяется» (имя уже сохранено в user)
-    if (await getMember(db, ev.id, from.id)) {
-      const notice = joinedNoticeStmts(db, await ctx.users(), user, ev);
-      if (notice.length) await db.batch(notice);
-      await reply(writeLetter(`${hello}\n\nТеперь открой приложение и напиши письмо своему Тайному Санте в событии ${q(ev)}: что хочешь получить, что любишь, размеры, чего точно не надо.`, ev));
-      return sendMenu(user);
-    }
-    // Не участник (заявка, удалили до имени, сменили ссылку) — вступление как по ссылке (009, FR-922)
-    if (ev.invite_code !== code) {
-      await reply(hello + '\n\n' + STALE_INVITE);
-      return sendMenu(user);
-    }
-    await reply(hello);
-    const status = await joinByInvite(ctx, ev, user);
-    const menu = await replyJoin(ev, status);
-    if (menu || status === 'closed' || status === 'removed') return sendMenu(user);
+    if (await replyJoin(c, ev, await joinByInvite(ctx, ev, user))) return c.sendMenu();
     return;
   }
-
-  if (!user.registered) return reply(NAME_PROMPT);
-
-  // ---------- ответ в переписку (003/005; 009 — привязан к собеседнику и истекает через час) ----------
-  const mode = parsePending(user.pending);
-  if (mode?.kind === 'reply') {
-    const toWard = mode.side === 'ward';
-    if (!text) {
-      await updateUser(db, from.id, { pending: '' });
-      return sendMenu(user);
-    }
-    if (expired(mode.since)) {
-      await updateUser(db, from.id, { pending: '' });
-      return reply(REPLY_EXPIRED);
-    }
-    if (text.length > MAX_CHARS) {
-      return reply(`❌ Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS}. Отправь покороче или /cancel.`);
-    }
-    const ev = await getEvent(db, mode.event);
-    await updateUser(db, from.id, { pending: '' });
-    if (!ev) return reply('❌ Событие не найдено.');
-    const res = await sendChatMessage(ctx, ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: mode.other });
-    if (res.ok) return reply(toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.');
-    return reply(res.pairChanged ? res.error : '❌ ' + res.error);
-  }
-
-  // ---------- ответ в обращение к организатору (012) ----------
-  if (mode?.kind === 'support') {
-    await updateUser(db, from.id, { pending: '' });
-    if (!text) return sendMenu(user);
-    if (expired(mode.since)) return reply(REPLY_EXPIRED);
-    if (mode.who === 'u') {
-      const ev = await getEvent(db, mode.id);
-      if (!ev || !(await getMember(db, ev.id, from.id))) return reply('❌ Ты не участвуешь в этом событии.');
-      const res = await sendFromUser(ctx, ev, text);
-      return reply(res.ok ? '✅ Отправлено организатору. Ответ придёт сюда.' : '❌ ' + res.error);
-    }
-    if (!user.is_admin) return reply('❌ Отвечать на обращения могут только администраторы.');
-    const t = await db.prepare('SELECT event_id FROM support_threads WHERE id = ?').bind(Number(mode.id)).first();
-    const ev = t ? await getEvent(db, t.event_id) : null;
-    if (!ev) return reply('❌ Обращение не найдено.');
-    const res = await sendFromAdmin(ctx, ev, Number(mode.id), text);
-    return reply(res.ok ? '✅ Отправлено участнику.' : `❌ ${res.error} Сообщение не отправлено.`);
-  }
-
-  return sendMenu(user);
+  // Ещё без имени: сначала имя, вступление — после него (joinByInvite). Код ссылки запоминаем, чтобы после имени
+  // не вступить по уже сменённой ссылке.
+  if (!member && (isFinished(ev) || !ev.registration_open)) return c.reply(registrationClosed(ev));
+  // Удалили ещё до ввода имени, а возврат запрещён (010): не добавляем и имя не спрашиваем
+  if (!member && user && (await rejoinBlocked(db, ev, from.id))) return c.reply(REMOVED(ev));
+  const pending = `name:${ev.id}:${code}`;
+  if (!user) await createUser(db, from.id, from.username, { pending });
+  else await c.setPending(pending);
+  // Без одобрения человек сразу виден организатору в списке (ещё без имени)
+  if (!member && !ev.approval) await db.batch([addMemberStmt(db, ev, from.id), clearRemovedStmt(db, ev.id, from.id)]);
+  return c.reply(`🎄 Привет! Это бот для игры в Тайного Санту, ${q(ev)}.\n\n` + NAME_PROMPT);
 }
+
+async function onCancel(c) {
+  if (!c.user.registered) return c.reply(NAME_PROMPT);
+  await c.setPending('');
+  return c.reply('Отменено.');
+}
+
+// ---------- ввод имени при регистрации ----------
+async function onName(c) {
+  const { db, ctx, from } = c;
+  const name = oneLine(c.text);
+  if (!name || name.startsWith('/') || name.length > 40) {
+    return c.reply('Напиши, пожалуйста, имя обычным текстом (до 40 символов).');
+  }
+  const [, eid, code] = c.user.pending.split(':');
+  await updateUser(db, from.id, { name, username: from.username || '', registered: 1, pending: '' });
+  await c.reload();
+  const hello = `Приятно познакомиться, ${escapeHtml(name)}! 🎉`;
+  const ev = Number(eid) ? await getEvent(db, eid) : null;
+  if (!ev) {
+    if (eid) await c.reply(hello + '\n\n' + STALE_INVITE);
+    else await c.reply(hello + (c.user.is_admin ? '\n\nСоздай первое событие в приложении — там появится пригласительная ссылка.' : ''));
+    return c.sendMenu();
+  }
+  // Уже участник (вступил до имени) — приветствие, организатору «присоединяется» (имя уже сохранено в user)
+  if (await getMember(db, ev.id, from.id)) {
+    const notice = joinedNoticeStmts(db, await ctx.users(), c.user, ev);
+    if (notice.length) await db.batch(notice);
+    await c.reply(c.writeLetter(`${hello}\n\nТеперь открой приложение и напиши письмо своему Тайному Санте в событии ${q(ev)}: что хочешь получить, что любишь, размеры, чего точно не надо.`, ev));
+    return c.sendMenu();
+  }
+  // Не участник (заявка, удалили до имени, сменили ссылку) — вступление как по ссылке (009, FR-922)
+  if (ev.invite_code !== code) {
+    await c.reply(hello + '\n\n' + STALE_INVITE);
+    return c.sendMenu();
+  }
+  await c.reply(hello);
+  const status = await joinByInvite(ctx, ev, c.user);
+  const menu = await replyJoin(c, ev, status);
+  if (menu || status === 'closed' || status === 'removed') return c.sendMenu();
+}
+
+// ---------- ответ в переписку (003/005; 009 — привязан к собеседнику и истекает через час) ----------
+async function onChatReply(c, mode) {
+  const { db, ctx, from, text } = c;
+  const toWard = mode.side === 'ward';
+  if (!text) {
+    await c.setPending('');
+    return c.sendMenu();
+  }
+  if (expired(mode.since)) {
+    await c.setPending('');
+    return c.reply(REPLY_EXPIRED);
+  }
+  if (text.length > MAX_CHARS) {
+    return c.reply(`❌ Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS}. Отправь покороче или /cancel.`);
+  }
+  const ev = await getEvent(db, mode.event);
+  await c.setPending('');
+  if (!ev) return c.reply('❌ Событие не найдено.');
+  const res = await sendChatMessage(ctx, ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: mode.other });
+  if (res.ok) return c.reply(toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.');
+  return c.reply(res.pairChanged ? res.error : '❌ ' + res.error);
+}
+
+// ---------- ответ в обращение к организатору (012) ----------
+async function onSupportReply(c, mode) {
+  const { db, ctx, from, text } = c;
+  await c.setPending('');
+  if (!text) return c.sendMenu();
+  if (expired(mode.since)) return c.reply(REPLY_EXPIRED);
+  if (mode.who === 'u') {
+    const ev = await getEvent(db, mode.id);
+    if (!ev || !(await getMember(db, ev.id, from.id))) return c.reply('❌ Ты не участвуешь в этом событии.');
+    const res = await sendFromUser(ctx, ev, text);
+    return c.reply(res.ok ? '✅ Отправлено организатору. Ответ придёт сюда.' : '❌ ' + res.error);
+  }
+  if (!c.user.is_admin) return c.reply('❌ Отвечать на обращения могут только администраторы.');
+  const t = await threadById(db, mode.id);
+  const ev = t ? await getEvent(db, t.event_id) : null;
+  if (!ev) return c.reply('❌ ' + THREAD_NOT_FOUND);
+  const res = await sendFromAdmin(ctx, ev, Number(mode.id), text);
+  return c.reply(res.ok ? '✅ Отправлено участнику.' : `❌ ${res.error} Сообщение не отправлено.`);
+}
+
+// ---------- нажатие кнопки ----------
 
 const NOTIFY_LABELS = {
   sound: '🔔 Со звуком',
@@ -300,110 +324,130 @@ const NOTIFY_LABELS = {
   off: '🚫 Не присылать',
 };
 
-async function handleCallback(cq, env, call) {
+async function handleCallback(cq, env) {
   const db = env.DB;
+  const call = tgApi(env);
   const from = cq.from;
-  const data = cq.data || '';
   const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const user = await getUser(db, from.id);
   const ctx = makeContext(env, { me: user }); // настройки и пользователи — лениво: не всем нажатиям они нужны
   if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 }); // 006, FR-609
   if (!user || !user.registered) return answer(NOT_REGISTERED);
-  const send = (payload) => call('sendMessage', { chat_id: from.id, ...payload });
-
-  const mm = /^msg:(ward|santa):(\d+)$/.exec(data);
-  if (mm) {
-    const toWard = mm[1] === 'ward';
+  const k = {
+    db, ctx, from, user, answer,
+    send: (payload) => call('sendMessage', { chat_id: from.id, ...payload }),
+    setPending: (pending) => updateUser(db, from.id, { pending }),
     // Нажатие отклонено — прежний режим ответа тоже выключается: текст не уйдёт туда, куда человек уже не целится
-    const refuse = async (text) => {
-      if (inReplyMode(user.pending)) await updateUser(db, from.id, { pending: '' });
+    async refuse(text) {
+      if (inReplyMode(user.pending)) await k.setPending('');
       return answer(text);
-    };
-    const ev = await getEvent(db, mm[2]);
-    if (!ev) return refuse('Событие не найдено.');
-    const p = toWard ? await pairOfSanta(db, ev.id, from.id) : await pairOfWard(db, ev.id, from.id);
-    if (!p) return refuse(toWard ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.');
-    if (!chatWritable(ev)) return refuse('Событие завершено больше недели назад — переписка только для чтения.');
-    // Режим ответа помнит собеседника и время нажатия (только на сервере): msg_<сторона>:<эвент>:<собеседник>:<мс>
-    const other = toWard ? p.ward : p.santa;
-    await updateUser(db, from.id, { pending: replyPending(mm[1], ev.id, other) });
-    await answer();
-    return send(msg(
-      (toWard
-        ? `✍️ Напиши сообщение подопечному (${q(ev)}) — я передам его <b>анонимно</b>, от имени «Тайного Санты».`
-        : `✍️ Напиши сообщение своему Санте (${q(ev)}) — я передам его. Санта знает, кто ты, а ты его — нет.`) +
-      `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`
-    ));
-  }
-
-  // ---------- обращения к организатору (012) ----------
-  const sp = /^sup:(take|a|u):(\d+)$/.exec(data);
-  if (sp) {
-    const refuse = async (text) => {
-      if (inReplyMode(user.pending)) await updateUser(db, from.id, { pending: '' });
-      return answer(text);
-    };
-    const prompt = (text) => send(msg(text + `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`));
-    const settings = await ctx.settings();
-    if (sp[1] === 'u') {
-      const ev = await getEvent(db, sp[2]);
-      if (!ev || !(await getMember(db, ev.id, from.id))) return refuse('Ты не участвуешь в этом событии.');
-      if (!chatWritable(ev)) return refuse('Событие завершено больше недели назад — обращения только для чтения.');
-      if (!supportAvailable(await ctx.users(), from.id)) return refuse('Сейчас некому написать: в боте нет других организаторов.');
-      await updateUser(db, from.id, { pending: supportPending('u', ev.id) });
+    },
+    // Режим ответа включён: подсказка, что и как написать
+    async prompt(text) {
       await answer();
-      return prompt(`✍️ Напиши сообщение организатору (${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
-    }
-    if (!user.is_admin) return refuse(ADMIN_ONLY);
-    const t = await db.prepare('SELECT * FROM support_threads WHERE id = ?').bind(Number(sp[2])).first();
-    const ev = t ? await getEvent(db, t.event_id) : null;
-    if (!ev) return refuse('Обращение не найдено.');
-    const author = await getUser(db, t.user_id);
-    const name = escapeHtml(author?.name || 'участник');
-    if (sp[1] === 'take') {
-      const r = await take(ctx, ev, t.id);
-      if (!r.ok) return refuse(r.error);
-      await answer('🙋 Обращение твоё');
-      return send(msg(`🙋 Обращение <b>${name}</b> (${q(ev)}) теперь ведёшь ты. Ответь кнопкой ниже или в приложении.`, {
-        reply_markup: { inline_keyboard: [[
-          { text: '↩️ Ответить', callback_data: `sup:a:${t.id}` },
-          openAppButton(settings, '💬 Открыть', { event: ev.id, support: t.id }),
-        ]] },
-      }));
-    }
-    if (t.status !== 'open') return refuse('Обращение уже закрыто.');
-    if (t.user_id === from.id) return refuse('Это твоё обращение — отвечать на него будут другие организаторы.');
-    if (t.assignee && t.assignee !== from.id) return refuse(`Обращение ведёт ${(await getUser(db, t.assignee))?.name || 'другой админ'}.`);
-    if (!chatWritable(ev)) return refuse('Событие завершено больше недели назад — обращения только для чтения.');
-    await updateUser(db, from.id, { pending: supportPending('a', t.id) });
-    await answer();
-    return prompt(`✍️ Напиши ответ <b>${name}</b> (обращение, ${q(ev)}).` + (t.assignee ? '' : ' Ответив, ты возьмёшь обращение себе.'));
+      return k.send(msg(text + REPLY_HINT));
+    },
+  };
+  for (const [pattern, handler] of BUTTONS) {
+    const found = pattern.exec(cq.data || '');
+    if (found) return handler(k, found);
   }
-
-  // Решение по заявке на вступление (008): кнопки в сообщении админу
-  const rq = /^req:(\d+):(a|r)$/.exec(data);
-  if (rq) {
-    if (!user.is_admin) return answer(ADMIN_ONLY);
-    const r = await decideRequest(ctx, Number(rq[1]), from.id, rq[2] === 'a');
-    if (!r.ok) return answer(r.error);
-    await answer(rq[2] === 'a' ? '✅ Принято' : '❌ Отклонено');
-    return send(msg(`${rq[2] === 'a' ? '✅ Заявка принята' : '❌ Заявка отклонена'}: <b>${escapeHtml(r.name)}</b>, ${q(r.ev)}.`));
-  }
-
-  if (data === 'notify') {
-    await answer();
-    return send(msg(
-      `Уведомления о том, что подопечный изменил письмо (во всех событиях).\nСейчас: <b>${NOTIFY_LABELS[user.notify_mode] || NOTIFY_LABELS.sound}</b>`,
-      { reply_markup: { inline_keyboard: [Object.entries(NOTIFY_LABELS).map(([k, v]) => ({ text: v, callback_data: 'nm:' + k }))] } }
-    ));
-  }
-
-  if (data.startsWith('nm:')) {
-    const mode = data.slice(3);
-    if (!NOTIFY_LABELS[mode]) return answer();
-    await updateUser(db, from.id, { notify_mode: mode });
-    return answer('Сохранено: ' + NOTIFY_LABELS[mode]);
-  }
-
   return answer();
 }
+
+// «💬 Подопечному / Санте» в меню и «↩️ Ответить» под сообщением переписки
+async function onReplyButton(k, [, side, eventId]) {
+  const { db, from } = k;
+  const toWard = side === 'ward';
+  const ev = await getEvent(db, eventId);
+  if (!ev) return k.refuse('Событие не найдено.');
+  const p = toWard ? await pairOfSanta(db, ev.id, from.id) : await pairOfWard(db, ev.id, from.id);
+  if (!p) return k.refuse(toWard ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.');
+  if (!chatWritable(ev)) return k.refuse('Событие завершено больше недели назад — переписка только для чтения.');
+  // Режим ответа помнит собеседника и время нажатия (только на сервере): msg_<сторона>:<эвент>:<собеседник>:<мс>
+  await k.setPending(replyPending(side, ev.id, toWard ? p.ward : p.santa));
+  return k.prompt(toWard
+    ? `✍️ Напиши сообщение подопечному (${q(ev)}) — я передам его <b>анонимно</b>, от имени «Тайного Санты».`
+    : `✍️ Напиши сообщение своему Санте (${q(ev)}) — я передам его. Санта знает, кто ты, а ты его — нет.`);
+}
+
+// ---------- обращения к организатору (012) ----------
+async function onSupportButton(k, [, kind, id]) {
+  const { db, user } = k;
+  if (kind === 'u') return onSupportAsk(k, id);
+  if (!user.is_admin) return k.refuse(ADMIN_ONLY);
+  const t = await threadById(db, id);
+  const ev = t ? await getEvent(db, t.event_id) : null;
+  if (!ev) return k.refuse(THREAD_NOT_FOUND);
+  const name = escapeHtml((await getUser(db, t.user_id))?.name || 'участник');
+  return kind === 'take' ? onSupportTake(k, t, ev, name) : onSupportAnswer(k, t, ev, name);
+}
+
+// Участник: «↩️ Ответить» под ответом организатора
+async function onSupportAsk(k, eventId) {
+  const { db, ctx, from } = k;
+  const ev = await getEvent(db, eventId);
+  if (!ev || !(await getMember(db, ev.id, from.id))) return k.refuse('Ты не участвуешь в этом событии.');
+  if (!chatWritable(ev)) return k.refuse(SUPPORT_READ_ONLY);
+  if (!supportAvailable(await ctx.users(), from.id)) return k.refuse('Сейчас некому написать: в боте нет других организаторов.');
+  await k.setPending(supportPending('u', ev.id));
+  return k.prompt(`✍️ Напиши сообщение организатору (${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
+}
+
+// Админ: «🙋 Взять»
+async function onSupportTake(k, t, ev, name) {
+  const settings = await k.ctx.settings();
+  const r = await take(k.ctx, ev, t.id);
+  if (!r.ok) return k.refuse(r.error);
+  await k.answer('🙋 Обращение твоё');
+  return k.send(msg(`🙋 Обращение <b>${name}</b> (${q(ev)}) теперь ведёшь ты. Ответь кнопкой ниже или в приложении.`, {
+    reply_markup: { inline_keyboard: [[
+      { text: '↩️ Ответить', callback_data: `sup:a:${t.id}` },
+      openAppButton(settings, '💬 Открыть', { event: ev.id, support: t.id }),
+    ]] },
+  }));
+}
+
+// Админ: «↩️ Ответить» — правило то же, что у ответа из приложения (replyBlocks), порядок и тексты — бота
+async function onSupportAnswer(k, t, ev, name) {
+  const blocks = replyBlocks(t, k.user, ev);
+  if (blocks.closed) return k.refuse(THREAD_CLOSED);
+  if (blocks.own) return k.refuse(OWN_THREAD);
+  if (blocks.other) return k.refuse(`Обращение ведёт ${(await getUser(k.db, t.assignee))?.name || 'другой админ'}.`);
+  if (blocks.readOnly) return k.refuse(SUPPORT_READ_ONLY);
+  await k.setPending(supportPending('a', t.id));
+  return k.prompt(`✍️ Напиши ответ <b>${name}</b> (обращение, ${q(ev)}).` + (t.assignee ? '' : ' Ответив, ты возьмёшь обращение себе.'));
+}
+
+// Решение по заявке на вступление (008): кнопки в сообщении админу
+async function onRequestButton(k, [, id, decision]) {
+  const approve = decision === 'a';
+  if (!k.user.is_admin) return k.answer(ADMIN_ONLY);
+  const r = await decideRequest(k.ctx, Number(id), k.from.id, approve);
+  if (!r.ok) return k.answer(r.error);
+  await k.answer(approve ? '✅ Принято' : '❌ Отклонено');
+  return k.send(msg(`${approve ? '✅ Заявка принята' : '❌ Заявка отклонена'}: <b>${escapeHtml(r.name)}</b>, ${q(r.ev)}.`));
+}
+
+async function onNotifyButton(k) {
+  await k.answer();
+  return k.send(msg(
+    `Уведомления о том, что подопечный изменил письмо (во всех событиях).\nСейчас: <b>${NOTIFY_LABELS[k.user.notify_mode] || NOTIFY_LABELS.sound}</b>`,
+    { reply_markup: { inline_keyboard: [Object.entries(NOTIFY_LABELS).map(([key, label]) => ({ text: label, callback_data: 'nm:' + key }))] } }
+  ));
+}
+
+async function onNotifyMode(k, [, mode]) {
+  if (!NOTIFY_LABELS[mode]) return k.answer();
+  await updateUser(k.db, k.from.id, { notify_mode: mode });
+  return k.answer('Сохранено: ' + NOTIFY_LABELS[mode]);
+}
+
+// Вид кнопки (callback_data) → обработчик; первый подошедший
+const BUTTONS = [
+  [/^msg:(ward|santa):(\d+)$/, onReplyButton],
+  [/^sup:(take|a|u):(\d+)$/, onSupportButton],
+  [/^req:(\d+):(a|r)$/, onRequestButton],
+  [/^notify$/, onNotifyButton],
+  [/^nm:(.*)$/s, onNotifyMode],
+];

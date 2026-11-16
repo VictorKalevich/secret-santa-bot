@@ -13,8 +13,9 @@ import { MAX_CHARS, tooLong } from './chat.js';
 
 const READ_ONLY = 'Событие завершено больше недели назад: обращения только для чтения.';
 const NOBODY = 'Сейчас некому написать: в боте нет других организаторов.';
-const CLOSED = 'Обращение уже закрыто.';
-const NOT_FOUND = 'Обращение не найдено.';
+export const CLOSED = 'Обращение уже закрыто.';
+export const NOT_FOUND = 'Обращение не найдено.';
+export const OWN_THREAD = 'Это твоё обращение — отвечать на него будут другие организаторы.';
 
 const fail = (error, status = 400) => ({ ok: false, error, status });
 const title = (ev) => q({ title: shortTitle(ev.title) });
@@ -44,6 +45,18 @@ const threadQuery = (db, eventId, id) => db.prepare('SELECT * FROM support_threa
 async function threadOf(db, eventId, id) {
   return threadQuery(db, eventId, id).first();
 }
+
+// Обращение по одному id — без события: кнопки и режим ответа бота знают только его (029)
+export const threadById = (db, id) => db.prepare('SELECT * FROM support_threads WHERE id = ?').bind(Number(id) || 0).first();
+
+// Что мешает организатору me ответить в обращение t события ev (029): одно правило для бота, ответа в API и признака
+// «можно писать» экрана обращения. Тексты и порядок отказов — у вызывающих (они прежние и в углах разные).
+export const replyBlocks = (t, me, ev) => ({
+  closed: t.status !== 'open',
+  own: t.user_id === me.tg_id,
+  other: !!t.assignee && t.assignee !== me.tg_id, // ведёт другой; ничьё берётся ответом
+  readOnly: !chatWritable(ev),
+});
 
 // Условия «обращение id …» для операторов batch (020: выражения целиком, скобки закрыты)
 const OPEN = "EXISTS (SELECT 1 FROM support_threads WHERE id = ? AND status = 'open')"; // открыто
@@ -221,7 +234,6 @@ export async function adminThread(ctx, ev, id) {
   if (t.assignee === me.tg_id && results.some((m) => !m.from_admin && !m.read_at)) {
     await db.prepare('UPDATE support_messages SET read_at = ? WHERE thread_id = ? AND from_admin = 0 AND read_at = 0').bind(Date.now(), t.id).run();
   }
-  const open = t.status === 'open';
   return {
     ok: true,
     thread: {
@@ -235,7 +247,7 @@ export async function adminThread(ctx, ev, id) {
       closed_at: t.closed_at,
       closed_by_name: t.closed_by ? displayName(byId.get(t.closed_by)) : '',
       // Писать: открыто, срок не вышел, ничьё (возьмётся ответом) или моё; своё обращение как автор — нет
-      writable: open && chatWritable(ev) && t.user_id !== me.tg_id && (!t.assignee || t.assignee === me.tg_id),
+      writable: !Object.values(replyBlocks(t, me, ev)).some(Boolean),
     },
     messages: results.map((m) => ({
       id: m.id, mine: m.sender === me.tg_id, from_admin: !!m.from_admin, author: displayName(byId.get(m.sender)), text: m.text, created_at: m.created_at,
@@ -263,7 +275,7 @@ function takeInto(free, db, users, ev, t, me, { participant = true } = {}) {
 const ledBy = (db, t, assignee) => atomic(db, OPEN, t.id).and(LED_BY, t.id, assignee);
 
 async function taken(db, t) {
-  const cur = await db.prepare('SELECT * FROM support_threads WHERE id = ?').bind(t.id).first();
+  const cur = await threadById(db, t.id);
   if (!cur || cur.status !== 'open') return fail(CLOSED);
   const who = await getUser(db, cur.assignee);
   return fail(`Обращение уже взял(а) ${displayName(who)}.`);
@@ -292,11 +304,12 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   if (tx.error) return fail(tx.error);
   const t = await threadOf(db, ev.id, id);
   if (!t) return fail(NOT_FOUND, 404);
-  if (t.status !== 'open') return fail(CLOSED);
-  if (t.user_id === me.tg_id) return fail('Это твоё обращение — отвечать на него будут другие организаторы.');
-  if (!chatWritable(ev)) return fail(READ_ONLY);
+  const blocks = replyBlocks(t, me, ev);
+  if (blocks.closed) return fail(CLOSED);
+  if (blocks.own) return fail(OWN_THREAD);
+  if (blocks.readOnly) return fail(READ_ONLY);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
-  if (t.assignee && t.assignee !== me.tg_id) return fail(`Обращение ведёт ${displayName(users.find((u) => u.tg_id === t.assignee))}.`);
+  if (blocks.other) return fail(`Обращение ведёт ${displayName(users.find((u) => u.tg_id === t.assignee))}.`);
   const now = Date.now();
   // Ничьё берётся этим ответом: уведомления о взятии — пока обращение ничьё, затем взятие (020)
   const open = atomic(db, OPEN, t.id);

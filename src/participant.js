@@ -14,6 +14,22 @@ const DELIVERY_MAX = 500;
 
 const no = (error) => ({ ok: false, error });
 
+// Меню бота: события человека с признаками «есть подопечный» и «есть Санта» — один запрос на любое число событий
+// (009, FR-913; 029 — из bot.js)
+export async function menuEvents(db, userId) {
+  const { results } = await db
+    .prepare(
+      `SELECT e.id, e.title, e.status, e.draw_done, m.wishlist,
+              EXISTS (SELECT 1 FROM pairs p WHERE p.event_id = e.id AND p.santa = ?1) AS has_ward,
+              EXISTS (SELECT 1 FROM pairs p WHERE p.event_id = e.id AND p.ward = ?1) AS has_santa
+         FROM members m JOIN events e ON e.id = m.event_id
+        WHERE m.user_id = ?1 ORDER BY e.created_at DESC`
+    )
+    .bind(userId)
+    .all();
+  return results;
+}
+
 // me: незарегистрированному — только registered: false; владельца вычисляет только для админа
 export async function homeView(ctx) {
   const { db, me } = ctx;

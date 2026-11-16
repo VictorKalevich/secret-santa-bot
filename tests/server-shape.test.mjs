@@ -131,11 +131,11 @@ const REFUSAL_EXEMPT = new Set(['result.js', 'index.js', 'api.js']);
 const BOT_MAX = 60;
 
 describe('029: бот', () => {
-  it('в src/bot.js нет запросов к базе — чтения функциями модулей', { todo: 'US2' }, () => {
+  it('в src/bot.js нет запросов к базе — чтения функциями модулей', () => {
     assert.deepEqual(sqlLines(source('bot.js')), []);
   });
 
-  it(`в src/bot.js нет функций длиннее ${BOT_MAX} строк`, { todo: 'US2' }, () => {
+  it(`в src/bot.js нет функций длиннее ${BOT_MAX} строк`, () => {
     assert.deepEqual(longFunctions(source('bot.js'), BOT_MAX), []);
   });
 
