@@ -60,6 +60,7 @@
     bindToggle(regToggle, async (on) => {
       await xapi('admin.registration', { open: on });
       toast(on ? 'Регистрация открыта' : 'Регистрация закрыта');
+      p.set('registration_open', on); // «Пригласить участников» и подсказка у заявок — на месте, без перестройки (030)
     });
     const linkInput = h('input', { class: 'ds-input', type: 'text', value: s.invite_link || 'Ссылки ещё нет: владелец бота должен один раз открыть /setup (см. README)', readonly: true });
     const copyBtn = ui.btn('📋 Копировать', 'secondary', 'ds-btn--sm');
@@ -133,10 +134,15 @@
           ui.hint(fmtTime(r.created_at))),
         pick));
     }
-    const hint = done
+    const hint = ui.hint(done
       ? 'Событие завершено — принять заявку нельзя, отклонить можно: человек получит ответ.'
-      : (s.registration_open ? null : 'Регистрация закрыта — принять заявку можно, когда откроешь её. Отклонить можно сейчас.');
-    return [ui.section(`Заявки · ${d.requests.length}`), hint ? ui.hint(hint, 'ds-hint--inset') : null, reqList].filter(Boolean);
+      : 'Регистрация закрыта — принять заявку можно, когда откроешь её. Отклонить можно сейчас.', 'ds-hint--inset');
+    if (!done) {
+      const sync = () => { hint.hidden = !!s.registration_open; };
+      sync();
+      p.watch('registration_open', sync);
+    }
+    return [ui.section(`Заявки · ${d.requests.length}`), hint, reqList];
   }
 
   // 010: удалённые организатором — при запрете возврата им можно точечно разрешить вернуться
@@ -168,16 +174,23 @@
     if (!d.other_events.length) return [];
     const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Из какого события…'), ...d.other_events.map((e) => h('option', { value: e.id }, e.title + (e.status === 'finished' ? ' (завершено)' : ''))));
     const inv = ui.btn('📨 Пригласить участников', 'secondary', 'ds-btn--block');
+    const hint = ui.hint('');
+    // Закрытая регистрация — значит никто (010): приглашения не рассылаются. После рассылки кнопка — снова по
+    // регистрации (её могли закрыть, пока шла рассылка), а не просто доступна
+    const sync = () => {
+      inv.disabled = !s.registration_open;
+      hint.textContent = s.registration_open
+        ? 'Пригласить участников прошлого события — например, ту же компанию на следующий год.'
+        : 'Пригласить участников прошлого события можно, когда регистрация открыта.';
+    };
     inv.addEventListener('click', async () => {
       if (!sel.value) return toast('Выбери событие');
       if (!(await confirmBox('Бот пришлёт участникам выбранного события (кого ещё нет здесь) сообщение с кнопкой вступления. Отправить?'))) return;
-      busy(inv, async () => { const r = await xapi('admin.event.invite_from', { from: +sel.value }); toast(r.count ? `Приглашения отправлены: ${r.count}` : 'Все уже здесь 👍'); });
+      busy(inv, async () => { const r = await xapi('admin.event.invite_from', { from: +sel.value }); toast(r.count ? `Приглашения отправлены: ${r.count}` : 'Все уже здесь 👍'); }).then(sync);
     });
-    // Закрытая регистрация — значит никто (010): приглашения не рассылаются
-    inv.disabled = !s.registration_open;
-    return [ui.card(ui.hint(s.registration_open
-      ? 'Пригласить участников прошлого события — например, ту же компанию на следующий год.'
-      : 'Пригласить участников прошлого события можно, когда регистрация открыта.'), sel, inv)];
+    sync();
+    p.watch('registration_open', sync);
+    return [ui.card(hint, sel, inv)];
   }
 
   // --- обращения участников (012): без текстов; переписка — в шторке обращения

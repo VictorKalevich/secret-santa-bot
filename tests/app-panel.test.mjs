@@ -4,7 +4,7 @@
 // checkRegistration в tests/screenshots.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { APP, where, partLines, indent, blockAt } from './support/app-source.mjs';
+import { APP, where, partLines, indent, code, blockAt } from './support/app-source.mjs';
 
 const PANEL = partLines('05-admin.js.txt');
 const PANEL_MAX = 100;
@@ -24,9 +24,38 @@ export function longPanelFunctions(text, [from, to] = PANEL, max = PANEL_MAX) {
   return found;
 }
 
+// ---------- 2. Переключатель, от значения которого зависит другая часть панели, обновляет её ----------
+// Переключатель: const имя = h('input', { … checked: s.ключ | d.ключ … }) и bindToggle(имя, …). Если s.ключ (d.ключ)
+// читается в панели где-то ещё, обработчик перестраивает панель (again/refresh) или сообщает set('ключ', …)
+export function togglesUpdate(text, [from, to] = PANEL) {
+  const lines = text.split('\n');
+  const found = [];
+  for (let i = from; i <= to; i++) {
+    const m = /\bbindToggle\((\w+),/.exec(code(lines[i]));
+    if (!m) continue;
+    let decl = i;
+    while (decl >= from && !new RegExp(`\\bconst ${m[1]} = h\\('input'`).test(lines[decl])) decl--;
+    const key = decl >= from && /\bchecked: ([sd])\.(\w+)/.exec(code(lines[decl]));
+    if (!key) continue;
+    const [a, b] = blockAt(lines, i);
+    const use = new RegExp(`\\b${key[1]}\\.${key[2]}\\b`);
+    let other = -1;
+    for (let j = from; j <= to && other < 0; j++) {
+      if (j !== decl && (j < a || j > b) && use.test(code(lines[j]))) other = j;
+    }
+    if (other < 0) continue;
+    const body = lines.slice(a, b + 1).map(code).join('\n');
+    if (!/\b(again|refresh)\(/.test(body) && !body.includes(`set('${key[2]}'`)) {
+      found.push([i + 1, `переключатель ${key[1]}.${key[2]}: от него зависит ${where(other + 1)}, а обработчик не перестраивает панель (again/refresh) и не сообщает set('${key[2]}', …)`]);
+    }
+  }
+  return found;
+}
+
 // ---------- тесты ----------
 const RULES = [
   [`1. функции панели не длиннее ${PANEL_MAX} строк`, longPanelFunctions],
+  ['2. переключатель, от которого зависит другая часть панели, обновляет её', togglesUpdate],
 ];
 for (const [name, rule] of RULES) {
   test(name, () => {
@@ -48,4 +77,27 @@ test('от противного 1: длинная функция панели н
   assert.deepEqual(at(longPanelFunctions(text, [0, 10], 5)), [5]);
   assert.deepEqual(longPanelFunctions(text, [0, 10], 6), []);
   assert.deepEqual(at(longPanelFunctions(text, [0, 16], 5)), [5, 12]);
+});
+
+test('от противного 2: переключатель без обновления зависимой части находится', () => {
+  const text = lines(
+    '  function adminA(p) {',
+    "    const reg = h('input', { type: 'checkbox', checked: s.registration_open });",
+    '    bindToggle(reg, async (on) => {',
+    "      await xapi('admin.registration', { open: on }); // again() в комментарии не считается",
+    '    });',
+    "    const appr = h('input', { type: 'checkbox', checked: s.approval });",
+    "    bindToggle(appr, async (on) => { await xapi('admin.game', { approval: on }); });",
+    "    const part = h('input', { type: 'checkbox', checked: d.me_member });",
+    '    bindToggle(part, async (on) => { await refresh(); });',
+    '  }',
+    '  function adminB(p) {',
+    '    inv.disabled = !s.registration_open;',
+    '    vault(d.me_member);',
+    '  }');
+  assert.deepEqual(at(togglesUpdate(text, [0, 13])), [3]);
+  assert.deepEqual(togglesUpdate(text.replace('{ open: on });', "{ open: on }); p.set('registration_open', on);"), [0, 13]), []);
+  assert.deepEqual(togglesUpdate(text.replace('{ open: on });', '{ open: on }); await again();'), [0, 13]), []);
+  // Зависимой части нет — обновлять нечего
+  assert.deepEqual(togglesUpdate(text, [0, 9]), []);
 });

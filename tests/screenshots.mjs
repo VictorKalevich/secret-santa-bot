@@ -458,6 +458,65 @@ try {
     else console.log('✔ недочёты интерфейса (026): панель после «Сохранить» и завершения со стороны, заголовок своей шторки, экран ошибки вместо загрузчика');
   }
 
+  // 030: переключатель «Регистрация открыта» обновляет панель на месте (правило по коду — tests/app-panel.test.mjs).
+  // Событие B — до жеребьёвки: заявка Стёпы, прошлое событие A. В конце регистрация снова открыта.
+  async function checkRegistration() {
+    const problems = [];
+    const OPEN = 'Пригласить участников прошлого события — например, ту же компанию на следующий год.';
+    const CLOSED = 'Пригласить участников прошлого события можно, когда регистрация открыта.';
+    const REQ = 'Регистрация закрыта — принять заявку можно, когда откроешь её. Отклонить можно сейчас.';
+    // Состояние панели: кнопка приглашения, видимые подсказки, выбор, черновик, прокрутка, та же ли панель (не перестроена)
+    const look = (page) => page.evaluate(([open, closed, req]) => {
+      const btn = [...document.querySelectorAll('#main .ds-btn')].find((b) => b.textContent.includes('Пригласить участников'));
+      const shown = (t) => [...document.querySelectorAll('#main .ds-hint')].some((x) => x.textContent === t && x.offsetParent !== null);
+      const sel = [...document.querySelectorAll('#main select')].find((s) => s.options[0].text === 'Из какого события…');
+      return {
+        disabled: btn.disabled, open: shown(open), closed: shown(closed), req: shown(req),
+        picked: sel.value, draft: document.querySelector('#main textarea[placeholder^="Например: собираемся"]').value,
+        y: Math.round(window.scrollY), same: window.__panel === document.querySelector('#main').firstElementChild,
+        loader: !!document.querySelector('#main .ds-loader'),
+      };
+    }, [OPEN, CLOSED, REQ]);
+    const expect = (what, got, want) => {
+      for (const [k, v] of Object.entries(want)) if (got[k] !== v) problems.push(`${what}: ${k} = ${JSON.stringify(got[k])}, ожидалось ${JSON.stringify(v)}`);
+    };
+    const toggle = (page) => page.locator('label.ds-switch:has(input[aria-label="Регистрация открыта"])').click();
+
+    await onPage(problems, 'переключатель регистрации', admin, B, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-section-title', { hasText: 'Журнал' }).waitFor({ timeout: 5000 });
+      await page.locator('#main select', { has: page.locator('option', { hasText: 'Из какого события…' }) }).selectOption(String(A));
+      await page.locator('#main textarea[placeholder^="Например: собираемся"]').fill('Черновик объявления');
+      // Переключатель — в середине экрана: щелчок не прокручивает страницу сам, сдвиг прокрутки — от панели
+      const y = await page.locator('input[aria-label="Регистрация открыта"]').evaluate((e) => {
+        e.closest('.ds-row').scrollIntoView({ block: 'center' });
+        window.__panel = document.querySelector('#main').firstElementChild;
+        return Math.round(window.scrollY);
+      });
+      const kept = { picked: String(A), draft: 'Черновик объявления', y, same: true, loader: false };
+      expect('до щелчка', await look(page), { disabled: false, open: true, closed: false, req: false, ...kept });
+
+      await toggle(page);
+      await page.locator('#toast', { hasText: 'Регистрация закрыта' }).waitFor({ timeout: 5000 });
+      expect('регистрация закрыта', await look(page), { disabled: true, open: false, closed: true, req: true, ...kept });
+
+      await toggle(page);
+      await page.locator('#toast', { hasText: 'Регистрация открыта' }).waitFor({ timeout: 5000 });
+      expect('регистрация открыта', await look(page), { disabled: false, open: true, closed: false, req: false, ...kept });
+
+      // Отказ сервера: переключатель возвращается, кнопка и подсказки прежние
+      await page.route('**/api/admin.registration', (r) => r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Проверка: отказ' }) }));
+      await toggle(page);
+      await page.locator('#toast', { hasText: 'Проверка: отказ' }).waitFor({ timeout: 5000 });
+      await page.waitForTimeout(200);
+      if (!(await page.locator('input[aria-label="Регистрация открыта"]').isChecked())) problems.push('отказ сервера: переключатель не вернулся');
+      expect('отказ сервера', await look(page), { disabled: false, open: true, closed: false, req: false, ...kept });
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'переключатель регистрации (030): ' + x));
+    else console.log('✔ переключатель регистрации (030): кнопка приглашения и подсказки — сразу, без перестройки; выбор, черновик и прокрутка на месте; отказ — всё прежнее');
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -581,6 +640,7 @@ try {
   await shot(people[1], '16-home-participant', { dark: true });
   await checkSheetScroll(admin, A);
   await checkUiFixes();
+  await checkRegistration();
   console.log('Скриншоты сохранены в test-results/');
   if (colorProblems.length) {
     console.error('✘ Цвета не соответствуют дизайн-системе:\n' + colorProblems.join('\n'));
