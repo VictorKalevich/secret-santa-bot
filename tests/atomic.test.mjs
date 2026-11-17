@@ -1,12 +1,13 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 49 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 53 проверки «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
 // проверка повторов без изменений), одиннадцать — повторные нажатия (024: объявление, напоминания и приглашение —
 // раз в минуту, роли, владение, полный сброс, новая семья), по одной — переименование (025) и сохранение семьи (034):
-// запись журнала — только при настоящем изменении. Известный дефект — todo с номером фичи, которая его чинит: фича
+// запись журнала — только при настоящем изменении; четыре — выход из события и своё имя (035: выход ×2, выход ↔
+// жеребьёвка в обоих порядках, имя ×2). Известный дефект — todo с номером фичи, которая его чинит: фича
 // снимает пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -575,5 +576,48 @@ describe('атомарность: ссылка владельца и «пода�
     const santa = all.find((u) => u.id === p.santa);
     await z.twice(ward, 'ward.received', { event: z.ev.id, received: true }, { sameMoment: true });
     assert.equal(z.sent(santa, 'получил подарок'), 1, 'сообщений Санте');
+  });
+});
+
+// 035: выход участника — по прежнему состоянию (событие идёт, жеребьёвки нет, человек участник; сообщения и журнал —
+// перед захватом, строка участника — последней); своё имя — renameUser (025)
+describe('атомарность: выход из события и своё имя (035)', () => {
+  const once = { sameMoment: true };
+  const leave = (z, u) => () => z.w.api(u, 'event.leave', { event: z.ev.id, confirm: 'ВЫЙТИ' }, true);
+  const member = (z, u) => z.w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, u.id).length === 1;
+
+  it('event.leave ×2 в одну миллисекунду — один выход: одно сообщение каждому организатору, одна запись', async () => {
+    const z = await world();
+    const rs = await z.twice(z.people[0], 'event.leave', { event: z.ev.id, confirm: 'ВЫЙТИ' }, once);
+    assert.deepEqual(sorted(rs), [200, 403]);
+    assert.equal(rs.find((r) => r.status === 403).data.error, 'Ты не участвуешь в этом событии.');
+    assert.ok(!member(z, z.people[0]));
+    assert.equal(z.audit('member.leave'), 1, 'записей журнала');
+    for (const a of [boss, adm, adm2]) assert.equal(z.sent(a, 'выходит из события'), 1, 'организатору ' + a.name);
+  });
+  it('выход ↔ жеребьёвка, выход пишется первым — жеребьёвка просит повторить, в парах нет вышедшего', async () => {
+    const z = await world();
+    const rs = await z.w.together([leave(z, z.people[0]), () => z.w.api(boss, 'admin.draw', { event: z.ev.id }, true)]);
+    assert.deepEqual(statuses(rs), [200, 400]);
+    assert.ok(!member(z, z.people[0]));
+    assert.equal(z.orphans(), 0, 'пар с не-участником');
+  });
+  it('выход ↔ жеребьёвка, жеребьёвка пишется первой — выход отказывает, человек в событии и в парах', async () => {
+    const z = await world();
+    const rs = await z.w.together([leave(z, z.people[0]), () => z.w.api(boss, 'admin.draw', { event: z.ev.id }, true)], { writeOrder: [1, 0] });
+    assert.deepEqual(statuses(rs), [400, 200]);
+    assert.equal(rs[0].data.error, 'Жеребьёвка уже прошла — выйти можно только через организатора: напиши ему.');
+    assert.ok(member(z, z.people[0]), 'остался участником');
+    assert.equal(z.w.query('SELECT COUNT(*) AS n FROM pairs WHERE event_id = ? AND santa = ?', z.ev.id, z.people[0].id)[0].n, 1, 'в парах');
+    assert.equal(z.orphans(), 0);
+    assert.equal(z.audit('member.leave'), 0, 'записей журнала');
+    assert.equal(z.sent(boss, 'выходит из события'), 0, 'сообщений');
+  });
+  it('name.set ×2 с новым именем в одну миллисекунду — одна запись журнала', async () => {
+    const z = await world();
+    const rs = await z.twice(z.people[0], 'name.set', { name: 'Игрок Первый' }, once);
+    assert.deepEqual(statuses(rs), [200, 200]);
+    assert.equal(z.w.query('SELECT name FROM users WHERE tg_id = ?', z.people[0].id)[0].name, 'Игрок Первый');
+    assert.equal(z.audit('rename'), 1, 'записей журнала');
   });
 });

@@ -24,9 +24,9 @@ function rowProblems(name, row) {
   return p;
 }
 
-test('таблица действий: 59 строк (13 участника, 46 admin.*), каждая — по правилам', () => {
+test('таблица действий: 61 строка (15 участника — с 035, 46 admin.*), каждая — по правилам', () => {
   const names = Object.keys(ACTIONS);
-  assert.equal(names.length, 59);
+  assert.equal(names.length, 61);
   assert.equal(names.filter((a) => a.startsWith('admin.')).length, 46);
   assert.deepEqual(names.flatMap((n) => rowProblems(n, ACTIONS[n])), []);
 });
@@ -38,9 +38,9 @@ test('таблица действий: действия владельца и с
     'admin.reset.full', 'admin.role.grant', 'admin.role.revoke', 'admin.transfer', 'admin.vault.pairs', 'admin.vault.person',
   ]);
   const words = Object.fromEntries(Object.entries(ACTIONS).filter(([, r]) => r.confirm).map(([a, r]) => [a, r.confirm[0]]));
-  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер
+  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер; 035: выход из события — ВЫЙТИ
   assert.deepEqual(words, {
-    'admin.draw.cancel.force': 'ОТМЕНА', 'admin.event.delete': 'УДАЛИТЬ', 'admin.vault.person': 'ОТКРЫТЬ',
+    'event.leave': 'ВЫЙТИ', 'admin.draw.cancel.force': 'ОТМЕНА', 'admin.event.delete': 'УДАЛИТЬ', 'admin.vault.person': 'ОТКРЫТЬ',
     'admin.vault.pairs': 'ОТКРЫТЬ', 'admin.reset.full': 'СБРОС',
   });
 });

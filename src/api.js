@@ -6,7 +6,7 @@
 
 import { getUser, updateUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
-import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW } from './format.js';
+import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
 import { isFinished, publicEvent } from './status.js';
 import { openContext } from './context.js';
 import {
@@ -16,7 +16,9 @@ import {
 import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw } from './pairs.js';
 import { sendChatMessage, chatHistory } from './chat.js';
 import { grantAdmin, revokeAdmin, transferOwnership, transferAccount } from './roles.js';
-import { saveFamily, deleteFamily, decideRequest, familiesList, participate, allowRemoved } from './membership.js';
+import {
+  saveFamily, deleteFamily, decideRequest, familiesList, participate, allowRemoved, leaveEvent, LEAVE_FINISHED,
+} from './membership.js';
 import { vaultPerson, vaultPairs } from './vault.js';
 import {
   participantView, sendFromUser, closeByUser, adminThread, take, sendFromAdmin, pass, closeByAdmin,
@@ -41,6 +43,12 @@ const ROLES_OWNER = onlyOwner('Назначать и снимать админи
 const VAULT_OWNER = 'Служебный просмотр доступен только владельцу бота.';
 const LETTER_CLOSED = 'Событие завершено: письмо теперь только для чтения.';
 const MARK_CLOSED = 'Событие завершено: отметка только для чтения.';
+// Имя — одна строка до 40 символов, как при регистрации в боте: своё (035) и от организатора
+const NAME_RULE = 'Имя должно быть от 1 до 40 символов';
+const validName = (raw) => {
+  const name = oneLine(raw);
+  return name && name.length <= 40 ? name : '';
+};
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
@@ -76,6 +84,16 @@ export const ACTIONS = {
       return {};
     },
   },
+  // 035: своё имя — журнал только при настоящем изменении (renameUser), сообщений нет
+  'name.set': {
+    role: USER,
+    async run(ctx, body) {
+      const name = validName(body.name);
+      if (!name) return refuse(NAME_RULE);
+      await renameUser(ctx, ctx.me, name, ctx.me.tg_id);
+      return { name };
+    },
+  },
   'event.get': { role: VIEWER, event: true, finished: true, run: (ctx, body, ev, member) => eventView(ctx, ev, member) },
   'wishlist.save': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await saveWishlist(ctx, ev, member, body.text)) },
   // Свой порядок отказов: «адрес не нужен» раньше «завершено» (в модуле)
@@ -108,6 +126,14 @@ export const ACTIONS = {
     run: async (ctx, body, ev) => out(await sendFromUser(ctx, ev, body.text), (r) => ({ thread: r.thread, message: r.message })),
   },
   'support.close': { role: MEMBER, event: true, finished: true, run: async (ctx, body, ev) => out(await closeByUser(ctx, ev), none) },
+  // 035: выход — только до жеребьёвки (после неё — через организатора), слово ВЫЙТИ проверяет и сервер
+  'event.leave': {
+    role: MEMBER,
+    event: true,
+    finished: LEAVE_FINISHED,
+    confirm: ['ВЫЙТИ', 'Чтобы выйти, введи слово ВЫЙТИ.'],
+    run: async (ctx, body, ev) => out(await leaveEvent(ctx, ev), none),
+  },
 
   // ---------- администратор: общие (без события) ----------
   'admin.events.create': {
@@ -139,8 +165,8 @@ export const ACTIONS = {
   'admin.rename': {
     role: ADMIN,
     async run(ctx, body) {
-      const name = oneLine(body.name);
-      if (!name || name.length > 40) return refuse('Имя должно быть от 1 до 40 символов');
+      const name = validName(body.name);
+      if (!name) return refuse(NAME_RULE);
       const target = await getUser(ctx.db, Number(body.id));
       if (!target) return refuse('Участник не найден');
       // Администраторов и владельца переименовывает только владелец; себя — любой админ (006, FR-613)
@@ -389,7 +415,7 @@ export async function handleApi(request, env, action) {
   let member = null;
   if (!admin) {
     member = await getMember(db, ev.id, me.tg_id);
-    if (!member && !(row.role === VIEWER && me.is_admin)) return fail('Ты не участвуешь в этом событии.', 403);
+    if (!member && !(row.role === VIEWER && me.is_admin)) return fail(NOT_MEMBER, 403);
   }
   if (isFinished(ev) && row.finished !== true) return fail(row.finished);
   // Владелец — после «событие завершено»: админ на завершённом событии получает 400, а не 403

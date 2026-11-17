@@ -2,9 +2,9 @@
 
 import {
   getEvent, addMemberStmt, enqueueStmt, auditStmt, clearRemovedStmt, isRemoved,
-  memberDataDeleteStmts,
+  memberDataDeleteStmts, eventQuery, memberQuery,
 } from './db.js';
-import { msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine } from './format.js';
+import { msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine, NOT_MEMBER } from './format.js';
 import { isFinished } from './status.js';
 import { atomic } from './claim.js';
 import { no } from './result.js';
@@ -160,6 +160,32 @@ export async function participate(ctx, ev, on, actor) {
   beforeDraw.claim(beforeDraw.audit(ev.id, actor, 'participate', 'не участвует'));
   beforeDraw.add(...memberDataDeleteStmts(db, ev.id, actor, ...beforeDraw.guard));
   return (await beforeDraw.run()).won ? { ok: true } : no(AFTER_DRAW);
+}
+
+const LEAVE_AFTER_DRAW = 'Жеребьёвка уже прошла — выйти можно только через организатора: напиши ему.';
+export const LEAVE_FINISHED = 'Событие завершено — выйти из него уже нельзя.';
+
+// Выход участника из эвента (035): только до жеребьёвки и пока эвент идёт — проверено в момент записи, как выход админа
+// (018). По прежнему состоянию (020): сообщения организаторам и журнал — перед захватом, пока человек ещё участник;
+// данные участия — по списку REGISTRY, строка участника — последней (захват). Отметку «удалён» не ставим: вернуться можно
+// по ссылке. Второй из одновременных выходов видит, что человек уже не участник, и ничего не рассылает.
+export async function leaveEvent(ctx, ev) {
+  const { db, me } = ctx;
+  if (ev.draw_done) return no(LEAVE_AFTER_DRAW);
+  const { users, settings } = await ctx.read({ users: true, settings: true });
+  const going = atomic(db, "EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND status = 'active')", ev.id)
+    .and('EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)', ev.id, me.tg_id);
+  for (const a of adminRecipients(users, [me.tg_id])) {
+    going.enqueue(a.tg_id, msg(`🚪 <b>${escapeHtml(displayName(me))}</b> выходит из события ${q(ev)}.`,
+      appKeyboard(settings, '🛠 Открыть событие', { event: ev.id })));
+  }
+  going.audit(ev.id, me.tg_id, 'member.leave', displayName(me));
+  going.claim(going.add(...memberDataDeleteStmts(db, ev.id, me.tg_id, ...going.guard)));
+  if ((await going.run()).won) return { ok: true };
+  const r = await ctx.read({ ev: eventQuery(db, ev.id), member: memberQuery(db, ev.id, me.tg_id) });
+  const [cur] = r.ev;
+  if (!cur || !r.member.length) return no(NOT_MEMBER, 403);
+  return no(isFinished(cur) ? LEAVE_FINISHED : LEAVE_AFTER_DRAW);
 }
 
 // Разрешить удалённому организатором вернуться по ссылке (010)

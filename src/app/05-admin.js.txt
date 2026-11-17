@@ -696,20 +696,8 @@
     const { s, me, done, xapi, refresh } = p;
     if (!me.is_owner) return [];
     // keep (012) — что останется (необязательно): отдельной строкой под списком удаляемого
-    const typed = (title, lines, word, label, action, after, keep = '') => () => {
-      const inp = h('input', { class: 'ds-input', type: 'text', placeholder: `Введи слово ${word}`, autocomplete: 'off' });
-      const go = ui.btn(label, 'danger', 'ds-btn--block');
-      go.disabled = true;
-      inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== word; });
-      go.addEventListener('click', async () => {
-        if (!(await confirmBox(`${title}: точно? Это нельзя отменить.`))) return;
-        busy(go, async () => { const r = await xapi(action, { confirm: word }); closeSheet(); await after(r); });
-      });
-      openSheet(title, [
-        h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Будет удалено без возможности восстановления:'), h('ul', { class: 'ds-bullets' }, lines.map((l) => h('li', {}, l)))),
-        keep ? ui.hint(keep) : null,
-        inp, go]);
-    };
+    const typed = (title, lines, word, label, action, after, keep = '') => () =>
+      typedSheet(title, { lines, keep, word, label, sure: true, run: (w) => xapi(action, { confirm: w }), after });
     const resetBtn = ui.btn('🧨 Полный сброс', 'danger', 'ds-btn--block');
     resetBtn.addEventListener('click', typed('Полный сброс', [
       'все участники этого события, кроме тебя;',

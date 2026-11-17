@@ -245,13 +245,14 @@ export function confirmProblems(text) {
   return found;
 }
 
-// ---------- 7. Без копий: одно поле ответа, один помощник правил пар ----------
+// ---------- 7. Без копий: одно поле ответа, один помощник правил пар, одна шторка со словом (035) ----------
 const ONCE = [
   ['поле ответа (ds-composer__input) — только composerParts', /ds-composer__input/g],
   ['разбор взаимных пар правил — только rulePairs', /\.giver === \w+\.receiver && \w+\.receiver === \w+\.giver/g],
   ['флажок «и наоборот» — только ruleForm', /'и наоборот \(в обе стороны\)'/g],
   ['проверка «Выбери двух людей» — только ruleForm', /'Выбери двух людей'/g],
   ['проверка «Нужны два разных человека» — только ruleForm', /'Нужны два разных человека'/g],
+  ['шторка удаления со словом («Будет удалено без возможности восстановления») — только typedSheet', /'Будет удалено без возможности восстановления:'/g],
 ];
 export function copies(text) {
   const lineOf = (pos) => text.slice(0, pos).split('\n').length;
@@ -271,7 +272,7 @@ const RULES = [
   ['4. без вечного загрузчика: асинхронные экраны через screen(), render и closeSheet ловят ошибки', screensGuarded],
   ['5. все поля состояния объявлены в начальном состоянии', stateDeclared],
   ['6. тексты подтверждений помещаются в окно при самых длинных данных, длиннее — с «…»', confirmProblems],
-  ['7. одно поле ответа и один помощник правил пар', copies],
+  ['7. одно поле ответа, один помощник правил пар, одна шторка со словом подтверждения', copies],
 ];
 for (const [name, rule] of RULES) {
   test(name, () => {
@@ -399,13 +400,15 @@ test('от противного 6: длинный текст, подстанов
   assert.deepEqual(at(confirmProblems('  function confirmBox(text) { return text; }')), [1]);
 });
 
-test('от противного 7: вторая копия поля ответа и формы правил находится', () => {
+test('от противного 7: вторая копия поля ответа, формы правил и шторки со словом находится', () => {
   const bad = lines(
     "  const ta = ui.textarea({ class: 'ds-input ds-composer__input' });",
     "  const tb = ui.textarea({ class: 'ds-input ds-composer__input' });",
     "  const m1 = rows.some((x) => x.giver === e.receiver && x.receiver === e.giver);",
     "  const m2 = rows.some((x) => x.giver === f.receiver && x.receiver === f.giver);",
     "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');",
-    "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');");
-  assert.deepEqual(at(copies(bad)), [2, 4, 6, 6, 6]);
+    "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');",
+    "  h('input', { placeholder: `Введи слово ${word}` }); h('b', {}, 'Будет удалено без возможности восстановления:');",
+    "  h('input', { placeholder: `Введи слово ВЫЙТИ` }); h('b', {}, 'Будет удалено без возможности восстановления:');");
+  assert.deepEqual(at(copies(bad)), [2, 4, 6, 6, 6, 8]);
 });

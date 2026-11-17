@@ -82,7 +82,7 @@
   // ---------- журнал действий (007) ----------
   const AUDIT_LABELS = {
     'event.create': '🎄 Создано событие', 'event.settings': '⚙️ Параметры', registration: '🔓 Регистрация', 'invite.regen': '🔄 Новая ссылка',
-    participate: '🙋 Участие организатора', 'member.remove': '🗑 Удалён участник', 'member.insert': '➕ Вписан в жеребьёвку',
+    participate: '🙋 Участие организатора', 'member.remove': '🗑 Удалён участник', 'member.leave': '🚪 Выход из события', 'member.insert': '➕ Вписан в жеребьёвку',
     'exclusion.add': '🚧 Исключение добавлено', 'exclusion.del': '✕ Исключение удалено', draw: '🎲 Жеребьёвка',
     'fixed.add': '📌 Пара закреплена', 'fixed.del': '✕ Закреплённая пара убрана',
     'draw.auto': '🎲 Автожеребьёвка', 'draw.auto.failed': '⚠️ Автожеребьёвка не прошла', 'draw.cancel': '↩️ Жеребьёвка отменена',

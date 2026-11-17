@@ -405,6 +405,16 @@ describe('после действия не остаётся строк собы�
     assert.ok(personRows(w, p2.id, A)['members.user_id'], 'участие в A осталось');
   }));
 
+  it('выход участника до жеребьёвки (035): в событии — только прошлая заявка, отметки «удалён» нет', () => seededRun(async () => {
+    const { w, A, B } = await rich();
+    assert.ok(kept(personRows(w, p2.id, B)).length >= 4, 'у p2 в B были данные');
+    const r = await w.api(p2, 'event.leave', { event: B, confirm: 'ВЫЙТИ' }, true);
+    assert.equal(r.status, 200);
+    assert.deepEqual(kept(personRows(w, p2.id, B)), ['join_requests.user_id']);
+    assert.deepEqual(orphans(w), {});
+    assert.ok(personRows(w, p2.id, A)['members.user_id'], 'участие в A осталось');
+  }));
+
   it('перенос: старый аккаунт остаётся только в очереди; данные и ссылки «кто сделал» — у нового (025)', () => seededRun(async () => {
     const { w, A, B, C } = await rich();
     const before = kept(personRows(w, p1.id), STAYS);

@@ -4576,6 +4576,170 @@
   "extra forged": {
    "status": 401,
    "error": "Не удалось проверить вход. Открой приложение заново из чата с ботом."
+  },
+  "035 stranger name.set": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "035 stranger event.leave": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "035 outsider name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 outsider event.leave": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "035 member name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 member event.leave": {
+   "status": 400,
+   "error": "Чтобы выйти, введи слово ВЫЙТИ."
+  },
+  "035 admin name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 admin event.leave": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "035 owner name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 owner event.leave": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "035 missing-owner name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 missing-owner event.leave": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "035 missing-admin name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 missing-admin event.leave": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "035 missing-member name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 missing-member event.leave": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "035 none-owner name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 none-owner event.leave": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "035 none-admin name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 none-admin event.leave": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "035 none-member name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 none-member event.leave": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "035 finished-owner name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 finished-owner event.leave": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "035 finished-admin name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 finished-admin event.leave": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "035 finished-member name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 finished-member event.leave": {
+   "status": 400,
+   "error": "Событие завершено — выйти из него уже нельзя."
+  },
+  "035 finished-delivery-member name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 finished-delivery-member event.leave": {
+   "status": 400,
+   "error": "Событие завершено — выйти из него уже нельзя."
+  },
+  "035 finished-old-owner name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 finished-old-owner event.leave": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "035 finished-old-admin name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 finished-old-admin event.leave": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "035 finished-old-member name.set": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 finished-old-member event.leave": {
+   "status": 400,
+   "error": "Событие завершено — выйти из него уже нельзя."
+  },
+  "035 extra leave-word-wrong": {
+   "status": 400,
+   "error": "Чтобы выйти, введи слово ВЫЙТИ."
+  },
+  "035 extra leave-word-finished": {
+   "status": 400,
+   "error": "Событие завершено — выйти из него уже нельзя."
+  },
+  "035 extra leave-after-draw": {
+   "status": 400,
+   "error": "Жеребьёвка уже прошла — выйти можно только через организатора: напиши ему."
+  },
+  "035 extra name-blank": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
+  },
+  "035 extra name-long": {
+   "status": 400,
+   "error": "Имя должно быть от 1 до 40 символов"
   }
  }
 }

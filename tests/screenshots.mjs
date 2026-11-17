@@ -374,7 +374,7 @@ try {
 
     await onPage(problems, 'отступ над «Вопрос решён»', people[3], A, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
-      await page.locator('.ds-btn', { hasText: 'Написать организатору' }).click();
+      await page.locator('.ds-btn', { hasText: 'Написать организатору' }).first().click();
       const btn = page.locator('.ds-sheet .ds-btn', { hasText: 'Вопрос решён' });
       await btn.waitFor({ timeout: 5000 });
       const a = await page.locator('.ds-sheet .ds-composer').boundingBox();
@@ -772,6 +772,98 @@ addEventListener('message', (e) => {
     if (!TG_SCRIPT.text) console.log(`⚠ CSP (032): настоящий скрипт Telegram не скачан (${TG_SCRIPT.error}) — проверка фрейма с ним пропущена`);
   }
 
+  // 035: своё имя на главном экране и выход из события со словом ВЫЙТИ (правило по коду — tests/app-ui.test.mjs, 7). Свои
+  // события: L — до жеребьёвки (Тимур выходит), D — с жеребьёвкой (Юля видит подсказку); «Опасная зона» — та же шторка
+  // со словом и со вторым окном «точно?» (отказ в нём ничего не сбрасывает)
+  async function checkSelfService() {
+    const problems = [];
+    const timur = { id: 140, name: 'Тимур', username: 'timur' };
+    const yulia = { id: 141, name: 'Юля', username: 'yulia' };
+    const L = (await w.api(admin, 'admin.events.create', { title: 'Выход' })).event.id;
+    const codeL = await inv(L);
+    for (const p of [timur, yulia]) { await w.say(p, '/start ' + codeL); await w.say(p, p.name); }
+    const D = (await w.api(admin, 'admin.events.create', { title: 'Уже с жеребьёвкой' })).event.id;
+    const codeD = await inv(D);
+    for (const p of [timur, yulia]) await w.say(p, '/start ' + codeD);
+    await w.api(admin, 'admin.participate', { event: D, on: true });
+    await w.api(admin, 'admin.draw', { event: D });
+    const member = (u, ev) => w.query(`SELECT 1 FROM members WHERE event_id = ${Number(ev)} AND user_id = ${u.id}`).length === 1;
+    const leaveBtn = (page) => page.locator('#main .ds-btn--danger', { hasText: 'Выйти из события' });
+
+    await shot(timur, '30-profile');
+    await shot(timur, '30-profile-name', { fullPage: false, before: (p) => p.locator('#main .ds-btn', { hasText: 'Изменить имя' }).click() });
+    await shot(timur, '31-leave', { event: L, tab: 'Инфо', fullPage: false, before: async (p) => {
+      await leaveBtn(p).click();
+      await p.locator('.ds-sheet .ds-input').fill('ВЫЙТИ');
+    } });
+    await shot(yulia, '32-leave-after-draw', { event: D, tab: 'Инфо' });
+
+    await onPage(problems, 'профиль', timur, null, async (page) => {
+      const titles = await page.locator('#main .ds-section-title').allTextContents();
+      if (titles.indexOf('Профиль') < 0 || titles.indexOf('Профиль') !== titles.indexOf('Уведомления') - 1) problems.push(`профиль: разделы ${titles.join(', ')}`);
+      await page.locator('#main .ds-btn', { hasText: 'Изменить имя' }).click();
+      await page.locator('.ds-sheet__title', { hasText: 'Твоё имя' }).waitFor({ timeout: 3000 });
+      const input = page.locator('.ds-sheet .ds-input');
+      if ((await input.inputValue()) !== 'Тимур') problems.push('профиль: в поле не текущее имя');
+      if ((await input.getAttribute('maxlength')) !== '40') problems.push('профиль: поле без maxlength 40');
+      await input.fill('  Тимур   Ш. ');
+      await page.locator('.ds-sheet .ds-btn', { hasText: 'Сохранить' }).click();
+      await page.locator('#toast', { hasText: 'Имя сохранено' }).waitFor({ timeout: 5000 });
+      if (await page.locator('.ds-sheet').count()) problems.push('профиль: шторка не закрылась');
+      const hello = await page.locator('#heroSub').textContent();
+      if (hello !== 'Привет, Тимур Ш.!') problems.push(`профиль: приветствие «${hello}»`);
+      if (!(await page.locator('#main .ds-text-strong', { hasText: 'Тимур Ш.' }).count())) problems.push('профиль: в разделе прежнее имя');
+      const saved = w.query(`SELECT name FROM users WHERE tg_id = ${timur.id}`)[0].name;
+      if (saved !== 'Тимур Ш.') problems.push(`профиль: на сервере «${saved}»`);
+    });
+
+    await onPage(problems, 'выход до жеребьёвки', timur, L, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
+      await leaveBtn(page).click();
+      await page.locator('.ds-sheet__title', { hasText: 'Выйти из события' }).waitFor({ timeout: 3000 });
+      const go = page.locator('.ds-sheet .ds-btn--danger', { hasText: 'Выйти' });
+      const input = page.locator('.ds-sheet .ds-input');
+      if (!(await go.isDisabled())) problems.push('выход: кнопка доступна без слова');
+      await input.fill('выйт');
+      if (!(await go.isDisabled())) problems.push('выход: кнопка доступна с неполным словом');
+      await input.fill(' выйти ');
+      if (await go.isDisabled()) problems.push('выход: кнопка недоступна со словом');
+      await go.click(); // второго окна нет: окно браузера Playwright закрыл бы отказом — выхода бы не было
+      await page.locator('#toast', { hasText: 'Ты больше не участвуешь в событии «Выход»' }).waitFor({ timeout: 5000 });
+      await page.locator('#main .ds-section-title', { hasText: 'Мои события' }).waitFor({ timeout: 5000 });
+      if (member(timur, L)) problems.push('выход: на сервере всё ещё участник');
+      if (!w.texts(admin).some((t) => t === '🚪 <b>Тимур Ш.</b> выходит из события «Выход».')) problems.push('выход: организатору нет сообщения');
+    });
+
+    await onPage(problems, 'выход после жеребьёвки', yulia, D, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
+      await page.locator('#main .ds-section-title', { hasText: 'Выход из события' }).waitFor({ timeout: 3000 });
+      if (await leaveBtn(page).count()) problems.push('после жеребьёвки: есть кнопка выхода');
+      if (!(await page.locator('#main .ds-hint', { hasText: 'Жеребьёвка уже прошла — выйти можно только через организатора' }).count())) problems.push('после жеребьёвки: нет подсказки');
+      await page.locator('#main .ds-btn', { hasText: 'Написать организатору' }).last().click();
+      await page.locator('.ds-sheet__title', { hasText: 'Организатору' }).waitFor({ timeout: 3000 });
+      if (!member(yulia, D)) problems.push('после жеребьёвки: участие пропало');
+    });
+
+    await onPage(problems, 'опасная зона через ту же шторку', admin, L, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('#main .ds-btn--danger', { hasText: 'Полный сброс' }).click();
+      await page.locator('.ds-sheet__title', { hasText: 'Полный сброс' }).waitFor({ timeout: 3000 });
+      const go = page.locator('.ds-sheet .ds-btn--danger', { hasText: 'Сбросить' });
+      if (!(await go.isDisabled())) problems.push('опасная зона: кнопка доступна без слова');
+      await page.locator('.ds-sheet .ds-input').fill('СБРОС');
+      let asked = '';
+      page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
+      await go.click();
+      await page.waitForTimeout(300);
+      if (asked !== 'Полный сброс: точно? Это нельзя отменить.') problems.push(`опасная зона: второе окно «${asked}»`);
+      if (!member(yulia, L)) problems.push('опасная зона: отказ во втором окне, а событие сброшено');
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'имя и выход (035): ' + x));
+    else console.log('✔ имя и выход (035): «Профиль» над «Уведомлениями», имя — сразу в приветствии; выход — только со словом, без второго окна, организатору — сообщение; после жеребьёвки — подсказка и обращение; «Опасная зона» — та же шторка со вторым окном');
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await openPage(name + (dark ? ' (тёмная)' : ''), { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -833,7 +925,7 @@ addEventListener('message', (e) => {
   const sup = await w.api(people[3], 'support.send', { event: A, text: 'Можно поменять адрес доставки после жеребьёвки?' });
   await w.api(people[0], 'admin.support.send', { event: A, thread: sup.thread, text: 'Да, во вкладке «Письмо» — Санта сразу увидит новый адрес.' });
   await shot(people[3], '24-info-support', { event: A, tab: 'Инфо' });
-  const openMySupport = (p) => p.locator('.ds-btn', { hasText: 'Написать организатору' }).click();
+  const openMySupport = (p) => p.locator('.ds-btn', { hasText: 'Написать организатору' }).first().click();
   await shot(people[3], '25-support-chat', { event: A, fullPage: false, tab: 'Инфо', before: openMySupport });
   await shot(people[3], '25-support-chat', { event: A, fullPage: false, tab: 'Инфо', dark: true, before: openMySupport });
   await shot(admin, '26-admin-support', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-section-title', { hasText: 'Обращения' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -140); }) });
@@ -896,6 +988,7 @@ addEventListener('message', (e) => {
   await checkSheetScroll(admin, A);
   await checkUiFixes();
   await checkRegistration();
+  await checkSelfService();
   await checkCsp();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
   else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);

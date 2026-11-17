@@ -86,6 +86,24 @@
     if (cb) new Promise((done) => done(cb())).catch((e) => toast('⚠️ ' + e.message));
   }
 
+  // Шторка со словом подтверждения (035; вынесена из «Опасной зоны»): что удалится, что останется (keep, необязательно),
+  // поле «Введи слово …», кнопка — только при введённом слове; sure — ещё окно «точно?». run(word) — запрос, после
+  // ответа шторка закрывается и вызывается after(ответ)
+  function typedSheet(title, { lines, keep = '', word, label, sure = false, run, after }) {
+    const inp = h('input', { class: 'ds-input', type: 'text', placeholder: `Введи слово ${word}`, autocomplete: 'off' });
+    const go = ui.btn(label, 'danger', 'ds-btn--block');
+    go.disabled = true;
+    inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== word; });
+    go.addEventListener('click', async () => {
+      if (sure && !(await confirmBox(`${title}: точно? Это нельзя отменить.`))) return;
+      busy(go, async () => { const r = await run(word); closeSheet(); await after(r); });
+    });
+    openSheet(title, [
+      h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Будет удалено без возможности восстановления:'), h('ul', { class: 'ds-bullets' }, lines.map((l) => h('li', {}, l)))),
+      keep ? ui.hint(keep) : null,
+      inp, go]);
+  }
+
   // ---------- поле ответа: переписка Санты и подопечного, обращения ----------
   // Текст, «Отправить», счётчик символов (виден за 500 до предела); одно на все переписки (026)
   function composerParts(placeholder) {

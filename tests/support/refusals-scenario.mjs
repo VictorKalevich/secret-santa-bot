@@ -6,6 +6,9 @@
 // Мир детерминирован: номера событий — по порядку создания, вызовы — в одном и том же порядке, тела минимальные (без
 // слов подтверждения, людей и текстов) — опасные действия получают отказ по данным, а не по правам. Админ и владелец
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
+//
+// Действия, появившиеся после эталона (035: NEW_ACTIONS), проходят те же ситуации отдельным проходом в самом конце —
+// номера событий и тексты прежних случаев не сдвигаются; их ответы — новые ключи эталона «035 …».
 import { startWorld } from './world.mjs';
 
 // 59 действий в порядке прежних `case` в src/api.js: 13 участника, 11 общих админа, 35 — в пределах события
@@ -24,6 +27,8 @@ export const ACTION_LIST = [
 ];
 // Неизвестные действия идут тем же путём, что и известные (админа — до события, участника — до участия)
 export const UNKNOWN = ['admin.nope', 'nope'];
+// 035: своё имя и выход из события
+export const NEW_ACTIONS = ['name.set', 'event.leave'];
 
 const MISSING = 999999;
 const WEEK = 7 * 24 * 3600 * 1000;
@@ -146,6 +151,23 @@ export async function runRefusals() {
   cases['extra GET'] = { status: get.status, error: (await get.json()).error };
   const forged = await w.api('user=%7B%7D&hash=00', 'admin.state', { event: E }, true);
   cases['extra forged'] = { status: forged.status, error: forged.data.error };
+
+  // ---------- 035: новые действия — те же ситуации; слово, имя и выход после жеребьёвки ----------
+  for (const [name, user, ev] of situations) {
+    for (const a of NEW_ACTIONS) await record(`035 ${name} ${a}`, user, a, body(await ev()));
+  }
+  const D = await create('С жеребьёвкой');
+  await join(D, [member, outsider]);
+  await w.api(boss, 'admin.participate', { event: D, on: true });
+  await w.api(boss, 'admin.draw', { event: D });
+  const extra035 = [
+    ['leave-word-wrong', member, 'event.leave', { event: E, confirm: 'УДАЛИТЬ' }],
+    ['leave-word-finished', member, 'event.leave', { event: F, confirm: 'ВЫЙТИ' }],
+    ['leave-after-draw', member, 'event.leave', { event: D, confirm: ' выйти ' }],
+    ['name-blank', member, 'name.set', { name: '   ' }],
+    ['name-long', member, 'name.set', { name: 'я'.repeat(41) }],
+  ];
+  for (const [name, user, action, b] of extra035) await record(`035 extra ${name}`, user, action, b);
 
   return { actions: ACTION_LIST, cases };
 }

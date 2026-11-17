@@ -198,6 +198,15 @@
       nodes.push(...renderAdminsSection());
     }
 
+    // Профиль (035): своё имя — одно во всех событиях; новое имя — сразу в приветствии и здесь
+    const nameText = h('div', { class: 'ds-text-strong' }, me.name);
+    const editName = ui.btn('✏️ Изменить имя', 'secondary', 'ds-btn--block');
+    editName.addEventListener('click', () => openNameSheet((name) => {
+      nameText.textContent = name;
+      if (state.view === 'home') heroSub.textContent = 'Привет, ' + name + '!';
+    }));
+    nodes.push(ui.section('Профиль'), ui.card(nameText, editName));
+
     // Уведомления — общие для всех эвентов
     const modes = [['sound', '🔔 Звук'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
     const seg = h('div', { class: 'ds-segmented' });
@@ -209,6 +218,22 @@
     nodes.push(ui.section('Уведомления'),
       ui.card(ui.hint('Когда подопечный меняет письмо (в любом событии), бот сообщит об этом — без имени и подробностей.'), seg));
     main.replaceChildren(...nodes);
+  }
+
+  // Шторка «Твоё имя» (035): правило — как при регистрации (до 40 символов, пробелы схлопывает сервер); saved(имя из
+  // ответа сервера)
+  function openNameSheet(saved) {
+    const input = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: state.me.name, autocomplete: 'off' });
+    const save = ui.btn('Сохранить', '', 'ds-btn--block');
+    save.addEventListener('click', () => busy(save, async () => {
+      if (!input.value.trim()) return toast('Напиши имя');
+      const r = await api('name.set', { name: input.value });
+      state.me.name = r.name;
+      closeSheet();
+      toast('Имя сохранено');
+      saved(r.name);
+    }));
+    openSheet('Твоё имя', [ui.hint('Имя одно во всех событиях. Его видят организаторы и твой Санта, а при раскрытии — твой подопечный.'), input, save]);
   }
 
   // Раздел «Семьи» (008): постоянные исключения для всех эвентов
