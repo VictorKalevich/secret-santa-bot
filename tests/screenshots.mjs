@@ -1056,6 +1056,7 @@ addEventListener('message', (e) => {
       if (!(await page.locator('.ds-tab--active .ds-tab__dot').count())) problems.push('после смены открытки нет отметки «не сохранено»');
       if ((await color(paper, 'backgroundColor')) !== 'rgb(20, 35, 71)') problems.push(`бумага: ${await color(paper, 'backgroundColor')}`);
       if ((await color(ta, 'color')) !== 'rgb(238, 242, 255)') problems.push(`чернила редактора: ${await color(ta, 'color')}`);
+      if ((await color(ta, 'caretColor')) !== 'rgb(238, 242, 255)') problems.push(`каретка редактора: ${await color(ta, 'caretColor')}`);
       if ((await color(ta, 'backgroundColor')) !== 'rgba(0, 0, 0, 0)') problems.push(`фон редактора: ${await color(ta, 'backgroundColor')}`);
       if ((await btn.textContent()) !== '🖼 Открытка: Звёздная ночь') problems.push(`кнопка после выбора: «${await btn.textContent()}»`);
       const row = w.query(`SELECT card, wishlist, wishlist_updated_at FROM members WHERE event_id = ${Number(E)} AND user_id = ${petr.id}`)[0];

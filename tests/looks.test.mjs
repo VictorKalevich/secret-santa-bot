@@ -277,6 +277,13 @@ test('текст открытки читается: контраст черни�
   assert.deepEqual(low, []);
 });
 
+// Без явного caret-color iOS рисует каретку по теме телефона: в тёмной теме — светлую, на светлой бумаге её не видно
+const caretRule = (css) => /\.ds-postcard__paper \.ds-input\s*\{[^}]*caret-color:\s*var\(--ds-postcard-ink\)/.test(css);
+test('поле ввода на открытке: каретка — цвет чернил (видна на бумаге в любой теме телефона)', () => {
+  assert.ok(caretRule(components), 'components.css: у .ds-postcard__paper .ds-input нет caret-color: var(--ds-postcard-ink)');
+  assert.ok(!caretRule('.ds-postcard__paper .ds-input { background: transparent; color: inherit; }'), 'от противного');
+});
+
 test('от противного: контраст ловит бледный текст, сверка — лишнюю тему', () => {
   assert.ok(contrast('#ffffff', '#999999') < 4.5);
   assert.ok(contrast('#ffffff', '#1b365d') >= 4.5);

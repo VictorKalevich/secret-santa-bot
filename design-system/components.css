@@ -250,7 +250,8 @@ select.ds-input {
 
 /* ========== Открытка письма (038) ==========
  * Рамка с узором и наклейкой, внутри — «бумага» с текстом. Цвета темы — токены --ds-postcard-<id>-*; тема задаёт
- * четыре свойства. Набор тем = POSTCARDS (src/looks.js). Поле ввода на бумаге — прозрачное, цвет чернил. */
+ * четыре свойства. Набор тем = POSTCARDS (src/looks.js). Поле ввода на бумаге — прозрачное, текст и каретка — цвет
+ * чернил: каретку без явного цвета iOS рисует по теме телефона (в тёмной — светлой, на светлой бумаге её не видно). */
 .ds-postcard {
   position: relative; padding: var(--ds-postcard-frame-w); border-radius: var(--ds-radius-lg);
   background: var(--ds-postcard-frame); box-shadow: var(--ds-shadow-sm);
@@ -263,7 +264,7 @@ select.ds-input {
   background: var(--ds-postcard-paper); color: var(--ds-postcard-ink);
   border-radius: var(--ds-radius-md); padding: var(--ds-space-4); box-shadow: var(--ds-shadow-sm);
 }
-.ds-postcard__paper .ds-input { background: transparent; color: inherit; padding: 0; }
+.ds-postcard__paper .ds-input { background: transparent; color: inherit; caret-color: var(--ds-postcard-ink); padding: 0; }
 .ds-postcard__paper .ds-input:focus { box-shadow: none; }
 .ds-postcard__paper .ds-input::placeholder { color: inherit; opacity: var(--ds-opacity-meta); }
 .ds-postcard--mini { width: 100%; padding: var(--ds-postcard-frame-w-mini); border-radius: var(--ds-radius-md); }
