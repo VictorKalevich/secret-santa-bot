@@ -24,12 +24,12 @@ export async function adminState(ctx, ev) {
     cancelable: cancelableQuery(db, ev),
     famRows: db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id'),
     requests: db.prepare(
-      `SELECT r.id, r.user_id, r.created_at, u.name, u.username FROM join_requests r JOIN users u ON u.tg_id = r.user_id
+      `SELECT r.id, r.user_id, r.created_at, u.name, u.username, u.emoji FROM join_requests r JOIN users u ON u.tg_id = r.user_id
         WHERE r.event_id = ? AND r.status = 'pending' ORDER BY r.id`
     ).bind(ev.id),
     // 010: удалённые организатором (при запрете возврата они не войдут по ссылке)
     removed: db.prepare(
-      `SELECT r.user_id, r.removed_at, u.name, u.username FROM removed_members r JOIN users u ON u.tg_id = r.user_id
+      `SELECT r.user_id, r.removed_at, u.name, u.username, u.emoji FROM removed_members r JOIN users u ON u.tg_id = r.user_id
         WHERE r.event_id = ? ORDER BY r.removed_at DESC`
     ).bind(ev.id),
     support: adminListQuery(db, ev),
@@ -51,6 +51,7 @@ export async function adminState(ctx, ev) {
       id: u.user_id,
       name: u.name,
       username: u.username,
+      emoji: u.emoji, // 038
       registered: !!u.registered,
       is_admin: !!u.is_admin,
       is_owner: u.user_id === ownerId,
@@ -68,8 +69,8 @@ export async function adminState(ctx, ev) {
       (acc[r.id] ||= { id: r.id, name: r.name, members: [] }).members.push(r.user_id);
       return acc;
     }, {})).filter((f) => f.members.length >= 2),
-    requests: requests.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, username: r.username, created_at: r.created_at })),
-    removed: removed.map((r) => ({ id: r.user_id, name: r.name, username: r.username, removed_at: r.removed_at })),
+    requests: requests.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, username: r.username, emoji: r.emoji, created_at: r.created_at })),
+    removed: removed.map((r) => ({ id: r.user_id, name: r.name, username: r.username, emoji: r.emoji, removed_at: r.removed_at })),
     // 012: обращения — без текстов; переписка — отдельным запросом admin.support.get
     support: adminListView(r.support, users, me, isOwner),
     // Исключения образца начинают действовать, когда оба вступят (007, FR-707)
@@ -100,7 +101,7 @@ export async function memberLetter(ctx, ev, rawId) {
   const [u, m] = await Promise.all([getUser(db, id), getMember(db, ev.id, id)]);
   if (!u || !m) return no('Участник не найден');
   await auditStmt(db, ev.id, me.tg_id, 'wishlist.view', u.name).run();
-  return { ok: true, name: u.name, wishlist: m.wishlist, updated_at: m.wishlist_updated_at };
+  return { ok: true, name: u.name, wishlist: m.wishlist, card: m.card, updated_at: m.wishlist_updated_at };
 }
 
 // admin.users: зарегистрированные пользователи бота и владелец
@@ -108,7 +109,7 @@ export async function usersList(ctx) {
   const [all, ownerId] = await Promise.all([ctx.users(), ctx.ownerId()]);
   const users = all.filter((u) => u.registered);
   return {
-    users: users.map((u) => ({ id: u.tg_id, name: u.name, username: u.username, is_admin: !!u.is_admin, is_owner: u.tg_id === ownerId })),
+    users: users.map((u) => ({ id: u.tg_id, name: u.name, username: u.username, emoji: u.emoji, is_admin: !!u.is_admin, is_owner: u.tg_id === ownerId })),
     owner_id: ownerId,
     owner_name: users.find((u) => u.tg_id === ownerId)?.name || '',
   };

@@ -248,6 +248,61 @@ select.ds-input {
 .ds-diff-add { background: var(--ds-color-diff-add); color: inherit; border-radius: var(--ds-radius-xs); padding: 0 var(--ds-space-px); }
 .ds-diff-del { color: var(--ds-color-diff-del); text-decoration: line-through; text-decoration-thickness: var(--ds-border-strike); }
 
+/* ========== Открытка письма (038) ==========
+ * Рамка с узором и наклейкой, внутри — «бумага» с текстом. Цвета темы — токены --ds-postcard-<id>-*; тема задаёт
+ * четыре свойства. Набор тем = POSTCARDS (src/looks.js). Поле ввода на бумаге — прозрачное, цвет чернил. */
+.ds-postcard {
+  position: relative; padding: var(--ds-postcard-frame-w); border-radius: var(--ds-radius-lg);
+  background: var(--ds-postcard-frame); box-shadow: var(--ds-shadow-sm);
+}
+.ds-postcard::after {
+  content: var(--ds-postcard-mark); position: absolute; top: 0; right: var(--ds-space-2);
+  font-size: var(--ds-text-xl); line-height: 1; transform: rotate(var(--ds-postcard-tilt)); pointer-events: none;
+}
+.ds-postcard__paper {
+  background: var(--ds-postcard-paper); color: var(--ds-postcard-ink);
+  border-radius: var(--ds-radius-md); padding: var(--ds-space-4); box-shadow: var(--ds-shadow-sm);
+}
+.ds-postcard__paper .ds-input { background: transparent; color: inherit; padding: 0; }
+.ds-postcard__paper .ds-input:focus { box-shadow: none; }
+.ds-postcard__paper .ds-input::placeholder { color: inherit; opacity: var(--ds-opacity-meta); }
+.ds-postcard--mini { width: 100%; padding: var(--ds-postcard-frame-w-mini); border-radius: var(--ds-radius-md); }
+.ds-postcard--mini::after { font-size: var(--ds-text-md); right: var(--ds-space-1); }
+.ds-postcard--mini .ds-postcard__paper {
+  display: flex; align-items: center; justify-content: center; height: 100%; text-align: center;
+  padding: var(--ds-space-2) var(--ds-space-1); border-radius: var(--ds-radius-sm);
+  font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); line-height: var(--ds-leading-tight);
+}
+.ds-postcard--snow { --ds-postcard-frame: var(--ds-postcard-snow-frame); --ds-postcard-paper: var(--ds-postcard-snow-paper); --ds-postcard-ink: var(--ds-postcard-snow-ink); --ds-postcard-mark: '❄️'; }
+.ds-postcard--firs { --ds-postcard-frame: var(--ds-postcard-firs-frame); --ds-postcard-paper: var(--ds-postcard-firs-paper); --ds-postcard-ink: var(--ds-postcard-firs-ink); --ds-postcard-mark: '🎄'; }
+.ds-postcard--gingerbread { --ds-postcard-frame: var(--ds-postcard-gingerbread-frame); --ds-postcard-paper: var(--ds-postcard-gingerbread-paper); --ds-postcard-ink: var(--ds-postcard-gingerbread-ink); --ds-postcard-mark: '🍪'; }
+.ds-postcard--night { --ds-postcard-frame: var(--ds-postcard-night-frame); --ds-postcard-paper: var(--ds-postcard-night-paper); --ds-postcard-ink: var(--ds-postcard-night-ink); --ds-postcard-mark: '🌙'; }
+.ds-postcard--tartan { --ds-postcard-frame: var(--ds-postcard-tartan-frame); --ds-postcard-paper: var(--ds-postcard-tartan-paper); --ds-postcard-ink: var(--ds-postcard-tartan-ink); --ds-postcard-mark: '🧣'; }
+.ds-postcard--candy { --ds-postcard-frame: var(--ds-postcard-candy-frame); --ds-postcard-paper: var(--ds-postcard-candy-paper); --ds-postcard-ink: var(--ds-postcard-candy-ink); --ds-postcard-mark: '🍭'; }
+.ds-postcard--aurora { --ds-postcard-frame: var(--ds-postcard-aurora-frame); --ds-postcard-paper: var(--ds-postcard-aurora-paper); --ds-postcard-ink: var(--ds-postcard-aurora-ink); --ds-postcard-mark: '🌌'; }
+.ds-postcard--fireplace { --ds-postcard-frame: var(--ds-postcard-fireplace-frame); --ds-postcard-paper: var(--ds-postcard-fireplace-paper); --ds-postcard-ink: var(--ds-postcard-fireplace-ink); --ds-postcard-mark: '🔥'; }
+.ds-postcard--snowman { --ds-postcard-frame: var(--ds-postcard-snowman-frame); --ds-postcard-paper: var(--ds-postcard-snowman-paper); --ds-postcard-ink: var(--ds-postcard-snowman-ink); --ds-postcard-mark: '⛄'; }
+.ds-postcard--tangerine { --ds-postcard-frame: var(--ds-postcard-tangerine-frame); --ds-postcard-paper: var(--ds-postcard-tangerine-paper); --ds-postcard-ink: var(--ds-postcard-tangerine-ink); --ds-postcard-mark: '🍊'; }
+.ds-postcard--cocoa { --ds-postcard-frame: var(--ds-postcard-cocoa-frame); --ds-postcard-paper: var(--ds-postcard-cocoa-paper); --ds-postcard-ink: var(--ds-postcard-cocoa-ink); --ds-postcard-mark: '☕'; }
+.ds-postcard--gift { --ds-postcard-frame: var(--ds-postcard-gift-frame); --ds-postcard-paper: var(--ds-postcard-gift-paper); --ds-postcard-ink: var(--ds-postcard-gift-ink); --ds-postcard-mark: '🎁'; }
+.ds-postcard--sparkle { --ds-postcard-frame: var(--ds-postcard-sparkle-frame); --ds-postcard-paper: var(--ds-postcard-sparkle-paper); --ds-postcard-ink: var(--ds-postcard-sparkle-ink); --ds-postcard-mark: '✨'; }
+.ds-postcard--nordic { --ds-postcard-frame: var(--ds-postcard-nordic-frame); --ds-postcard-paper: var(--ds-postcard-nordic-paper); --ds-postcard-ink: var(--ds-postcard-nordic-ink); --ds-postcard-mark: '🦌'; }
+.ds-postcard--airmail { --ds-postcard-frame: var(--ds-postcard-airmail-frame); --ds-postcard-paper: var(--ds-postcard-airmail-paper); --ds-postcard-ink: var(--ds-postcard-airmail-ink); --ds-postcard-mark: '✉️'; }
+
+/* ========== Выбор из плиток (038) ==========
+ * Сетка кнопок-плиток: значки (--ds-size-choice) и мини-открытки (--cards: «без открытки» — мини-открытка без темы);
+ * выбранная — обводка цветом кнопки. */
+.ds-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ds-size-choice), 1fr)); gap: var(--ds-space-2); }
+.ds-choices--cards { grid-template-columns: repeat(auto-fill, minmax(var(--ds-size-choice-card), 1fr)); }
+.ds-choice {
+  display: flex; align-items: center; justify-content: center; min-height: var(--ds-size-choice);
+  border: 0; border-radius: var(--ds-radius-md); background: var(--ds-color-fill); padding: var(--ds-space-1);
+  font-size: var(--ds-text-xl); line-height: 1; cursor: pointer;
+}
+.ds-choices--cards .ds-choice { align-items: stretch; min-height: var(--ds-size-choice-card); padding: 0; background: transparent; }
+.ds-choice--selected { outline: var(--ds-border-focus) solid var(--ds-color-accent); outline-offset: var(--ds-border-focus); }
+.ds-choice:disabled { opacity: var(--ds-opacity-disabled); }
+
 /* ========== Пустое состояние ========== */
 .ds-empty { text-align: center; padding: var(--ds-space-8) var(--ds-space-5); }
 .ds-empty__icon { font-size: var(--ds-text-display); line-height: 1; margin-bottom: var(--ds-space-3); }

@@ -12,10 +12,12 @@
 //   035 (specs/035-self-service/research.md, R7): новые действия name.set и event.leave — прежние ответы те же, новые
 //   ключи «035 <ситуация> <действие>» (18 ситуаций × 2) и «035 extra …» (слово, завершённое событие, после жеребьёвки,
 //   имя из пробелов и длиннее 40 символов).
+//   038 (specs/038-emoji-postcards/research.md, R7): новые действия emoji.set и card.set — прежние ответы те же, новые
+//   ключи «038 <ситуация> <действие>» и «038 extra …» (значок и открытка не из набора, открытка в завершённом событии).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { runRefusals, NEW_ACTIONS } from './support/refusals-scenario.mjs';
+import { runRefusals, NEW_ACTIONS, NEW_ACTIONS_038 } from './support/refusals-scenario.mjs';
 import { restoreFetch } from './support/world.mjs';
 import { ACTIONS } from '../src/api.js';
 
@@ -27,8 +29,9 @@ test('отказы API: каждый код и текст — как в этал
   const now = await runRefusals();
   assert.deepEqual(now.actions, golden.actions);
   const names = Object.keys(ACTIONS);
-  assert.deepEqual(names.filter((a) => !NEW_ACTIONS.includes(a)), golden.actions, 'таблица действий — прежние 59 действий в прежнем порядке');
-  assert.deepEqual(names.filter((a) => NEW_ACTIONS.includes(a)).sort(), [...NEW_ACTIONS].sort(), 'новые действия (035) — в таблице');
+  const later = [...NEW_ACTIONS, ...NEW_ACTIONS_038];
+  assert.deepEqual(names.filter((a) => !later.includes(a)), golden.actions, 'таблица действий — прежние 59 действий в прежнем порядке');
+  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038) — в таблице');
   const diff = [];
   for (const key of new Set([...Object.keys(golden.cases), ...Object.keys(now.cases)])) {
     const a = JSON.stringify(golden.cases[key]);

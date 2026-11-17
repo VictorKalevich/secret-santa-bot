@@ -7,8 +7,9 @@
 // слов подтверждения, людей и текстов) — опасные действия получают отказ по данным, а не по правам. Админ и владелец
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
 //
-// Действия, появившиеся после эталона (035: NEW_ACTIONS), проходят те же ситуации отдельным проходом в самом конце —
-// номера событий и тексты прежних случаев не сдвигаются; их ответы — новые ключи эталона «035 …».
+// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038), проходят те же ситуации отдельными
+// проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются; их ответы — новые ключи эталона
+// «035 …» и «038 …».
 import { startWorld } from './world.mjs';
 
 // 59 действий в порядке прежних `case` в src/api.js: 13 участника, 11 общих админа, 35 — в пределах события
@@ -29,6 +30,8 @@ export const ACTION_LIST = [
 export const UNKNOWN = ['admin.nope', 'nope'];
 // 035: своё имя и выход из события
 export const NEW_ACTIONS = ['name.set', 'event.leave'];
+// 038: значок у имени и открытка письма
+export const NEW_ACTIONS_038 = ['emoji.set', 'card.set'];
 
 const MISSING = 999999;
 const WEEK = 7 * 24 * 3600 * 1000;
@@ -168,6 +171,17 @@ export async function runRefusals() {
     ['name-long', member, 'name.set', { name: 'я'.repeat(41) }],
   ];
   for (const [name, user, action, b] of extra035) await record(`035 extra ${name}`, user, action, b);
+
+  // ---------- 038: значок и открытка — те же ситуации; не из набора, открытка в завершённом ----------
+  for (const [name, user, ev] of situations) {
+    for (const a of NEW_ACTIONS_038) await record(`038 ${name} ${a}`, user, a, body(await ev()));
+  }
+  const extra038 = [
+    ['emoji-unknown', member, 'emoji.set', { emoji: '🍕' }],
+    ['card-unknown', member, 'card.set', { event: E, card: 'nope' }],
+    ['card-finished', member, 'card.set', { event: F, card: 'snow' }],
+  ];
+  for (const [name, user, action, b] of extra038) await record(`038 extra ${name}`, user, action, b);
 
   return { actions: ACTION_LIST, cases };
 }

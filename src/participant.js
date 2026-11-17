@@ -11,6 +11,7 @@ import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
 import { no } from './result.js';
+import { EMOJIS, POSTCARDS, validEmoji, validCard } from './looks.js';
 
 const DELIVERY_MAX = 500;
 
@@ -54,9 +55,13 @@ export async function homeView(ctx) {
     }));
   return {
     registered: true,
-    me: { id: me.tg_id, name: me.name, is_admin: !!me.is_admin, is_owner: !!me.is_admin && ownerId === me.tg_id, notify_mode: me.notify_mode },
+    me: {
+      id: me.tg_id, name: me.name, emoji: me.emoji, is_admin: !!me.is_admin, is_owner: !!me.is_admin && ownerId === me.tg_id,
+      notify_mode: me.notify_mode,
+    },
     events,
     limits: { chars: MAX_CHARS },
+    looks: { emojis: EMOJIS, postcards: POSTCARDS }, // 038: набор значков и открыток — один, на сервере
   };
 }
 
@@ -89,6 +94,7 @@ export async function eventView(ctx, ev, member) {
     out.member = {
       wishlist: member.wishlist,
       wishlist_updated_at: member.wishlist_updated_at,
+      card: member.card, // 038: открытка письма
       has_ward: !!pair,
       has_santa: !!wardPair,
       gift_received: !!wardPair?.gift_received, // 007, FR-704
@@ -106,7 +112,7 @@ export async function eventView(ctx, ev, member) {
 // отметок по людям, ни пар; @username — только если организатор разрешил участникам писать друг другу
 const byName = (a, b) => a.name.localeCompare(b.name, 'ru') || a.id - b.id;
 export function rosterView(ev, people, gifts, users, ownerId, settings) {
-  const contact = (u) => (ev.contacts_on && u.username ? { username: u.username } : {});
+  const contact = (u) => ({ emoji: u.emoji, ...(ev.contacts_on && u.username ? { username: u.username } : {}) });
   const role = (u) => (u.tg_id === ownerId ? 'owner' : u.is_admin ? 'admin' : '');
   const admins = users.filter((u) => u.is_admin && u.registered);
   return {
@@ -120,6 +126,22 @@ export function rosterView(ev, people, gifts, users, ownerId, settings) {
       : { letters: people.filter((m) => m.has_wishlist).length, of: people.length },
     invite_link: ev.registration_open && !isFinished(ev) ? inviteLink(settings, ev) : '',
   };
+}
+
+// 038: значок у имени (один на все события) и открытка письма (своя в событии) — только из набора; без сообщений и
+// журнала, время изменения письма открытка не трогает
+export async function setEmoji(ctx, raw) {
+  const emoji = validEmoji(raw);
+  if (emoji === null) return no('Такого значка нет — выбери из списка.');
+  await ctx.db.prepare('UPDATE users SET emoji = ? WHERE tg_id = ?').bind(emoji, ctx.me.tg_id).run();
+  return { ok: true, emoji };
+}
+
+export async function setCard(ctx, ev, raw) {
+  const card = validCard(raw);
+  if (card === null) return no('Такой открытки нет — выбери из списка.');
+  await ctx.db.prepare('UPDATE members SET card = ? WHERE event_id = ? AND user_id = ?').bind(card, ev.id, ctx.me.tg_id).run();
+  return { ok: true, card };
 }
 
 export async function saveWishlist(ctx, ev, member, raw) {
@@ -163,7 +185,9 @@ export async function wardView(ctx, ev) {
     state: 'ok',
     ward: {
       name: ward.name,
+      emoji: ward.emoji, // 038: в приложении — внутри скрытого имени
       wishlist: wardMember.wishlist,
+      card: wardMember.card,
       updated_at: wardMember.wishlist_updated_at,
       ...(ev.delivery_on ? { delivery: wardMember.delivery } : {}), // 008: адрес — только Санте
     },

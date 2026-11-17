@@ -11,6 +11,7 @@
     announcements: [], // 007: объявления события (вкладка «Инфо»); все поля состояния — здесь (026)
     support: null, supportAdmin: null, // 012: обращения — участнику его статус, админу — ничьи и непрочитанные
     roster: null, rosterOpen: null, // 037: участники на «Инфо»; rosterOpen — id события, где список раскрыт
+    looks: { emojis: [], postcards: [] }, // 038: набор значков и открыток — с сервера (me)
   };
   const main = document.getElementById('main');
   const heroTitle = document.getElementById('heroTitle');
@@ -40,6 +41,7 @@
     state.me = d.me;
     state.events = d.events;
     state.limits = d.limits;
+    state.looks = d.looks;
     return d;
   }
 
@@ -201,14 +203,16 @@
       nodes.push(...renderAdminsSection());
     }
 
-    // Профиль (035): своё имя — одно во всех событиях; новое имя — сразу в приветствии и здесь
-    const nameText = h('div', { class: 'ds-text-strong' }, me.name);
+    // Профиль (035, 038): своё имя и значок — одни во всех событиях; новое имя — сразу в приветствии и здесь
+    const nameText = h('div', { class: 'ds-text-strong' }, emojiName(me));
     const editName = ui.btn('✏️ Изменить имя', 'secondary', 'ds-btn--block');
     editName.addEventListener('click', () => openNameSheet((name) => {
-      nameText.textContent = name;
+      nameText.textContent = emojiName(me);
       if (state.view === 'home') heroSub.textContent = 'Привет, ' + name + '!';
     }));
-    nodes.push(ui.section('Профиль'), ui.card(nameText, editName));
+    const editEmoji = ui.btn('😀 Значок у имени', 'secondary', 'ds-btn--block');
+    editEmoji.addEventListener('click', () => openEmojiSheet(() => { nameText.textContent = emojiName(me); }));
+    nodes.push(ui.section('Профиль'), ui.card(nameText, editName, editEmoji));
 
     // Уведомления — общие для всех эвентов
     const modes = [['sound', '🔔 Звук'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
@@ -237,6 +241,26 @@
       saved(r.name);
     }));
     openSheet('Твоё имя', [ui.hint('Имя одно во всех событиях. Его видят организаторы и твой Санта, а при раскрытии — твой подопечный.'), input, save]);
+  }
+
+  // Шторка «Значок у имени» (038): набор — с сервера, выбранный обведён; нажатие сохраняет и закрывает шторку
+  function openEmojiSheet(saved) {
+    const grid = h('div', { class: 'ds-choices' });
+    const clear = ui.btn('Без значка', 'secondary', 'ds-btn--block');
+    const pick = (emoji) => busy([...grid.children, clear], async () => {
+      const r = await api('emoji.set', { emoji });
+      state.me.emoji = r.emoji;
+      closeSheet();
+      toast(r.emoji ? 'Значок сохранён' : 'Значок убран');
+      saved();
+    });
+    grid.append(...state.looks.emojis.map((e) => h('button', {
+      class: 'ds-choice' + (e === state.me.emoji ? ' ds-choice--selected' : ''), onclick: () => pick(e),
+    }, e)));
+    clear.addEventListener('click', () => pick(''));
+    openSheet('Значок у имени', [
+      ui.hint('Значок стоит перед твоим именем в списках участников и у организаторов. В переписке Санты и подопечного значков нет.'),
+      grid, state.me.emoji ? clear : null]);
   }
 
   // Раздел «Семьи» (008): постоянные исключения для всех эвентов
@@ -308,7 +332,7 @@
         }
         list.append(h('div', { class: 'ds-list-item' },
           h('div', { class: 'ds-grow' },
-            h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)') : null),
+            h('div', { class: 'ds-list-item__title' }, emojiName(u, u.name || 'без имени'), u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)') : null),
             h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip('👑 владелец') : ui.chip('🛠 админ'))),
           actions));
       }

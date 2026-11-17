@@ -268,6 +268,38 @@
       <div class="ds-text-muted">Здесь появится подопечный.</div><button class="ds-btn ds-btn--secondary ds-empty__action">Попробовать снова</button></div>
     <div class="ds-card"><div class="ds-loader"><div class="ds-spinner"></div>Загрузка…</div></div>
 
+    <!-- Открытка письма и выбор из плиток (038) -->
+    <div class="ds-section-title">Открытка письма</div>
+    <div class="ds-card ds-stack">
+      <div class="ds-postcard ds-postcard--snow"><div class="ds-postcard__paper ds-letter">Дорогой Санта! Хочу тёплые варежки и книгу про горы.</div></div>
+      <div class="ds-postcard ds-postcard--night"><div class="ds-postcard__paper"><textarea class="ds-input ds-input--letter" placeholder="Дорогой Санта! В этом году я мечтаю о…"></textarea></div></div>
+      <div class="ds-choices ds-choices--cards">
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini"><div class="ds-postcard__paper">Без открытки</div></div></button>
+        <button class="ds-choice ds-choice--selected"><div class="ds-postcard ds-postcard--mini ds-postcard--snow"><div class="ds-postcard__paper">Снегопад</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--firs"><div class="ds-postcard__paper">Ёлочки</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--gingerbread"><div class="ds-postcard__paper">Имбирное печенье</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--night"><div class="ds-postcard__paper">Звёздная ночь</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--tartan"><div class="ds-postcard__paper">Тёплый плед</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--candy"><div class="ds-postcard__paper">Леденец</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--aurora"><div class="ds-postcard__paper">Северное сияние</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--fireplace"><div class="ds-postcard__paper">У камина</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--snowman"><div class="ds-postcard__paper">Снеговик</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--tangerine"><div class="ds-postcard__paper">Мандарины</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--cocoa"><div class="ds-postcard__paper">Какао с зефиром</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--gift"><div class="ds-postcard__paper">Подарок с лентой</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--sparkle"><div class="ds-postcard__paper">Золотые блёстки</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--nordic"><div class="ds-postcard__paper">Скандинавский узор</div></div></button>
+        <button class="ds-choice"><div class="ds-postcard ds-postcard--mini ds-postcard--airmail"><div class="ds-postcard__paper">Авиапочта</div></div></button>
+      </div>
+      <div class="ds-choices">
+        <button class="ds-choice ds-choice--selected">🦊</button><button class="ds-choice">🎄</button><button class="ds-choice">🎅</button><button class="ds-choice">⛄</button><button class="ds-choice">🐧</button><button class="ds-choice" disabled>🦄</button>
+      </div>
+      <div class="ds-hint">Открытка — рамка с узором (<code>ds-postcard--&lt;id&gt;</code>, тема из набора сервера) и бумага
+        (<code>ds-postcard__paper</code>) с текстом или полем ввода; <code>--mini</code> — плитка выбора. Цвета открытки одни
+        в светлой и тёмной теме. Выбор — сетка плиток <code>ds-choices</code> (<code>--cards</code> — для открыток),
+        <code>ds-choice--selected</code> — выбранная.</div>
+    </div>
+
     <!-- Всплывающие -->
     <div class="ds-section-title">Всплывающие элементы</div>
     <div class="ds-card ds-stack">

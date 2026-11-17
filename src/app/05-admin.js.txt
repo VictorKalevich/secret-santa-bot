@@ -54,7 +54,7 @@
   });
 
   // Заголовок строки списка: имя и @username (заявки, удалённые, участники)
-  const personTitle = (u) => h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null);
+  const personTitle = (u) => h('div', { class: 'ds-list-item__title' }, emojiName(u, u.name || 'без имени'), u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null);
 
   // --- приглашение (только для идущего эвента)
   function adminInvite(p) {
@@ -257,7 +257,8 @@
         if (!(await confirmBox(`Открыть письмо участника «${u.name}»? Ты увидишь его содержимое.`))) return;
         busy(b, async () => {
           const w = await xapi('admin.wishlist', { id: u.id });
-          openSheet('Письмо: ' + w.name, w.wishlist ? h('div', { class: 'ds-card ds-letter' }, w.wishlist) : h('div', { class: 'ds-card ds-text-muted' }, 'Письмо пустое.'));
+          openSheet('Письмо: ' + w.name, !w.wishlist ? h('div', { class: 'ds-card ds-text-muted' }, 'Письмо пустое.')
+            : w.card ? postcard(w.card, h('div', { class: 'ds-letter' }, w.wishlist)) : h('div', { class: 'ds-card ds-letter' }, w.wishlist));
         });
       });
       items.push(b);

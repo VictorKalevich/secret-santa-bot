@@ -147,4 +147,127 @@
   /* ---------- Раскладка ---------- */
   --ds-page-gutter: var(--ds-space-3);
   --ds-safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* ---------- Открытки письма (038) ----------
+   * Цвета открытки фиксированы: одинаковы в светлой и тёмной теме Telegram, как праздничный градиент. У темы <id> —
+   * рамка с узором (только градиенты CSS: картинки запрещены политикой страницы), бумага и чернила; контраст чернил и
+   * бумаги ≥ 4.5 : 1 (тест looks). Наклейка темы — в components.css (.ds-postcard--<id>). Набор тем = POSTCARDS в
+   * src/looks.js. */
+  --ds-postcard-frame: var(--ds-color-fill);
+  --ds-postcard-paper: var(--ds-color-surface);
+  --ds-postcard-ink: var(--ds-color-text);
+  --ds-postcard-mark: none;
+  --ds-postcard-frame-w: 14px;
+  --ds-postcard-frame-w-mini: 7px;
+  --ds-postcard-tilt: 12deg;
+  --ds-size-choice: 48px;
+  --ds-size-choice-card: 96px;
+
+  --ds-postcard-snow-frame:
+    radial-gradient(circle, #ffffff 2px, transparent 2.5px) 0 0 / 18px 18px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.7) 1.2px, transparent 1.7px) 9px 9px / 18px 18px,
+    linear-gradient(160deg, #3f74b8, #9cc3ea);
+  --ds-postcard-snow-paper: #f5faff;
+  --ds-postcard-snow-ink: #1b365d;
+
+  --ds-postcard-firs-frame:
+    radial-gradient(circle, #d7263d 1.5px, transparent 2px) 10px 2px / 20px 24px,
+    conic-gradient(from 150deg at 50% 18%, #2e7d4f 60deg, transparent 0) 0 0 / 20px 24px,
+    #f3ead8;
+  --ds-postcard-firs-paper: #f4faf2;
+  --ds-postcard-firs-ink: #173b26;
+
+  --ds-postcard-gingerbread-frame:
+    radial-gradient(circle at 50% 0, transparent 5px, #fff6e8 5.5px, #fff6e8 7px, transparent 7.5px) 0 4px / 16px 12px,
+    radial-gradient(circle, #fff6e8 1.6px, transparent 2px) 8px 10px / 16px 12px,
+    linear-gradient(135deg, #a8642e, #7a4519);
+  --ds-postcard-gingerbread-paper: #fff8ee;
+  --ds-postcard-gingerbread-ink: #573214;
+
+  --ds-postcard-night-frame:
+    radial-gradient(circle, #ffe9a8 1.5px, transparent 2px) 0 0 / 23px 19px,
+    radial-gradient(circle, #ffffff 1px, transparent 1.5px) 11px 7px / 17px 23px,
+    linear-gradient(180deg, #0b1533, #24386e);
+  --ds-postcard-night-paper: #142347;
+  --ds-postcard-night-ink: #eef2ff;
+
+  --ds-postcard-tartan-frame:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.2) 0 4px, transparent 4px 16px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.2) 0 4px, transparent 4px 16px),
+    repeating-linear-gradient(0deg, transparent 0 9px, rgba(255, 214, 120, 0.55) 9px 10px, transparent 10px 16px),
+    repeating-linear-gradient(90deg, transparent 0 9px, rgba(255, 214, 120, 0.55) 9px 10px, transparent 10px 16px),
+    #a3202a;
+  --ds-postcard-tartan-paper: #fffaf2;
+  --ds-postcard-tartan-ink: #4a1216;
+
+  --ds-postcard-candy-frame: repeating-linear-gradient(45deg, #d7263d 0 9px, #ffffff 9px 18px);
+  --ds-postcard-candy-paper: #ffffff;
+  --ds-postcard-candy-ink: #3d0b12;
+
+  --ds-postcard-aurora-frame:
+    radial-gradient(ellipse at 15% 0%, rgba(80, 255, 190, 0.8), transparent 60%),
+    radial-gradient(ellipse at 85% 15%, rgba(150, 110, 255, 0.75), transparent 55%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0.8px, transparent 1.3px) 5px 5px / 21px 17px,
+    linear-gradient(180deg, #06142a, #0f2f4d);
+  --ds-postcard-aurora-paper: #0b1a30;
+  --ds-postcard-aurora-ink: #e8fff7;
+
+  --ds-postcard-fireplace-frame:
+    radial-gradient(circle, #ffd27a 1.3px, transparent 1.8px) 3px 4px / 19px 23px,
+    radial-gradient(ellipse at 50% 110%, #ffb347 0%, #e8542a 35%, transparent 70%),
+    linear-gradient(180deg, #3b1a10, #6b2a14);
+  --ds-postcard-fireplace-paper: #fff5e8;
+  --ds-postcard-fireplace-ink: #5a1a04;
+
+  --ds-postcard-snowman-frame:
+    radial-gradient(circle at 50% 72%, #ffffff 6px, transparent 6.5px) 0 0 / 26px 30px,
+    radial-gradient(circle at 50% 38%, #ffffff 4.5px, transparent 5px) 0 0 / 26px 30px,
+    radial-gradient(circle at 50% 38%, #ff8a1e 1.2px, transparent 1.6px) 1.5px 0 / 26px 30px,
+    linear-gradient(180deg, #7fb6e0, #cfe8f7);
+  --ds-postcard-snowman-paper: #ffffff;
+  --ds-postcard-snowman-ink: #21405c;
+
+  --ds-postcard-tangerine-frame:
+    radial-gradient(4px 2px at 64% 26%, #3f8f3a 98%, transparent 100%) 0 0 / 24px 24px,
+    radial-gradient(circle at 50% 55%, #f28c28 6px, transparent 6.5px) 0 0 / 24px 24px,
+    radial-gradient(4px 2px at 64% 26%, #3f8f3a 98%, transparent 100%) 12px 12px / 24px 24px,
+    radial-gradient(circle at 50% 55%, #f28c28 6px, transparent 6.5px) 12px 12px / 24px 24px,
+    #fff1d6;
+  --ds-postcard-tangerine-paper: #fffaf0;
+  --ds-postcard-tangerine-ink: #6a2a00;
+
+  --ds-postcard-cocoa-frame:
+    radial-gradient(circle, #fff3f6 3px, transparent 3.5px) 0 0 / 16px 16px,
+    radial-gradient(circle, #ffd6e3 2.5px, transparent 3px) 8px 8px / 16px 16px,
+    linear-gradient(160deg, #6b3f26, #8b5a3c);
+  --ds-postcard-cocoa-paper: #fbf3e9;
+  --ds-postcard-cocoa-ink: #3d2416;
+
+  --ds-postcard-gift-frame:
+    linear-gradient(90deg, transparent calc(50% - 7px), #f2c14e calc(50% - 7px) calc(50% + 7px), transparent calc(50% + 7px)),
+    linear-gradient(0deg, transparent calc(50% - 7px), #f2c14e calc(50% - 7px) calc(50% + 7px), transparent calc(50% + 7px)),
+    radial-gradient(circle, rgba(255, 255, 255, 0.3) 1.5px, transparent 2px) 0 0 / 12px 12px,
+    #c62f3e;
+  --ds-postcard-gift-paper: #fffdf6;
+  --ds-postcard-gift-ink: #4f0b16;
+
+  --ds-postcard-sparkle-frame:
+    radial-gradient(circle, #fffbe0 1.1px, transparent 1.6px) 0 0 / 9px 11px,
+    radial-gradient(circle, #9c7208 1px, transparent 1.5px) 4px 5px / 13px 7px,
+    linear-gradient(135deg, #d4a017, #f5d76e 50%, #c99a0e);
+  --ds-postcard-sparkle-paper: #fffdf3;
+  --ds-postcard-sparkle-ink: #4a3500;
+
+  --ds-postcard-nordic-frame:
+    radial-gradient(circle, #e04b5a 1.6px, transparent 2px) 7.4px 7.4px / 14.8px 14.8px,
+    repeating-linear-gradient(45deg, transparent 0 9px, rgba(255, 255, 255, 0.85) 9px 10.5px),
+    repeating-linear-gradient(-45deg, transparent 0 9px, rgba(255, 255, 255, 0.85) 9px 10.5px),
+    #1f3b6b;
+  --ds-postcard-nordic-paper: #f6f8fc;
+  --ds-postcard-nordic-ink: #1a2e4d;
+
+  --ds-postcard-airmail-frame:
+    repeating-linear-gradient(-45deg, #d32f2f 0 10px, #ffffff 10px 20px, #1e4fa3 20px 30px, #ffffff 30px 40px);
+  --ds-postcard-airmail-paper: #ffffff;
+  --ds-postcard-airmail-ink: #1b2a44;
 }

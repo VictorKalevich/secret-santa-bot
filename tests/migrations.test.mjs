@@ -123,3 +123,32 @@ test('база с данными «до 0009»: у всех событий conta
   for (const t of Object.keys(before).filter((t) => t !== 'events' && t !== 'settings')) assert.deepEqual(after[t], before[t], t);
   assert.deepEqual(after.settings.filter((r) => !r.includes('"schema"')), before.settings.filter((r) => !r.includes('"schema"')));
 });
+
+// 038: миграция 0010 — значок у имени (users.emoji) и открытка письма (members.card), у всех пусто; версия схемы 13
+const SQL10 = readFileSync(new URL('../migrations/0010_looks.sql', import.meta.url), 'utf8');
+const statements10 = SQL10.replace(/--[^\n]*/g, '').split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+
+test('0010: только колонки users.emoji и members.card с умолчанием пусто и версия схемы 13', () => {
+  assert.deepEqual(statements10, [
+    "ALTER TABLE users ADD COLUMN emoji TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE members ADD COLUMN card TEXT NOT NULL DEFAULT ''",
+    "INSERT INTO settings (key, value) VALUES ('schema', '13') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ]);
+});
+
+test('база с данными «до 0010»: значки и открытки пусты, остальные строки прежние, версия 13', async () => {
+  const { w } = await filledWorld();
+  w.sql("ALTER TABLE users DROP COLUMN emoji; ALTER TABLE members DROP COLUMN card; UPDATE settings SET value = '12' WHERE key = 'schema'");
+  const before = snapshot(w);
+  w.sql(SQL10);
+  const after = snapshot(w);
+  const without = (rows, col) => rows.map((r) => { const { [col]: _, ...rest } = JSON.parse(r); return JSON.stringify(rest); }).sort();
+  assert.ok(w.query('SELECT emoji FROM users').every((u) => u.emoji === ''), 'значки пусты');
+  assert.ok(w.query('SELECT card FROM members').every((m) => m.card === ''), 'открытки пусты');
+  assert.deepEqual(without(after.users, 'emoji'), before.users, 'люди — те же значения');
+  assert.deepEqual(without(after.members, 'card'), before.members, 'участия — те же значения');
+  const schema = (snap) => snap.settings.map((r) => JSON.parse(r)).find((r) => r.key === 'schema').value;
+  assert.equal(schema(before), '12');
+  assert.equal(schema(after), '13');
+  for (const t of Object.keys(before).filter((t) => !['users', 'members', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
+});

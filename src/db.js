@@ -1,5 +1,5 @@
-// Работа с базой D1 (SQLite). Схема 12: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
-// «участники могут писать друг другу» 037
+// Работа с базой D1 (SQLite). Схема 13: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
+// «участники могут писать друг другу» 037, значок у имени и открытка письма 038
 // (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
 import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
@@ -7,7 +7,7 @@ import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 12;
+export const REQUIRED_SCHEMA = 13;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -171,7 +171,7 @@ export const drawMembersQuery = (db, eventId) => db.prepare(
 
 // Панель организатора: «письмо есть», «адрес указан» вместо текстов
 export const panelMembersQuery = (db, eventId) => db.prepare(
-  `SELECT m.user_id, u.name, u.username, u.registered, u.is_admin, u.blocked_at,
+  `SELECT m.user_id, u.name, u.username, u.emoji, u.registered, u.is_admin, u.blocked_at,
           NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist, NOT ${BLANK_SQL('m.delivery')} AS has_delivery
      ${MEMBERS_OF} ORDER BY m.joined_at`
 ).bind(eventId);
@@ -184,7 +184,7 @@ export const unfilledIdsQuery = (db, eventId) =>
   db.prepare(`SELECT m.user_id ${MEMBERS_OF} AND u.registered = 1 AND ${BLANK_SQL('m.wishlist')} ORDER BY m.joined_at`).bind(eventId);
 // Список участников на «Инфо» (037): зарегистрированные, признак «письмо есть» — только для общего числа (людям не отдаётся)
 export const peopleQuery = (db, eventId) => db.prepare(
-  `SELECT m.user_id, u.name, u.username, u.is_admin, NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist
+  `SELECT m.user_id, u.name, u.username, u.emoji, u.is_admin, NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist
      ${MEMBERS_OF} AND u.registered = 1`
 ).bind(eventId);
 
@@ -364,9 +364,10 @@ export const REGISTRY = {
     anchor: 'member',
     onEventDelete: 'delete',
     onTransfer: 'merge',
-    // Личные поля участия (значение и время изменения): их стирает сброс у оставшегося владельца; при слиянии двух
-    // участий берутся у нового аккаунта, если не пусты (009, FR-938)
-    personal: [['wishlist', 'wishlist_updated_at'], ['delivery', 'delivery_updated_at']],
+    // Личные поля участия — группы [значение, время изменения, ...спутники]: их стирает сброс у оставшегося владельца
+    // (значение и спутники — '', время — 0); при слиянии двух участий группа целиком берётся у нового аккаунта, если его
+    // значение не пусто (009, FR-938). Открытка — спутник письма (038): не «разъезжается» с ним
+    personal: [['wishlist', 'wishlist_updated_at', 'card'], ['delivery', 'delivery_updated_at']],
   },
   exclusions: { event: 'event_id', people: { giver: MEMBER, receiver: MEMBER }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'dedupe', noSelf: true },
   // 014: если у нового аккаунта в событии уже своя закреплённая пара — остаётся она
@@ -451,7 +452,7 @@ export function eventDataDeleteStmts(db, eventId, { keepMember = 0, keepEvent = 
     if (!spec.event || spec.onEventDelete !== 'delete') continue;
     if (spec.anchor === 'member' && keepMember) {
       const [who] = columnsWith(spec, MEMBER);
-      const fields = spec.personal.flatMap(([value, time]) => [[value, ''], [time, 0]]);
+      const fields = spec.personal.flatMap(([value, time, ...rest]) => [[value, ''], [time, 0], ...rest.map((f) => [f, ''])]);
       add(`DELETE FROM ${table} WHERE ${spec.event} = ? AND ${who} != ?`, eventId, keepMember);
       add(`UPDATE ${table} SET ${fields.map(([f]) => `${f} = ?`).join(', ')} WHERE ${spec.event} = ?`, ...fields.map(([, v]) => v), eventId);
     } else {
@@ -489,10 +490,9 @@ export function memberDataDeleteStmts(db, eventId, userId, guard = '1', ...args)
 // личные поля — нового, если не пусты, каждое со своим временем изменения.
 export function mergeMembership(from, to) {
   const set = {};
-  for (const [value, time] of REGISTRY.members.personal) {
-    const src = String(to[value] || '').trim() ? to : from;
-    set[value] = src[value];
-    set[time] = src[time];
+  for (const group of REGISTRY.members.personal) {
+    const src = String(to[group[0]] || '').trim() ? to : from;
+    for (const f of group) set[f] = src[f];
   }
   return { event_id: from.event_id, set };
 }

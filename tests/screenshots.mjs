@@ -1004,6 +1004,139 @@ addEventListener('message', (e) => {
     else console.log('✔ участники на «Инфо» (037): «Организаторы» и «Автожеребьёвка» в «О событии», список по алфавиту с «(ты)» и метками, свёрнут после 8, прогресс до и после жеребьёвки; параметр в «Параметрах» — @username и чат после вопроса (не своя строка, не без @username); «Пригласить друга» пересылает ссылку и пропадает при закрытой регистрации');
   }
 
+  // 038: значок у имени и открытка письма — свои люди и событие «Открытки» (другие снимки и проверки не меняются).
+  // Значок из «Профиля» — в профиле, на «Инфо» и у Санты внутри скрытого имени, в переписке его нет; открытка — шторка с
+  // отметкой выбранной, редактор на открытке (цвета бумаги и чернил), несохранённый текст цел, время письма прежнее; у
+  // Санты и организатора письмо на открытке; в завершённом событии кнопки нет, письмо — на открытке.
+  async function checkLooks() {
+    const problems = [];
+    const [petr, rita, sveta] = [['Пётр', 'petr'], ['Рита', 'rita'], ['Света', 'sveta']].map(([name, username], i) => ({ id: 170 + i, name, username }));
+    const E = (await w.api(admin, 'admin.events.create', { title: 'Открытки' })).event.id;
+    const code = await inv(E);
+    for (const p of [petr, rita, sveta]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
+    await w.api(rita, 'wishlist.save', { event: E, text: LETTER('Рита') });
+    const UNSAVED_TEXT = 'Дорогой Санта! Хочу тёплые варежки';
+    const color = (loc, prop) => loc.evaluate((el, p) => getComputedStyle(el)[p], prop);
+    const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
+
+    // У Петра одно событие — приложение открывает его сразу; «Профиль» — на главном экране
+    const toProfile = async (page) => { await page.locator('#heroBack').click(); await page.locator('#main .ds-btn', { hasText: 'Значок у имени' }).click(); };
+    await onPage(problems, 'значок в профиле', petr, null, async (page) => {
+      await toProfile(page);
+      const sheet = page.locator('.ds-sheet', { hasText: 'Значок у имени' });
+      if ((await sheet.locator('.ds-choice').count()) !== 40) problems.push(`значков в шторке: ${await sheet.locator('.ds-choice').count()}`);
+      if (await sheet.locator('.ds-choice--selected').count()) problems.push('без значка — а плитка отмечена');
+      if (await sheet.locator('.ds-btn', { hasText: 'Без значка' }).count()) problems.push('без значка — а кнопка «Без значка» есть');
+      await sheet.locator('.ds-choice', { hasText: '🦊' }).click();
+      await toastIs(page, 'Значок сохранён');
+      const name = await page.locator('#main .ds-card', { has: page.locator('.ds-btn', { hasText: 'Значок у имени' }) }).locator('.ds-text-strong').textContent();
+      if (name !== '🦊 Пётр') problems.push(`профиль: «${name}»`);
+      if (w.query(`SELECT emoji FROM users WHERE tg_id = ${petr.id}`)[0].emoji !== '🦊') problems.push('значок не сохранён на сервере');
+      await page.locator('#main .ds-btn', { hasText: 'Значок у имени' }).click();
+      if ((await page.locator('.ds-sheet .ds-choice--selected').textContent()) !== '🦊') problems.push('выбранный значок не отмечен');
+      if (!(await page.locator('.ds-sheet .ds-btn', { hasText: 'Без значка' }).count())) problems.push('нет «Без значка»');
+    });
+
+    await onPage(problems, 'открытка письма', petr, E, async (page) => {
+      const ta = page.locator('#main textarea.ds-input--letter');
+      await ta.fill(UNSAVED_TEXT);
+      const btn = page.locator('#main .ds-btn', { hasText: '🖼 Открытка' });
+      if ((await btn.textContent()) !== '🖼 Открытка: без открытки') problems.push(`кнопка: «${await btn.textContent()}»`);
+      if (await page.locator('#main .ds-postcard').count()) problems.push('без открытки — а редактор на открытке');
+      await btn.click();
+      const sheet = page.locator('.ds-sheet', { hasText: 'Открытка для письма' });
+      const tiles = await sheet.locator('.ds-choice').allTextContents();
+      if (tiles.length !== 16 || tiles[0] !== 'Без открытки') problems.push(`плитки: ${tiles.join(', ')}`);
+      if ((await sheet.locator('.ds-choice--selected').textContent()) !== 'Без открытки') problems.push('не отмечено «Без открытки»');
+      await sheet.locator('.ds-choice', { hasText: 'Звёздная ночь' }).click();
+      await toastIs(page, 'Открытка выбрана');
+      const paper = page.locator('#main .ds-postcard--night .ds-postcard__paper');
+      if (!(await paper.locator('textarea').count())) problems.push('редактор не на открытке');
+      if ((await ta.inputValue()) !== UNSAVED_TEXT) problems.push('несохранённый текст пропал');
+      if (!(await page.locator('.ds-tab--active .ds-tab__dot').count())) problems.push('после смены открытки нет отметки «не сохранено»');
+      if ((await color(paper, 'backgroundColor')) !== 'rgb(20, 35, 71)') problems.push(`бумага: ${await color(paper, 'backgroundColor')}`);
+      if ((await color(ta, 'color')) !== 'rgb(238, 242, 255)') problems.push(`чернила редактора: ${await color(ta, 'color')}`);
+      if ((await color(ta, 'backgroundColor')) !== 'rgba(0, 0, 0, 0)') problems.push(`фон редактора: ${await color(ta, 'backgroundColor')}`);
+      if ((await btn.textContent()) !== '🖼 Открытка: Звёздная ночь') problems.push(`кнопка после выбора: «${await btn.textContent()}»`);
+      const row = w.query(`SELECT card, wishlist, wishlist_updated_at FROM members WHERE event_id = ${Number(E)} AND user_id = ${petr.id}`)[0];
+      if (row.card !== 'night' || row.wishlist !== '' || row.wishlist_updated_at !== 0) problems.push(`на сервере: ${JSON.stringify(row)}`);
+      await btn.click();
+      if ((await page.locator('.ds-sheet .ds-choice--selected').textContent()) !== 'Звёздная ночь') problems.push('выбранная открытка не отмечена');
+      await page.locator('.ds-sheet .ds-icon-btn', { hasText: '✕' }).click();
+      await page.locator('#main .ds-btn', { hasText: /^Сохранить$/ }).click();
+      await toastIs(page, 'Письмо сохранено');
+    });
+
+    await shot(petr, '35-emoji', { fullPage: false, before: toProfile });
+    await shot(petr, '35-emoji', { fullPage: false, dark: true, before: toProfile });
+    await shot(petr, '36-letter-postcard', { event: E });
+    await shot(petr, '36-letter-postcard', { event: E, dark: true });
+    const openCards = (p) => p.locator('#main .ds-btn', { hasText: '🖼 Открытка' }).click();
+    await shot(petr, '36-postcards', { event: E, fullPage: false, before: openCards });
+    await shot(petr, '36-postcards', { event: E, fullPage: false, dark: true, before: openCards });
+
+    await w.api(sveta, 'card.set', { event: E, card: 'candy' });
+    await w.api(admin, 'admin.registration', { event: E, open: false });
+    await w.api(admin, 'admin.draw', { event: E });
+    const santaId = w.query(`SELECT santa FROM pairs WHERE event_id = ${Number(E)} AND ward = ${petr.id}`)[0].santa;
+    const santa = [rita, sveta].find((p) => p.id === santaId);
+    await w.api(santa, 'message.send', { event: E, to: 'ward', text: 'Привет! Какой размер варежек?' });
+
+    await onPage(problems, 'у Санты', santa, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
+      const name = page.locator('#main .ds-ward-card__name');
+      await name.waitFor({ timeout: 3000 });
+      if ((await name.textContent()) !== '🦊 Пётр') problems.push(`имя подопечного: «${await name.textContent()}»`);
+      if (!(await name.evaluate((el) => el.classList.contains('ds-ward-card__name--hidden')))) problems.push('значок и имя не скрыты');
+      if (!(await page.locator('#main .ds-postcard--night .ds-letter').count())) problems.push('письмо подопечного не на открытке');
+      await page.locator('#main .ds-btn', { hasText: 'Написать подопечному' }).click();
+      const chat = page.locator('.ds-sheet--full');
+      await chat.locator('.ds-chat__msg').first().waitFor({ timeout: 3000 });
+      if ((await chat.textContent()).includes('🦊')) problems.push('в переписке есть значок подопечного');
+    });
+    await shot(santa, '37-ward-postcard', { event: E, tab: 'Подопечный', before: (p) => p.getByRole('button', { name: '👀 Показать имя' }).click() });
+    await shot(santa, '37-ward-postcard', { event: E, tab: 'Подопечный', dark: true, before: (p) => p.getByRole('button', { name: '👀 Показать имя' }).click() });
+
+    // После жеребьёвки у Петра есть подопечный с письмом — событие открывается на «Подопечном»
+    await onPage(problems, 'переписка у подопечного', petr, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Письмо' }).click();
+      await page.locator('#main .ds-btn', { hasText: 'Написать Санте' }).click();
+      const chat = page.locator('.ds-sheet--full');
+      await chat.locator('.ds-chat__msg').first().waitFor({ timeout: 3000 });
+      if ((await chat.textContent()).includes('🦊')) problems.push('в переписке у подопечного есть значок');
+    });
+
+    await onPage(problems, 'на «Инфо»', rita, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
+      const titles = await page.locator('#main .ds-list-item__title').allTextContents();
+      if (!titles.includes('🦊 Пётр')) problems.push(`список участников: ${titles.join(', ')}`);
+    });
+
+    await onPage(problems, 'у организатора', admin, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      const item = page.locator('#main .ds-list-item', { hasText: 'Пётр' });
+      const title = await item.locator('.ds-list-item__title').first().textContent();
+      if (title !== '🦊 Пётр  @petr') problems.push(`панель: «${title}»`);
+      await item.locator('.ds-icon-btn[title="Действия с участником"]').click();
+      page.once('dialog', (d) => d.accept());
+      await page.locator('.ds-sheet .ds-btn', { hasText: 'Открыть письмо' }).click();
+      const letter = page.locator('.ds-sheet', { hasText: 'Письмо: Пётр' }).locator('.ds-postcard--night .ds-letter');
+      await letter.waitFor({ timeout: 3000 });
+      if ((await letter.textContent()) !== UNSAVED_TEXT) problems.push(`письмо у организатора: «${await letter.textContent()}»`);
+    });
+
+    await w.api(admin, 'admin.event.finish', { event: E });
+    await onPage(problems, 'завершённое событие', petr, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Письмо' }).click();
+      await page.locator('#main .ds-letter').first().waitFor({ timeout: 3000 });
+      if (await page.locator('#main .ds-btn', { hasText: 'Открытка' }).count()) problems.push('в завершённом есть кнопка открытки');
+      if (!(await page.locator('#main .ds-postcard--night .ds-letter').count())) problems.push('в завершённом письмо не на открытке');
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'значок и открытка (038): ' + x));
+    else console.log('✔ значок и открытка (038): значок из «Профиля» — в профиле, на «Инфо», в панели и у Санты внутри скрытого имени, в переписке обеих сторон его нет; шторка открыток — 16 плиток, выбранная отмечена, редактор на открытке с цветами темы, несохранённый текст цел, время письма прежнее; у Санты и организатора письмо на открытке; в завершённом — без кнопки');
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await openPage(name + (dark ? ' (тёмная)' : ''), { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -1130,6 +1263,7 @@ addEventListener('message', (e) => {
   await checkRegistration();
   await checkSelfService();
   await checkInfoPeople();
+  await checkLooks();
   await checkCsp();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
   else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);

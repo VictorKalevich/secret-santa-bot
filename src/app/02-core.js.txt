@@ -157,9 +157,6 @@
   function haptic(kind) {
     try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred(kind); } catch (e) {}
   }
-  // Окно подтверждения Telegram вмещает 256 символов (длиннее — исключение), у нас — с запасом (009). Тексты
-  // приложения помещаются в предел при самых длинных именах и названиях — это проверяет тест app-ui (026); если текст
-  // всё же длиннее (данные вне пределов), обрезка видна: в конце «…». Окно браузера показывает текст целиком.
   // Ссылка t.me — внутри Telegram (чат, выбор чата для пересылки); вне Telegram — новая вкладка
   function openTgLink(url) {
     if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
@@ -168,6 +165,16 @@
   function shareInvite(link, title) {
     openTgLink('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(`🎄 Играем в Тайного Санту — «${title}»! Заходи по ссылке:`));
   }
+  // 038: значок перед именем — в списках людей; в переписке Санты и подопечного значков нет
+  const emojiName = (u, name = u.name) => (u.emoji ? u.emoji + ' ' : '') + name;
+  // Письмо на открытке (038): card — id из набора сервера (state.looks.postcards); без открытки — содержимое как есть
+  function postcard(card, ...content) {
+    if (!card) return content.length === 1 ? content[0] : h('div', { class: 'ds-stack' }, ...content);
+    return h('div', { class: 'ds-postcard ds-postcard--' + card }, h('div', { class: 'ds-postcard__paper' }, ...content));
+  }
+  // Окно подтверждения Telegram вмещает 256 символов (длиннее — исключение), у нас — с запасом (009). Тексты
+  // приложения помещаются в предел при самых длинных именах и названиях — это проверяет тест app-ui (026); если текст
+  // всё же длиннее (данные вне пределов), обрезка видна: в конце «…». Окно браузера показывает текст целиком.
   const CONFIRM_MAX = 250;
   function confirmBox(text) {
     return new Promise((resolve) => {

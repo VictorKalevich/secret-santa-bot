@@ -2,7 +2,8 @@
   // ---------- экран эвента ----------
   function renderHero() {
     const e = state.ev;
-    heroBack.hidden = !(state.events.length > 1 || state.me.is_admin);
+    // 038: «‹» — всегда: на главном экране «Профиль» (имя, значок) и «Уведомления» нужны и участнику с одним событием
+    heroBack.hidden = false;
     heroTitle.textContent = e.title;
     const parts = [];
     if (e.status === 'finished') parts.push('🏁 завершён');
@@ -80,7 +81,7 @@
     const recompute = () => { const v = letterChanged || addrChanged; if (v !== state.dirty) setDirty(v); };
     if (!state.can.edit_letter) {
       nodes.push(ui.card(
-        m.wishlist.trim() ? h('div', { class: 'ds-letter' }, m.wishlist) : h('div', { class: 'ds-text-muted' }, 'Письмо осталось пустым.'),
+        m.wishlist.trim() ? postcard(m.card, h('div', { class: 'ds-letter' }, m.wishlist)) : h('div', { class: 'ds-text-muted' }, 'Письмо осталось пустым.'),
         m.wishlist_updated_at ? ui.hint('Последнее изменение ' + fmtTime(m.wishlist_updated_at)) : null));
     } else {
       const ta = ui.textarea({
@@ -111,9 +112,16 @@
         haptic('success');
         toast(m.has_santa ? '✅ Сохранено. Если у Санты включены уведомления, он узнает об этом через несколько минут' : '✅ Письмо сохранено');
       }).then(update));
+      // 038: смена открытки не меняет письмо — несохранённый текст остаётся в том же поле
+      const paper = h('div', {}, postcard(m.card, ta));
+      const cardBtn = ui.btn('🖼 Открытка: ' + cardTitle(m.card), 'secondary', 'ds-btn--block');
+      cardBtn.addEventListener('click', () => openPostcardSheet((card) => {
+        paper.replaceChildren(postcard(card, ta));
+        cardBtn.textContent = '🖼 Открытка: ' + cardTitle(card);
+      }));
       nodes.push(ui.card(
         ui.hint(`Письмо увидит твой Санта в этом событии; организатор может открыть его — это записывается в журнал. Менять можно, пока событие идёт. До ${max} символов — столько помещается в одно сообщение Telegram.`),
-        ta, h('div', { class: 'ds-row ds-row--between' }, counter, status), saveBtn));
+        cardBtn, paper, h('div', { class: 'ds-row ds-row--between' }, counter, status), saveBtn));
       requestAnimationFrame(update);
     }
     // 008: адрес доставки — увидит только Санта
@@ -160,6 +168,26 @@
 
   // ---------- вкладка «Подопечный» ----------
   // cached — перерисовать по последнему ответу (после закрытия переписки), не запрашивая ward.get заново
+  // Шторка «Открытка для письма» (038): «без открытки» и мини-открытки набора, выбранная обведена; saved(id из ответа)
+  const cardTitle = (id) => (state.looks.postcards.find((c) => c.id === id) || { title: 'без открытки' }).title;
+  function openPostcardSheet(saved) {
+    const m = state.member;
+    const grid = h('div', { class: 'ds-choices ds-choices--cards' });
+    const pick = (card) => busy([...grid.children], async () => {
+      const r = await eapi('card.set', { card });
+      m.card = r.card;
+      closeSheet();
+      toast(r.card ? 'Открытка выбрана' : 'Открытка убрана');
+      saved(r.card);
+    });
+    const tile = (id, title) => {
+      const mini = h('div', { class: 'ds-postcard ds-postcard--mini' + (id ? ' ds-postcard--' + id : '') }, h('div', { class: 'ds-postcard__paper' }, title));
+      return h('button', { class: 'ds-choice' + (id === m.card ? ' ds-choice--selected' : ''), onclick: () => pick(id) }, mini);
+    };
+    grid.append(tile('', 'Без открытки'), ...state.looks.postcards.map((c) => tile(c.id, c.title)));
+    openSheet('Открытка для письма', [ui.hint('Санта увидит твоё письмо на этой открытке. Менять можно, пока событие идёт.'), grid]);
+  }
+
   const renderWard = screen(async ({ cached = false } = {}) => {
     const nav = state.nav, evId = state.evId;
     let d = cached && state.wardCache && state.wardCache.evId === evId ? state.wardCache.d : null;
@@ -175,7 +203,8 @@
         : ui.empty('⏳', 'Скоро тебя добавят', 'Ты присоединился после жеребьёвки. Организатор впишет тебя — и бот пришлёт уведомление.')].filter(Boolean));
       return;
     }
-    const nameEl = h('div', { class: 'ds-ward-card__name' + (state.wardNameShown ? '' : ' ds-ward-card__name--hidden') }, d.ward.name);
+    // 038: значок подопечного — внутри скрытого имени, открывается вместе с ним
+    const nameEl = h('div', { class: 'ds-ward-card__name' + (state.wardNameShown ? '' : ' ds-ward-card__name--hidden') }, emojiName(d.ward));
     const toggle = ui.btn(state.wardNameShown ? '🙈 Скрыть' : '👀 Показать имя', 'sm', 'ds-btn--on-festive');
     toggle.addEventListener('click', () => {
       state.wardNameShown = !state.wardNameShown;
@@ -191,9 +220,9 @@
       letter = h('div', { class: 'ds-stack' },
         h('div', { class: 'ds-notice ds-text-sm' }, '✨ Письмо изменилось с твоего прошлого просмотра: новое ',
           h('mark', { class: 'ds-diff-add' }, 'выделено'), ', удалённое ', h('del', { class: 'ds-diff-del' }, 'зачёркнуто'), '.'),
-        renderDiff(d.previous, text));
+        postcard(d.ward.card, renderDiff(d.previous, text)));
     } else {
-      letter = h('div', { class: 'ds-letter' }, text);
+      letter = postcard(d.ward.card, h('div', { class: 'ds-letter' }, text));
     }
 
     const gift = h('input', { type: 'checkbox', checked: d.gift_ready, disabled: finished() });
@@ -275,7 +304,7 @@
     if (!g.draw_done && g.status !== 'finished') rows.push(['Автожеребьёвка', fmtDate(g.draw_auto_date) || 'не установлена']);
     rows.push(['Кольцевая', g.ring ? 'да — взаимных пар нет' : 'нет — взаимные пары возможны']);
     const orgs = state.roster ? state.roster.organizers : [];
-    if (orgs.length) rows.push(['Организаторы', orgs.map((o) => o.name).join(', ')]);
+    if (orgs.length) rows.push(['Организаторы', orgs.map((o) => emojiName(o)).join(', ')]);
     const nodes = [
       finishedNotice(),
       ui.section('О событии'),
