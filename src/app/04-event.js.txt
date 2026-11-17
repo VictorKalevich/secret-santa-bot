@@ -220,6 +220,49 @@
   });
 
   // ---------- вкладка «Инфо» ----------
+  // 037: участники события — имена, роли и общие числа, без отметок по людям (specs/037-info-people/contracts/info-people.md)
+  const ROSTER_FOLD = 8;
+  function peopleSection() {
+    const g = state.ev;
+    const r = state.roster;
+    if (!r) return [];
+    const { people, progress: pr } = r;
+    const progress = !pr.of ? null : pr.letters === undefined
+      ? `🎁 Подарки готовы: ${pr.ready} из ${pr.of} · 📦 получено: ${pr.received} из ${pr.of}`
+      : `✉️ Письма написали ${pr.letters} из ${pr.of}`;
+    const list = h('div', { class: 'ds-card ds-card--flush' });
+    if (!people.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Пока никого нет.'));
+    const folded = state.rosterOpen !== g.id && people.length > ROSTER_FOLD;
+    list.append(...(folded ? people.slice(0, ROSTER_FOLD) : people).map(personRow));
+    if (folded) {
+      const more = h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => {
+        state.rosterOpen = g.id;
+        more.replaceWith(...people.slice(ROSTER_FOLD).map(personRow));
+      } }, h('div', { class: 'ds-grow ds-text-muted' }, `Показать всех (${people.length})`), h('span', { class: 'ds-list-item__chevron' }, '›'));
+      list.append(more);
+    }
+    const nodes = [ui.section(`Участники · ${people.length}`), progress ? ui.hint(progress, 'ds-hint--inset') : null, list];
+    if (r.invite_link) {
+      const share = ui.btn('📨 Пригласить друга', 'secondary', 'ds-btn--block');
+      share.addEventListener('click', () => shareInvite(r.invite_link, g.title));
+      nodes.push(ui.card(ui.hint(g.approval
+        ? 'Позови друга — он отправит заявку, организатор её подтвердит.'
+        : 'Позови друга — по ссылке он сразу вступит в событие.'), share));
+    }
+    return nodes;
+  }
+  // Строка участника: имя, «(ты)», роль; при разрешении организатора — @username и чат в Telegram по нажатию
+  function personRow(u) {
+    const mine = u.id === state.me.id;
+    const title = personTitle(u);
+    if (mine) title.append(h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)'));
+    const role = u.role === 'owner' ? ui.chip('👑 владелец') : u.role === 'admin' ? ui.chip('🛠 организатор') : null;
+    if (!state.ev.contacts_on || !u.username || mine) return h('div', { class: 'ds-list-item' }, h('div', { class: 'ds-grow' }, title), role);
+    return h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: async () => {
+      if (await confirmBox(`Открыть чат с ${u.name} в Telegram?`)) openTgLink('https://t.me/' + encodeURIComponent(u.username));
+    } }, h('div', { class: 'ds-grow' }, title), role, h('span', { class: 'ds-list-item__chevron' }, '›'));
+  }
+
   function renderInfo() {
     const g = state.ev;
     const rows = [];
@@ -228,15 +271,18 @@
     if (g.event_date) rows.push(['Вручение', fmtDate(g.event_date)]);
     if (g.place) rows.push(['Где', g.place]);
     if (g.deadline) rows.push(['Письмо до', fmtDate(g.deadline)]);
-    rows.push(['Участников', String(g.participants)]);
     rows.push(['Жеребьёвка', g.draw_done ? 'проведена ✅' : 'ещё не проведена']);
+    if (!g.draw_done && g.status !== 'finished') rows.push(['Автожеребьёвка', fmtDate(g.draw_auto_date) || 'не установлена']);
     rows.push(['Кольцевая', g.ring ? 'да — взаимных пар нет' : 'нет — взаимные пары возможны']);
+    const orgs = state.roster ? state.roster.organizers : [];
+    if (orgs.length) rows.push(['Организаторы', orgs.map((o) => o.name).join(', ')]);
     const nodes = [
       finishedNotice(),
       ui.section('О событии'),
       h('div', { class: 'ds-card' }, h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
     ];
     if (g.notes) nodes.push(h('div', { class: 'ds-card ds-letter' }, g.notes));
+    nodes.push(...peopleSection());
     if (state.announcements.length) {
       nodes.push(ui.section('Объявления'), ...state.announcements.map((a) => ui.card(
         h('div', { class: 'ds-letter' }, a.text),

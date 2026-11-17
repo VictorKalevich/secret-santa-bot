@@ -894,6 +894,116 @@ addEventListener('message', (e) => {
     else console.log('✔ имя и выход (035–036): «Профиль» над «Уведомлениями», имя — сразу в приветствии; выход — только со словом, без второго окна, организатору — сообщение; после жеребьёвки — подсказка по роли (владелец, админ, участник; до и после раскрытия) и обращение; «Опасная зона» — та же шторка со вторым окном');
   }
 
+  // 037: участники на «Инфо» (specs/037-info-people/contracts/info-people.md). Событие R: владелец (admin), админ people[0]
+  // и восемь новых — десять человек, список свёрнут после восьми; писем — три. Параметр «Участники могут писать друг другу»
+  // включается в «Параметрах» организатором: @username и чат по нажатию (вопрос — окно браузера, переход — window.open)
+  async function checkInfoPeople() {
+    const problems = [];
+    const names = ['Вова', 'Галя', 'Евгений', 'Жанна', 'Зоя', 'Игорь', 'Лена', 'Нина'];
+    const fresh = names.map((name, i) => ({ id: 150 + i, name, username: name === 'Лена' ? '' : 'u' + (150 + i) }));
+    const [vova] = fresh;
+    const R = (await w.api(admin, 'admin.events.create', { title: 'Список участников' })).event.id;
+    const codeR = await inv(R);
+    for (const p of fresh) { await w.say(p, '/start ' + codeR); await w.say(p, p.name); }
+    await w.api(admin, 'admin.participate', { event: R, on: true });
+    await w.api(people[0], 'admin.participate', { event: R, on: true });
+    for (const p of fresh.slice(0, 3)) await w.api(p, 'wishlist.save', { event: R, text: LETTER(p.name) });
+    const organizers = (await w.api(vova, 'event.get', { event: R })).roster.organizers.map((o) => o.name).join(', ');
+    const SORTED = ['Вова', 'Галя', 'Дмитрий', 'Евгений', 'Жанна', 'Зоя', 'Игорь', 'Лена', 'Маша', 'Нина'];
+
+    // Раздел «Участники · 10»: подсказка над списком, карточка списка; переходы по ссылкам — в window.__opened
+    const section = async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
+      const title = page.locator('#main .ds-section-title', { hasText: 'Участники · 10' });
+      await title.waitFor({ timeout: 3000 });
+      await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+      return {
+        hint: title.locator('xpath=following-sibling::*[1]'),
+        list: title.locator('xpath=following-sibling::*[contains(@class, "ds-card--flush")][1]'),
+        opened: () => page.evaluate(() => window.__opened.slice()),
+      };
+    };
+    const rowTitles = (list) => list.locator('.ds-list-item__title').allTextContents();
+    const info = async (page) => {
+      const dt = await page.locator('#main .ds-info-grid dt').allTextContents();
+      const dd = await page.locator('#main .ds-info-grid dd').allTextContents();
+      return Object.fromEntries(dt.map((k, i) => [k, dd[i]]));
+    };
+
+    await onPage(problems, 'список до жеребьёвки', vova, R, async (page) => {
+      const { hint, list, opened } = await section(page);
+      const rows = await info(page);
+      if ('Участников' in rows) problems.push('«О событии»: осталась строка «Участников»');
+      if (rows['Организаторы'] !== organizers) problems.push(`«Организаторы»: «${rows['Организаторы']}», ожидалось «${organizers}»`);
+      if (rows['Автожеребьёвка'] !== 'не установлена') problems.push(`«Автожеребьёвка»: «${rows['Автожеребьёвка']}»`);
+      if ((await hint.textContent()) !== '✉️ Письма написали 3 из 10') problems.push(`прогресс: «${await hint.textContent()}»`);
+      let titles = await rowTitles(list);
+      if (titles.join('|') !== ['Вова  (ты)', ...SORTED.slice(1, 8)].join('|')) problems.push(`свёрнутый список: ${titles.join(', ')}`);
+      const more = list.locator('.ds-list-item--link', { hasText: 'Показать всех (10)' });
+      if (!(await more.count())) problems.push('нет «Показать всех (10)»');
+      if (await list.locator('.ds-list-item--link', { hasNotText: 'Показать всех' }).count()) problems.push('параметр выключен, а строки нажимаются');
+      if ((await list.textContent()).includes('@')) problems.push('параметр выключен, а в списке есть @');
+      await more.click();
+      titles = await rowTitles(list);
+      if (titles.join('|') !== ['Вова  (ты)', ...SORTED.slice(1)].join('|')) problems.push(`раскрытый список: ${titles.join(', ')}`);
+      if (await list.locator('.ds-list-item--link').count()) problems.push('после раскрытия осталась «Показать всех»');
+      const chip = async (name) => (await list.locator('.ds-list-item', { hasText: name }).locator('.ds-chip').allTextContents()).join('|');
+      if ((await chip('Дмитрий')) !== '👑 владелец') problems.push(`метка владельца: «${await chip('Дмитрий')}»`);
+      if ((await chip('Маша')) !== '🛠 организатор') problems.push(`метка организатора: «${await chip('Маша')}»`);
+      if ((await chip('Галя')) !== '') problems.push(`у участника метка «${await chip('Галя')}»`);
+      const invite = page.locator('#main .ds-card', { has: page.locator('.ds-btn', { hasText: '📨 Пригласить друга' }) });
+      if ((await invite.locator('.ds-hint').textContent()) !== 'Позови друга — по ссылке он сразу вступит в событие.') problems.push('приглашение: подсказка');
+      await invite.locator('.ds-btn').click();
+      const link = (await w.api(admin, 'admin.state', { event: R })).settings.invite_link;
+      const [url] = await opened();
+      if (!url || !url.startsWith('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=')) problems.push(`приглашение: открыто «${url}»`);
+    });
+
+    await onPage(problems, 'параметр в «Параметрах»', admin, R, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('#main .ds-check', { hasText: 'Участники могут писать друг другу' }).locator('input').check();
+      await page.locator('.ds-btn', { hasText: /^Сохранить$/ }).click();
+      await page.locator('#toast', { hasText: 'Сохранено' }).waitFor({ timeout: 5000 });
+      const on = w.query(`SELECT contacts_on FROM events WHERE id = ${Number(R)}`)[0].contacts_on;
+      if (on !== 1) problems.push(`после «Сохранить» contacts_on = ${on}`);
+    });
+
+    await shot(vova, '34-info-people', { event: R, tab: 'Инфо' });
+    await shot(vova, '34-info-people', { event: R, tab: 'Инфо', dark: true });
+
+    await onPage(problems, 'чат с участником', vova, R, async (page) => {
+      const { list, opened } = await section(page);
+      const titles = await rowTitles(list);
+      const want = ['Вова  @u150  (ты)', 'Галя  @u151', 'Дмитрий  @dima', 'Евгений  @u152', 'Жанна  @u153', 'Зоя  @u154', 'Игорь  @u155', 'Лена'];
+      if (titles.join('|') !== want.join('|')) problems.push(`с @username: ${titles.join(', ')}`);
+      if (await list.locator('.ds-list-item--link', { hasText: 'Вова' }).count()) problems.push('своя строка нажимается');
+      if (await list.locator('.ds-list-item--link', { hasText: 'Лена' }).count()) problems.push('строка без @username нажимается');
+      let asked = '';
+      page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
+      await list.locator('.ds-list-item--link', { hasText: 'Галя' }).click();
+      await page.waitForTimeout(200);
+      if (asked !== 'Открыть чат с Галя в Telegram?') problems.push(`вопрос: «${asked}»`);
+      if ((await opened()).length) problems.push('«Отмена» — а чат открыт');
+      page.once('dialog', (d) => d.accept());
+      await list.locator('.ds-list-item--link', { hasText: 'Дмитрий' }).click();
+      await page.waitForTimeout(200);
+      if ((await opened()).join('|') !== 'https://t.me/dima') problems.push(`«ОК» — открыто «${(await opened()).join('|')}»`);
+    });
+
+    await w.api(admin, 'admin.registration', { event: R, open: false });
+    await w.api(admin, 'admin.draw', { event: R });
+    await w.api(fresh[1], 'ward.gift', { event: R, ready: true });
+    await onPage(problems, 'после жеребьёвки', vova, R, async (page) => {
+      const { hint } = await section(page);
+      if ((await hint.textContent()) !== '🎁 Подарки готовы: 1 из 10 · 📦 получено: 0 из 10') problems.push(`прогресс после жеребьёвки: «${await hint.textContent()}»`);
+      if ('Автожеребьёвка' in (await info(page))) problems.push('после жеребьёвки осталась «Автожеребьёвка»');
+      if (await page.locator('#main .ds-btn', { hasText: 'Пригласить друга' }).count()) problems.push('регистрация закрыта, а «Пригласить друга» есть');
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'участники на «Инфо» (037): ' + x));
+    else console.log('✔ участники на «Инфо» (037): «Организаторы» и «Автожеребьёвка» в «О событии», список по алфавиту с «(ты)» и метками, свёрнут после 8, прогресс до и после жеребьёвки; параметр в «Параметрах» — @username и чат после вопроса (не своя строка, не без @username); «Пригласить друга» пересылает ссылку и пропадает при закрытой регистрации');
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await openPage(name + (dark ? ' (тёмная)' : ''), { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -1019,6 +1129,7 @@ addEventListener('message', (e) => {
   await checkUiFixes();
   await checkRegistration();
   await checkSelfService();
+  await checkInfoPeople();
   await checkCsp();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
   else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);

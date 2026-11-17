@@ -74,10 +74,7 @@
       try { await navigator.clipboard.writeText(s.invite_link); toast('Ссылка скопирована'); }
       catch (e) { linkInput.select(); toast('Выдели и скопируй ссылку'); }
     });
-    shareBtn.addEventListener('click', () => {
-      const url = 'https://t.me/share/url?url=' + encodeURIComponent(s.invite_link) + '&text=' + encodeURIComponent(`🎄 Играем в Тайного Санту — «${s.title}»! Заходи по ссылке:`);
-      if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
-    });
+    shareBtn.addEventListener('click', () => shareInvite(s.invite_link, s.title));
     const regenBtn = ui.btn('🔄 Новая ссылка', 'danger', 'ds-btn--sm');
     regenBtn.addEventListener('click', async () => {
       if (!(await confirmBox('Создать новую ссылку? Старая перестанет работать (уже вступивших это не затронет).'))) return;
@@ -621,6 +618,7 @@
     }
     const checks = {
       delivery_on: h('input', { type: 'checkbox', checked: val('delivery_on') }),
+      contacts_on: h('input', { type: 'checkbox', checked: val('contacts_on') }),
       reveal_auto: h('input', { type: 'checkbox', checked: val('reveal_auto') }),
       finish_auto: h('input', { type: 'checkbox', checked: val('finish_auto') }),
     };
@@ -661,6 +659,8 @@
         field('Написать письмо до', f.deadline),
         field('Заметки для всех', f.notes),
         h('label', { class: 'ds-check' }, checks.delivery_on, 'Подарки отправляют — спросить адрес доставки (увидит только Санта)'),
+        h('label', { class: 'ds-check' }, checks.contacts_on, 'Участники могут писать друг другу'),
+        ui.hint('В списке участников на «Инфо» появятся @username, нажатие на имя откроет чат в Telegram. Санта, который напишет подопечному сам, раскроет себя.'),
         ui.hint('Бот сам напомнит: за 2 дня, за день и в день срока письма — тем, у кого его нет; за 2 дня и в день вручения — Сантам без отметки «подарок готов».'),
         f.draw_auto_date ? field('Автожеребьёвка', f.draw_auto_date) : null,
         h('label', { class: 'ds-check' }, checks.reveal_auto, 'Раскрыть Сант на следующий день после вручения'),

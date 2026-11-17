@@ -1,4 +1,5 @@
-// Работа с базой D1 (SQLite). Схема 11: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014
+// Работа с базой D1 (SQLite). Схема 12: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
+// «участники могут писать друг другу» 037
 // (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
 import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
@@ -6,7 +7,7 @@ import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 11;
+export const REQUIRED_SCHEMA = 12;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -181,7 +182,11 @@ export const participantIdsQuery = (db, eventId) =>
   db.prepare(`SELECT m.user_id ${MEMBERS_OF} AND u.registered = 1 ORDER BY m.joined_at`).bind(eventId);
 export const unfilledIdsQuery = (db, eventId) =>
   db.prepare(`SELECT m.user_id ${MEMBERS_OF} AND u.registered = 1 AND ${BLANK_SQL('m.wishlist')} ORDER BY m.joined_at`).bind(eventId);
-export const participantCountQuery = (db, eventId) => db.prepare(`SELECT COUNT(*) AS n ${MEMBERS_OF} AND u.registered = 1`).bind(eventId);
+// Список участников на «Инфо» (037): зарегистрированные, признак «письмо есть» — только для общего числа (людям не отдаётся)
+export const peopleQuery = (db, eventId) => db.prepare(
+  `SELECT m.user_id, u.name, u.username, u.is_admin, NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist
+     ${MEMBERS_OF} AND u.registered = 1`
+).bind(eventId);
 
 export const rowsOf = async (stmt) => (await stmt.all()).results;
 
@@ -233,6 +238,10 @@ export const pairLinksQuery = (db, eventId) => db.prepare('SELECT santa, ward FR
 // Панель: статусы пар; «открыл подопечного» — признаком, без текста увиденного письма
 export const panelPairsQuery = (db, eventId) =>
   db.prepare('SELECT santa, ward, gift_ready, gift_received, seen_text IS NOT NULL AS seen FROM pairs WHERE event_id = ?').bind(eventId);
+// Общий прогресс на «Инфо» (037): только суммы — от того, кто кому дарит, не зависят
+export const giftTotalsQuery = (db, eventId) => db.prepare(
+  'SELECT COUNT(*) AS n, COALESCE(SUM(gift_ready), 0) AS ready, COALESCE(SUM(gift_received), 0) AS received FROM pairs WHERE event_id = ?'
+).bind(eventId);
 export const pairOfSantaQuery = (db, eventId, santa) => db.prepare('SELECT * FROM pairs WHERE event_id = ? AND santa = ?').bind(eventId, santa);
 export const pairOfWardQuery = (db, eventId, ward) => db.prepare('SELECT * FROM pairs WHERE event_id = ? AND ward = ?').bind(eventId, ward);
 

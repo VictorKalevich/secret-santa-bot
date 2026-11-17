@@ -26,5 +26,7 @@ export function publicEvent(ev) {
     delivery_on: !!ev.delivery_on, // 008
     approval: !!ev.approval,
     rejoin: !!ev.rejoin, // 010: удалённые организатором могут вернуться по ссылке
+    contacts_on: !!ev.contacts_on, // 037: участники видят @username друг друга
+    draw_auto_date: ev.draw_auto_date, // 037: участникам — строка «Автожеребьёвка» на «Инфо»
   };
 }

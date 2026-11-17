@@ -95,3 +95,31 @@ test('база с данными «до 0008»: применение не мен
   w.sql(SQL);
   assert.deepEqual(snapshot(w), before, 'повтор безопасен');
 });
+
+// 037: миграция 0009 — параметр события contacts_on (у всех событий — выключено) и версия схемы 12; строки не меняются
+const SQL9 = readFileSync(new URL('../migrations/0009_contacts.sql', import.meta.url), 'utf8');
+const statements9 = SQL9.replace(/--[^\n]*/g, '').split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+
+test('0009: только колонка events.contacts_on с умолчанием 0 и версия схемы 12', () => {
+  assert.deepEqual(statements9, [
+    'ALTER TABLE events ADD COLUMN contacts_on INTEGER NOT NULL DEFAULT 0',
+    "INSERT INTO settings (key, value) VALUES ('schema', '12') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ]);
+});
+
+test('база с данными «до 0009»: у всех событий contacts_on = 0, остальные строки прежние, версия 12', async () => {
+  const { w } = await filledWorld();
+  w.sql("ALTER TABLE events DROP COLUMN contacts_on; UPDATE settings SET value = '11' WHERE key = 'schema'");
+  const before = snapshot(w);
+  w.sql(SQL9);
+  const after = snapshot(w);
+  const events = w.query('SELECT * FROM events');
+  assert.ok(events.length > 0 && events.every((e) => e.contacts_on === 0), 'выключено у всех');
+  const withoutContacts = after.events.map((r) => { const { contacts_on, ...rest } = JSON.parse(r); return JSON.stringify(rest); }).sort();
+  assert.deepEqual(withoutContacts, before.events, 'события — те же значения');
+  const schema = (snap) => snap.settings.map((r) => JSON.parse(r)).find((r) => r.key === 'schema').value;
+  assert.equal(schema(before), '11');
+  assert.equal(schema(after), '12');
+  for (const t of Object.keys(before).filter((t) => t !== 'events' && t !== 'settings')) assert.deepEqual(after[t], before[t], t);
+  assert.deepEqual(after.settings.filter((r) => !r.includes('"schema"')), before.settings.filter((r) => !r.includes('"schema"')));
+});

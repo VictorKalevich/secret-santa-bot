@@ -160,6 +160,14 @@
   // Окно подтверждения Telegram вмещает 256 символов (длиннее — исключение), у нас — с запасом (009). Тексты
   // приложения помещаются в предел при самых длинных именах и названиях — это проверяет тест app-ui (026); если текст
   // всё же длиннее (данные вне пределов), обрезка видна: в конце «…». Окно браузера показывает текст целиком.
+  // Ссылка t.me — внутри Telegram (чат, выбор чата для пересылки); вне Telegram — новая вкладка
+  function openTgLink(url) {
+    if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
+  }
+  // Пересылка ссылки-приглашения в чат Telegram: «📤 Отправить в чат» организатора и «📨 Пригласить друга» (037)
+  function shareInvite(link, title) {
+    openTgLink('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(`🎄 Играем в Тайного Санту — «${title}»! Заходи по ссылке:`));
+  }
   const CONFIRM_MAX = 250;
   function confirmBox(text) {
     return new Promise((resolve) => {

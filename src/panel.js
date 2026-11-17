@@ -85,7 +85,6 @@ export async function adminState(ctx, ev) {
       invite_link: inviteLink(settings, ev),
       draw_at: ev.draw_at,
       owner_id: ownerId,
-      draw_auto_date: ev.draw_auto_date,
       reveal_auto: !!ev.reveal_auto,
       finish_auto: !!ev.finish_auto,
       draw_cancelable: cancelable,

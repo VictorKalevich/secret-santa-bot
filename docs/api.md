@@ -192,8 +192,18 @@
 - **Ответ**:
   - `event` — поля события для участника и панели (`publicEvent`, `src/status.js`): `id, title, status, finished_at,
     chat_until` (до какого времени открыта переписка завершённого; у идущего — 0)`, budget, event_date, place, deadline,
-    notes, draw_done, revealed, ring, delivery_on, approval, rejoin` и `participants` — число зарегистрированных
-    участников;
+    notes, draw_done, revealed, ring, delivery_on, approval, rejoin, contacts_on, draw_auto_date` и `participants` —
+    число зарегистрированных участников;
+  - `roster` (037, `rosterView` в `src/participant.js`; контракт — `specs/037-info-people/contracts/info-people.md`) —
+    одинаково участнику и организатору:
+    - `people` — зарегистрированные участники `{ id, name, role, username? }` по имени (`localeCompare('ru')`, при
+      равенстве — `id`); `role` — `'owner'` (владелец бота), `'admin'` (другой организатор) или `''`;
+    - `organizers` — все организаторы бота `{ id, name, owner, username? }`, владелец первым, остальные по имени;
+    - `progress` — только суммы: без жеребьёвки `{ letters, of }` (сколько участников с непустым письмом из скольких),
+      с жеребьёвкой `{ ready, received, of }` (по парам события: «подарок готов», «подарок получен», число пар);
+    - `invite_link` — ссылка-приглашение события при открытой регистрации в идущем событии, иначе `''`;
+    - `username` — только при `contacts_on` и непустом @username (иначе ключа нет); отметок по людям, адресов, семей,
+      исключений и пар нет;
   - `announcements` — до 20 последних объявлений `{ id, text, created_at, author_name }` (`author_name` — «Организатор»,
     если имени нет);
   - `member` — у неучастника `null`; у участника `{ wishlist, wishlist_updated_at, has_ward, has_santa, gift_received,
@@ -482,9 +492,9 @@
   - `fixed` — закреплённые пары `{ giver, receiver }` — **только владельцу**, у админа поля нет вовсе;
   - `me_member` — участвует ли сам вызвавший;
   - `other_events` — остальные события `{ id, title, status }` (для «пригласить из события» и образца);
-  - `settings` — поля `publicEvent` и `registration_open, avoid_previous, invite_link, draw_at, owner_id, draw_auto_date,
-    reveal_auto, finish_auto, draw_cancelable, families_on` (`owner_name` — в `admin.users`; признака истории пар нет:
-    учтены ли прошлые пары, наружу не сообщается).
+  - `settings` — поля `publicEvent` (в том числе `contacts_on`, `draw_auto_date`) и `registration_open, avoid_previous,
+    invite_link, draw_at, owner_id, reveal_auto, finish_auto, draw_cancelable, families_on` (`owner_name` — в
+    `admin.users`; признака истории пар нет: учтены ли прошлые пары, наружу не сообщается).
 - **Отказы**: только общие.
 - **Журнал**: не пишет.
 
@@ -504,7 +514,8 @@
 
 - **Запрос**: `event` и меняемые поля — меняются только переданные: `title` (без него — прежнее), `budget` (до 100
   символов), `place` (до 200), `notes` (до 2000), `event_date`, `deadline`, `draw_auto_date` (`YYYY-MM-DD` или пусто;
-  неверная дата — пусто), `delivery_on`, `approval`, `rejoin`, `families_on`, `reveal_auto`, `finish_auto` (истина/ложь).
+  неверная дата — пусто), `delivery_on`, `approval`, `rejoin`, `families_on`, `reveal_auto`, `finish_auto`, `contacts_on`
+  (037: участники видят @username друг друга в `roster`) (истина/ложь).
   Кольцевую меняет `admin.ring`, «не повторять пары» — `admin.avoid_previous`: поля `ring` и `avoid_previous` здесь не
   читаются.
 - **Ответ**: пустой.

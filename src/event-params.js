@@ -26,6 +26,7 @@ export const EVENT_PARAMS = {
   finish_auto: { kind: 'flag', default: 0, template: true },
   ring: { kind: 'flag', default: 1, template: true, own: true },
   avoid_previous: { kind: 'flag', default: 1, template: true, own: true },
+  contacts_on: { kind: 'flag', default: 0, template: true }, // 037: @username и чат в списке участников на «Инфо»
 };
 
 // Служебные колонки. Состояние события — со значением после полного сброса; код приглашения сброс задаёт новым;

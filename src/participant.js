@@ -2,10 +2,11 @@
 // «подарок готов» / «подарок получен» (007). Права (участник ли, завершено ли событие) проверены в api.js.
 
 import {
-  eventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, participantCountQuery, announcementsQuery, getUser, getMember,
+  eventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, peopleQuery, giftTotalsQuery, announcementsQuery, getUser,
+  getMember,
 } from './db.js';
 import { atomic } from './claim.js';
-import { msg, q, appKeyboard, cleanText } from './format.js';
+import { msg, q, appKeyboard, cleanText, inviteLink } from './format.js';
 import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
@@ -62,17 +63,22 @@ export async function homeView(ctx) {
 // event.get: участнику — его письмо, адрес, есть ли подопечный и Санта, непрочитанное; админу-неучастнику — событие
 export async function eventView(ctx, ev, member) {
   const { db, me } = ctx;
-  // Одним пакетом чтений (019): число участников, объявления, пары и непрочитанное участника, счётчики обращений
+  // Одним пакетом чтений (019): участники (037: и список для «Инфо»), объявления, пары и непрочитанное участника,
+  // счётчики обращений, суммы по парам, пользователи и настройки (организаторы, ссылка-приглашение)
   const r = await ctx.read({
-    count: participantCountQuery(db, ev.id),
+    people: peopleQuery(db, ev.id),
     announcements: announcementsQuery(db, ev.id), // 007, FR-701
     pair: member && pairOfSantaQuery(db, ev.id, me.tg_id),
     wardPair: member && pairOfWardQuery(db, ev.id, me.tg_id),
     unread: member && unreadQuery(db, ev.id, me.tg_id),
     support: supportCountsQuery(db, ev, me),
+    gifts: ev.draw_done && giftTotalsQuery(db, ev.id),
+    users: true,
+    settings: true,
   });
   const out = {
-    event: { ...publicEvent(ev), participants: r.count[0].n },
+    event: { ...publicEvent(ev), participants: r.people.length },
+    roster: rosterView(ev, r.people, r.gifts?.[0], r.users, await ctx.ownerId(), r.settings),
     announcements: r.announcements,
     member: null,
     can: { edit_letter: false, chat_write: false },
@@ -94,6 +100,26 @@ export async function eventView(ctx, ev, member) {
   // 012: обращения — участнику его статус, админу — ничьи и непрочитанные (для точек на вкладках)
   Object.assign(out, supportCountsView(r.support, { member: !!member, admin: !!me.is_admin }));
   return out;
+}
+
+// Список участников на «Инфо» (037, specs/037-info-people/contracts/info-people.md): имена, роли и общие суммы — ни
+// отметок по людям, ни пар; @username — только если организатор разрешил участникам писать друг другу
+const byName = (a, b) => a.name.localeCompare(b.name, 'ru') || a.id - b.id;
+export function rosterView(ev, people, gifts, users, ownerId, settings) {
+  const contact = (u) => (ev.contacts_on && u.username ? { username: u.username } : {});
+  const role = (u) => (u.tg_id === ownerId ? 'owner' : u.is_admin ? 'admin' : '');
+  const admins = users.filter((u) => u.is_admin && u.registered);
+  return {
+    people: people.map((m) => ({ id: m.user_id, name: m.name, role: role({ ...m, tg_id: m.user_id }), ...contact(m) })).sort(byName),
+    organizers: [
+      ...admins.filter((u) => u.tg_id === ownerId),
+      ...admins.filter((u) => u.tg_id !== ownerId).map((u) => ({ ...u, id: u.tg_id })).sort(byName),
+    ].map((u) => ({ id: u.tg_id, name: u.name, owner: u.tg_id === ownerId, ...contact(u) })),
+    progress: ev.draw_done
+      ? { ready: gifts.ready, received: gifts.received, of: gifts.n }
+      : { letters: people.filter((m) => m.has_wishlist).length, of: people.length },
+    invite_link: ev.registration_open && !isFinished(ev) ? inviteLink(settings, ev) : '',
+  };
 }
 
 export async function saveWishlist(ctx, ev, member, raw) {
