@@ -3,7 +3,7 @@
 
 import {
   eventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, peopleQuery, giftTotalsQuery, announcementsQuery, getUser,
-  getMember,
+  getMember, getEvent,
 } from './db.js';
 import { atomic } from './claim.js';
 import { msg, q, appKeyboard, cleanText, inviteLink } from './format.js';
@@ -11,7 +11,7 @@ import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
 import { no } from './result.js';
-import { EMOJIS, POSTCARDS, validEmoji, validCard } from './looks.js';
+import { EMOJIS, POSTCARDS, MASKS, validEmoji, validCard, validMask } from './looks.js';
 
 const DELIVERY_MAX = 500;
 
@@ -61,7 +61,7 @@ export async function homeView(ctx) {
     },
     events,
     limits: { chars: MAX_CHARS },
-    looks: { emojis: EMOJIS, postcards: POSTCARDS }, // 038: набор значков и открыток — один, на сервере
+    looks: { emojis: EMOJIS, postcards: POSTCARDS, masks: MASKS }, // 038, 040: наборы значков, открыток и масок — на сервере
   };
 }
 
@@ -97,6 +97,7 @@ export async function eventView(ctx, ev, member) {
       card: member.card, // 038: открытка письма
       has_ward: !!pair,
       has_santa: !!wardPair,
+      santa_mask: wardPair?.mask || '', // 040: маска своего Санты — только самому подопечному
       gift_received: !!wardPair?.gift_received, // 007, FR-704
       delivery: member.delivery, // 008: свой адрес доставки
       unread: pair || wardPair ? unreadFrom(r.unread) : { from_ward: 0, from_santa: 0 },
@@ -169,6 +170,21 @@ export async function saveDelivery(ctx, ev, member, raw) {
   return { ok: true, updated_at: now };
 }
 
+// 040: маска Санты в переписке — у пары, пока событие идёт (завершённое отсекает конвейер API) и тайна не раскрыта: её
+// уже назвало сообщение о раскрытии. Без сообщений и журнала; условие «не раскрыта» — в самой записи (гонка с раскрытием)
+const MASK_REVEALED = 'Тайна уже раскрыта — маску больше не сменить.';
+const NO_WARD = 'У тебя пока нет подопечного.';
+export async function setMask(ctx, ev, raw) {
+  const mask = validMask(raw);
+  if (mask === null) return no('Такой маски нет — выбери из списка.');
+  if (ev.revealed) return no(MASK_REVEALED);
+  const r = await ctx.db
+    .prepare('UPDATE pairs SET mask = ? WHERE event_id = ? AND santa = ? AND EXISTS (SELECT 1 FROM events WHERE id = ? AND revealed = 0)')
+    .bind(mask, ev.id, ctx.me.tg_id, ev.id).run();
+  if (!r.meta.changes) return no((await getEvent(ctx.db, ev.id))?.revealed ? MASK_REVEALED : NO_WARD);
+  return { ok: true, mask };
+}
+
 // ward.get: подопечный, его письмо и адрес (только Санте); открытие запоминает увиденное письмо
 export async function wardView(ctx, ev) {
   const { db, me } = ctx;
@@ -194,12 +210,13 @@ export async function wardView(ctx, ev) {
     previous: prev === null || prev === wardMember.wishlist ? null : prev,
     first_view: prev === null,
     gift_ready: !!pair.gift_ready,
+    mask: pair.mask, // 040: своя маска в этой паре
   };
 }
 
 export async function setGiftReady(ctx, ev, ready) {
   const r = await ctx.db.prepare('UPDATE pairs SET gift_ready = ? WHERE event_id = ? AND santa = ?').bind(ready ? 1 : 0, ev.id, ctx.me.tg_id).run();
-  if (!r.meta.changes) return no('У тебя пока нет подопечного.');
+  if (!r.meta.changes) return no(NO_WARD);
   return { ok: true };
 }
 

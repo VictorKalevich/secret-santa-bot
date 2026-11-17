@@ -294,9 +294,17 @@
       <div class="ds-choices">
         <button class="ds-choice ds-choice--selected">🦊</button><button class="ds-choice">🎄</button><button class="ds-choice">🎅</button><button class="ds-choice">⛄</button><button class="ds-choice">🐧</button><button class="ds-choice" disabled>🦄</button>
       </div>
+      <div class="ds-choices ds-choices--labeled">
+        <button class="ds-choice"><span class="ds-choice__label">Без маски</span></button>
+        <button class="ds-choice ds-choice--selected">🐉<span class="ds-choice__label">Дракон</span></button>
+        <button class="ds-choice">🕵️<span class="ds-choice__label">Тайный агент</span></button>
+        <button class="ds-choice">🦸<span class="ds-choice__label">Супергерой</span></button>
+        <button class="ds-choice" disabled>🦭<span class="ds-choice__label">Тюлень</span></button>
+      </div>
       <div class="ds-hint">Открытка — рамка с узором (<code>ds-postcard--&lt;id&gt;</code>, тема из набора сервера) и бумага
         (<code>ds-postcard__paper</code>) с текстом или полем ввода; <code>--mini</code> — плитка выбора. Цвета открытки одни
-        в светлой и тёмной теме. Выбор — сетка плиток <code>ds-choices</code> (<code>--cards</code> — для открыток),
+        в светлой и тёмной теме. Выбор — сетка плиток <code>ds-choices</code> (<code>--cards</code> — для открыток,
+        <code>--labeled</code> — эмодзи с подписью <code>ds-choice__label</code>, маски Санты),
         <code>ds-choice--selected</code> — выбранная.</div>
     </div>
 

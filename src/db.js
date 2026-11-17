@@ -1,5 +1,5 @@
-// Работа с базой D1 (SQLite). Схема 13: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
-// «участники могут писать друг другу» 037, значок у имени и открытка письма 038
+// Работа с базой D1 (SQLite). Схема 14: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
+// «участники могут писать друг другу» 037, значок у имени и открытка письма 038, маска Санты 040
 // (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
 import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
@@ -7,7 +7,7 @@ import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 13;
+export const REQUIRED_SCHEMA = 14;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -233,8 +233,9 @@ export async function isRemoved(db, eventId, userId) {
 // ---------- pairs / exclusions ----------
 
 export const pairsQuery = (db, eventId) => db.prepare('SELECT * FROM pairs WHERE event_id = ?').bind(eventId);
-// Только связи «Санта → подопечный» (раскрытие, служебный просмотр) — без увиденного письма
-export const pairLinksQuery = (db, eventId) => db.prepare('SELECT santa, ward FROM pairs WHERE event_id = ?').bind(eventId);
+// Только связи «Санта → подопечный» (раскрытие, служебный просмотр) — без увиденного письма; маска (040) — для сообщения
+// о раскрытии, служебный просмотр и отмена жеребьёвки её не отдают
+export const pairLinksQuery = (db, eventId) => db.prepare('SELECT santa, ward, mask FROM pairs WHERE event_id = ?').bind(eventId);
 // Панель: статусы пар; «открыл подопечного» — признаком, без текста увиденного письма
 export const panelPairsQuery = (db, eventId) =>
   db.prepare('SELECT santa, ward, gift_ready, gift_received, seen_text IS NOT NULL AS seen FROM pairs WHERE event_id = ?').bind(eventId);

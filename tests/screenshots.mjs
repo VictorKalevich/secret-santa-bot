@@ -1230,6 +1230,88 @@ addEventListener('message', (e) => {
   // 039: тап мимо поля снимает фокус (клавиатура iOS прячется). Синтетические события указателя фокус сами не снимают —
   // снимает только обработчик приложения: тап по заголовку, ленте переписки, подсказке шторки — фокус снят; сдвиг пальца,
   // отменённое касание, тап по кнопке и по самому полю — фокус остаётся.
+  // 040: маска Санты в переписке. Санта выбирает маску на «Подопечном» (шторка — «Без маски» и 20 масок, выбранная
+  // отмечена), кнопка и подсказки — с маской; подопечный видит её в «Письме» и в заголовке переписки, смена маски
+  // доходит до открытой переписки опросом; после раскрытия у Санты маска — только подсказкой. Свои люди и событие «Маски».
+  async function checkMask() {
+    const problems = [];
+    const [tima, ulya, fedya] = [['Тима', 'tima'], ['Уля', 'ulya'], ['Федя', 'fedya']].map(([name, username], i) => ({ id: 200 + i, name, username }));
+    const E = (await w.api(admin, 'admin.events.create', { title: 'Маски' })).event.id;
+    const code = await inv(E);
+    for (const p of [tima, ulya, fedya]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
+    await w.api(admin, 'admin.draw', { event: E });
+    const wardId = w.query(`SELECT ward FROM pairs WHERE event_id = ${Number(E)} AND santa = ${tima.id}`)[0].ward;
+    const ward = [ulya, fedya].find((p) => p.id === wardId);
+    const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
+    const maskBtn = (page) => page.locator('#main .ds-btn', { hasText: '🎭 Маска' });
+    const chatHint = (page) => page.locator('#main .ds-hint', { hasText: 'Есть вопрос?' });
+
+    await onPage(problems, 'Санта выбирает маску', tima, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
+      const btn = maskBtn(page);
+      await btn.waitFor({ timeout: 3000 });
+      if ((await btn.textContent()) !== '🎭 Маска: без маски') problems.push(`кнопка: «${await btn.textContent()}»`);
+      if (!(await chatHint(page).textContent()).includes('для него ты «Тайный Санта», имя')) problems.push(`подсказка без маски: «${await chatHint(page).textContent()}»`);
+      await btn.click();
+      const sheet = page.locator('.ds-sheet', { hasText: 'Маска в переписке' });
+      const tiles = await sheet.locator('.ds-choice').allTextContents();
+      if (tiles.length !== 21 || tiles[0] !== 'Без маски' || tiles[5] !== '🐉Дракон') problems.push(`плитки: ${tiles.join(', ')}`);
+      if ((await sheet.locator('.ds-choice--selected').textContent()) !== 'Без маски') problems.push('не отмечено «Без маски»');
+      const tile = sheet.locator('.ds-choice', { hasText: 'Дракон' });
+      const label = tile.locator('.ds-choice__label');
+      const [tileBox, labelBox] = [await tile.boundingBox(), await label.boundingBox()];
+      if (!(labelBox.y > tileBox.y + tileBox.height / 3)) problems.push('подпись плитки не под эмодзи');
+      await tile.click();
+      await toastIs(page, 'Маска выбрана');
+      if ((await btn.textContent()) !== '🎭 Маска: 🐉 Дракон') problems.push(`кнопка после выбора: «${await btn.textContent()}»`);
+      if (!(await chatHint(page).textContent()).includes('для него ты «Тайный Санта · 🐉 Дракон», имя')) problems.push(`подсказка с маской: «${await chatHint(page).textContent()}»`);
+      if (w.query(`SELECT mask FROM pairs WHERE event_id = ${Number(E)} AND santa = ${tima.id}`)[0].mask !== 'dragon') problems.push('маска не сохранена на сервере');
+      await btn.click();
+      if ((await page.locator('.ds-sheet .ds-choice--selected').textContent()) !== '🐉Дракон') problems.push('выбранная маска не отмечена');
+      await page.locator('.ds-sheet .ds-icon-btn', { hasText: '✕' }).click();
+      await page.locator('#main .ds-btn', { hasText: 'Написать подопечному' }).click();
+      const note = page.locator('.ds-sheet--full .ds-hint').first();
+      if ((await note.textContent()) !== 'Для подопечного ты — «Тайный Санта · 🐉 Дракон», имя не раскрывается.') problems.push(`подсказка переписки Санты: «${await note.textContent()}»`);
+    });
+    const openMasks = (p) => maskBtn(p).click();
+    await shot(tima, '38-mask-sheet', { event: E, tab: 'Подопечный', fullPage: false, before: openMasks });
+    await shot(tima, '38-mask-sheet', { event: E, tab: 'Подопечный', fullPage: false, dark: true, before: openMasks });
+
+    await w.api(tima, 'message.send', { event: E, to: 'ward', text: 'Привет! Угадаешь, кто я?' });
+    const openSantaChat = async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Письмо' }).click();
+      await page.locator('#main .ds-btn', { hasText: 'Написать Санте' }).click();
+      await page.locator('.ds-sheet--full .ds-chat__msg').first().waitFor({ timeout: 3000 });
+    };
+    await onPage(problems, 'подопечный видит маску', ward, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Письмо' }).click();
+      const line = page.locator('#main .ds-text-sm', { hasText: 'Твой Санта — в маске' });
+      await line.waitFor({ timeout: 3000 });
+      if ((await line.textContent()) !== 'Твой Санта — в маске «🐉 Дракон».') problems.push(`«Письмо»: «${await line.textContent()}»`);
+      await openSantaChat(page);
+      const title = page.locator('.ds-sheet--full .ds-sheet__title');
+      if ((await title.textContent()) !== 'Твой Тайный Санта · 🐉 Дракон') problems.push(`заголовок переписки: «${await title.textContent()}»`);
+      await w.api(tima, 'mask.set', { event: E, mask: 'agent' });
+      try {
+        await page.locator('.ds-sheet--full .ds-sheet__title', { hasText: 'Тайный агент' }).waitFor({ timeout: 9000 });
+      } catch (e) { problems.push(`заголовок после смены маски: «${await title.textContent()}»`); }
+      await w.api(tima, 'mask.set', { event: E, mask: 'dragon' });
+    });
+    await shot(ward, '38-mask-chat', { event: E, fullPage: false, before: openSantaChat });
+    await shot(ward, '38-mask-chat', { event: E, fullPage: false, dark: true, before: openSantaChat });
+
+    await w.api(admin, 'admin.reveal', { event: E });
+    await onPage(problems, 'после раскрытия', tima, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
+      await chatHint(page).waitFor({ timeout: 3000 });
+      if (await maskBtn(page).count()) problems.push('после раскрытия есть кнопка маски');
+      if (!(await page.locator('#main .ds-hint', { hasText: 'Маска в переписке: 🐉 Дракон.' }).count())) problems.push('после раскрытия нет подсказки с маской');
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'маска Санты (040): ' + x));
+    else console.log('✔ маска Санты (040): шторка — «Без маски» и 20 масок с подписью под эмодзи, выбранная отмечена; кнопка, подсказки «Подопечного» и переписки Санты — с маской; у подопечного маска в «Письме» и в заголовке переписки, смена доходит опросом; после раскрытия — только подсказка');
+  }
+
   async function checkKeyboard() {
     const problems = [];
     const [olya, pasha, roma] = [['Оля', 'olya'], ['Паша', 'pasha'], ['Рома', 'roma']].map(([name, username], i) => ({ id: 190 + i, name, username }));
@@ -1414,6 +1496,7 @@ addEventListener('message', (e) => {
   await checkLooks();
   await checkNames();
   await checkKeyboard();
+  await checkMask();
   await checkCsp();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
   else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);

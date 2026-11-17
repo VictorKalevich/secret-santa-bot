@@ -150,6 +150,7 @@
       }
     }
     if (m.has_santa) {
+      const santaMask = maskLabel(m.santa_mask); // 040
       // 007: подопечный отмечает «получил подарок»; Санта узнает об этом (без имени)
       const got = h('input', { type: 'checkbox', checked: m.gift_received, disabled: !state.can.edit_letter });
       const evId = state.evId;
@@ -161,7 +162,8 @@
       });
       nodes.push(h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Я получил(а) подарок', 'Твой Санта узнает, что подарок дошёл', got)));
       nodes.push(ui.section('Переписка с Сантой'),
-        ui.card(ui.hint('Хочешь что-то уточнить или ответить на вопрос? Напиши своему Тайному Санте. Ты не знаешь, кто он, а он знает тебя.'), chatButton('santa')));
+        ui.card(ui.hint('Хочешь что-то уточнить или ответить на вопрос? Напиши своему Тайному Санте. Ты не знаешь, кто он, а он знает тебя.'),
+          santaMask ? h('div', { class: 'ds-text-sm' }, `Твой Санта — в маске «${santaMask}».`) : null, chatButton('santa')));
     }
     main.replaceChildren(...nodes.filter(Boolean));
   }
@@ -186,6 +188,25 @@
     };
     grid.append(tile('', 'Без открытки'), ...state.looks.postcards.map((c) => tile(c.id, c.title)));
     openSheet('Открытка для письма', [ui.hint('Санта увидит твоё письмо на этой открытке. Менять можно, пока событие идёт.'), grid]);
+  }
+
+  // Маска Санты в переписке (040): «🐉 Дракон» по набору с сервера ('' — без маски или её нет в наборе) и имя, под
+  // которым подопечный видит Санту
+  const maskLabel = (id) => { const m = state.looks.masks.find((x) => x.id === id); return m ? m.emoji + ' ' + m.title : ''; };
+  const maskedSanta = (mask) => 'Тайный Санта' + (maskLabel(mask) ? ' · ' + maskLabel(mask) : '');
+  // Шторка «Маска в переписке» (040): «без маски» и маски набора, выбранная обведена; saved(id из ответа)
+  function openMaskSheet(current, saved) {
+    const grid = h('div', { class: 'ds-choices ds-choices--labeled' });
+    const pick = (mask) => busy([...grid.children], async () => {
+      const r = await eapi('mask.set', { mask });
+      closeSheet();
+      toast(r.mask ? 'Маска выбрана' : 'Маска снята');
+      saved(r.mask);
+    });
+    const tile = (id, emoji, title) => h('button', { class: 'ds-choice' + (id === current ? ' ds-choice--selected' : ''), onclick: () => pick(id) },
+      emoji, h('span', { class: 'ds-choice__label' }, title));
+    grid.append(tile('', null, 'Без маски'), ...state.looks.masks.map((m) => tile(m.id, m.emoji, m.title)));
+    openSheet('Маска в переписке', [ui.hint('Так подопечный увидит тебя в переписке и в сообщениях бота. Кто под маской, он узнает, когда организатор раскроет тайну. Маска своя в каждом событии.'), grid]);
   }
 
   const renderWard = screen(async ({ cached = false } = {}) => {
@@ -225,6 +246,17 @@
       letter = postcard(d.ward.card, h('div', { class: 'ds-letter' }, text));
     }
 
+    // 040: маска — пока событие идёт и тайна не раскрыта; потом только показывается
+    const chatHint = ui.hint('');
+    const maskCtl = !finished() && !state.ev.revealed ? ui.btn('', 'secondary', 'ds-btn--block')
+      : maskLabel(d.mask) ? ui.hint('Маска в переписке: ' + maskLabel(d.mask) + '.') : null;
+    const showMask = () => {
+      chatHint.textContent = `Есть вопрос? Напиши подопечному — для него ты «${maskedSanta(d.mask)}», имя не раскрывается.`;
+      if (maskCtl && maskCtl.tagName === 'BUTTON') maskCtl.textContent = '🎭 Маска: ' + (maskLabel(d.mask) || 'без маски');
+    };
+    if (maskCtl && maskCtl.tagName === 'BUTTON') maskCtl.addEventListener('click', () => openMaskSheet(d.mask, (mask) => { d.mask = mask; showMask(); }));
+    showMask();
+
     const gift = h('input', { type: 'checkbox', checked: d.gift_ready, disabled: finished() });
     bindToggle(gift, async (on) => {
       await api('ward.gift', { event: evId, ready: on });
@@ -244,7 +276,7 @@
         : null,
       h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Подарок готов', 'Видно только организатору — для статистики', gift)),
       ui.section('Переписка с подопечным'),
-      ui.card(ui.hint('Есть вопрос? Напиши подопечному — для него ты «Тайный Санта», имя не раскрывается.'), chatButton('ward')),
+      ui.card(chatHint, maskCtl, chatButton('ward')),
     ].filter(Boolean));
   });
 

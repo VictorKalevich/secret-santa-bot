@@ -292,7 +292,7 @@ select.ds-input {
 
 /* ========== Выбор из плиток (038) ==========
  * Сетка кнопок-плиток: значки (--ds-size-choice) и мини-открытки (--cards: «без открытки» — мини-открытка без темы);
- * выбранная — обводка цветом кнопки. */
+ * плитки с подписью (--labeled, 040: маски Санты — эмодзи над названием); выбранная — обводка цветом кнопки. */
 .ds-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ds-size-choice), 1fr)); gap: var(--ds-space-2); }
 .ds-choices--cards { grid-template-columns: repeat(auto-fill, minmax(var(--ds-size-choice-card), 1fr)); }
 .ds-choice {
@@ -301,6 +301,9 @@ select.ds-input {
   font-size: var(--ds-text-xl); line-height: 1; cursor: pointer;
 }
 .ds-choices--cards .ds-choice { align-items: stretch; min-height: var(--ds-size-choice-card); padding: 0; background: transparent; }
+.ds-choices--labeled { grid-template-columns: repeat(auto-fill, minmax(var(--ds-size-choice-card), 1fr)); }
+.ds-choices--labeled .ds-choice { flex-direction: column; gap: var(--ds-space-1); padding: var(--ds-space-2) var(--ds-space-1); }
+.ds-choice__label { font-size: var(--ds-text-xs); line-height: var(--ds-leading-tight); color: var(--ds-color-text); text-align: center; overflow-wrap: anywhere; }
 .ds-choice--selected { outline: var(--ds-border-focus) solid var(--ds-color-accent); outline-offset: var(--ds-border-focus); }
 .ds-choice:disabled { opacity: var(--ds-opacity-disabled); }
 

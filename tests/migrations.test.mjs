@@ -152,3 +152,30 @@ test('база с данными «до 0010»: значки и открытки
   assert.equal(schema(after), '13');
   for (const t of Object.keys(before).filter((t) => !['users', 'members', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
 });
+
+// 040: миграция 0011 — маска Санты в переписке (pairs.mask), у всех пар пусто; версия схемы 14
+const SQL11 = readFileSync(new URL('../migrations/0011_santa_mask.sql', import.meta.url), 'utf8');
+const statements11 = SQL11.replace(/--[^\n]*/g, '').split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+
+test('0011: только колонка pairs.mask с умолчанием пусто и версия схемы 14', () => {
+  assert.deepEqual(statements11, [
+    "ALTER TABLE pairs ADD COLUMN mask TEXT NOT NULL DEFAULT ''",
+    "INSERT INTO settings (key, value) VALUES ('schema', '14') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ]);
+});
+
+test('база с данными «до 0011»: маски пар пусты, остальные строки прежние, версия 14', async () => {
+  const { w } = await filledWorld();
+  w.sql("ALTER TABLE pairs DROP COLUMN mask; UPDATE settings SET value = '13' WHERE key = 'schema'");
+  const before = snapshot(w);
+  w.sql(SQL11);
+  const after = snapshot(w);
+  const without = (rows, col) => rows.map((r) => { const { [col]: _, ...rest } = JSON.parse(r); return JSON.stringify(rest); }).sort();
+  const pairs = w.query('SELECT mask FROM pairs');
+  assert.ok(pairs.length > 0 && pairs.every((p) => p.mask === ''), 'маски пусты');
+  assert.deepEqual(without(after.pairs, 'mask'), before.pairs, 'пары — те же значения');
+  const schema = (snap) => snap.settings.map((r) => JSON.parse(r)).find((r) => r.key === 'schema').value;
+  assert.equal(schema(before), '13');
+  assert.equal(schema(after), '14');
+  for (const t of Object.keys(before).filter((t) => !['pairs', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
+});

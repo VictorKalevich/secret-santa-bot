@@ -153,6 +153,14 @@
     let lastId = 0;
     let timer = null;
     const shown = new Set();
+    // 040: маска пары — подопечному в заголовке, Санте в подсказке; сначала из экрана события, затем из каждого ответа
+    const title = h('span', {}, withWhom === 'ward' ? 'Переписка с подопечным' : 'Твой Тайный Санта');
+    const note = ui.hint(withWhom === 'ward' ? '' : 'Санта знает, кто ты, а ты его — нет.');
+    const showMask = (mask) => {
+      if (withWhom === 'ward') note.textContent = `Для подопечного ты — «${maskedSanta(mask)}», имя не раскрывается.`;
+      else title.textContent = 'Твой ' + maskedSanta(mask);
+    };
+    showMask(withWhom === 'ward' ? (state.wardCache && state.wardCache.evId === evId ? state.wardCache.d.mask : '') : state.member && state.member.santa_mask);
 
     const bubble = (m) => {
       const el = h('div', { class: 'ds-chat__msg ' + (m.mine ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
@@ -176,6 +184,7 @@
     const load = async () => {
       const d = await api('chat.get', { event: evId, with: withWhom, after: lastId });
       if (d.state !== 'ok') { list.replaceChildren(h('div', { class: 'ds-chat__empty' }, 'Переписка недоступна: жеребьёвка ещё не проведена.')); return; }
+      showMask(d.mask);
       setWritable(d.writable);
       for (const m of d.messages) lastId = Math.max(lastId, m.id);
       if (!shown.size && !d.messages.length) {
@@ -195,9 +204,7 @@
     }).then(c.update));
     setWritable(state.can.chat_write);
 
-    const own = openSheet(withWhom === 'ward' ? 'Переписка с подопечным' : 'Твой Тайный Санта',
-      [ui.hint(withWhom === 'ward' ? 'Для подопечного ты — «Тайный Санта», имя не раскрывается.' : 'Санта знает, кто ты, а ты его — нет.'),
-        list, c.composer, c.counter, closedNote],
+    const own = openSheet(title, [note, list, c.composer, c.counter, closedNote],
       {
         full: true,
         beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть переписку?')),

@@ -18,6 +18,7 @@ import {
   CLOSED as THREAD_CLOSED, NOT_FOUND as THREAD_NOT_FOUND, OWN_THREAD,
 } from './support.js';
 import { menuEvents } from './participant.js';
+import { maskLabel } from './looks.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта и организатор.';
@@ -367,9 +368,11 @@ async function onReplyButton(k, [, side, eventId]) {
   if (!chatWritable(ev)) return k.refuse(CHAT_READ_ONLY);
   // Режим ответа помнит собеседника и время нажатия (только на сервере): msg_<сторона>:<эвент>:<собеседник>:<мс>
   await k.setPending(replyPending(side, ev.id, toWard ? p.ward : p.santa));
+  // 040: маска пары — Санте как «от чьего имени», подопечному — как он знает своего Санту
+  const mask = maskLabel(p.mask);
   return k.prompt(toWard
-    ? `✍️ Напиши сообщение подопечному (${q(ev)}) — я передам его <b>анонимно</b>, от имени «Тайного Санты».`
-    : `✍️ Напиши сообщение своему Санте (${q(ev)}) — я передам его. Санта знает, кто ты, а ты его — нет.`);
+    ? `✍️ Напиши сообщение подопечному (${q(ev)}) — я передам его <b>анонимно</b>, от имени «Тайного Санты${mask ? ' · ' + mask : ''}».`
+    : `✍️ Напиши сообщение своему Санте${mask ? ` «${mask}»` : ''} (${q(ev)}) — я передам его. Санта знает, кто ты, а ты его — нет.`);
 }
 
 // ---------- обращения к организатору (012) ----------

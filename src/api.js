@@ -24,7 +24,7 @@ import {
   participantView, sendFromUser, closeByUser, adminThread, take, sendFromAdmin, pass, closeByAdmin,
 } from './support.js';
 import {
-  homeView, eventView, saveWishlist, saveDelivery, wardView, setGiftReady, setGiftReceived, setEmoji, setCard,
+  homeView, eventView, saveWishlist, saveDelivery, wardView, setGiftReady, setGiftReceived, setEmoji, setCard, setMask,
 } from './participant.js';
 import { adminState, memberLetter, usersList, renameUser } from './panel.js';
 import { changeExclusions, changeFixed } from './constraints.js';
@@ -106,6 +106,8 @@ export const ACTIONS = {
   'ward.get': { role: MEMBER, event: true, finished: true, run: (ctx, body, ev) => wardView(ctx, ev) },
   'ward.gift': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReady(ctx, ev, body.ready)) },
   'ward.received': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReceived(ctx, ev, body.received)) },
+  // 040: маска Санты в переписке — из набора src/looks.js, до раскрытия, без журнала и сообщений
+  'mask.set': { role: MEMBER, event: true, finished: 'Событие завершено: маску больше не сменить.', run: async (ctx, body, ev) => out(await setMask(ctx, ev, body.mask)) },
   // Переписка в завершённом — 7 суток (chat.js)
   'message.send': {
     role: MEMBER,

@@ -23,7 +23,8 @@ async function join(w, u, code) {
 }
 
 // Колонки пар: у Санты — его статусы, у подопечного — его. Новая колонка в pairs — решить, чья она, здесь.
-const SANTA_COLS = ['seen_text', 'notified_at', 'gift_ready'];
+// Маска (040) — выбор Санты: остаётся у него
+const SANTA_COLS = ['seen_text', 'notified_at', 'gift_ready', 'mask'];
 const WARD_COLS = ['gift_received', 'gift_received_at'];
 
 // Другая допустимая расстановка: у каждого Санты подопечный сменился, никто не дарит себе. Колонки Санты остаются у
@@ -92,6 +93,7 @@ before(async () => {
   for (const u of people.slice(0, 4)) await w.api(u, 'ward.get', { event: E1 });
   for (const u of [people[0], people[4]]) await w.api(u, 'ward.gift', { event: E1, ready: true });
   for (const u of [people[5], people[6]]) await w.api(u, 'ward.received', { event: E1, received: true });
+  for (const [i, u] of people.slice(0, 5).entries()) await w.api(u, 'mask.set', { event: E1, mask: ['dragon', 'agent', 'ghost', 'robot', 'whale'][i] });
   await w.api(people[1], 'message.send', { event: E1, to: 'ward', text: 'Привет, подопечный!' });
   await w.api(people[2], 'message.send', { event: E1, to: 'santa', text: 'Привет, Санта!' });
   await w.api(people[6], 'support.send', { event: E1, text: 'Вопрос организатору: метка обращения S7Q.' });

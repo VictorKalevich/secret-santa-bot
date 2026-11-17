@@ -119,8 +119,10 @@ test('имя и значок соединяет одна функция withEmoj
 const GLUE = /emoji\s*\+|\+\s*[\w.]*emoji\b|\$\{[^}]*emoji[^}]*\}/;
 const CALLS = /\b(?:withEmoji|emojiName)\((?:[^()]|\([^()]*\))*\)/g;
 const glued = (l) => GLUE.test(code(l).replace(CALLS, ''));
+// Кроме withEmoji, эмодзи с текстом соединяет только maskLabel (040): эмодзи и название маски Санты — не значок у имени
+const JOINERS = /^  const (withEmoji|maskLabel) = /;
 test('в склейке нет другого соединения значка с текстом', () => {
-  const bad = lines.map((l, i) => [i, l]).filter(([, l]) => glued(l) && !/^  const withEmoji = /.test(l));
+  const bad = lines.map((l, i) => [i, l]).filter(([, l]) => glued(l) && !JOINERS.test(l));
   assert.deepEqual(bad.map(([i, l]) => `${i + 1}: ${l.trim()}`), []);
   assert.ok(glued("    const t = (u.emoji ? u.emoji + ' ' : '') + name;"), 'от противного: значок перед именем (038)');
   assert.ok(glued('    nameText.textContent = `${me.name} ${me.emoji}`;'), 'от противного: шаблон');
