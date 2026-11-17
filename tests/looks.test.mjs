@@ -1,5 +1,6 @@
 // 038: значок у имени и открытка письма (specs/038-emoji-postcards/contracts/looks.md). Значок — свойство человека: виден в
-// списках событий и у Санты, но не в переписке, сообщениях бота и журнале; открытка — у письма в событии: видна самому
+// списках событий, у Санты и в обращениях (039 — tests/names.test.mjs), но не в переписке Санты и подопечного, сообщениях
+// бота и журнале; открытка — у письма в событии: видна самому
 // участнику, его Санте и организатору, открывшему письмо; смена открытки — не изменение письма. Набор — один список на
 // сервере, у каждой открытки — тема в дизайн-системе с читаемым текстом.
 import { describe, it, test, before, after } from 'node:test';
@@ -291,11 +292,14 @@ test('от противного: контраст ловит бледный те
   assert.notDeepEqual(extra.sort(), ['snow']);
 });
 
-// ---------- приложение: значка нет в переписке и обращениях ----------
-test('часть 07-sheet-chat (переписка, обращения) не показывает значков: нет emoji и emojiName', async () => {
-  const { PARTS } = await import('./support/app-source.mjs');
-  const chat = PARTS.find((p) => p.name.startsWith('07-')).text;
-  const found = (text) => text.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => /\bemoji(Name)?\b/.test(l));
-  assert.deepEqual(found(chat), []);
-  assert.equal(found('  h(\'div\', {}, emojiName(u));').length, 1, 'от противного');
+// ---------- приложение: значка нет в переписке Санты и подопечного ----------
+// 039: обращения (та же часть 07-sheet-chat) — со значками; переписка Санты и подопечного (openChat) — без
+test('переписка Санты и подопечного (openChat) не показывает значков: нет emoji, emojiName, withEmoji', async () => {
+  const { PARTS, topBlock } = await import('./support/app-source.mjs');
+  const lines = PARTS.find((p) => p.name.startsWith('07-')).text.split('\n');
+  const block = topBlock(lines, 'openChat');
+  assert.ok(block, 'нет openChat');
+  const found = (ls) => ls.filter((l) => /\b(emoji|emojiName|withEmoji)\b|_emoji\b/.test(l));
+  assert.deepEqual(found(lines.slice(block[0], block[1] + 1)), []);
+  assert.equal(found(['  h(\'div\', {}, emojiName(u));', '  m.author_emoji']).length, 2, 'от противного');
 });

@@ -195,9 +195,11 @@
 - **Запрос**: `emoji` — значок из набора `EMOJIS` (`src/looks.js`) или `''` — без значка.
 - **Ответ**: `emoji` — сохранённый значок.
 - **Отказы**: 400 «Такого значка нет — выбери из списка.» — не из набора (в том числе не строка).
-- **Журнал**: не пишет. Сообщений нет. Значок стоит перед именем в списках людей: `me`, `roster` в `event.get`,
-  `ward.get` (в приложении — внутри скрытого имени), `admin.state` (`users`, `requests`, `removed`), `admin.users`. Его
-  нет в переписке (`chat.get`, `message.send`), обращениях (`support.*`), сообщениях бота, журнале и служебном просмотре.
+- **Журнал**: не пишет. Сообщений нет. Значок стоит после имени («Аня 🦊», 039) в списках людей: `me`, `roster` в
+  `event.get`, `ward.get` (в приложении — внутри скрытого имени), `admin.state` (`users`, `requests`, `removed`),
+  `admin.users`, и рядом с каждым именем в обращениях (039): `support` в `event.get`, `support.get`, `support.send`,
+  `support` в `admin.state`, `admin.support.get`, `admin.support.send` (поля `…_emoji`). Его нет в переписке Санты и
+  подопечного (`chat.get`, `message.send`), сообщениях бота, журнале и служебном просмотре.
 
 ### `event.get`
 
@@ -226,8 +228,8 @@
     gift_received, delivery, unread: { from_ward, from_santa } }` (`card` — открытка письма, `''` — без открытки, 038;
     `delivery` — свой адрес; кто подопечный и кто Санта — не отдаётся);
   - `can` — `{ edit_letter, chat_write }` (у неучастника оба `false`);
-  - участнику — `support: { available, open, assignee_name, unread }` (есть ли кому писать, открыто ли обращение, кто его
-    ведёт, непрочитанные ответы);
+  - участнику — `support: { available, open, assignee_name, assignee_emoji, unread }` (есть ли кому писать, открыто ли
+    обращение, кто его ведёт и его значок — 039, непрочитанные ответы);
   - админу — `support_admin: { waiting, unread }` (ничьи обращения, кроме своего; непрочитанное во взятых им).
 - **Отказы**: только общие (админ проходит без участия).
 - **Журнал**: не пишет.
@@ -328,8 +330,9 @@
 
 - **Запрос**: `event`.
 - **Ответ**: `available` — есть ли другой зарегистрированный админ; `writable` — открыта ли переписка события; `threads` —
-  до 10 последних обращений (старые первыми) `{ id, status, assignee_name, created_at, closed_at, messages }`, сообщение —
-  `{ id, mine, author, text, created_at }` (`author` — имя организатора, у своих — пусто).
+  до 10 последних обращений (старые первыми) `{ id, status, assignee_name, assignee_emoji, created_at, closed_at,
+  messages }`, сообщение — `{ id, mine, author, author_emoji, text, created_at }` (`author` — имя организатора, у своих —
+  пусто; `…_emoji` — значок у имени, `''` — без значка, 039).
 - **Отказы**: только общие.
 - **Журнал**: не пишет. Ответы организаторов помечаются прочитанными.
 
@@ -339,7 +342,7 @@
 событии).
 
 - **Запрос**: `event`, `text`.
-- **Ответ**: `thread` — id обращения; `message` — `{ id, mine: true, author: '', text, created_at }`.
+- **Ответ**: `thread` — id обращения; `message` — `{ id, mine: true, author: '', author_emoji: '', text, created_at }`.
 - **Отказы**: 400 «Пустое сообщение.»; 400 «Слишком длинно: <n> символов, максимум 4000 (лимит сообщения Telegram).»;
   400 «Событие завершено больше недели назад — обращения только для чтения.»; 400 «Сейчас некому написать: в боте нет
   других организаторов.»; 400 «Не получилось отправить — попробуй ещё раз.»
@@ -517,7 +520,8 @@
   - `requests` — ждущие заявки `{ id, user_id, name, username, emoji, created_at }`;
   - `removed` — удалённые организатором `{ id, name, username, emoji, removed_at }`;
   - `support` — `{ threads, admins }`: открытые обращения и до 20 последних закрытых без текстов `{ id, user_id, name,
-    status, assignee, assignee_name, created_at, closed_at, last_at, unread, readable }` и админы `{ id, name }`;
+    emoji, status, assignee, assignee_name, assignee_emoji, created_at, closed_at, last_at, unread, readable }` (`emoji`
+    — значок автора, `assignee_emoji` — ответственного, 039) и админы `{ id, name }`;
   - `exclusions` — `{ giver, receiver }` между участниками;
   - `fixed` — закреплённые пары `{ giver, receiver }` — **только владельцу**, у админа поля нет вовсе;
   - `me_member` — участвует ли сам вызвавший;
@@ -753,9 +757,10 @@
 Кто: админ. Событие: да. В завершённом: да. Одно обращение с перепиской.
 
 - **Запрос**: `event`, `thread` — id обращения.
-- **Ответ**: `thread` — `{ id, user_id, name, status, assignee, assignee_name, created_at, closed_at, closed_by_name,
-  writable }` (`writable` — открыто, переписка открыта, не своё, ничьё или моё); `messages` — `{ id, mine, from_admin,
-  author, text, created_at }`; `admins` — кому можно передать (без автора и ответственного) `{ id, name }`.
+- **Ответ**: `thread` — `{ id, user_id, name, emoji, status, assignee, assignee_name, assignee_emoji, created_at,
+  closed_at, closed_by_name, closed_by_emoji, writable }` (`writable` — открыто, переписка открыта, не своё, ничьё или
+  моё; `…emoji` — значки автора, ответственного и закрывшего, 039); `messages` — `{ id, mine, from_admin, author,
+  author_emoji, text, created_at }`; `admins` — кому можно передать (без автора и ответственного) `{ id, name }`.
 - **Отказы**: 404 «Обращение не найдено.»; 403 «Обращение ведёт <имя> — переписку видят он(а) и владелец.»
 - **Журнал**: не пишет. Ответственный, открыв обращение, читает сообщения участника.
 
@@ -774,7 +779,8 @@
 Кто: админ. Событие: да. В завершённом: 7 суток. Ответ организатора; ничьё обращение берётся этим ответом.
 
 - **Запрос**: `event`, `thread`, `text`.
-- **Ответ**: `message` — `{ id, mine: true, from_admin: true, author, text, created_at }`.
+- **Ответ**: `message` — `{ id, mine: true, from_admin: true, author, author_emoji, text, created_at }` (`author_emoji` — свой
+  значок, 039).
 - **Отказы**: 400 «Пустое сообщение.»; 400 «Слишком длинно: <n> символов, максимум 4000 (лимит сообщения Telegram).»;
   404 «Обращение не найдено.»; 400 «Обращение уже закрыто.»; 400 «Это твоё обращение — отвечать на него будут другие
   организаторы.»; 400 «Событие завершено больше недели назад — обращения только для чтения.»; 400 «Обращение ведёт

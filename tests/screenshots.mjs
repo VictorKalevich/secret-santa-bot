@@ -1030,7 +1030,7 @@ addEventListener('message', (e) => {
       await sheet.locator('.ds-choice', { hasText: '🦊' }).click();
       await toastIs(page, 'Значок сохранён');
       const name = await page.locator('#main .ds-card', { has: page.locator('.ds-btn', { hasText: 'Значок у имени' }) }).locator('.ds-text-strong').textContent();
-      if (name !== '🦊 Пётр') problems.push(`профиль: «${name}»`);
+      if (name !== 'Пётр 🦊') problems.push(`профиль: «${name}»`);
       if (w.query(`SELECT emoji FROM users WHERE tg_id = ${petr.id}`)[0].emoji !== '🦊') problems.push('значок не сохранён на сервере');
       await page.locator('#main .ds-btn', { hasText: 'Значок у имени' }).click();
       if ((await page.locator('.ds-sheet .ds-choice--selected').textContent()) !== '🦊') problems.push('выбранный значок не отмечен');
@@ -1087,7 +1087,7 @@ addEventListener('message', (e) => {
       await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
       const name = page.locator('#main .ds-ward-card__name');
       await name.waitFor({ timeout: 3000 });
-      if ((await name.textContent()) !== '🦊 Пётр') problems.push(`имя подопечного: «${await name.textContent()}»`);
+      if ((await name.textContent()) !== 'Пётр 🦊') problems.push(`имя подопечного: «${await name.textContent()}»`);
       if (!(await name.evaluate((el) => el.classList.contains('ds-ward-card__name--hidden')))) problems.push('значок и имя не скрыты');
       if (!(await page.locator('#main .ds-postcard--night .ds-letter').count())) problems.push('письмо подопечного не на открытке');
       await page.locator('#main .ds-btn', { hasText: 'Написать подопечному' }).click();
@@ -1110,14 +1110,14 @@ addEventListener('message', (e) => {
     await onPage(problems, 'на «Инфо»', rita, E, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
       const titles = await page.locator('#main .ds-list-item__title').allTextContents();
-      if (!titles.includes('🦊 Пётр')) problems.push(`список участников: ${titles.join(', ')}`);
+      if (!titles.includes('Пётр 🦊')) problems.push(`список участников: ${titles.join(', ')}`);
     });
 
     await onPage(problems, 'у организатора', admin, E, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Админ' }).click();
       const item = page.locator('#main .ds-list-item', { hasText: 'Пётр' });
       const title = await item.locator('.ds-list-item__title').first().textContent();
-      if (title !== '🦊 Пётр  @petr') problems.push(`панель: «${title}»`);
+      if (title !== 'Пётр 🦊  @petr') problems.push(`панель: «${title}»`);
       await item.locator('.ds-icon-btn[title="Действия с участником"]').click();
       page.once('dialog', (d) => d.accept());
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Открыть письмо' }).click();
@@ -1136,6 +1136,153 @@ addEventListener('message', (e) => {
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'значок и открытка (038): ' + x));
     else console.log('✔ значок и открытка (038): значок из «Профиля» — в профиле, на «Инфо», в панели и у Санты внутри скрытого имени, в переписке обеих сторон его нет; шторка открыток — 16 плиток, выбранная отмечена, редактор на открытке с цветами темы, несохранённый текст цел, время письма прежнее; у Санты и организатора письмо на открытке; в завершённом — без кнопки');
+  }
+
+  // 039: значок после имени. Главный экран после смены значка и имени — сразу новые «Профиль», приветствие,
+  // «Администраторы» и «Семьи», без загрузчика, прокрутка на месте; обращения — значки у автора, ответственного и в
+  // подписях сообщений у владельца и у участника. Свои люди и событие «Имена».
+  async function checkNames() {
+    const problems = [];
+    const [gleb, liza, mila] = [['Глеб', 'gleb'], ['Лиза', 'liza'], ['Мила', 'mila']].map(([name, username], i) => ({ id: 180 + i, name, username }));
+    const E = (await w.api(admin, 'admin.events.create', { title: 'Имена' })).event.id;
+    const code = await inv(E);
+    for (const p of [gleb, liza, mila]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
+    await w.api(admin, 'admin.role.grant', { id: gleb.id });
+    await w.api(admin, 'admin.family.save', { name: 'Глебовы', members: [gleb.id, mila.id] });
+    const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
+    const scrollY = (page) => page.evaluate(() => Math.round(window.scrollY));
+    // Один из узлов loc — ровно want (ждёт до 3 с: разделы перечитываются после ответа сервера)
+    const textIs = async (loc, want, what) => {
+      await loc.filter({ hasText: want }).first().waitFor({ timeout: 3000 }).catch(() => {});
+      const all = await loc.allTextContents();
+      if (!all.includes(want)) problems.push(`${what}: ${all.map((t) => `«${t}»`).join(', ') || 'нет'}, ожидалось «${want}»`);
+    };
+
+    await onPage(problems, 'главный экран организатора', gleb, null, async (page) => {
+      const meRow = page.locator('#main .ds-list-item', { hasText: '(ты)' }).locator('.ds-list-item__title');
+      const family = page.locator('#main .ds-list-item', { hasText: 'Глебовы' }).locator('.ds-hint');
+      await meRow.waitFor({ timeout: 5000 });
+      await family.waitFor({ timeout: 5000 });
+      if ((await page.locator('#heroSub').textContent()) !== 'Привет, Глеб!') problems.push(`приветствие без значка: «${await page.locator('#heroSub').textContent()}»`);
+      const emojiBtn = page.locator('#main .ds-btn', { hasText: 'Значок у имени' });
+      await emojiBtn.scrollIntoViewIfNeeded();
+      const y = await scrollY(page);
+      if (y < 100) problems.push(`главный экран не прокручен (${y}) — проверка прокрутки ничего не значит`);
+      await emojiBtn.click();
+      await page.locator('.ds-sheet .ds-choice', { hasText: '🐧' }).click();
+      await toastIs(page, 'Значок сохранён');
+      if (await page.locator('#main .ds-spinner').count()) problems.push('после смены значка — загрузчик на главном экране');
+      await textIs(meRow, 'Глеб 🐧  (ты)', '«Администраторы» после значка');
+      await textIs(page.locator('#heroSub'), 'Привет, Глеб 🐧!', 'приветствие после значка');
+      await textIs(page.locator('#main .ds-text-strong'), 'Глеб 🐧', '«Профиль» после значка');
+      if (Math.abs((await scrollY(page)) - y) > 1) problems.push(`прокрутка после значка: ${await scrollY(page)}, была ${y}`);
+
+      await page.locator('#main .ds-btn', { hasText: 'Изменить имя' }).click();
+      await page.locator('.ds-sheet .ds-input').fill('Глеб Петров');
+      await page.locator('.ds-sheet .ds-btn', { hasText: 'Сохранить' }).click();
+      await toastIs(page, 'Имя сохранено');
+      if (await page.locator('#main .ds-spinner').count()) problems.push('после смены имени — загрузчик на главном экране');
+      await textIs(meRow, 'Глеб Петров 🐧  (ты)', '«Администраторы» после имени');
+      await textIs(family, 'Глеб Петров, Мила', '«Семьи» после имени');
+      await textIs(page.locator('#heroSub'), 'Привет, Глеб Петров 🐧!', 'приветствие после имени');
+      if (Math.abs((await scrollY(page)) - y) > 1) problems.push(`прокрутка после имени: ${await scrollY(page)}, была ${y}`);
+    });
+
+    await onPage(problems, 'главный экран участника', liza, null, async (page) => {
+      await page.locator('#heroBack').click();
+      await page.locator('#main .ds-btn', { hasText: 'Значок у имени' }).click();
+      await page.locator('.ds-sheet .ds-choice', { hasText: '🦄' }).click();
+      await toastIs(page, 'Значок сохранён');
+      await textIs(page.locator('#heroSub'), 'Привет, Лиза 🦄!', 'приветствие участника');
+      await textIs(page.locator('#main .ds-text-strong'), 'Лиза 🦄', '«Профиль» участника');
+    });
+
+    const sent = await w.api(liza, 'support.send', { event: E, text: 'Можно поменять адрес после жеребьёвки?' });
+    await w.api(gleb, 'admin.support.send', { event: E, thread: sent.thread, text: 'Да, во вкладке «Письмо».' });
+    await onPage(problems, 'обращения у владельца', admin, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      const item = page.locator('#main .ds-list-item--link', { hasText: 'Лиза' });
+      await textIs(item.locator('.ds-list-item__title'), 'Лиза 🦄', 'строка «Обращений»');
+      await textIs(item.locator('.ds-chip'), '🙋 ведёт Глеб Петров 🐧', 'метка «ведёт»');
+      await item.click();
+      const sheet = page.locator('.ds-sheet--full');
+      await sheet.locator('.ds-chat__msg').nth(1).waitFor({ timeout: 3000 });
+      await textIs(sheet.locator('.ds-sheet__title'), 'Обращение: Лиза 🦄', 'заголовок обращения');
+      await textIs(sheet.locator('.ds-hint'), 'Обращение ведёт Глеб Петров 🐧.', '«ведёт» в обращении');
+      const metas = await sheet.locator('.ds-chat__meta').allTextContents();
+      if (!metas[0]?.startsWith('Лиза 🦄 · ') || !metas[1]?.startsWith('Глеб Петров 🐧 · ')) problems.push(`подписи сообщений у владельца: ${metas.join(' | ')}`);
+    });
+    await onPage(problems, 'обращение у участника', liza, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
+      await textIs(page.locator('#main .ds-text-sm'), 'Твоё обращение ведёт Глеб Петров 🐧.', '«Инфо» участника');
+      await page.locator('#main .ds-btn', { hasText: 'Написать организатору' }).first().click();
+      const sheet = page.locator('.ds-sheet--full');
+      await sheet.locator('.ds-chat__msg').nth(1).waitFor({ timeout: 3000 });
+      await textIs(sheet.locator('.ds-hint'), 'Обращение ведёт Глеб Петров 🐧.', '«Организатору»: «ведёт»');
+      const metas = await sheet.locator('.ds-chat__meta').allTextContents();
+      if (!metas[1]?.startsWith('Глеб Петров 🐧 · ')) problems.push(`подпись ответа у участника: ${metas.join(' | ')}`);
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'имена и значки (039): ' + x));
+    else console.log('✔ имена и значки (039): значок после имени; на главном экране после смены значка и имени — «Профиль», приветствие, «Администраторы», «Семьи» сразу, без загрузчика, прокрутка на месте; в обращениях — значки у автора, ответственного и в подписях у владельца и участника');
+  }
+
+  // 039: тап мимо поля снимает фокус (клавиатура iOS прячется). Синтетические события указателя фокус сами не снимают —
+  // снимает только обработчик приложения: тап по заголовку, ленте переписки, подсказке шторки — фокус снят; сдвиг пальца,
+  // отменённое касание, тап по кнопке и по самому полю — фокус остаётся.
+  async function checkKeyboard() {
+    const problems = [];
+    const [olya, pasha, roma] = [['Оля', 'olya'], ['Паша', 'pasha'], ['Рома', 'roma']].map(([name, username], i) => ({ id: 190 + i, name, username }));
+    const E = (await w.api(admin, 'admin.events.create', { title: 'Клавиатура' })).event.id;
+    const code = await inv(E);
+    for (const p of [olya, pasha, roma]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
+    // Фокус в поле field, касание цели target ([селектор, текст]) → остался ли фокус в поле
+    const keeps = (page, field, target, { dx = 0, cancel = false } = {}) => page.evaluate(([f, [sel, text], dx, cancel]) => {
+      const el = document.querySelector(f);
+      el.focus();
+      const t = [...document.querySelectorAll(sel)].find((x) => !text || x.textContent.includes(text));
+      const r = t.getBoundingClientRect();
+      const at = { bubbles: true, cancelable: true, isPrimary: true, pointerId: 7, pointerType: 'touch', clientX: r.left + Math.min(8, r.width / 2), clientY: r.top + r.height / 2 };
+      t.dispatchEvent(new PointerEvent('pointerdown', at));
+      if (cancel) t.dispatchEvent(new PointerEvent('pointercancel', at));
+      t.dispatchEvent(new PointerEvent('pointerup', { ...at, clientX: at.clientX + dx }));
+      return document.activeElement === el;
+    }, [field, target, dx, cancel]);
+    const expect = async (page, what, field, target, opts, want) => {
+      const kept = await keeps(page, field, target, opts);
+      if (kept !== want) problems.push(`${what}: фокус ${kept ? 'остался' : 'снят'}`);
+    };
+
+    await onPage(problems, 'письмо', olya, E, async (page) => {
+      const LETTER_FIELD = '#main textarea.ds-input--letter';
+      await page.locator(LETTER_FIELD).fill('Дорогой Санта!');
+      await expect(page, 'тап по заголовку', LETTER_FIELD, ['#main .ds-section-title', 'Письмо'], {}, false);
+      if ((await page.locator(LETTER_FIELD).inputValue()) !== 'Дорогой Санта!') problems.push('текст письма пропал');
+      await expect(page, 'сдвиг пальца 30 px', LETTER_FIELD, ['#main .ds-section-title', 'Письмо'], { dx: 30 }, true);
+      await expect(page, 'отменённое касание', LETTER_FIELD, ['#main .ds-section-title', 'Письмо'], { cancel: true }, true);
+      await expect(page, 'тап по кнопке «Сохранить»', LETTER_FIELD, ['#main .ds-btn', 'Сохранить'], {}, true);
+      await expect(page, 'тап по самому полю', LETTER_FIELD, [LETTER_FIELD, ''], {}, true);
+      await expect(page, 'тап по подсказке карточки', LETTER_FIELD, ['#main .ds-hint', 'Письмо увидит'], {}, false);
+    });
+
+    await onPage(problems, 'шторка имени', olya, E, async (page) => {
+      await page.locator('#heroBack').click();
+      await page.locator('#main .ds-btn', { hasText: 'Изменить имя' }).click();
+      await expect(page, 'шторка имени: тап по подсказке', '.ds-sheet .ds-input', ['.ds-sheet .ds-hint', 'Имя одно'], {}, false);
+    });
+
+    await w.api(admin, 'admin.registration', { event: E, open: false });
+    await w.api(admin, 'admin.draw', { event: E });
+    await onPage(problems, 'переписка', olya, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
+      await page.locator('#main .ds-btn', { hasText: 'Написать подопечному' }).click();
+      await page.locator('.ds-sheet .ds-chat__empty', { hasText: 'Здесь пока пусто' }).waitFor({ timeout: 3000 });
+      await expect(page, 'переписка: тап по ленте', '.ds-sheet .ds-composer__input', ['.ds-sheet .ds-chat', ''], {}, false);
+      await expect(page, 'переписка: тап по «Отправить»', '.ds-sheet .ds-composer__input', ['.ds-sheet .ds-composer__send', ''], {}, true);
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'клавиатура (039): ' + x));
+    else console.log('✔ клавиатура (039): тап мимо поля снимает фокус (письмо, шторка имени, лента переписки), сдвиг пальца, отменённое касание, кнопки и само поле — нет; текст цел');
   }
 
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
@@ -1265,6 +1412,8 @@ addEventListener('message', (e) => {
   await checkSelfService();
   await checkInfoPeople();
   await checkLooks();
+  await checkNames();
+  await checkKeyboard();
   await checkCsp();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
   else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);

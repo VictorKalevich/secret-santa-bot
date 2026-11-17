@@ -60,6 +60,26 @@
     return el;
   }
 
+  // Тап мимо поля прячет клавиатуру (039): WebKit (iOS) снимает фокус с поля, только когда тапнули другое поле, а клик по
+  // «некликабельному» месту до документа не доходит — поэтому события указателя. Тап — касание без сдвига (прокрутку iOS
+  // отменяет: pointercancel). Поля, кнопки, ссылки, списки и подписи работают как раньше: спрятанная клавиатура меняет
+  // высоту окна, и нажатие кнопки попало бы не туда.
+  const TAP_SLOP = 10;
+  const KEEPS_FOCUS = 'input, textarea, select, button, a, label, [role="button"], [contenteditable]';
+  function blurOnTap() {
+    let down = null;
+    document.addEventListener('pointerdown', (e) => { down = e.isPrimary ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null; }, true);
+    document.addEventListener('pointercancel', () => { down = null; }, true);
+    document.addEventListener('pointerup', (e) => {
+      const tap = !!down && down.id === e.pointerId && Math.hypot(e.clientX - down.x, e.clientY - down.y) <= TAP_SLOP;
+      down = null;
+      const field = document.activeElement;
+      if (!tap || !field || !field.matches('input, textarea') || !(e.target instanceof Element) || e.target.closest(KEEPS_FOCUS)) return;
+      field.blur();
+    }, true);
+  }
+  blurOnTap();
+
   // ---------- свой календарь (027) ----------
   // Системный календарь сам выделяет сегодняшний день и по «Готово» подставляет его (iOS) — там, где дата сама включает
   // действие (автожеребьёвка), календарь свой: без даты ничего не выделено, «Готово» — только после выбора дня.
@@ -165,8 +185,10 @@
   function shareInvite(link, title) {
     openTgLink('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(`🎄 Играем в Тайного Санту — «${title}»! Заходи по ссылке:`));
   }
-  // 038: значок перед именем — в списках людей; в переписке Санты и подопечного значков нет
-  const emojiName = (u, name = u.name) => (u.emoji ? u.emoji + ' ' : '') + name;
+  // Значок у имени (038, 039): единственное место, где имя соединяется со значком — «Аня 🦊»; в переписке Санты и
+  // подопечного значков нет
+  const withEmoji = (name, emoji) => (emoji ? name + ' ' + emoji : name);
+  const emojiName = (u, name = u.name) => withEmoji(name, u.emoji);
   // Письмо на открытке (038): card — id из набора сервера (state.looks.postcards); без открытки — содержимое как есть
   function postcard(card, ...content) {
     if (!card) return content.length === 1 ? content[0] : h('div', { class: 'ds-stack' }, ...content);

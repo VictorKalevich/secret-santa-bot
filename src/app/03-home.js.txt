@@ -159,9 +159,13 @@
 
   function renderHome() {
     const me = state.me;
+    const nav = state.nav;
     heroBack.hidden = true;
     heroTitle.textContent = 'Тайный Санта';
-    heroSub.textContent = 'Привет, ' + me.name + '!';
+    const greet = () => { heroSub.textContent = 'Привет, ' + emojiName(me) + '!'; };
+    greet();
+    // Разделы с именами людей (039): после смены своего имени или значка перечитываются на месте
+    const people = [];
     document.getElementById('tabs').hidden = true;
     const mine = state.events.filter((e) => e.member);
     const others = state.events.filter((e) => !e.member);
@@ -199,19 +203,24 @@
         openSheet('Новое событие', [...sheet, ok]);
       });
       nodes.push(h('div', { class: 'ds-card' }, create));
-      nodes.push(...renderFamiliesSection());
-      nodes.push(...renderAdminsSection());
+      for (const section of [renderFamiliesSection(), renderAdminsSection()]) {
+        nodes.push(section.box);
+        people.push(section.load);
+      }
     }
 
-    // Профиль (035, 038): своё имя и значок — одни во всех событиях; новое имя — сразу в приветствии и здесь
+    // Профиль (035, 038): своё имя и значок — одни во всех событиях; новые — сразу везде на главном экране (039)
     const nameText = h('div', { class: 'ds-text-strong' }, emojiName(me));
-    const editName = ui.btn('✏️ Изменить имя', 'secondary', 'ds-btn--block');
-    editName.addEventListener('click', () => openNameSheet((name) => {
+    const profileChanged = () => {
+      if (nav !== state.nav) return;
       nameText.textContent = emojiName(me);
-      if (state.view === 'home') heroSub.textContent = 'Привет, ' + name + '!';
-    }));
+      greet();
+      for (const load of people) load();
+    };
+    const editName = ui.btn('✏️ Изменить имя', 'secondary', 'ds-btn--block');
+    editName.addEventListener('click', () => openNameSheet(profileChanged));
     const editEmoji = ui.btn('😀 Значок у имени', 'secondary', 'ds-btn--block');
-    editEmoji.addEventListener('click', () => openEmojiSheet(() => { nameText.textContent = emojiName(me); }));
+    editEmoji.addEventListener('click', () => openEmojiSheet(profileChanged));
     nodes.push(ui.section('Профиль'), ui.card(nameText, editName, editEmoji));
 
     // Уведомления — общие для всех эвентов
@@ -259,11 +268,12 @@
     }, e)));
     clear.addEventListener('click', () => pick(''));
     openSheet('Значок у имени', [
-      ui.hint('Значок стоит перед твоим именем в списках участников и у организаторов. В переписке Санты и подопечного значков нет.'),
+      ui.hint('Значок стоит после твоего имени в списках участников, у организаторов и в обращениях. В переписке Санты и подопечного значков нет.'),
       grid, state.me.emoji ? clear : null]);
   }
 
-  // Раздел «Семьи» (008): постоянные исключения для всех эвентов
+  // Раздел «Семьи» (008): постоянные исключения для всех эвентов. → { box, load }: повторный load заменяет содержимое по
+  // ответу, без загрузчика (039)
   function renderFamiliesSection() {
     const box = h('div', {}, ui.section('Семьи'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
     const load = () => api('admin.families').then((d) => {
@@ -307,13 +317,13 @@
       openSheet(f ? 'Семья' : 'Новая семья', items);
     }
     load();
-    return [box];
+    return { box, load };
   }
 
-  // Раздел «Администраторы» (002): общий для бота, показывается на главном экране
+  // Раздел «Администраторы» (002): общий для бота, показывается на главном экране. → { box, load }, как у «Семей»
   function renderAdminsSection() {
     const box = h('div', {}, ui.section('Администраторы'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
-    api('admin.users').then((d) => {
+    const load = () => api('admin.users').then((d) => {
       const me = state.me;
       const admins = d.users.filter((u) => u.is_admin).sort((a, b) => (b.is_owner ? 1 : 0) - (a.is_owner ? 1 : 0));
       const list = h('div', { class: 'ds-card ds-card--flush' });
@@ -358,5 +368,6 @@
       parts.push(ui.card(ui.hint('Роли, перенос участия, удалённые события — кто и когда.'), log));
       box.replaceChildren(...parts);
     }).catch((e) => box.replaceChildren(ui.section('Администраторы'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
-    return [box];
+    load();
+    return { box, load };
   }

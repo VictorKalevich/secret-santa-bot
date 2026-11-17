@@ -203,10 +203,10 @@
     for (const t of sup.threads) {
       const chip = t.status !== 'open' ? ui.chip('✅ закрыто')
         : !t.assignee ? ui.chip('🆕 ждёт ответа', 'warning')
-        : t.assignee === me.id ? ui.chip('🙋 ведёшь ты', 'success') : ui.chip('🙋 ведёт ' + t.assignee_name);
+        : t.assignee === me.id ? ui.chip('🙋 ведёшь ты', 'success') : ui.chip('🙋 ведёт ' + withEmoji(t.assignee_name, t.assignee_emoji));
       list.append(h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openSupportThread(t.id, evId, again) },
         h('div', { class: 'ds-grow' },
-          h('div', { class: 'ds-list-item__title' }, t.name || 'без имени'),
+          h('div', { class: 'ds-list-item__title' }, withEmoji(t.name || 'без имени', t.emoji)),
           h('div', { class: 'ds-chips' }, chip),
           ui.hint(fmtTime(t.last_at))),
         t.unread ? h('span', { class: 'ds-badge' }, String(t.unread)) : null,

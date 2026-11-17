@@ -323,7 +323,7 @@
       const btn = ui.btn(state.can.chat_write ? '💬 Написать организатору' : '💬 Обращения к организатору', 'secondary', 'ds-btn--block');
       if (sup.unread) btn.append(h('span', { class: 'ds-badge' }, String(sup.unread)));
       btn.addEventListener('click', () => openSupport());
-      const status = sup.open ? (sup.assignee_name ? `Твоё обращение ведёт ${sup.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.') : '';
+      const status = sup.open ? (sup.assignee_name ? `Твоё обращение ведёт ${withEmoji(sup.assignee_name, sup.assignee_emoji)}.` : 'Обращение отправлено — ждёт ответа организатора.') : '';
       nodes.push(ui.section('Нужна помощь?'), ui.card(
         ui.hint('Вопрос по игре или что-то не работает? Напиши организатору — ответ придёт в чат бота и сюда. Не пиши, кто твой подопечный: организаторы не должны знать пары.'),
         status ? h('div', { class: 'ds-text-sm' }, status) : null,

@@ -1609,7 +1609,7 @@ test('012: вписывание по группам, принудительна�
     let S, first;
     await t.test('обращения: рассылка всем админам, взять, видимость, ответы из бота', async () => {
       S = await newEvent('Помощь-012', [anya, borya]);
-      assert.deepEqual((await zapi(anya, 'event.get', { event: S })).support, { available: true, open: false, assignee_name: '', unread: 0 });
+      assert.deepEqual((await zapi(anya, 'event.get', { event: S })).support, { available: true, open: false, assignee_name: '', assignee_emoji: '', unread: 0 });
       assert.equal((await zapi(anya, 'support.send', { event: S, text: 'x'.repeat(4001) }, true)).data.error,
         'Слишком длинно: 4001 символов, максимум 4000 (лимит сообщения Telegram).');
       assert.equal((await zapi(anya, 'support.send', { event: S, text: '   ' }, true)).data.error, 'Пустое сообщение.');
@@ -1660,7 +1660,7 @@ test('012: вписывание по группам, принудительна�
       await waitFor(() => replyOf(), 'ответ участнику');
       assert.equal(replyOf().params.reply_markup.inline_keyboard[0][0].callback_data, `sup:u:${S}`);
       assert.match(replyOf().params.reply_markup.inline_keyboard[0][1].web_app.url, /support=my/);
-      assert.deepEqual((await zapi(anya, 'event.get', { event: S })).support, { available: true, open: true, assignee_name: 'Олег', unread: 1 });
+      assert.deepEqual((await zapi(anya, 'event.get', { event: S })).support, { available: true, open: true, assignee_name: 'Олег', assignee_emoji: '', unread: 1 });
       assert.equal((await zapi(anya, 'me')).events.find((e) => e.id === S).unread, 1);
       const view = await zapi(anya, 'support.get', { event: S });
       assert.equal(view.threads.length, 1);
