@@ -774,7 +774,9 @@ addEventListener('message', (e) => {
 
   // 035: своё имя на главном экране и выход из события со словом ВЫЙТИ (правило по коду — tests/app-ui.test.mjs, 7). Свои
   // события: L — до жеребьёвки (Тимур выходит), D — с жеребьёвкой (Юля видит подсказку); «Опасная зона» — та же шторка
-  // со словом и со вторым окном «точно?» (отказ в нём ничего не сбрасывает)
+  // со словом и со вторым окном «точно?» (отказ в нём ничего не сбрасывает). 036: в D участвуют и организаторы — владелец
+  // (admin) и админ people[0]: после жеребьёвки у каждого своя подсказка (specs/036-organizer-leave-hint/contracts/), до и
+  // после раскрытия Сант
   async function checkSelfService() {
     const problems = [];
     const timur = { id: 140, name: 'Тимур', username: 'timur' };
@@ -786,6 +788,7 @@ addEventListener('message', (e) => {
     const codeD = await inv(D);
     for (const p of [timur, yulia]) await w.say(p, '/start ' + codeD);
     await w.api(admin, 'admin.participate', { event: D, on: true });
+    await w.api(people[0], 'admin.participate', { event: D, on: true });
     await w.api(admin, 'admin.draw', { event: D });
     const member = (u, ev) => w.query(`SELECT 1 FROM members WHERE event_id = ${Number(ev)} AND user_id = ${u.id}`).length === 1;
     const leaveBtn = (page) => page.locator('#main .ds-btn--danger', { hasText: 'Выйти из события' });
@@ -797,6 +800,7 @@ addEventListener('message', (e) => {
       await p.locator('.ds-sheet .ds-input').fill('ВЫЙТИ');
     } });
     await shot(yulia, '32-leave-after-draw', { event: D, tab: 'Инфо' });
+    await shot(admin, '33-leave-owner', { event: D, tab: 'Инфо' });
 
     await onPage(problems, 'профиль', timur, null, async (page) => {
       const titles = await page.locator('#main .ds-section-title').allTextContents();
@@ -845,6 +849,32 @@ addEventListener('message', (e) => {
       if (!member(yulia, D)) problems.push('после жеребьёвки: участие пропало');
     });
 
+    // 036: раздел выхода после жеребьёвки — подсказка по роли; button — есть ли в разделе «Написать организатору»
+    const HINTS = {
+      owner: 'Ты владелец бота — удалить тебя из события некому. Выйти можно, только отменив жеребьёвку: «Админ» → «Опасная зона» → «↩️ Отменить жеребьёвку» (пары удалятся у всех, участники получат уведомление). Потом выключи «Я участвую» и проведи жеребьёвку заново.',
+      ownerRevealed: 'Тайна уже раскрыта — жеребьёвку не отменить, поэтому выйти из события нельзя: удалить владельца бота некому.',
+      admin: 'Жеребьёвка уже прошла — удалить из события администратора может только владелец бота. Напиши организатору: обращение увидит и владелец.',
+      member: 'Жеребьёвка уже прошла — выйти можно только через организатора: напиши ему, он уберёт тебя из события.',
+    };
+    const leaveHint = (user, what, hint, button) => onPage(problems, what, user, D, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
+      const title = page.locator('#main .ds-section-title', { hasText: 'Выход из события' });
+      await title.waitFor({ timeout: 3000 });
+      const card = title.locator('xpath=following-sibling::*[1]');
+      const text = await card.locator('.ds-hint').allTextContents();
+      if (text.join('|') !== hint) problems.push(`${what}: подсказка «${text.join('|')}»`);
+      const buttons = await card.locator('.ds-btn').allTextContents();
+      const want = button ? ['💬 Написать организатору'] : [];
+      if (buttons.join('|') !== want.join('|')) problems.push(`${what}: кнопки в разделе — ${buttons.join(', ') || 'нет'}, ожидалось ${want.join(', ') || 'нет'}`);
+    });
+    await leaveHint(admin, 'владелец после жеребьёвки', HINTS.owner, false);
+    await leaveHint(people[0], 'админ после жеребьёвки', HINTS.admin, true);
+    await leaveHint(yulia, 'участник после жеребьёвки', HINTS.member, true);
+    await w.api(admin, 'admin.reveal', { event: D });
+    await leaveHint(admin, 'владелец после раскрытия', HINTS.ownerRevealed, false);
+    await leaveHint(people[0], 'админ после раскрытия', HINTS.admin, true);
+    await leaveHint(yulia, 'участник после раскрытия', HINTS.member, true);
+
     await onPage(problems, 'опасная зона через ту же шторку', admin, L, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Админ' }).click();
       await page.locator('#main .ds-btn--danger', { hasText: 'Полный сброс' }).click();
@@ -860,8 +890,8 @@ addEventListener('message', (e) => {
       if (!member(yulia, L)) problems.push('опасная зона: отказ во втором окне, а событие сброшено');
     });
 
-    if (problems.length) colorProblems.push(...problems.map((x) => 'имя и выход (035): ' + x));
-    else console.log('✔ имя и выход (035): «Профиль» над «Уведомлениями», имя — сразу в приветствии; выход — только со словом, без второго окна, организатору — сообщение; после жеребьёвки — подсказка и обращение; «Опасная зона» — та же шторка со вторым окном');
+    if (problems.length) colorProblems.push(...problems.map((x) => 'имя и выход (035–036): ' + x));
+    else console.log('✔ имя и выход (035–036): «Профиль» над «Уведомлениями», имя — сразу в приветствии; выход — только со словом, без второго окна, организатору — сообщение; после жеребьёвки — подсказка по роли (владелец, админ, участник; до и после раскрытия) и обращение; «Опасная зона» — та же шторка со вторым окном');
   }
 
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
