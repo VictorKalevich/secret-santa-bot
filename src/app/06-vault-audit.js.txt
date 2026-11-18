@@ -58,6 +58,7 @@
     const rows = [
       ['Дарит', r.ward ? r.ward.name : (s.draw_done ? 'не в жеребьёвке' : 'жеребьёвки ещё не было')],
       ['Санта', r.santa ? r.santa.name : (s.draw_done ? 'нет' : 'жеребьёвки ещё не было')],
+      ...('gift_sent' in r ? [['Отправка', r.gift_sent ? 'Подарок отправлен' : 'Не отмечена']] : []),
     ];
     // mineSide — сторона самого участника в этой переписке
     const chat = (title, msgs, mineSide, otherLabel) => [

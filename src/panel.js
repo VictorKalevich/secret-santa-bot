@@ -42,6 +42,7 @@ export async function adminState(ctx, ev) {
   const fixed = isOwner ? r.fixed : null;
   const santas = new Set(pairs.map((p) => p.santa));
   const ready = new Set(pairs.filter((p) => p.gift_ready).map((p) => p.santa));
+  const sent = new Set(pairs.filter((p) => p.gift_sent).map((p) => p.santa));
   // 007: статусы человека, а не пары — «получил подарок» (как подопечный) и «открыл подопечного» (как Санта)
   const received = new Set(pairs.filter((p) => p.gift_received).map((p) => p.ward));
   const seen = new Set(pairs.filter((p) => p.seen).map((p) => p.santa));
@@ -58,6 +59,7 @@ export async function adminState(ctx, ev) {
       has_wishlist: !!u.has_wishlist,
       in_draw: santas.has(u.user_id),
       gift_ready: ready.has(u.user_id),
+      ...(ev.delivery_on ? { gift_sent: sent.has(u.user_id) } : {}),
       blocked: !!u.blocked_at, // Telegram сообщил, что бот заблокирован (006)
       gift_received: received.has(u.user_id),
       ward_seen: santas.has(u.user_id) ? seen.has(u.user_id) : null,

@@ -6,6 +6,7 @@ import {
   getMember, getEvent,
 } from './db.js';
 import { atomic } from './claim.js';
+import { shipmentDetails } from './shipment.js';
 import { msg, q, appKeyboard, cleanText, inviteLink } from './format.js';
 import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
@@ -103,6 +104,7 @@ export async function eventView(ctx, ev, member) {
       santa_mask: wardPair?.mask || '', // 040: маска своего Санты — только самому подопечному
       gift_received: !!wardPair?.gift_received, // 007, FR-704
       delivery: member.delivery, // 008: свой адрес доставки
+      ...(ev.delivery_on && wardPair ? { shipment: shipmentDetails(wardPair) } : {}),
       unread: pair || wardPair ? unreadFrom(r.unread) : { from_ward: 0, from_santa: 0 },
     };
     out.can = { edit_letter: !isFinished(ev), chat_write: chatWritable(ev) };
@@ -237,13 +239,18 @@ export async function wardView(ctx, ev) {
     previous: prev === null || prev === wardMember.wishlist ? null : prev,
     first_view: prev === null,
     gift_ready: !!pair.gift_ready,
+    ...(ev.delivery_on ? { shipment: { ...shipmentDetails(pair), version: pair.shipment_version },
+      timezone_offset_hours: Number(ctx.env.TIMEZONE_OFFSET_HOURS ?? 3) } : {}),
     mask: pair.mask, // 040: своя маска в этой паре
   };
 }
 
 export async function setGiftReady(ctx, ev, ready) {
-  const r = await ctx.db.prepare('UPDATE pairs SET gift_ready = ? WHERE event_id = ? AND santa = ?').bind(ready ? 1 : 0, ev.id, ctx.me.tg_id).run();
-  if (!r.meta.changes) return no(NO_WARD);
+  const r = await ctx.db.prepare('UPDATE pairs SET gift_ready = ?1 WHERE event_id = ?2 AND santa = ?3 AND (?1 = 1 OR gift_sent = 0)').bind(ready ? 1 : 0, ev.id, ctx.me.tg_id).run();
+  if (!r.meta.changes) {
+    const pair = await pairOfSanta(ctx.db, ev.id, ctx.me.tg_id);
+    return no(pair?.gift_sent ? 'Сначала сними отметку об отправке.' : NO_WARD);
+  }
   return { ok: true };
 }
 

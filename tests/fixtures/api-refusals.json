@@ -5132,6 +5132,78 @@
   "041 finished-old-member wishlist.publish": {
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "042 stranger ward.shipment": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "042 outsider ward.shipment": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "042 member ward.shipment": {
+   "status": 400,
+   "error": "Доставка в этом событии выключена."
+  },
+  "042 admin ward.shipment": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "042 owner ward.shipment": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "042 missing-owner ward.shipment": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "042 missing-admin ward.shipment": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "042 missing-member ward.shipment": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "042 none-owner ward.shipment": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "042 none-admin ward.shipment": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "042 none-member ward.shipment": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "042 finished-owner ward.shipment": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "042 finished-admin ward.shipment": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "042 finished-member ward.shipment": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
+  },
+  "042 finished-delivery-member ward.shipment": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
+  },
+  "042 finished-old-owner ward.shipment": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "042 finished-old-admin ward.shipment": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "042 finished-old-member ward.shipment": {
+   "status": 400,
+   "error": "Событие завершено: отметка только для чтения."
   }
  }
 }

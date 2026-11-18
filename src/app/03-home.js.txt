@@ -128,6 +128,7 @@
     const supportThread = state.me.is_admin && /^\d+$/.test(support || '') ? Number(support) : 0;
     if (support === 'my' && m) tab = 'info';
     if (supportThread) tab = 'admin';
+    if (tab === 'my' && !m) tab = 'info';
     state.tab = tab || (state.me.is_admin ? (m ? 'my' : 'admin')
       : m ? (state.ev.draw_done && m.has_ward && m.wishlist.trim() ? 'ward' : 'my') : 'info');
     render();

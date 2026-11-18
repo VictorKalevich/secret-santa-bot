@@ -328,6 +328,7 @@
           if (u.in_draw) chips.push(u.gift_ready ? ui.chip('🎁 готов', 'success') : ui.chip('🎁 не готов'));
           else chips.push(ui.chip('не в жеребьёвке', 'warning'));
           if (u.ward_seen === false) chips.push(ui.chip('👀 не открыл подопечного', 'warning'));
+          if (u.gift_sent) chips.push(ui.chip('📦 отправлен', 'success'));
           if (u.gift_received) chips.push(ui.chip('📦 получил', 'success'));
         }
       }

@@ -24,9 +24,9 @@ function rowProblems(name, row) {
   return p;
 }
 
-test('таблица действий: 66 строк (20 участника, 46 admin.*), каждая — по правилам', () => {
+test('таблица действий: 67 строк (21 участника, 46 admin.*), каждая — по правилам', () => {
   const names = Object.keys(ACTIONS);
-  assert.equal(names.length, 66);
+  assert.equal(names.length, 67);
   assert.equal(names.filter((a) => a.startsWith('admin.')).length, 46);
   assert.deepEqual(names.flatMap((n) => rowProblems(n, ACTIONS[n])), []);
 });

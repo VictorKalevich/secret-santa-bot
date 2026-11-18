@@ -41,6 +41,7 @@
           if (state.tab === id) return;
           if (state.dirty && !(await confirmBox(UNSAVED))) return;
           if (state.dirty) setDirty(false);
+          if (id === 'my' && state.ev.delivery_on) return openEvent(state.evId, 'my');
           state.tab = id;
           render();
         },
@@ -152,6 +153,7 @@
       }
     }
     if (m.has_santa) {
+      if (m.shipment) nodes.push(h('section', { id: 'myShipment' }, ui.section('Моя посылка'), shipmentCard(m.shipment)));
       const santaMask = maskLabel(m.santa_mask); // 040
       // 007: подопечный отмечает «получил подарок»; Санта узнает об этом (без имени)
       const got = h('input', { type: 'checkbox', checked: m.gift_received, disabled: !state.can.edit_letter });
@@ -360,7 +362,7 @@
     if (maskCtl && maskCtl.tagName === 'BUTTON') maskCtl.addEventListener('click', () => openMaskSheet(d.mask, (mask) => { d.mask = mask; showMask(); }));
     showMask();
 
-    const gift = h('input', { type: 'checkbox', checked: d.gift_ready, disabled: finished() });
+    const gift = h('input', { type: 'checkbox', checked: d.gift_ready, disabled: finished() || d.shipment?.sent });
     bindToggle(gift, async (on) => {
       await api('ward.gift', { event: evId, ready: on });
       d.gift_ready = on;
@@ -378,10 +380,63 @@
         ? ui.card(d.ward.delivery ? h('div', { class: 'ds-letter' }, d.ward.delivery) : h('div', { class: 'ds-text-muted' }, 'Подопечный пока не указал адрес — спроси в переписке.'))
         : null,
       h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Подарок готов', 'Видно только организатору — для статистики', gift)),
+      d.shipment ? outgoingShipment(d, evId) : null,
       ui.section('Переписка с подопечным'),
       ui.card(chatHint, maskCtl, chatButton('ward')),
     ].filter(Boolean));
   });
+
+  function shipmentCard(s, ...actions) {
+    const rows = [['Дата отправки', fmtDate(s.date)], ['Служба доставки', s.carrier], ['Трек-номер', s.tracking]].filter(([, v]) => v);
+    const copy = ui.btn('Скопировать трек-номер', 'secondary', 'ds-btn--sm');
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(s.tracking); toast('Трек-номер скопирован'); }
+      catch {
+        const input = h('input', { class: 'ds-input', readonly: true, value: s.tracking, 'aria-label': 'Трек-номер' });
+        openSheet('Скопируй трек-номер', input);
+        input.focus(); input.select();
+      }
+    };
+    return ui.card(h('div', { class: 'ds-text-strong' }, s.sent ? '📦 Подарок отправлен' : 'Отправка пока не отмечена'),
+      rows.length ? h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])) : null,
+      s.tracking ? copy : null, ...actions);
+  }
+
+  function outgoingShipment(d, event) {
+    const s = d.shipment;
+    if (finished()) return shipmentCard(s);
+    const save = async (fields) => {
+      const result = await api('ward.shipment', { event, version: s.version, ...fields });
+      d.shipment = result.shipment;
+      d.gift_ready = true;
+      if (state.evId === event && state.tab === 'ward') await backToEvent(event);
+    };
+    const edit = ui.btn(s.sent ? 'Изменить данные' : 'Отметить отправку', s.sent ? 'secondary' : '', 'ds-btn--block');
+    edit.onclick = () => {
+      const today = new Date(Date.now() + d.timezone_offset_hours * 3600000).toISOString().slice(0, 10);
+      const date = ui.date(s.sent ? s.date : today);
+      date.max = today;
+      const carrier = h('input', { class: 'ds-input', value: s.carrier || '', maxlength: 200 });
+      const tracking = h('input', { class: 'ds-input', value: s.tracking || '', maxlength: 200 });
+      const field = (label, input) => h('label', { class: 'ds-field' }, h('span', { class: 'ds-field__label' }, label), input);
+      const submit = ui.btn(s.sent ? 'Сохранить изменения' : 'Подтвердить отправку', '', 'ds-btn--block');
+      const dateError = ui.hint('Выбери сегодняшний или прошедший день.');
+      dateError.hidden = true;
+      date.oninput = () => { dateError.hidden = date.validity.valid; };
+      const own = openSheet('Отправка подарка', [ui.hint('Можно отметить отправку без подробностей.'),
+        field('Дата отправки', date), dateError, field('Служба доставки', carrier), field('Трек-номер', tracking), submit]);
+      submit.onclick = () => busy(submit, async () => {
+        if (!date.validity.valid) { dateError.hidden = false; date.focus(); return; }
+        await save({ sent: true, date: date.value, carrier: carrier.value, tracking: tracking.value });
+        if (own.isConnected) closeSheet();
+      });
+    };
+    const cancel = ui.btn('Отменить отметку', 'secondary', 'ds-btn--block');
+    cancel.onclick = () => busy(cancel, async () => {
+      if (await confirmBox('Снять отметку об отправке? Подопечный узнает, что отправка отменена.')) await save({ sent: false });
+    });
+    return shipmentCard(s, edit, s.sent ? cancel : null);
+  }
 
   // ---------- вкладка «Инфо» ----------
   // 037: участники события — имена, роли и общие числа, без отметок по людям (specs/037-info-people/contracts/info-people.md)

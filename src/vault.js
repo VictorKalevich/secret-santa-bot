@@ -47,6 +47,7 @@ export async function vaultPerson(ctx, ev, id, actor) {
     ok: true,
     person: who(user, id),
     in_draw: !!asSanta,
+    ...(ev.delivery_on && asSanta ? { gift_sent: !!asSanta.gift_sent } : {}),
     ward: asSanta ? who(wardUser, asSanta.ward) : null,
     santa: asWard ? who(santaUser, asWard.santa) : null,
     wishlist: member.wishlist,

@@ -6,6 +6,7 @@
 
 import { getUser, updateUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
+import { saveShipment } from './shipment.js';
 import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
 import { isFinished, publicEvent } from './status.js';
 import { openContext } from './context.js';
@@ -107,6 +108,7 @@ export const ACTIONS = {
   'delivery.save': { role: MEMBER, event: true, finished: true, run: async (ctx, body, ev, member) => out(await saveDelivery(ctx, ev, member, body.text)) },
   'ward.get': { role: MEMBER, event: true, finished: true, run: (ctx, body, ev) => wardView(ctx, ev) },
   'ward.gift': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReady(ctx, ev, body.ready)) },
+  'ward.shipment': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await saveShipment(ctx, ev, body)) },
   'ward.received': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReceived(ctx, ev, body.received)) },
   // 040: маска Санты в переписке — из набора src/looks.js, до раскрытия, без журнала и сообщений
   'mask.set': { role: MEMBER, event: true, finished: 'Событие завершено: маску больше не сменить.', run: async (ctx, body, ev) => out(await setMask(ctx, ev, body.mask)) },

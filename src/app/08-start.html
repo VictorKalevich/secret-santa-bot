@@ -17,7 +17,12 @@
       const params = new URLSearchParams(location.search);
       const want = Number(params.get('event'));
       const target = state.events.find((e) => e.id === want);
-      if (target) return openEvent(target.id, null, params.get('chat'), params.get('support'));
+      if (target) {
+        const parcel = target.member && params.get('shipment') === '1';
+        await openEvent(target.id, parcel ? 'my' : null, params.get('chat'), params.get('support'));
+        if (parcel && state.evId === target.id && state.tab === 'my') document.getElementById('myShipment')?.scrollIntoView({ block: 'center' });
+        return;
+      }
       const mine = state.events.filter((e) => e.member);
       if (!state.me.is_admin && state.events.length === 1 && mine.length === 1) return openEvent(mine[0].id);
       state.view = 'home';

@@ -44,9 +44,9 @@ before(async () => {
   await w.api(boss, 'admin.role.grant', { id: adm.id });
 });
 
-test('права: список действий admin.* — ровно 46, включая действия с «_»; всего действий — 66 (041)', () => {
+test('права: список действий admin.* — ровно 46, включая действия с «_»; всего действий — 67 (041)', () => {
   assert.equal(ACTIONS.length, 46, ACTIONS.join(', '));
-  assert.equal(Object.keys(TABLE).length, 66);
+  assert.equal(Object.keys(TABLE).length, 67);
   assert.ok(ACTIONS.includes('admin.avoid_previous') && ACTIONS.includes('admin.event.invite_from'));
   for (const a of OWNER_ONLY) assert.ok(ACTIONS.includes(a), 'действие владельца есть в коде: ' + a);
 });

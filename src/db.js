@@ -1,5 +1,5 @@
-// Работа с базой D1 (SQLite). Схема 15: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
-// «участники могут писать друг другу» 037, значок у имени и открытка письма 038, маска Санты 040, черновики писем 041
+// Работа с базой D1 (SQLite). Схема 16: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
+// «участники могут писать друг другу» 037, значок у имени и открытка письма 038, маска Санты 040, черновики писем 041, отправка 042
 // (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
 import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
@@ -7,7 +7,7 @@ import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 15;
+export const REQUIRED_SCHEMA = 16;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -238,7 +238,7 @@ export const pairsQuery = (db, eventId) => db.prepare('SELECT * FROM pairs WHERE
 export const pairLinksQuery = (db, eventId) => db.prepare('SELECT santa, ward, mask FROM pairs WHERE event_id = ?').bind(eventId);
 // Панель: статусы пар; «открыл подопечного» — признаком, без текста увиденного письма
 export const panelPairsQuery = (db, eventId) =>
-  db.prepare('SELECT santa, ward, gift_ready, gift_received, seen_text IS NOT NULL AS seen FROM pairs WHERE event_id = ?').bind(eventId);
+  db.prepare('SELECT santa, ward, gift_ready, gift_received, gift_sent, seen_text IS NOT NULL AS seen FROM pairs WHERE event_id = ?').bind(eventId);
 // Общий прогресс на «Инфо» (037): только суммы — от того, кто кому дарит, не зависят
 export const giftTotalsQuery = (db, eventId) => db.prepare(
   'SELECT COUNT(*) AS n, COALESCE(SUM(gift_ready), 0) AS ready, COALESCE(SUM(gift_received), 0) AS received FROM pairs WHERE event_id = ?'
