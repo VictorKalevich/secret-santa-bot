@@ -1,0 +1,6 @@
+ALTER TABLE events ADD COLUMN letter_drafts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE members ADD COLUMN draft_text TEXT;
+ALTER TABLE members ADD COLUMN letter_revision INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE members ADD COLUMN draft_stale INTEGER NOT NULL DEFAULT 0;
+
+UPDATE settings SET value = '15' WHERE key = 'schema';

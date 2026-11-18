@@ -79,7 +79,9 @@
     // «Несохранённое» — письмо или адрес (009)
     let letterChanged = false, addrChanged = false;
     const recompute = () => { const v = letterChanged || addrChanged; if (v !== state.dirty) setDirty(v); };
-    if (!state.can.edit_letter) {
+    if (state.ev.letter_drafts) {
+      nodes.push(letterDraftEditor(m, (changed) => { letterChanged = changed; recompute(); }));
+    } else if (!state.can.edit_letter) {
       nodes.push(ui.card(
         m.wishlist.trim() ? postcard(m.card, h('div', { class: 'ds-letter' }, m.wishlist)) : h('div', { class: 'ds-text-muted' }, 'Письмо осталось пустым.'),
         m.wishlist_updated_at ? ui.hint('Последнее изменение ' + fmtTime(m.wishlist_updated_at)) : null));
@@ -166,6 +168,107 @@
           santaMask ? h('div', { class: 'ds-text-sm' }, `Твой Санта — в маске «${santaMask}».`) : null, chatButton('santa')));
     }
     main.replaceChildren(...nodes.filter(Boolean));
+  }
+
+  // Локальная копия страхует ввод до ответа сервера, включая мгновенное закрытие Telegram.
+  function letterDraftEditor(m, markDirty) {
+    const event = state.evId, draft = m.draft, editable = state.can.edit_letter;
+    const storageKey = ['santa-letter', state.me.id, event, draft.joined_at].join('/');
+    const savedText = () => draft.stale ? m.wishlist : (draft.text ?? m.wishlist);
+    let backup;
+    try { backup = JSON.parse(localStorage.getItem(storageKey)); } catch {}
+    if (typeof backup?.text !== 'string' || backup.text.length > state.limits.chars) backup = null;
+    const resume = editable && backup?.revision === draft.revision;
+    let recovery = backup && !resume && backup.text !== savedText() ? backup.text : null;
+    let pending = false, timer, failure = '', saving = false;
+    const field = ui.textarea({ class: 'ds-input ds-input--letter', 'aria-label': 'Текст письма',
+      placeholder: 'Дорогой Санта! В этом году я мечтаю о…', value: resume ? backup.text : savedText(),
+      maxlength: state.limits.chars, readonly: !editable });
+    const title = h('strong'), detail = ui.hint('');
+    const status = h('div', { class: 'ds-notice ds-notice--letter', role: 'status' }, title, detail);
+    const preview = ui.btn('Посмотреть опубликованное', 'secondary', 'ds-btn--sm');
+    preview.onclick = () => openSheet('Опубликованное письмо', h('div', { class: 'ds-letter' }, m.wishlist));
+    const restore = ui.btn('Восстановить прежний черновик', 'secondary');
+    const retry = ui.btn('Повторить сохранение', 'secondary');
+    const publish = ui.btn('', '', 'ds-btn--block ds-btn--letter-publish');
+    const paper = h('div', {}, postcard(m.card, field));
+    const card = ui.btn('🖼 Открытка: ' + cardTitle(m.card), 'secondary', 'ds-btn--block');
+    card.onclick = () => openPostcardSheet((id) => {
+      paper.replaceChildren(postcard(id, field));
+      card.textContent = '🖼 Открытка: ' + cardTitle(id);
+    });
+    const counter = ui.hint('');
+    function paint() {
+      const published = !!m.wishlist.trim(), changed = field.value !== m.wishlist;
+      title.textContent = changed ? (published ? '📝 Черновик изменений' : '📝 Черновик')
+        : published ? '✅ Опубликовано' : 'Письмо пока пустое';
+      const visibility = changed && published ? 'Санте видна предыдущая версия.' : published
+        ? 'Это письмо доступно твоему Санте.' : 'Санта пока не видит письмо.';
+      detail.textContent = visibility + (failure ? ' ' + failure : pending ? ' Сохраняем…' : '');
+      preview.hidden = !published || !changed;
+      restore.hidden = recovery === null && !draft.stale;
+      restore.textContent = editable ? 'Восстановить прежний черновик' : 'Посмотреть прежний черновик';
+      retry.hidden = !failure || !pending;
+      card.hidden = publish.hidden = !editable;
+      publish.textContent = published ? 'Опубликовать изменения' : 'Опубликовать письмо';
+      publish.disabled = saving || !changed || !field.value.trim();
+      counter.textContent = field.value.length + ' / ' + state.limits.chars;
+      if (field.isConnected) markDirty(pending || saving);
+    }
+    function remember(text) {
+      try { localStorage.setItem(storageKey, JSON.stringify({ text, revision: draft.revision })); } catch {}
+    }
+    function forget(text, revision) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(storageKey));
+        if (cached?.text === text && cached.revision === revision) localStorage.removeItem(storageKey);
+      } catch {}
+    }
+    function edited() {
+      pending = true;
+      failure = '';
+      remember(field.value);
+      clearTimeout(timer);
+      timer = setTimeout(() => write(false), 450);
+      paint();
+    }
+    // Один запрос за раз. Текст, набранный во время записи, уходит со следующей версией.
+    async function write(publishing) {
+      if (saving || (!pending && !publishing)) return;
+      clearTimeout(timer);
+      const text = field.value, revision = draft.revision;
+      saving = true;
+      paint();
+      try {
+        const result = await api(publishing ? 'wishlist.publish' : 'wishlist.draft',
+          { event, text, revision, joined_at: draft.joined_at });
+        draft.revision = result.revision;
+        draft.stale = false;
+        if (publishing) { m.wishlist = text; m.wishlist_updated_at = result.updated_at; }
+        draft.text = text === m.wishlist ? null : text;
+        pending = field.value !== text;
+        if (pending) remember(field.value); else forget(text, revision);
+        failure = '';
+      } catch (e) {
+        failure = (publishing ? 'Публикация не удалась. ' : 'Черновик не сохранён. ') + e.message;
+      } finally {
+        saving = false;
+        paint();
+      }
+      if (pending && !failure) timer = setTimeout(() => write(false), 0);
+    }
+    restore.onclick = () => {
+      const previous = recovery ?? draft.text;
+      if (!editable) { openSheet('Прежний черновик', h('div', { class: 'ds-letter' }, previous)); return; }
+      recovery = null;
+      field.value = previous;
+      field.dispatchEvent(new Event('input'));
+    };
+    retry.onclick = () => write(false);
+    publish.onclick = () => write(true);
+    field.addEventListener('input', edited);
+    if (resume && field.value !== savedText()) edited(); else paint();
+    return h('div', { class: 'ds-card ds-stack ds-card--draft' }, status, preview, restore, paper, counter, retry, card, publish);
   }
 
   // ---------- вкладка «Подопечный» ----------

@@ -102,6 +102,10 @@
 .ds-card { background: var(--ds-color-surface); border-radius: var(--ds-radius-lg); padding: var(--ds-space-4); margin-bottom: var(--ds-space-3); }
 .ds-card--flush { padding: 0; overflow: hidden; }
 
+/* В редакторе верхнюю кромку занимает статус письма. */
+.ds-root:has(.ds-card--draft) .ds-tabs { position: relative; }
+.ds-btn--letter-publish { position: sticky; bottom: var(--ds-safe-bottom); }
+
 /* ========== Кнопки ========== */
 .ds-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--ds-space-1-5);
@@ -320,6 +324,7 @@ select.ds-input {
 
 /* ========== Плашки ========== */
 .ds-notice { border-radius: var(--ds-radius-md); padding: var(--ds-space-3); background: var(--ds-color-fill); }
+.ds-notice--letter { position: sticky; top: 0; z-index: var(--ds-z-sticky); background: var(--ds-color-surface); }
 .ds-notice--error { background: var(--ds-color-warning-soft); color: var(--ds-color-warning); font-size: var(--ds-text-md); }
 .ds-notice--error .ds-bullets { margin-top: var(--ds-space-1-5); }
 

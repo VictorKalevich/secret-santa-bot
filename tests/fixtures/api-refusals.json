@@ -4988,6 +4988,150 @@
   "040 extra mask-revealed": {
    "status": 400,
    "error": "Тайна уже раскрыта — маску больше не сменить."
+  },
+  "041 stranger wishlist.draft": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "041 stranger wishlist.publish": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "041 outsider wishlist.draft": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 outsider wishlist.publish": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 member wishlist.draft": {
+   "status": 400,
+   "error": "Черновики выключены. Открой письмо заново."
+  },
+  "041 member wishlist.publish": {
+   "status": 400,
+   "error": "Черновики выключены. Открой письмо заново."
+  },
+  "041 admin wishlist.draft": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 admin wishlist.publish": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 owner wishlist.draft": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 owner wishlist.publish": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 missing-owner wishlist.draft": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 missing-owner wishlist.publish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 missing-admin wishlist.draft": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 missing-admin wishlist.publish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 missing-member wishlist.draft": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 missing-member wishlist.publish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 none-owner wishlist.draft": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 none-owner wishlist.publish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 none-admin wishlist.draft": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 none-admin wishlist.publish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 none-member wishlist.draft": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 none-member wishlist.publish": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "041 finished-owner wishlist.draft": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 finished-owner wishlist.publish": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 finished-admin wishlist.draft": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 finished-admin wishlist.publish": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 finished-member wishlist.draft": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "041 finished-member wishlist.publish": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "041 finished-delivery-member wishlist.draft": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "041 finished-delivery-member wishlist.publish": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "041 finished-old-owner wishlist.draft": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 finished-old-owner wishlist.publish": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 finished-old-admin wishlist.draft": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 finished-old-admin wishlist.publish": {
+   "status": 403,
+   "error": "Ты не участвуешь в этом событии."
+  },
+  "041 finished-old-member wishlist.draft": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
+  },
+  "041 finished-old-member wishlist.publish": {
+   "status": 400,
+   "error": "Событие завершено: письмо теперь только для чтения."
   }
  }
 }

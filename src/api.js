@@ -24,7 +24,7 @@ import {
   participantView, sendFromUser, closeByUser, adminThread, take, sendFromAdmin, pass, closeByAdmin,
 } from './support.js';
 import {
-  homeView, eventView, saveWishlist, saveDelivery, wardView, setGiftReady, setGiftReceived, setEmoji, setCard, setMask,
+  homeView, eventView, saveWishlist, writeLetterDraft, saveDelivery, wardView, setGiftReady, setGiftReceived, setEmoji, setCard, setMask,
 } from './participant.js';
 import { adminState, memberLetter, usersList, renameUser } from './panel.js';
 import { changeExclusions, changeFixed } from './constraints.js';
@@ -101,6 +101,8 @@ export const ACTIONS = {
   'card.set': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev) => out(await setCard(ctx, ev, body.card)) },
   'event.get': { role: VIEWER, event: true, finished: true, run: (ctx, body, ev, member) => eventView(ctx, ev, member) },
   'wishlist.save': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await saveWishlist(ctx, ev, member, body.text)) },
+  'wishlist.draft': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await writeLetterDraft(ctx, ev, member, body, false)) },
+  'wishlist.publish': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await writeLetterDraft(ctx, ev, member, body, true)) },
   // Свой порядок отказов: «адрес не нужен» раньше «завершено» (в модуле)
   'delivery.save': { role: MEMBER, event: true, finished: true, run: async (ctx, body, ev, member) => out(await saveDelivery(ctx, ev, member, body.text)) },
   'ward.get': { role: MEMBER, event: true, finished: true, run: (ctx, body, ev) => wardView(ctx, ev) },

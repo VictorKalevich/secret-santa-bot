@@ -24,6 +24,7 @@ export function publicEvent(ev) {
     revealed: !!ev.revealed,
     ring: !!ev.ring,
     delivery_on: !!ev.delivery_on, // 008
+    letter_drafts: !!ev.letter_drafts,
     approval: !!ev.approval,
     rejoin: !!ev.rejoin, // 010: удалённые организатором могут вернуться по ссылке
     contacts_on: !!ev.contacts_on, // 037: участники видят @username друг друга

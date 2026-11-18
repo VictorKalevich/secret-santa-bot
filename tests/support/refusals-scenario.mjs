@@ -34,6 +34,7 @@ export const NEW_ACTIONS = ['name.set', 'event.leave'];
 export const NEW_ACTIONS_038 = ['emoji.set', 'card.set'];
 // 040: маска Санты в переписке
 export const NEW_ACTIONS_040 = ['mask.set'];
+export const NEW_ACTIONS_041 = ['wishlist.draft', 'wishlist.publish'];
 
 const MISSING = 999999;
 const WEEK = 7 * 24 * 3600 * 1000;
@@ -199,5 +200,8 @@ export async function runRefusals() {
   await w.api(boss, 'admin.reveal', { event: D });
   await record('040 extra mask-revealed', member, 'mask.set', { event: D, mask: 'ghost' });
 
+  for (const [name, user, ev] of situations) {
+    for (const a of NEW_ACTIONS_041) await record(`041 ${name} ${a}`, user, a, body(await ev()));
+  }
   return { actions: ACTION_LIST, cases };
 }

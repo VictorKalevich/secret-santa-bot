@@ -133,7 +133,7 @@ describe('построители операторов', () => {
     assert.match(del.sql, /user_id != \?/);
     assert.deepEqual(del.args, [7, 9001]);
     const clear = stmts.find((s) => s.sql.startsWith('UPDATE members'));
-    assert.match(clear.sql, /SET wishlist = \?, wishlist_updated_at = \?, card = \?, delivery = \?, delivery_updated_at = \? WHERE event_id = \? AND \(1\)$/);
+    assert.match(clear.sql, /SET wishlist = \?, wishlist_updated_at = \?, card = \?, delivery = \?, delivery_updated_at = \?,\s+draft_text = NULL, draft_stale = 0, letter_revision = letter_revision \+ 1 WHERE event_id = \? AND \(1\)$/);
     assert.deepEqual(clear.args, ['', 0, '', '', 0, 7]);
   });
 
@@ -150,7 +150,7 @@ describe('построители операторов', () => {
   });
 
   it('перенос: колонки «кто сделал» переносятся (025), получатель очереди — нет, запись человека — последней', () => {
-    const merge = [{ event_id: 7, set: { wishlist: 'н', wishlist_updated_at: 2, card: 'snow', delivery: 'с', delivery_updated_at: 1 } }];
+    const merge = [{ event_id: 7, set: { wishlist: 'н', wishlist_updated_at: 2, card: 'snow', delivery: 'с', delivery_updated_at: 1, draft_text: 'ч', draft_stale: 0, letter_revision: 3 } }];
     const stmts = personTransferStmts(fakeDb, 100, 200, { merge }, GUARD, 'g');
     assertGuarded(stmts);
     const sql = stmts.map((s) => s.sql);
@@ -163,7 +163,7 @@ describe('построители операторов', () => {
     // Слияние: участие нового удаляется, в участие старого — письмо и адрес по решению, затем все участия старого — новому
     const iDel = sql.indexOf('DELETE FROM members WHERE event_id = ? AND user_id = ? AND (' + GUARD + ')');
     assert.deepEqual(stmts[iDel].args, [7, 200, 'g']);
-    assert.deepEqual(stmts[iDel + 1].args, ['н', 2, 'snow', 'с', 1, 7, 100, 'g']);
+    assert.deepEqual(stmts[iDel + 1].args, ['н', 2, 'snow', 'с', 1, 'ч', 0, 3, 7, 100, 'g']);
     assert.ok(sql[iDel + 2].startsWith('UPDATE members SET user_id = ? WHERE user_id = ?'));
     assert.ok(sql.includes(`DELETE FROM exclusions WHERE (giver = ? OR receiver = ? OR giver = receiver) AND (${GUARD})`));
     assert.ok(sql.includes(`DELETE FROM family_members WHERE (user_id = ?) AND (${GUARD})`));
@@ -178,9 +178,9 @@ describe('построители операторов', () => {
   it('слияние участий: письмо (с открыткой, 038) и адрес — нового, если не пусты, каждое со своим временем', () => {
     const from = { event_id: 3, wishlist: 'старое', wishlist_updated_at: 1, card: 'night', delivery: 'адрес старого', delivery_updated_at: 2 };
     assert.deepEqual(mergeMembership(from, { event_id: 3, wishlist: '  новое ', wishlist_updated_at: 5, card: '', delivery: ' \n', delivery_updated_at: 6 }),
-      { event_id: 3, set: { wishlist: '  новое ', wishlist_updated_at: 5, card: '', delivery: 'адрес старого', delivery_updated_at: 2 } });
+      { event_id: 3, set: { wishlist: '  новое ', wishlist_updated_at: 5, card: '', delivery: 'адрес старого', delivery_updated_at: 2, draft_text: null, draft_stale: 0, letter_revision: 1 } });
     assert.deepEqual(mergeMembership(from, { event_id: 3, wishlist: ' ', wishlist_updated_at: 5, card: 'snow', delivery: 'новый', delivery_updated_at: 6 }).set,
-      { wishlist: 'старое', wishlist_updated_at: 1, card: 'night', delivery: 'новый', delivery_updated_at: 6 });
+      { wishlist: 'старое', wishlist_updated_at: 1, card: 'night', delivery: 'новый', delivery_updated_at: 6, draft_text: null, draft_stale: 0, letter_revision: 1 });
   });
 });
 

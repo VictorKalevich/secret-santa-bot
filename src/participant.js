@@ -94,6 +94,9 @@ export async function eventView(ctx, ev, member) {
     out.member = {
       wishlist: member.wishlist,
       wishlist_updated_at: member.wishlist_updated_at,
+      ...(ev.letter_drafts ? { draft: {
+        text: member.draft_text, revision: member.letter_revision, stale: !!member.draft_stale, joined_at: member.joined_at,
+      } } : {}),
       card: member.card, // 038: открытка письма
       has_ward: !!pair,
       has_santa: !!wardPair,
@@ -146,15 +149,39 @@ export async function setCard(ctx, ev, raw) {
 }
 
 export async function saveWishlist(ctx, ev, member, raw) {
+  if (ev.letter_drafts) return no('Включены черновики. Открой письмо заново для публикации.');
   const text = String(raw ?? '').replace(/\r\n/g, '\n');
   if (text.length > MAX_CHARS) {
     return no(tooLong(text.length));
   }
   if (text === member.wishlist) return { ok: true, updated_at: member.wishlist_updated_at };
   const now = Date.now();
-  await ctx.db.prepare('UPDATE members SET wishlist = ?, wishlist_updated_at = ? WHERE event_id = ? AND user_id = ?')
+  const result = await ctx.db.prepare(`UPDATE members SET wishlist = ?, wishlist_updated_at = ?, letter_revision = letter_revision + 1,
+      draft_stale = (draft_text IS NOT NULL) WHERE event_id = ? AND user_id = ?
+      AND EXISTS (SELECT 1 FROM events WHERE id = members.event_id AND letter_drafts = 0 AND status = 'active')`)
     .bind(text, now, ev.id, ctx.me.tg_id).run();
+  if (!result.meta.changes) return no('Настройки события изменились. Открой письмо заново.');
   return { ok: true, updated_at: now };
+}
+
+// Одна условная запись проверяет текущий режим, участие и версию. При публикации
+// снятие черновика и обновление текста для Санты вступают в силу вместе.
+export async function writeLetterDraft(ctx, ev, member, body, publish) {
+  if (!ev.letter_drafts) return no('Черновики выключены. Открой письмо заново.');
+  if (typeof body.text !== 'string') return no('Передай текст письма.');
+  const text = body.text.replace(/\r\n/g, '\n');
+  if (text.length > MAX_CHARS) return no(tooLong(text.length));
+  if (publish && !text.trim()) return no('Напиши письмо перед публикацией.');
+  const conflict = 'Письмо или настройки изменились. Открой событие заново.';
+  if (body.revision !== member.letter_revision || body.joined_at !== member.joined_at) return no(conflict);
+  const updated = publish && text !== member.wishlist ? Math.max(Date.now(), member.wishlist_updated_at + 1) : member.wishlist_updated_at;
+  const assignment = publish ? 'wishlist = ?, wishlist_updated_at = ?, draft_text = NULL' : 'draft_text = ?';
+  const values = publish ? [text, updated] : [text === member.wishlist ? null : text];
+  const result = await ctx.db.prepare(`UPDATE members SET ${assignment}, draft_stale = 0, letter_revision = letter_revision + 1
+    WHERE event_id = ? AND user_id = ? AND letter_revision = ? AND joined_at = ?
+    AND EXISTS (SELECT 1 FROM events WHERE id = members.event_id AND letter_drafts = 1 AND status = 'active')`)
+    .bind(...values, ev.id, ctx.me.tg_id, body.revision, body.joined_at).run();
+  return result.meta.changes ? { ok: true, revision: body.revision + 1, updated_at: updated } : no(conflict);
 }
 
 // Адрес доставки (008): виден только самому участнику и его Санте. «Адрес не нужен» — раньше «завершено».

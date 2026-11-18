@@ -618,6 +618,7 @@
         title: 'Автожеребьёвка', hint: 'В выбранный день бот сам проведёт жеребьёвку — в час ежедневных напоминаний.' });
     }
     const checks = {
+      letter_drafts: h('input', { type: 'checkbox', checked: val('letter_drafts') }),
       delivery_on: h('input', { type: 'checkbox', checked: val('delivery_on') }),
       contacts_on: h('input', { type: 'checkbox', checked: val('contacts_on') }),
       reveal_auto: h('input', { type: 'checkbox', checked: val('reveal_auto') }),
@@ -659,6 +660,7 @@
         field('Место', f.place),
         field('Написать письмо до', f.deadline),
         field('Заметки для всех', f.notes),
+        h('label', { class: 'ds-check' }, checks.letter_drafts, 'Черновики писем'),
         h('label', { class: 'ds-check' }, checks.delivery_on, 'Подарки отправляют — спросить адрес доставки (увидит только Санта)'),
         h('label', { class: 'ds-check' }, checks.contacts_on, 'Участники могут писать друг другу'),
         ui.hint('В списке участников на «Инфо» появятся @username, нажатие на имя откроет чат в Telegram. Санта, который напишет подопечному сам, раскроет себя.'),

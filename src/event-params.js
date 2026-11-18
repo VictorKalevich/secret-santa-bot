@@ -11,6 +11,7 @@
 import { ISO_DATE } from './format.js';
 
 export const EVENT_PARAMS = {
+  letter_drafts: { kind: 'flag', default: 0 },
   budget: { kind: 'text', max: 100, default: '', template: true },
   place: { kind: 'text', max: 200, default: '', template: true },
   notes: { kind: 'text', max: 2000, default: '', template: true },
