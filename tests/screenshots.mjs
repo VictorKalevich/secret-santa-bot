@@ -241,8 +241,8 @@ try {
 
   // Проверка на своей странице (без SDK Telegram: подтверждения — окном браузера); сбой ожидания — нарушение в problems,
   // а не падение скрипта. event — экран события; без него — главный экран
-  async function onPage(problems, what, user, event, fn) {
-    const page = await openPage(what, { viewport: { width: 390, height: 844 } });
+  async function onPage(problems, what, user, event, fn, options = {}) {
+    const page = await openPage(what, { viewport: { width: 390, height: 844 }, ...options });
     try {
       await page.goto(`${w.base}/app${event ? `?event=${event}` : ''}#tgWebAppData=${encodeURIComponent(initData(user))}`);
       await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : '.ds-list-item--link, .ds-tabs:not([hidden])');
@@ -1340,6 +1340,45 @@ addEventListener('message', (e) => {
       }
     });
 
+    await onPage(problems, 'клавиатура в шторках', admin, null, async (page) => {
+      const sheet = page.locator('.ds-sheet');
+      const title = sheet.locator('.ds-sheet__title');
+      const field = sheet.getByRole('textbox');
+      const ime = await page.context().newCDPSession(page);
+      async function checkTap(target, word, composing, right = false) {
+        await field.fill('');
+        if (composing) {
+          await ime.send('Input.imeSetComposition', { text: word, selectionStart: word.length, selectionEnd: word.length });
+        } else {
+          await page.keyboard.insertText(word);
+        }
+        // Обычный тап экрана. После снятия фокуса WebView не должен послать второй click.
+        await page.evaluate(() => { window.sheetClicks = 0; });
+        const box = await target.boundingBox();
+        await page.touchscreen.tap(box.x + (right ? box.width - 2 : box.width / 2), box.y + box.height / 2);
+        if (!(await sheet.count())) throw new Error('шторка закрылась после ввода «' + word + '»');
+        if (await field.evaluate(el => document.activeElement === el || window.sheetClicks > 0)) {
+          throw new Error('тап не снял фокус или породил click после ввода «' + word + '»');
+        }
+        if ((await field.inputValue()) !== word) throw new Error('потерян текст «' + word + '»');
+      }
+      await page.evaluate(() => document.addEventListener('click', () => { window.sheetClicks++; }, true));
+      await page.getByRole('button', { name: 'Новая семья' }).tap();
+      const members = sheet.getByRole('checkbox');
+      await members.nth(0).check();
+      await members.nth(1).check();
+      await checkTap(title, 'Ивановы', false);
+      await checkTap(title, 'Иванавы', true);
+      await checkTap(sheet.locator('.ds-row').filter({ has: page.getByRole('checkbox') }).first(), 'Петравы', true, true);
+      if (!(await members.nth(0).isChecked()) || !(await members.nth(1).isChecked())) throw new Error('сброшен выбор семьи');
+      await sheet.locator('[title="Закрыть"]').tap();
+      await page.getByRole('button', { name: '🎄 Создать', exact: true }).tap();
+      await checkTap(title, 'Праздник', false);
+      await checkTap(title, 'Празник', true);
+      await sheet.locator('[title="Закрыть"]').tap();
+      await sheet.waitFor({ state: 'detached' });
+    }, { hasTouch: true, isMobile: true });
+
     await w.api(admin, 'admin.registration', { event: E, open: false });
     await w.api(admin, 'admin.draw', { event: E });
     await onPage(problems, 'переписка', olya, E, async (page) => {
@@ -1351,7 +1390,7 @@ addEventListener('message', (e) => {
     });
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'клавиатура (039): ' + x));
-    else console.log('✔ клавиатура (039): тап мимо поля снимает фокус (письмо, шторка имени, лента переписки), сдвиг пальца, отменённое касание, кнопки и само поле — нет; текст цел');
+    else console.log('✔ клавиатура: тап снимает фокус; в формах семьи и события обычный и незавершённый ввод сохраняются, выбранные участники остаются отмеченными');
   }
 
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов

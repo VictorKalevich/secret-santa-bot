@@ -68,13 +68,34 @@
   const KEEPS_FOCUS = 'input, textarea, select, button, a, label, [role="button"], [contenteditable]';
   function blurOnTap() {
     let down = null;
+    let sheetTouch = null;
+    // При автокоррекции снятие фокуса завершает ввод и может сдвинуть шторку.
+    // Сначала отменяем системный click этого касания, затем прячем клавиатуру.
+    document.addEventListener('touchstart', (e) => {
+      sheetTouch = null;
+      const field = document.activeElement;
+      const target = e.target instanceof Element ? e.target : e.target.parentElement;
+      if (e.touches.length !== 1 || !field?.matches('input.ds-input:not([readonly]), textarea') ||
+          !field.closest('.ds-sheet-backdrop')?.contains(target) || target.closest(KEEPS_FOCUS)) return;
+      const touch = e.touches[0];
+      sheetTouch = { field, id: touch.identifier, x: touch.screenX, y: touch.screenY };
+    }, { capture: true, passive: true });
+    document.addEventListener('touchcancel', () => { sheetTouch = null; }, true);
+    document.addEventListener('touchend', (e) => {
+      const start = sheetTouch;
+      sheetTouch = null;
+      const touch = e.changedTouches[0];
+      if (!start || touch.identifier !== start.id || Math.hypot(touch.screenX - start.x, touch.screenY - start.y) > TAP_SLOP) return;
+      if (e.cancelable) e.preventDefault();
+      start.field.blur();
+    }, { capture: true, passive: false });
     document.addEventListener('pointerdown', (e) => { down = e.isPrimary ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null; }, true);
-    document.addEventListener('pointercancel', () => { down = null; }, true);
+    document.addEventListener('pointercancel', () => { down = null; sheetTouch = null; }, true);
     document.addEventListener('pointerup', (e) => {
       const tap = !!down && down.id === e.pointerId && Math.hypot(e.clientX - down.x, e.clientY - down.y) <= TAP_SLOP;
       down = null;
       const field = document.activeElement;
-      if (!tap || !field || !field.matches('input, textarea') || !(e.target instanceof Element) || e.target.closest(KEEPS_FOCUS)) return;
+      if (sheetTouch || !tap || !field || !field.matches('input, textarea') || !(e.target instanceof Element) || e.target.closest(KEEPS_FOCUS)) return;
       field.blur();
     }, true);
   }

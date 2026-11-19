@@ -274,7 +274,7 @@
       const boxes = free.map((u) => {
         const c = h('input', { type: 'checkbox', checked: !!f && u.family_id === f.id });
         c.dataset.id = u.id;
-        return [c, h('label', { class: 'ds-check' }, c, u.name)];
+        return [c, h('div', { class: 'ds-row' }, h('label', { class: 'ds-check' }, c, u.name))];
       });
       const save = ui.btn('Сохранить', '', 'ds-btn--block');
       save.addEventListener('click', () => busy(save, async () => {
