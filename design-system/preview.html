@@ -124,7 +124,7 @@
     <!-- Поля -->
     <div class="ds-section-title">Поля ввода</div>
     <div class="ds-card ds-stack">
-      <label class="ds-field"><span class="ds-field__label">Бюджет подарка</span><input class="ds-input" type="text" placeholder="например, до 50 BYN"></label>
+      <div class="ds-field"><label class="ds-field__label">Бюджет подарка</label><span class="ds-clearable"><input class="ds-input" type="text" value="до 50 BYN" placeholder="например, до 50 BYN"></span></div>
       <select class="ds-input"><option value="">Кто дарит…</option><option>Маша</option><option>Петя</option><option>Оля</option></select>
       <input class="ds-input" type="date" value="2026-12-25">
       <label class="ds-field"><span class="ds-field__label">Автожеребьёвка — свой календарь</span><button class="ds-input ds-input--pick" type="button">20 декабря 2026</button></label>
@@ -326,10 +326,17 @@
   </main>
 </template>
 
+<script src="./clearable-input.js.txt"></script>
 <script>
   for (const [id, name] of [['light', 'светлая'], ['dark', 'тёмная']]) {
     const node = document.getElementById('gallery').content.cloneNode(true);
     node.querySelector('.pv-theme-name').textContent = name;
+    const box = node.querySelector('.ds-clearable');
+    const input = box.querySelector('input');
+    input.id = 'budget-' + id;
+    const label = box.previousElementSibling;
+    label.htmlFor = input.id;
+    bindClearableInput(box, label.textContent);
     document.getElementById(id).append(node);
   }
 </script>

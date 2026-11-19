@@ -1,5 +1,5 @@
 /*
- * Secret Santa Design System — компоненты v1.6.0
+ * Secret Santa Design System — компоненты v1.7.0
  * Только var(--ds-*) из tokens.css: здесь нет «сырых» цветов и px (проверяет tests/design-system.test.mjs).
  * Именование: .ds-<блок>, .ds-<блок>__<элемент>, .ds-<блок>--<модификатор>.
  */
@@ -137,6 +137,23 @@
   padding: var(--ds-space-3);
 }
 .ds-input:focus { box-shadow: 0 0 0 var(--ds-border-focus) var(--ds-color-accent) inset; }
+.ds-clearable { display: block; position: relative; min-width: 0; }
+.ds-clearable > .ds-input {
+  box-sizing: border-box; min-height: var(--ds-size-control);
+  padding-inline-end: calc(var(--ds-size-control) + var(--ds-space-1));
+}
+.ds-clearable__button {
+  position: absolute; inset-inline-end: 0; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; box-sizing: border-box;
+  width: var(--ds-size-control); height: var(--ds-size-control);
+  padding: var(--ds-space-2); border: 0; border-radius: var(--ds-radius-md);
+  background: transparent; color: var(--ds-color-text-muted);
+  font-size: var(--ds-text-xl); line-height: 1; cursor: pointer;
+}
+.ds-clearable__button:focus-visible { outline: var(--ds-border-focus) solid var(--ds-color-accent); outline-offset: calc(-1 * var(--ds-border-focus)); }
+.ds-clearable > input:placeholder-shown + button,
+.ds-clearable > input:read-only + button,
+.ds-clearable > input:disabled + button { display: none; }
 /* Выпадающий список (011): своя «галочка» вместо системной — та прижата к краю и не слушает padding.
  * Отступ «галочки» справа = отступу текста слева (--ds-space-3); цвет — цвет текста поля. */
 select.ds-input {

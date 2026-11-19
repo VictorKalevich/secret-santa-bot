@@ -29,8 +29,15 @@ test('/app: страница приложения со встроенной ди
   assert.equal(page.headers.get('cache-control'), 'no-store');
   assert.ok(APP.includes('/*@design-system*/'), 'в склейке частей есть метка');
   const css = read('design-system/tokens.css') + '\n' + read('design-system/components.css');
-  assert.equal(page.text, APP.replace('/*@design-system*/', () => css));
+  assert.equal(page.text, APP.replace('/*@design-system*/', () => css)
+    .replace('/*@clearable-input*/', () => read('design-system/clearable-input.js.txt')));
   assert.ok(!page.text.includes('/*@design-system*/'), 'метки в ответе нет');
+});
+
+test('/setup: поле ключа использует кнопку очистки дизайн-системы', async () => {
+  const w = await startWorld();
+  const form = await (await w.request('/setup')).text();
+  assert.match(form, /class="ds-clearable"[^>]*>\s*<input[^>]*type="password"/);
 });
 
 test('правила Telegram: отказ заблокировавшему, длинному и с разорванным эмодзи', () => {

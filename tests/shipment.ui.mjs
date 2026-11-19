@@ -45,6 +45,10 @@ test('042: отправка с телефона, форма и старая сс
     await date.fill('');
     const tracking = '00-' + 'A'.repeat(157);
     await sender.getByLabel('Трек-номер', { exact: true }).fill(tracking);
+    await sender.getByLabel('Служба доставки', { exact: true }).fill('Черновик');
+    await btn('Очистить поле «Служба доставки»').tap();
+    assert.equal(await sender.getByLabel('Служба доставки', { exact: true }).inputValue(), '');
+    assert.equal(await sender.getByLabel('Трек-номер', { exact: true }).inputValue(), tracking);
     await sender.route('**/api/ward.shipment', route => route.abort(), { times: 1 });
     await btn('Подтвердить отправку').click();
     await sender.getByText(/Нет связи с сервером/).waitFor();

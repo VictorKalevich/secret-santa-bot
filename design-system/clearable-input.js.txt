@@ -1,0 +1,19 @@
+function bindClearableInput(box, label) {
+  const input = box.querySelector('input');
+  // :placeholder-shown отражает и присвоение value, и автозаполнение браузера.
+  if (!input.placeholder) input.placeholder = ' ';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ds-clearable__button';
+  button.setAttribute('aria-label', 'Очистить поле «' + label + '»');
+  button.textContent = '×';
+  button.addEventListener('pointerdown', event => event.preventDefault());
+  button.addEventListener('click', () => {
+    if (input.disabled || input.readOnly) return;
+    input.value = '';
+    input.focus();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  box.append(button);
+  return box;
+}

@@ -525,10 +525,14 @@ try {
     await step('сохранение параметров', admin, C, async (page) => {
       await tab(page, 'Управление');
       await page.locator('.ds-field', { hasText: 'Название' }).locator('input').fill('Проверка — новое');
+      const budget = page.getByLabel('Бюджет подарка', { exact: true });
+      await budget.fill('до 50 BYN');
+      await page.getByRole('button', { name: 'Очистить поле «Бюджет подарка»' }).click();
       const save = page.locator('.ds-btn', { hasText: /^Сохранить$/ });
       await save.scrollIntoViewIfNeeded();
       await save.click();
       await page.locator('#toast', { hasText: 'Сохранено' }).waitFor({ timeout: 5000 });
+      if (await budget.inputValue()) throw new Error('после сохранения вернулся старый бюджет');
       const box = await page.locator('.ds-btn', { hasText: /^Сохранить$/ }).boundingBox();
       if (!box || box.y < 0 || box.y + box.height > 844) problems.push('после «Сохранить» кнопка не на экране — панель прыгнула');
       const hero = await page.locator('#heroTitle').textContent();
@@ -810,6 +814,8 @@ addEventListener('message', (e) => {
       const input = page.locator('.ds-sheet .ds-input');
       if ((await input.inputValue()) !== 'Тимур') problems.push('профиль: в поле не текущее имя');
       if ((await input.getAttribute('maxlength')) !== '40') problems.push('профиль: поле без maxlength 40');
+      await page.getByRole('button', { name: 'Очистить поле «Твоё имя»' }).click();
+      if (await input.inputValue()) throw new Error('предзаполненное имя осталось в поле');
       await input.fill('  Тимур   Ш. ');
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Сохранить' }).click();
       await page.locator('#toast', { hasText: 'Имя сохранено' }).waitFor({ timeout: 5000 });
@@ -832,6 +838,13 @@ addEventListener('message', (e) => {
       if (!(await go.isDisabled())) problems.push('выход: кнопка доступна с неполным словом');
       await input.fill(' выйти ');
       if (await go.isDisabled()) problems.push('выход: кнопка недоступна со словом');
+      await input.press('Tab');
+      const clear = page.getByRole('button', { name: /Очистить/ });
+      if (!(await clear.evaluate(el => el === document.activeElement))) throw new Error('крестик пропущен при Tab');
+      await page.keyboard.press('Enter');
+      if (!(await go.isDisabled()) || await input.inputValue() || await clear.count()) throw new Error('очистка не сбросила подтверждение');
+      if (!(await input.evaluate(el => el === document.activeElement))) throw new Error('фокус не вернулся в поле');
+      await input.fill('выйти');
       await go.click(); // второго окна нет: окно браузера Playwright закрыл бы отказом — выхода бы не было
       await page.locator('#toast', { hasText: 'Ты больше не участвуешь в событии «Выход»' }).waitFor({ timeout: 5000 });
       await page.locator('#main .ds-section-title', { hasText: 'Мои события' }).waitFor({ timeout: 5000 });
@@ -1314,6 +1327,15 @@ addEventListener('message', (e) => {
       await members.nth(0).check();
       await members.nth(1).check();
       const name = sheet.getByRole('textbox');
+      const clear = sheet.getByRole('button', { name: /Очистить/ });
+      if (await clear.count()) throw new Error('крестик виден в пустом поле');
+      await name.fill(' ');
+      const hit = await clear.boundingBox();
+      const field = await name.boundingBox();
+      if (!hit || hit.width < 44 || hit.height < 44 || hit.x + hit.width > field.x + field.width ||
+          hit.y < field.y || hit.y + hit.height > field.y + field.height) throw new Error('размер или положение кнопки очистки');
+      await clear.click({ position: { x: 3, y: 3 } });
+      if (await name.inputValue() || await clear.count() || !(await members.nth(1).isChecked())) throw new Error('очистка названия семьи');
       await name.fill('Ивановы');
       const clickedBackdrop = await name.evaluate((field) => {
         const sheet = field.closest('.ds-sheet');
