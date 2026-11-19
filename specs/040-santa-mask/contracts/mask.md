@@ -1,5 +1,7 @@
 # Contract: маска Санты в переписке (040)
 
+> С версии 043 отдельные значки у имени удалены. См. [спецификацию 043](../../043-remove-profile-badges/spec.md).
+
 ## Набор
 
 `MASKS`, `validMask`, `maskLabel` — `src/looks.js` (data-model.md). Приложение получает набор в `me`:

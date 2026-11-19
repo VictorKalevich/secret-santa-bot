@@ -171,7 +171,7 @@ export const drawMembersQuery = (db, eventId) => db.prepare(
 
 // Панель организатора: «письмо есть», «адрес указан» вместо текстов
 export const panelMembersQuery = (db, eventId) => db.prepare(
-  `SELECT m.user_id, u.name, u.username, u.emoji, u.registered, u.is_admin, u.blocked_at,
+  `SELECT m.user_id, u.name, u.username, u.registered, u.is_admin, u.blocked_at,
           NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist, NOT ${BLANK_SQL('m.delivery')} AS has_delivery
      ${MEMBERS_OF} ORDER BY m.joined_at`
 ).bind(eventId);
@@ -184,7 +184,7 @@ export const unfilledIdsQuery = (db, eventId) =>
   db.prepare(`SELECT m.user_id ${MEMBERS_OF} AND u.registered = 1 AND ${BLANK_SQL('m.wishlist')} ORDER BY m.joined_at`).bind(eventId);
 // Список участников на «Инфо» (037): зарегистрированные, признак «письмо есть» — только для общего числа (людям не отдаётся)
 export const peopleQuery = (db, eventId) => db.prepare(
-  `SELECT m.user_id, u.name, u.username, u.emoji, u.is_admin, NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist
+  `SELECT m.user_id, u.name, u.username, u.is_admin, NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist
      ${MEMBERS_OF} AND u.registered = 1`
 ).bind(eventId);
 

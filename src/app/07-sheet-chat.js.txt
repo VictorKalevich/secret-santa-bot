@@ -218,9 +218,8 @@
   }
 
   // ---------- обращения к организатору (012) ----------
-  // Имена людей в обращениях — со значком (039); в переписке Санты и подопечного (openChat) значков нет
   const supportBubble = (m) => h('div', { class: 'ds-chat__msg ' + (m.mine ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
-    m.text, h('div', { class: 'ds-chat__meta' }, (m.mine || !m.author ? '' : withEmoji(m.author, m.author_emoji) + ' · ') + fmtTime(m.created_at)));
+    m.text, h('div', { class: 'ds-chat__meta' }, (m.mine || !m.author ? '' : m.author + ' · ') + fmtTime(m.created_at)));
 
   // Участник: все его обращения в эвенте одной перепиской; закрытые отделены служебной строкой
   function openSupport() {
@@ -237,12 +236,12 @@
     const load = async () => {
       const d = await api('support.get', { event: evId });
       const open = d.threads.find((t) => t.status === 'open');
-      const key = JSON.stringify(d.threads.map((t) => [t.id, t.status, t.assignee_name, t.assignee_emoji, t.messages.length]));
+      const key = JSON.stringify(d.threads.map((t) => [t.id, t.status, t.assignee_name, t.messages.length]));
       c.show(d.writable && (d.available || !!open));
       closedNote.hidden = d.writable;
       resolve.hidden = !open || !d.writable;
       status.textContent = open
-        ? (open.assignee_name ? `Обращение ведёт ${withEmoji(open.assignee_name, open.assignee_emoji)}.` : 'Обращение отправлено — ждёт ответа организатора.')
+        ? (open.assignee_name ? `Обращение ведёт ${open.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.')
         : 'Сообщение получат организаторы события; ответит тот, кто возьмёт обращение. Не пиши, кто твой подопечный.';
       if (key === sig) return;
       sig = key;
@@ -304,13 +303,13 @@
       const key = JSON.stringify([t.status, t.assignee, t.writable, d.messages.map((m) => m.id)]);
       if (key === sig) return;
       sig = key;
-      titleText.data = 'Обращение: ' + withEmoji(t.name, t.emoji);
+      titleText.data = 'Обращение: ' + t.name;
       const open = t.status === 'open';
       const lead = t.assignee === me.id || me.is_owner;
       const parts = [ui.hint(!open
-        ? `Обращение закрыто ${fmtTime(t.closed_at)}${t.closed_by_name ? ' — ' + withEmoji(t.closed_by_name, t.closed_by_emoji) : ''}.`
+        ? `Обращение закрыто ${fmtTime(t.closed_at)}${t.closed_by_name ? ' — ' + t.closed_by_name : ''}.`
         : !t.assignee ? (t.user_id === me.id ? 'Это твоё обращение — ответят другие организаторы.' : 'Обращение ждёт ответа. Возьми его — или просто ответь, и оно станет твоим.')
-        : t.assignee === me.id ? 'Обращение ведёшь ты.' : `Обращение ведёт ${withEmoji(t.assignee_name, t.assignee_emoji)}.`)];
+        : t.assignee === me.id ? 'Обращение ведёшь ты.' : `Обращение ведёт ${t.assignee_name}.`)];
       const row = h('div', { class: 'ds-row ds-row--wrap' });
       if (open && !t.assignee && t.user_id !== me.id) {
         const takeBtn = ui.btn('🙋 Взять', 'secondary', 'ds-btn--sm');

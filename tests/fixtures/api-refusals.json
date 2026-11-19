@@ -4741,153 +4741,77 @@
    "status": 400,
    "error": "Имя должно быть от 1 до 40 символов"
   },
-  "038 stranger emoji.set": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
   "038 stranger card.set": {
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "038 outsider emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 outsider card.set": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "038 member emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 member card.set": {
    "status": 400,
    "error": "Такой открытки нет — выбери из списка."
-  },
-  "038 admin emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 admin card.set": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "038 owner emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 owner card.set": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
-  },
-  "038 missing-owner emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 missing-owner card.set": {
    "status": 404,
    "error": "Событие не найдено."
   },
-  "038 missing-admin emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 missing-admin card.set": {
    "status": 404,
    "error": "Событие не найдено."
-  },
-  "038 missing-member emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 missing-member card.set": {
    "status": 404,
    "error": "Событие не найдено."
   },
-  "038 none-owner emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 none-owner card.set": {
    "status": 404,
    "error": "Событие не найдено."
-  },
-  "038 none-admin emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 none-admin card.set": {
    "status": 404,
    "error": "Событие не найдено."
   },
-  "038 none-member emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 none-member card.set": {
    "status": 404,
    "error": "Событие не найдено."
-  },
-  "038 finished-owner emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 finished-owner card.set": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "038 finished-admin emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 finished-admin card.set": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
-  },
-  "038 finished-member emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 finished-member card.set": {
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
   },
-  "038 finished-delivery-member emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 finished-delivery-member card.set": {
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
-  },
-  "038 finished-old-owner emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 finished-old-owner card.set": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "038 finished-old-admin emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 finished-old-admin card.set": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "038 finished-old-member emoji.set": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
-  },
   "038 finished-old-member card.set": {
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
-  },
-  "038 extra emoji-unknown": {
-   "status": 400,
-   "error": "Такого значка нет — выбери из списка."
   },
   "038 extra card-unknown": {
    "status": 400,

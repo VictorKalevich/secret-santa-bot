@@ -1,13 +1,9 @@
-// 038: значок у имени и открытка письма (specs/038-emoji-postcards/contracts/looks.md). Значок — свойство человека: виден в
-// списках событий, у Санты и в обращениях (039 — tests/names.test.mjs), но не в переписке Санты и подопечного, сообщениях
-// бота и журнале; открытка — у письма в событии: видна самому
-// участнику, его Санте и организатору, открывшему письмо; смена открытки — не изменение письма. Набор — один список на
-// сервере, у каждой открытки — тема в дизайн-системе с читаемым текстом.
+// 038: открытка видна участнику, его Санте и организатору, открывшему письмо.
 import { describe, it, test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
-import { EMOJIS, POSTCARDS } from '../src/looks.js';
+import { POSTCARDS } from '../src/looks.js';
 
 after(restoreFetch);
 
@@ -18,9 +14,7 @@ const borya = { id: 102, name: 'Боря', username: 'borya' };
 const vera = { id: 103, name: 'Вера', username: 'vera' };
 const gena = { id: 104, name: 'Гена', username: 'gena' };
 const fresh = { id: 105, name: 'Аня новая', username: 'anya2' };
-const stranger = { id: 106, name: 'Незнакомец', username: 'stranger' };
 
-const NO_EMOJI = 'Такого значка нет — выбери из списка.';
 const NO_CARD = 'Такой открытки нет — выбери из списка.';
 const LETTER_CLOSED = 'Событие завершено: письмо теперь только для чтения.';
 
@@ -51,92 +45,6 @@ async function world() {
   };
   return { w, E, create, invite, join, santaOf };
 }
-
-const has = (data, needle) => JSON.stringify(data).includes(needle);
-
-describe('значок у имени (038, US1)', () => {
-  let z;
-  before(async () => { z = await world(); });
-
-  it('me отдаёт свой значок и набор: 40 значков, 15 открыток', async () => {
-    const d = await z.w.api(anya, 'me');
-    assert.equal(d.me.emoji, '');
-    assert.deepEqual(d.looks.emojis, EMOJIS);
-    assert.deepEqual(d.looks.postcards, POSTCARDS);
-    assert.equal(EMOJIS.length, 40);
-    assert.equal(POSTCARDS.length, 15);
-  });
-
-  it('значок из набора сохраняется, «без значка» убирает, не из набора — отказ и прежний значок', async () => {
-    const { w } = z;
-    assert.deepEqual(await w.api(anya, 'emoji.set', { emoji: '🦊' }), { ok: true, emoji: '🦊' });
-    assert.equal((await w.api(anya, 'me')).me.emoji, '🦊');
-    for (const emoji of ['🍕', 'abc', '🦊🦊', null, undefined, 5]) {
-      const r = await w.api(anya, 'emoji.set', { emoji }, true);
-      assert.equal(r.status, 400, String(emoji));
-      assert.equal(r.data.error, NO_EMOJI);
-    }
-    assert.equal((await w.api(anya, 'me')).me.emoji, '🦊');
-    await w.api(borya, 'emoji.set', { emoji: '🐻' });
-    await w.api(borya, 'emoji.set', { emoji: '' });
-    assert.equal(w.query('SELECT emoji FROM users WHERE tg_id = ?', borya.id)[0].emoji, '');
-  });
-
-  it('незарегистрированный значок не ставит', async () => {
-    const { w, E, invite } = z;
-    await w.say(stranger, '/start ' + await invite(E));
-    const r = await w.api(stranger, 'emoji.set', { emoji: '🦊' }, true);
-    assert.notEqual(r.status, 200);
-    assert.equal(w.query('SELECT emoji FROM users WHERE tg_id = ?', stranger.id)[0].emoji, '');
-  });
-
-  it('значок — в списке участников на «Инфо», у организаторов, в панели и в списке администраторов', async () => {
-    const { w, E } = z;
-    await w.api(boss, 'emoji.set', { emoji: '🎅' });
-    const r = (await w.api(vera, 'event.get', { event: E })).roster;
-    assert.equal(r.people.find((p) => p.id === anya.id).emoji, '🦊');
-    assert.equal(r.people.find((p) => p.id === vera.id).emoji, '');
-    assert.equal(r.organizers.find((p) => p.id === boss.id).emoji, '🎅');
-    const st = await w.api(adm, 'admin.state', { event: E });
-    assert.equal(st.users.find((u) => u.id === anya.id).emoji, '🦊');
-    const us = await w.api(adm, 'admin.users');
-    assert.equal(us.users.find((u) => u.id === boss.id).emoji, '🎅');
-  });
-
-  it('значок — у заявок и удалённых в панели', async () => {
-    const { w, create, invite } = z;
-    const F = await create('Заявки', [borya]);
-    await w.api(gena, 'emoji.set', { emoji: '🐧' }, true); // ещё не зарегистрирован — не ставится
-    await w.api(boss, 'admin.game', { event: F, approval: true });
-    await w.say(gena, '/start ' + await invite(F));
-    await w.say(gena, gena.name);
-    await w.api(gena, 'emoji.set', { emoji: '🐧' });
-    await w.api(borya, 'emoji.set', { emoji: '🐻' });
-    await w.api(boss, 'admin.remove', { event: F, id: borya.id });
-    const st = await w.api(boss, 'admin.state', { event: F });
-    assert.equal(st.requests.find((r) => r.user_id === gena.id).emoji, '🐧');
-    assert.equal(st.removed.find((r) => r.id === borya.id).emoji, '🐻');
-  });
-
-  it('Санта видит значок подопечного; в переписке, сообщениях бота и журнале значков нет', async () => {
-    const { w, E, santaOf } = z;
-    await w.api(boss, 'admin.draw', { event: E });
-    const santa = santaOf(anya);
-    assert.equal((await w.api(santa, 'ward.get', { event: E })).ward.emoji, '🦊');
-    await w.api(santa, 'emoji.set', { emoji: '🦄' });
-    await w.api(santa, 'message.send', { event: E, to: 'ward', text: 'Привет!' });
-    await w.api(anya, 'message.send', { event: E, to: 'santa', text: 'Спасибо!' });
-    const forWard = await w.api(anya, 'chat.get', { event: E, with: 'santa' });
-    const forSanta = await w.api(santa, 'chat.get', { event: E, with: 'ward' });
-    for (const d of [forWard, forSanta]) {
-      assert.ok(!has(d, 'emoji') && !has(d, '🦄') && !has(d, '🦊'), JSON.stringify(d));
-    }
-    assert.ok(!has((await w.api(anya, 'event.get', { event: E })).member, 'emoji'), 'участнику о себе — без значков');
-    const texts = w.calls.filter((c) => c.method === 'sendMessage').map((c) => c.params.text).join('\n');
-    assert.ok(!texts.includes('🦄') && !texts.includes('🦊'), 'сообщения бота без значков');
-    assert.ok(!has(w.query('SELECT * FROM audit'), '🦄') && !has(w.query('SELECT * FROM audit'), '🦊'), 'журнал без значков');
-  });
-});
 
 describe('открытка для письма (038, US2)', () => {
   let z;
@@ -241,10 +149,7 @@ const contrast = (a, b) => {
   return (x + 0.05) / (y + 0.05);
 };
 
-test('набор: значки — 40 разных, каждый одна графема; открытки — 15 разных id и названий', () => {
-  const seg = new Intl.Segmenter('ru', { granularity: 'grapheme' });
-  assert.equal(new Set(EMOJIS).size, EMOJIS.length);
-  for (const e of EMOJIS) assert.equal([...seg.segment(e)].length, 1, e);
+test('набор открыток — 15 разных id и названий', () => {
   assert.equal(new Set(IDS).size, 15);
   assert.equal(new Set(POSTCARDS.map((c) => c.title)).size, 15);
   for (const id of IDS) assert.match(id, /^[a-z]+$/, id);
@@ -290,16 +195,4 @@ test('от противного: контраст ловит бледный те
   assert.ok(contrast('#ffffff', '#1b365d') >= 4.5);
   const extra = [...'.ds-postcard--snow { } .ds-postcard--pizza { }'.matchAll(/\.ds-postcard--([a-z]+)\s*\{/g)].map((m) => m[1]);
   assert.notDeepEqual(extra.sort(), ['snow']);
-});
-
-// ---------- приложение: значка нет в переписке Санты и подопечного ----------
-// 039: обращения (та же часть 07-sheet-chat) — со значками; переписка Санты и подопечного (openChat) — без
-test('переписка Санты и подопечного (openChat) не показывает значков: нет emoji, emojiName, withEmoji', async () => {
-  const { PARTS, topBlock } = await import('./support/app-source.mjs');
-  const lines = PARTS.find((p) => p.name.startsWith('07-')).text.split('\n');
-  const block = topBlock(lines, 'openChat');
-  assert.ok(block, 'нет openChat');
-  const found = (ls) => ls.filter((l) => /\b(emoji|emojiName|withEmoji)\b|_emoji\b/.test(l));
-  assert.deepEqual(found(lines.slice(block[0], block[1] + 1)), []);
-  assert.equal(found(['  h(\'div\', {}, emojiName(u));', '  m.author_emoji']).length, 2, 'от противного');
 });

@@ -25,7 +25,7 @@ import {
   participantView, sendFromUser, closeByUser, adminThread, take, sendFromAdmin, pass, closeByAdmin,
 } from './support.js';
 import {
-  homeView, eventView, saveWishlist, writeLetterDraft, saveDelivery, wardView, setGiftReady, setGiftReceived, setEmoji, setCard, setMask,
+  homeView, eventView, saveWishlist, writeLetterDraft, saveDelivery, wardView, setGiftReady, setGiftReceived, setCard, setMask,
 } from './participant.js';
 import { adminState, memberLetter, usersList, renameUser } from './panel.js';
 import { changeExclusions, changeFixed } from './constraints.js';
@@ -97,8 +97,7 @@ export const ACTIONS = {
       return { name };
     },
   },
-  // 038: значок у имени и открытка письма — из набора src/looks.js, без журнала и сообщений
-  'emoji.set': { role: USER, run: async (ctx, body) => out(await setEmoji(ctx, body.emoji)) },
+  // 038: открытка письма — из набора src/looks.js, без журнала и сообщений
   'card.set': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev) => out(await setCard(ctx, ev, body.card)) },
   'event.get': { role: VIEWER, event: true, finished: true, run: (ctx, body, ev, member) => eventView(ctx, ev, member) },
   'wishlist.save': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await saveWishlist(ctx, ev, member, body.text)) },

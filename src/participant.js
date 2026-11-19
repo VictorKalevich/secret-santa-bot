@@ -12,7 +12,7 @@ import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
 import { no } from './result.js';
-import { EMOJIS, POSTCARDS, MASKS, validEmoji, validCard, validMask } from './looks.js';
+import { POSTCARDS, MASKS, validCard, validMask } from './looks.js';
 
 const DELIVERY_MAX = 500;
 
@@ -57,12 +57,12 @@ export async function homeView(ctx) {
   return {
     registered: true,
     me: {
-      id: me.tg_id, name: me.name, emoji: me.emoji, is_admin: !!me.is_admin, is_owner: !!me.is_admin && ownerId === me.tg_id,
+      id: me.tg_id, name: me.name, is_admin: !!me.is_admin, is_owner: !!me.is_admin && ownerId === me.tg_id,
       notify_mode: me.notify_mode,
     },
     events,
     limits: { chars: MAX_CHARS },
-    looks: { emojis: EMOJIS, postcards: POSTCARDS, masks: MASKS }, // 038, 040: наборы значков, открыток и масок — на сервере
+    looks: { postcards: POSTCARDS, masks: MASKS }, // 038, 040: наборы открыток и масок — на сервере
   };
 }
 
@@ -118,7 +118,7 @@ export async function eventView(ctx, ev, member) {
 // отметок по людям, ни пар; @username — только если организатор разрешил участникам писать друг другу
 const byName = (a, b) => a.name.localeCompare(b.name, 'ru') || a.id - b.id;
 export function rosterView(ev, people, gifts, users, ownerId, settings) {
-  const contact = (u) => ({ emoji: u.emoji, ...(ev.contacts_on && u.username ? { username: u.username } : {}) });
+  const contact = (u) => ev.contacts_on && u.username ? { username: u.username } : {};
   const role = (u) => (u.tg_id === ownerId ? 'owner' : u.is_admin ? 'admin' : '');
   const admins = users.filter((u) => u.is_admin && u.registered);
   return {
@@ -134,15 +134,7 @@ export function rosterView(ev, people, gifts, users, ownerId, settings) {
   };
 }
 
-// 038: значок у имени (один на все события) и открытка письма (своя в событии) — только из набора; без сообщений и
-// журнала, время изменения письма открытка не трогает
-export async function setEmoji(ctx, raw) {
-  const emoji = validEmoji(raw);
-  if (emoji === null) return no('Такого значка нет — выбери из списка.');
-  await ctx.db.prepare('UPDATE users SET emoji = ? WHERE tg_id = ?').bind(emoji, ctx.me.tg_id).run();
-  return { ok: true, emoji };
-}
-
+// 038: открытка письма выбирается из набора. Смена открытки не меняет время письма.
 export async function setCard(ctx, ev, raw) {
   const card = validCard(raw);
   if (card === null) return no('Такой открытки нет — выбери из списка.');
@@ -230,7 +222,6 @@ export async function wardView(ctx, ev) {
     state: 'ok',
     ward: {
       name: ward.name,
-      emoji: ward.emoji, // 038: в приложении — внутри скрытого имени
       wishlist: wardMember.wishlist,
       card: wardMember.card,
       updated_at: wardMember.wishlist_updated_at,

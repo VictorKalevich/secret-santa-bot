@@ -179,3 +179,21 @@ test('база с данными «до 0011»: маски пар пусты, о
   assert.equal(schema(after), '14');
   for (const t of Object.keys(before).filter((t) => !['pairs', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
 });
+
+test('0014 очищает отдельные значки у всех пользователей и сохраняет остальные данные', async () => {
+  const { w } = await filledWorld();
+  w.sql("UPDATE users SET name = 'Игрок1 🦊', emoji = '🦊' WHERE tg_id = 100");
+  w.sql("UPDATE users SET emoji = '🎅' WHERE is_admin = 1");
+  w.sql("UPDATE members SET card = 'night' WHERE user_id = 100");
+  w.sql("UPDATE pairs SET mask = 'dragon' WHERE santa = 100");
+  const before = snapshot(w);
+  const sql = readFileSync(new URL('../migrations/0014_remove_profile_badges.sql', import.meta.url), 'utf8');
+  const expected = {
+    ...before,
+    users: before.users.map((row) => JSON.stringify({ ...JSON.parse(row), emoji: '' })).sort(),
+  };
+  w.sql(sql);
+  assert.deepEqual(snapshot(w), expected);
+  w.sql(sql);
+  assert.deepEqual(snapshot(w), expected);
+});

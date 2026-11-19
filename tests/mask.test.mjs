@@ -5,7 +5,7 @@
 import { describe, it, test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
-import { EMOJIS, MASKS, validMask, maskLabel } from '../src/looks.js';
+import { MASKS, validMask, maskLabel } from '../src/looks.js';
 import { MAX_CHARS } from '../src/chat.js';
 
 after(restoreFetch);
@@ -56,34 +56,6 @@ async function world(people = [adm, anya, borya, vera]) {
 // ---------- набор ----------
 const VS = /[︎️]/g;
 const bare = (e) => e.replace(VS, '');
-// Смыслы значков у имени (EMOJIS, 038): основы слов, которые не должны встречаться в названиях масок. У каждого значка —
-// хотя бы одна основа: новый значок без смысла тест не пропустит
-const BADGE_MEANINGS = {
-  '🎄': ['ёлк', 'елк', 'елоч', 'ёлоч'], '🎅': ['санта', 'мороз'], '⛄': ['снегов'], '❄️': ['снежин', 'снег'], '⭐': ['звезд', 'звёзд'],
-  '✨': ['блёст', 'блест', 'искр'], '🎁': ['подар'], '🎀': ['бант', 'лент'], '🔔': ['колокол'], '🍪': ['печень'],
-  '🍊': ['мандарин', 'апельсин'], '☕': ['кофе', 'чашк'], '🧣': ['шарф'], '🧤': ['варежк', 'перчат'], '🍭': ['леденец', 'конфет'],
-  '🦌': ['олен'], '🛷': ['санк', 'сани'], '🕯️': ['свеч'], '🐻': ['медвед', 'мишк'], '🐼': ['панд'], '🐨': ['коал'],
-  '🦊': ['лис'], '🐰': ['заяц', 'зайч', 'кролик'], '🐱': ['кот', 'кошк'], '🐶': ['собак', 'пёс', 'пес', 'щен'],
-  '🐧': ['пингвин'], '🦉': ['сов', 'филин'], '🐿️': ['белк', 'бельч'], '🦔': ['ёж', 'еж'], '🐺': ['волк', 'волч'],
-  '🐯': ['тигр'], '🦄': ['единорог'], '🌈': ['радуг'], '🍀': ['клевер'], '🔥': ['огон', 'огн', 'плам'],
-  '💎': ['алмаз', 'бриллиант', 'кристал'], '🚀': ['ракет', 'космонавт'], '🎸': ['гитар'], '📚': ['книг'], '🎮': ['игр', 'геймер'],
-};
-
-// Совпадения маски со значками: эмодзи без селекторов начертания равен значку или содержит его («🐻‍❄️» — «🐻»); название
-// содержит основу смысла значка
-function clashes(masks) {
-  const found = [];
-  for (const m of masks) {
-    for (const e of EMOJIS) {
-      if (bare(m.emoji).includes(bare(e))) found.push(`${m.emoji} ${m.title}: эмодзи значка ${e}`);
-      for (const stem of BADGE_MEANINGS[e] || []) {
-        if (m.title.toLowerCase().includes(stem)) found.push(`${m.emoji} ${m.title}: смысл значка ${e} («${stem}»)`);
-      }
-    }
-  }
-  return found;
-}
-
 test('набор: 20 масок, id и названия разные, эмодзи — одна графема и без повторов', () => {
   const seg = new Intl.Segmenter('ru', { granularity: 'grapheme' });
   assert.equal(MASKS.length, 20);
@@ -95,18 +67,6 @@ test('набор: 20 масок, id и названия разные, эмодз
     assert.equal([...seg.segment(m.emoji)].length, 1, m.emoji);
     assert.ok(m.title.trim() === m.title && m.title.length > 0, m.title);
   }
-});
-
-test('маски не совпадают со значками у имени ни эмодзи, ни смыслом; у каждого значка — смысл в списке', () => {
-  assert.deepEqual(Object.keys(BADGE_MEANINGS).sort(), [...EMOJIS].sort(), 'смыслы — у каждого значка');
-  assert.deepEqual(clashes(MASKS), []);
-});
-
-test('от противного: проверка ловит маску со значком или его смыслом', () => {
-  assert.equal(clashes([{ emoji: '🦊', title: 'Лис' }]).length, 2, 'эмодзи и смысл');
-  assert.ok(clashes([{ emoji: '🐻‍❄️', title: 'Белый мишка' }]).length >= 2, 'значок внутри эмодзи и смысл');
-  assert.equal(clashes([{ emoji: '☃️', title: 'Снеговик' }]).length >= 1, true, 'другое эмодзи, тот же смысл');
-  assert.deepEqual(clashes([{ emoji: '🐉', title: 'Дракон' }]), []);
 });
 
 test('validMask и maskLabel: из набора или пусто; маска не из набора — «без маски»', () => {

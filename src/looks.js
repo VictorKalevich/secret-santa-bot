@@ -1,12 +1,6 @@
-// Значок у имени и открытка письма (038, specs/038-emoji-postcards/contracts/looks.md): один набор на сервере —
+// Открытка письма (038, specs/038-emoji-postcards/contracts/looks.md): один набор на сервере —
 // приложение получает его в ответе `me`. Вид открытки (узор, бумага, цвет текста, наклейка) — тема `ds-postcard--<id>`
 // в дизайн-системе; тест looks сверяет набор с темами и витриной в обе стороны.
-
-export const EMOJIS = [
-  '🎄', '🎅', '⛄', '❄️', '⭐', '✨', '🎁', '🎀', '🔔', '🍪', '🍊', '☕', '🧣', '🧤', '🍭', '🦌', '🛷', '🕯️',
-  '🐻', '🐼', '🐨', '🦊', '🐰', '🐱', '🐶', '🐧', '🦉', '🐿️', '🦔', '🐺', '🐯', '🦄',
-  '🌈', '🍀', '🔥', '💎', '🚀', '🎸', '📚', '🎮',
-];
 
 export const POSTCARDS = [
   { id: 'snow', title: 'Снегопад' },
@@ -27,8 +21,7 @@ export const POSTCARDS = [
 ];
 
 // Маска Санты в переписке (040, specs/040-santa-mask/contracts/mask.md): у пары в событии, видна только её Санте и
-// подопечному. Ни эмодзи, ни смыслом не совпадает со значками EMOJIS — иначе маска выдала бы Санту по списку участников
-// (тест mask)
+// подопечному.
 export const MASKS = [
   { id: 'elf', emoji: '🧝', title: 'Эльф' },
   { id: 'wizard', emoji: '🧙', title: 'Волшебник' },
@@ -53,7 +46,6 @@ export const MASKS = [
 ];
 
 // Значение из набора или '' («без»); иначе null
-export const validEmoji = (x) => (x === '' || EMOJIS.includes(x) ? x : null);
 export const validCard = (x) => (x === '' || POSTCARDS.some((c) => c.id === x) ? x : null);
 export const validMask = (x) => (x === '' || MASKS.some((m) => m.id === x) ? x : null);
 

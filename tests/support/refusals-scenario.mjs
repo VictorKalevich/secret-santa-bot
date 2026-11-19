@@ -31,7 +31,7 @@ export const UNKNOWN = ['admin.nope', 'nope'];
 // 035: своё имя и выход из события
 export const NEW_ACTIONS = ['name.set', 'event.leave'];
 // 038: значок у имени и открытка письма
-export const NEW_ACTIONS_038 = ['emoji.set', 'card.set'];
+export const NEW_ACTIONS_038 = ['card.set'];
 // 040: маска Санты в переписке
 export const NEW_ACTIONS_040 = ['mask.set'];
 export const NEW_ACTIONS_042 = ['ward.shipment'];
@@ -181,7 +181,6 @@ export async function runRefusals() {
     for (const a of NEW_ACTIONS_038) await record(`038 ${name} ${a}`, user, a, body(await ev()));
   }
   const extra038 = [
-    ['emoji-unknown', member, 'emoji.set', { emoji: '🍕' }],
     ['card-unknown', member, 'card.set', { event: E, card: 'nope' }],
     ['card-finished', member, 'card.set', { event: F, card: 'snow' }],
   ];

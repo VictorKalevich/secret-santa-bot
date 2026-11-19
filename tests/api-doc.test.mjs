@@ -150,10 +150,10 @@ function auditProblems(docCodes, serverCodes) {
 const has = (problems, part) => problems.some((p) => p.includes(part));
 
 describe('сводный контракт API: документ ↔ таблица действий', () => {
-  it('67 действий: строка сводной таблицы и раздел у каждого, роль, событие, «в завершённом» и тексты отказов — как в коде', () => {
+  it('66 действий: строка сводной таблицы и раздел у каждого, роль, событие, «в завершённом» и тексты отказов — как в коде', () => {
     assert.deepEqual(actionProblems(DOC, ACTIONS), []);
     assert.equal(tableRows(chapter(DOC, 'Сводная таблица действий')).length, Object.keys(ACTIONS).length);
-    assert.equal(Object.keys(ACTIONS).length, 67);
+    assert.equal(Object.keys(ACTIONS).length, 66);
   });
 
   it('от противного: действие в коде без описания, лишний раздел и лишняя строка', () => {

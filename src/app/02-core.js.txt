@@ -185,10 +185,6 @@
   function shareInvite(link, title) {
     openTgLink('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(`🎄 Играем в Тайного Санту — «${title}»! Заходи по ссылке:`));
   }
-  // Значок у имени (038, 039): единственное место, где имя соединяется со значком — «Аня 🦊»; в переписке Санты и
-  // подопечного значков нет
-  const withEmoji = (name, emoji) => (emoji ? name + ' ' + emoji : name);
-  const emojiName = (u, name = u.name) => withEmoji(name, u.emoji);
   // Письмо на открытке (038): card — id из набора сервера (state.looks.postcards); без открытки — содержимое как есть
   function postcard(card, ...content) {
     if (!card) return content.length === 1 ? content[0] : h('div', { class: 'ds-stack' }, ...content);

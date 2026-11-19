@@ -19,8 +19,6 @@ export const OWN_THREAD = 'Это твоё обращение — отвечат
 
 const title = (ev) => q({ title: shortTitle(ev.title) });
 const bold = (u) => `<b>${escapeHtml(displayName(u))}</b>`;
-// Значок у имени (038) — рядом с каждым именем человека в ответах приложению (039); в сообщениях бота и журнале его нет
-const emojiOf = (u) => (u && u.emoji) || '';
 
 function checkText(raw) {
   const text = cleanText(raw);
@@ -93,12 +91,11 @@ export async function participantView(ctx, ev) {
       id: t.id,
       status: t.status,
       assignee_name: t.assignee ? displayName(byId.get(t.assignee)) : '',
-      assignee_emoji: t.assignee ? emojiOf(byId.get(t.assignee)) : '',
       created_at: t.created_at,
       closed_at: t.closed_at,
       messages: messages.filter((m) => m.thread_id === t.id).map((m) => ({
         id: m.id, mine: !m.from_admin, author: m.from_admin ? displayName(byId.get(m.sender)) : '',
-        author_emoji: m.from_admin ? emojiOf(byId.get(m.sender)) : '', text: m.text, created_at: m.created_at,
+        text: m.text, created_at: m.created_at,
       })),
     })),
   };
@@ -156,7 +153,7 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
     // Обращение закрыли между чтением и записью — следующее сообщение открывает новое
     return retry ? sendFromUser(ctx, ev, rawText, false) : no('Не получилось отправить — попробуй ещё раз.');
   }
-  return { ok: true, thread: thread.id, created, message: { id: row.id, mine: true, author: '', author_emoji: '', text: t.text, created_at: row.created_at } };
+  return { ok: true, thread: thread.id, created, message: { id: row.id, mine: true, author: '', text: t.text, created_at: row.created_at } };
 }
 
 export async function closeByUser(ctx, ev) {
@@ -202,11 +199,9 @@ export function adminListView(results, users, me, isOwner) {
       id: t.id,
       user_id: t.user_id,
       name: displayName(byId.get(t.user_id)),
-      emoji: emojiOf(byId.get(t.user_id)),
       status: t.status,
       assignee: t.assignee,
       assignee_name: t.assignee ? displayName(byId.get(t.assignee)) : '',
-      assignee_emoji: t.assignee ? emojiOf(byId.get(t.assignee)) : '',
       created_at: t.created_at,
       closed_at: t.closed_at,
       last_at: t.last_at || t.created_at,
@@ -245,21 +240,18 @@ export async function adminThread(ctx, ev, id) {
       id: t.id,
       user_id: t.user_id,
       name: displayName(byId.get(t.user_id)),
-      emoji: emojiOf(byId.get(t.user_id)),
       status: t.status,
       assignee: t.assignee,
       assignee_name: t.assignee ? displayName(byId.get(t.assignee)) : '',
-      assignee_emoji: t.assignee ? emojiOf(byId.get(t.assignee)) : '',
       created_at: t.created_at,
       closed_at: t.closed_at,
       closed_by_name: t.closed_by ? displayName(byId.get(t.closed_by)) : '',
-      closed_by_emoji: t.closed_by ? emojiOf(byId.get(t.closed_by)) : '',
       // Писать: открыто, срок не вышел, ничьё (возьмётся ответом) или моё; своё обращение как автор — нет
       writable: !Object.values(replyBlocks(t, me, ev)).some(Boolean),
     },
     messages: results.map((m) => ({
       id: m.id, mine: m.sender === me.tg_id, from_admin: !!m.from_admin, author: displayName(byId.get(m.sender)),
-      author_emoji: emojiOf(byId.get(m.sender)), text: m.text, created_at: m.created_at,
+      text: m.text, created_at: m.created_at,
     })),
     // Кому можно передать (без автора и нынешнего ответственного) — выбор в шторке обращения
     admins: adminRecipients(users, [t.user_id, t.assignee]).map((u) => ({ id: u.tg_id, name: displayName(u) })),
@@ -341,7 +333,7 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   const { claim } = await open.run();
   const row = claim.results[0];
   if (!row) return t.assignee ? no(CLOSED) : taken(db, t);
-  return { ok: true, message: { id: row.id, mine: true, from_admin: true, author: displayName(me), author_emoji: emojiOf(me), text: tx.text, created_at: row.created_at } };
+  return { ok: true, message: { id: row.id, mine: true, from_admin: true, author: displayName(me), text: tx.text, created_at: row.created_at } };
 }
 
 export async function pass(ctx, ev, id, toId) {
@@ -415,8 +407,6 @@ export const supportCountsQuery = (db, ev, me) => db
          (SELECT t.assignee FROM support_threads t WHERE t.event_id = ?2 AND t.user_id = ?1 AND t.status = 'open') AS assignee,
          (SELECT u.name FROM support_threads t JOIN users u ON u.tg_id = t.assignee
            WHERE t.event_id = ?2 AND t.user_id = ?1 AND t.status = 'open') AS assignee_name,
-         (SELECT u.emoji FROM support_threads t JOIN users u ON u.tg_id = t.assignee
-           WHERE t.event_id = ?2 AND t.user_id = ?1 AND t.status = 'open') AS assignee_emoji,
          (SELECT COUNT(*) FROM support_threads WHERE event_id = ?2 AND status = 'open' AND assignee = 0 AND user_id != ?1) AS waiting,
          (SELECT COUNT(*) FROM support_messages m JOIN support_threads t ON t.id = m.thread_id
            WHERE t.event_id = ?2 AND t.status = 'open' AND t.assignee = ?1 AND m.from_admin = 0 AND m.read_at = 0) AS fresh`
@@ -431,7 +421,6 @@ export function supportCountsView(rows, { member, admin }) {
       available: r.admins > 0,
       open: r.assignee !== null && r.assignee !== undefined,
       assignee_name: r.assignee ? r.assignee_name || 'организатор' : '',
-      assignee_emoji: (r.assignee && r.assignee_name && r.assignee_emoji) || '',
       unread: r.answers,
     };
   }

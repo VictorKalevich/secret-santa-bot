@@ -57,15 +57,15 @@ describe('список участников (037, US1)', () => {
     assert.deepEqual(r.people.map((p) => p.name), ['Админ', 'Аня', 'Боря', 'Вера', 'Владелец', 'Гена']);
     assert.deepEqual(r.people.map((p) => p.role), ['admin', '', '', '', 'owner', '']);
     assert.deepEqual(r.people.map((p) => p.id), [adm.id, anya.id, borya.id, vera.id, boss.id, gena.id]);
-    assert.deepEqual(keysOf(r.people), ['emoji', 'id', 'name', 'role']);
+    assert.deepEqual(keysOf(r.people), ['id', 'name', 'role']);
   });
 
   it('организаторы бота — владелец первым, остальные по алфавиту (и тот, кто не участвует)', async () => {
     const r = await z.roster();
     assert.deepEqual(r.organizers, [
-      { id: boss.id, name: 'Владелец', owner: true, emoji: '' },
-      { id: adm.id, name: 'Админ', owner: false, emoji: '' },
-      { id: adm2.id, name: 'Второй админ', owner: false, emoji: '' },
+      { id: boss.id, name: 'Владелец', owner: true },
+      { id: adm.id, name: 'Админ', owner: false },
+      { id: adm2.id, name: 'Второй админ', owner: false },
     ]);
   });
 
