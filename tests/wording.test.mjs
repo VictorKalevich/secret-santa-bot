@@ -21,14 +21,15 @@ const sources = [
   [APP, where],
 ];
 
-test('в текстах для людей нет слова «эвент»', () => {
+test('в текстах для людей используются «событие», «владелец» и «администратор»', () => {
+  const obsoleteRole = /(?<!\p{L})(?:организатор\p{L}*|админ(?:а|у|ом|е|ы|ов|ам|ами|ах)?)(?!\p{L})/iu;
   const found = [];
   for (const [text, at] of sources) {
     stripComments(text).split('\n').forEach((line, i) => {
-      if (/[Ээ]вент/.test(line)) found.push(`${at(i + 1)}: ${line.trim().slice(0, 140)}`);
+      if (/[Ээ]вент/.test(line) || obsoleteRole.test(line)) found.push(`${at(i + 1)}: ${line.trim().slice(0, 140)}`);
     });
   }
-  assert.deepEqual(found, [], 'замени «эвент» на «событие» (правила — specs/013-event-wording/research.md, R1)');
+  assert.deepEqual(found, [], 'используй названия из спецификаций 013 и 044');
 });
 
 test('кнопки приложения не начинаются с «＋»', () => {

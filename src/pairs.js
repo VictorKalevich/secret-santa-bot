@@ -227,7 +227,7 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
   // Остальное — только пока человек ещё участник (018): до жеребьёвки версии пар нет, и без этого второй из двух
   // одновременных вызовов повторил бы уведомление, запись журнала и отметку. Строка участника удаляется последней.
   const g = a.and('EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)', ev.id, userId);
-  if (notify) g.enqueue(userId, msg(`Организатор удалил тебя из события ${q(ev)}. Если это ошибка — напиши ему.`));
+  if (notify) g.enqueue(userId, msg(`Тебя удалили из события ${q(ev)}. Если это ошибка, свяжись с владельцем или администратором.`));
   g.audit(ev.id, actor, 'member.remove', displayName(target));
   if (mark) g.add(markRemovedStmt(db, ev.id, userId, actor, ...g.guard));
   // Исключения, закреплённые пары, переписка и обращения участника — по списку REGISTRY (018); строка участника —
@@ -333,7 +333,7 @@ export async function cancelDraw(ctx, ev, actor) {
     tag: 'cancel:',
     cond: CANCEL_COND,
     condArgs: [ev.id, ev.id],
-    text: `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
+    text: `↩️ <b>Жеребьёвка отменена</b> в событии ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
     action: 'draw.cancel',
     lost: async () => 'Отменить нельзя: кто-то уже открыл подопечного или началась переписка.',
   });
@@ -345,7 +345,7 @@ export async function forceCancelDraw(ctx, ev, actor) {
   return undoDraw(ctx, ev, actor, {
     tag: 'force:',
     chats: true,
-    text: `↩️ Организатор <b>отменил жеребьёвку</b> в событии ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
+    text: `↩️ Владелец <b>отменил жеребьёвку</b> в событии ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
       'подопечным удалена. Твоё письмо сохранено. Когда будет новая жеребьёвка, бот напишет.',
     action: 'draw.cancel.force',
     lost: async () => {

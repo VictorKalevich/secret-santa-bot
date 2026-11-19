@@ -311,7 +311,7 @@ export async function getAudit(db, eventId, limit = 100) {
 
 export const announcementsQuery = (db, eventId, limit = 20) => db
     .prepare(
-      `SELECT a.id, a.text, a.created_at, COALESCE(NULLIF(u.name, ''), 'Организатор') AS author_name
+      `SELECT a.id, a.text, a.created_at, COALESCE(NULLIF(u.name, ''), 'Автор объявления') AS author_name
          FROM announcements a LEFT JOIN users u ON u.tg_id = a.author
         WHERE a.event_id = ? ORDER BY a.id DESC LIMIT ?`
     )

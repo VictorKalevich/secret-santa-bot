@@ -85,7 +85,7 @@ export async function deleteEvent(ctx, ev, actor = 0) {
   const db = ctx.db;
   const members = await rowsOf(memberIdsQuery(db, ev.id));
   const exists = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ?)', ev.id);
-  for (const m of members) exists.enqueue(m.user_id, msg(`🗑 Событие ${q(ev)} удалено организатором вместе с письмами и перепиской.`));
+  for (const m of members) exists.enqueue(m.user_id, msg(`🗑 Событие ${q(ev)} удалено владельцем вместе с письмами и перепиской.`));
   // Журнал эвента остаётся; само удаление — в общем журнале (007)
   exists.audit(0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`);
   // Данные эвента — по списку REGISTRY (018), строка эвента — последней: она и есть захват
@@ -108,7 +108,7 @@ export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
     'invite_code = ?', ev.invite_code)));
   for (const m of removed) {
     mine.enqueue(m.user_id, msg(
-      `🎄 Организатор начал событие ${q(ev)} заново. Прежние данные удалены. Чтобы участвовать, попроси новую пригласительную ссылку.`
+      `🎄 Владелец начал событие ${q(ev)} заново. Прежние данные удалены. Чтобы участвовать, попроси новую пригласительную ссылку.`
     ));
   }
   // Данные эвента — по списку REGISTRY (018): участие владельца остаётся, его письмо и адрес стираются

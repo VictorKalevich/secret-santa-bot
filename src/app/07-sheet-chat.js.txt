@@ -234,7 +234,7 @@
   // Участник: все его обращения в эвенте одной перепиской; закрытые отделены служебной строкой
   function openSupport() {
     const evId = state.evId;
-    const c = composerParts('Сообщение организатору…');
+    const c = composerParts('Сообщение по событию…');
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
     const status = ui.hint('');
     const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — обращения только для чтения.');
@@ -251,8 +251,8 @@
       closedNote.hidden = d.writable;
       resolve.hidden = !open || !d.writable;
       status.textContent = open
-        ? (open.assignee_name ? `Обращение ведёт ${open.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.')
-        : 'Сообщение получат организаторы события; ответит тот, кто возьмёт обращение. Не пиши, кто твой подопечный.';
+        ? (open.assignee_name ? `Обращение ведёт ${open.assignee_name}.` : 'Обращение отправлено и ждёт ответа.')
+        : 'Новое обращение получат владелец и администраторы. Ответит тот, кто возьмёт его. Сохраняй имя подопечного в тайне.';
       if (key === sig) return;
       sig = key;
       const nodes = [];
@@ -261,8 +261,8 @@
         if (t.status !== 'open') nodes.push(h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто · ' + fmtTime(t.closed_at)));
       }
       list.replaceChildren(...(nodes.length ? nodes : [h('div', { class: 'ds-chat__empty' }, d.available
-        ? 'Здесь пока пусто. Напиши, что случилось, — организаторы получат сообщение в чате бота.'
-        : 'Сейчас некому написать: в боте нет других организаторов.')]));
+        ? 'Здесь пока пусто. Расскажи, что случилось.'
+        : 'Сейчас некому ответить на обращение.')]));
       list.scrollTop = list.scrollHeight;
     };
     c.send.addEventListener('click', () => busy(c.send, async () => {
@@ -276,7 +276,7 @@
       if (!(await confirmBox('Закрыть обращение? Если вопрос появится снова — просто напиши.'))) return;
       busy(resolve, async () => { await api('support.close', { event: evId }); toast('✅ Обращение закрыто'); await load(); });
     });
-    const own = openSheet('Организатору', [status, list, c.composer, c.counter, closedNote, resolve], {
+    const own = openSheet('Обращения', [status, list, c.composer, c.counter, closedNote, resolve], {
       full: true,
       beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть?')),
       onClose: async () => {
@@ -318,7 +318,7 @@
       const lead = t.assignee === me.id || me.is_owner;
       const parts = [ui.hint(!open
         ? `Обращение закрыто ${fmtTime(t.closed_at)}${t.closed_by_name ? ' — ' + t.closed_by_name : ''}.`
-        : !t.assignee ? (t.user_id === me.id ? 'Это твоё обращение — ответят другие организаторы.' : 'Обращение ждёт ответа. Возьми его — или просто ответь, и оно станет твоим.')
+        : !t.assignee ? (t.user_id === me.id ? 'Это твоё обращение — его может взять кто-то другой.' : 'Обращение ждёт ответа. Возьми его — или просто ответь, и оно станет твоим.')
         : t.assignee === me.id ? 'Обращение ведёшь ты.' : `Обращение ведёт ${t.assignee_name}.`)];
       const row = h('div', { class: 'ds-row ds-row--wrap' });
       if (open && !t.assignee && t.user_id !== me.id) {
@@ -336,7 +336,7 @@
       }
       if (row.children.length) parts.push(row);
       if (open && lead && d.admins.length) {
-        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Передать администратору…'),
+        const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Передать обращение…'),
           ...d.admins.map((a) => h('option', { value: a.id }, a.id === me.id ? a.name + ' (себе)' : a.name)));
         const passBtn = ui.btn('↪️ Передать', 'secondary', 'ds-btn--sm');
         passBtn.addEventListener('click', () => {

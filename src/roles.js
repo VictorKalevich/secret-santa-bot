@@ -75,7 +75,7 @@ export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabe
     }
     if (via === 'transfer') {
       a.enqueue(newOwnerId, msg(
-        '👑 <b>Тебе переданы права владельца бота.</b> Теперь ты назначаешь и снимаешь администраторов — раздел «Администраторы» на главном экране приложения.',
+        '👑 <b>Тебе переданы права владельца бота.</b> Теперь ты назначаешь и снимаешь администраторов — раздел «Владелец и администраторы» на главном экране приложения.',
         appKeyboard(settings, '🛠 Открыть')
       ));
     }
@@ -98,7 +98,7 @@ export async function grantAdmin(ctx, id, actor = 0) {
   // По прежнему состоянию (024): сообщения и журнал — пока он не админ, назначение — последним (захват)
   const a = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND is_admin = 0)', id);
   a.enqueue(id, msg(
-    '🛠 <b>Владелец назначил тебя администратором.</b>\n\nТеперь ты можешь создавать события и вести их: приглашения, исключения, жеребьёвка, напоминания. Кто кому дарит, админы не видят.',
+    '🛠 <b>Владелец назначил тебя администратором.</b>\n\nТеперь ты можешь создавать события и вести их: приглашения, исключения, жеребьёвка, напоминания. Пары может открыть только владелец в служебном просмотре.',
     appKeyboard(settings, '🛠 Открыть')
   ));
   for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(`ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`));
@@ -113,7 +113,7 @@ export async function revokeAdmin(ctx, id, actor = 0) {
   const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id);
   if (!u || !u.is_admin) return no(NOT_ADMIN);
-  if (id === ownerId) return no('Нельзя снять права владельца. Сначала передай владение другому.');
+  if (id === ownerId) return no('Нельзя снять права владельца. Сначала передай права владельца.');
   // По прежнему состоянию (024): всё — пока он админ, снятие прав — последним (захват)
   const a = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND is_admin = 1)', id);
   // 012: обращения, которые он вёл, снова ничьи — остальные админы получают их с кнопкой «Взять»
@@ -129,7 +129,7 @@ export async function revokeAdmin(ctx, id, actor = 0) {
 export async function transferOwnership(ctx, fromId, toId) {
   const users = await ctx.users();
   const u = users.find((x) => x.tg_id === toId);
-  if (!u || !u.registered) return no('Передать владение можно только зарегистрированному человеку.');
+  if (!u || !u.registered) return no('Передать права владельца можно только зарегистрированному человеку.');
   if (toId === fromId) return no('Ты и так владелец.');
   if (!(await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId })).won) return no('Права владельца уже переданы.');
   return { ok: true };
@@ -163,12 +163,12 @@ export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   // переносов ничего не меняет и не рассылает (иначе он удалил бы участие, только что перенесённое первым).
   const fromExists = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ?)', fromId);
   fromExists.enqueue(toId, msg(
-    '🔁 Организатор перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история событий сохранены.',
+    '🔁 Владелец перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история событий сохранены.',
     appKeyboard(settings, '🎁 Открыть')
   ));
   // Перенос не должен быть незаметным (006, FR-602): прежний аккаунт и остальные админы узнают о нём
   fromExists.enqueue(fromId, msg(
-    `🔁 Твоё участие в «Тайном Санте» перенесено на аккаунт <b>${escapeHtml(displayName(to))}</b>. Если это не ты — напиши организатору.`
+    `🔁 Твоё участие в «Тайном Санте» перенесено на аккаунт <b>${escapeHtml(displayName(to))}</b>. Если ты не просил о переносе, свяжись с владельцем.`
   ));
   const notice = adminNotice(
     `🔁 <b>${escapeHtml(displayName(actor))}</b> перенёс участие <b>${escapeHtml(displayName(from))}</b> на аккаунт <b>${escapeHtml(displayName(to))}</b>.`

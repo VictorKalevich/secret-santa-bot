@@ -12,10 +12,10 @@ import { chatWritable } from './status.js';
 import { MAX_CHARS, tooLong } from './chat.js';
 import { no } from './result.js';
 
-const NOBODY = 'Сейчас некому написать: в боте нет других организаторов.';
+export const NO_SUPPORT_RECIPIENTS = 'Сейчас некому ответить на обращение.';
 export const CLOSED = 'Обращение уже закрыто.';
 export const NOT_FOUND = 'Обращение не найдено.';
-export const OWN_THREAD = 'Это твоё обращение — отвечать на него будут другие организаторы.';
+export const OWN_THREAD = 'Это твоё обращение — его может взять кто-то другой.';
 
 const title = (ev) => q({ title: shortTitle(ev.title) });
 const bold = (u) => `<b>${escapeHtml(displayName(u))}</b>`;
@@ -111,7 +111,7 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
   const r = await ctx.read({ open: db.prepare(MY_OPEN).bind(ev.id, me.tg_id), users: true, settings: true });
   const { settings, users } = r;
   const admins = adminRecipients(users, [me.tg_id]);
-  if (!admins.length) return no(NOBODY);
+  if (!admins.length) return no(NO_SUPPORT_RECIPIENTS);
   let thread = r.open[0] ?? null;
   let created = false;
   if (!thread) {
@@ -321,7 +321,8 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   // Ответ, уведомление участнику и «прочитано» — пока обращение открыто и его ведёт отвечающий: то же условие, что у
   // записи ответа, которая идёт последней
   const mine = open.and(LED_BY, t.id, me.tg_id);
-  mine.enqueue(t.user_id, msg(`💬 Организатор ${bold(me)} отвечает (${title(ev)}):\n\n${escapeHtml(tx.text)}`, {
+  const role = (await ctx.isOwner()) ? 'Владелец' : 'Администратор';
+  mine.enqueue(t.user_id, msg(`💬 ${role} ${bold(me)} отвечает (${title(ev)}):\n\n${escapeHtml(tx.text)}`, {
     reply_markup: userKeyboard(settings, ev),
   }));
   // Отвечая, организатор видел сообщения участника — помечаем их прочитанными (как в переписке Сант)
@@ -345,7 +346,7 @@ export async function pass(ctx, ev, id, toId) {
   if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const to = users.find((u) => u.tg_id === Number(toId));
-  if (!to || !to.is_admin || !to.registered || to.tg_id === t.user_id) return no('Передать можно другому администратору.');
+  if (!to || !to.is_admin || !to.registered || to.tg_id === t.user_id) return no('Передать можно владельцу или другому администратору.');
   if (to.tg_id === t.assignee) return no(`Обращение и так ведёт ${displayName(to)}.`);
   const author = users.find((u) => u.tg_id === t.user_id);
   const prev = users.find((u) => u.tg_id === t.assignee);
@@ -381,8 +382,9 @@ export async function closeByAdmin(ctx, ev, id) {
   const author = users.find((u) => u.tg_id === t.user_id);
   // Уведомления и журнал — пока обращение открыто, закрытие — последним (020)
   const open = atomic(db, OPEN, t.id);
+  const role = (await ctx.isOwner()) ? 'Владелец' : 'Администратор';
   open.enqueue(t.user_id, msg(
-    `✅ Организатор ${bold(me)} закрыл(а) твоё обращение в событии ${title(ev)}. Если вопрос остался — просто напиши снова.`
+    `✅ ${role} ${bold(me)} закрыл(а) твоё обращение в событии ${title(ev)}. Если вопрос остался — просто напиши снова.`
   ));
   open.audit(ev.id, me.tg_id, 'support.close', displayName(author));
   if (t.assignee && t.assignee !== me.tg_id) {
@@ -420,7 +422,7 @@ export function supportCountsView(rows, { member, admin }) {
     out.support = {
       available: r.admins > 0,
       open: r.assignee !== null && r.assignee !== undefined,
-      assignee_name: r.assignee ? r.assignee_name || 'организатор' : '',
+      assignee_name: r.assignee ? r.assignee_name || 'ответственный' : '',
       unread: r.answers,
     };
   }
@@ -474,7 +476,7 @@ export async function returnThreadsStmts(db, settings, users, adminId, [guard, .
       }), guard, ...args));
     }
     stmts.push(
-      enqueueIfStmt(db, t.user_id, msg(`🔄 Твоё обращение в событии ${title(ev)} снова ждёт ответа организатора.`), guard, ...args),
+      enqueueIfStmt(db, t.user_id, msg(`🔄 Твоё обращение в событии ${title(ev)} снова ждёт ответа.`), guard, ...args),
       auditIfStmt(db, t.event_id, 0, 'support.return', displayName(author), guard, ...args),
     );
   }
