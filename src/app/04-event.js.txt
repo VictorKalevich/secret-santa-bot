@@ -27,7 +27,7 @@
     const t = [];
     if (state.member) t.push(['my', '✉️', 'Письмо'], ['ward', '🎁', 'Подопечный']);
     t.push(['info', 'ℹ️', 'Инфо']);
-    if (state.me.is_admin) t.push(['admin', '🛠', 'Админ']);
+    if (state.me.is_admin) t.push(['admin', '🛠', 'Управление']);
     return t;
   }
 
@@ -123,7 +123,7 @@
         cardBtn.textContent = '🖼 Открытка: ' + cardTitle(card);
       }));
       nodes.push(ui.card(
-        ui.hint(`Письмо увидит твой Санта в этом событии; организатор может открыть его — это записывается в журнал. Менять можно, пока событие идёт. До ${max} символов — столько помещается в одно сообщение Telegram.`),
+        ui.hint(`Письмо увидит твой Санта. Владелец и администраторы могут открыть его с записью в журнал. Менять можно, пока событие идёт. До ${max} символов — столько помещается в одно сообщение Telegram.`),
         cardBtn, paper, h('div', { class: 'ds-row ds-row--between' }, counter, status), saveBtn));
       requestAnimationFrame(update);
     }
@@ -149,7 +149,7 @@
           toast('📍 Адрес сохранён');
         }).then(updateAddr));
         requestAnimationFrame(updateAddr);
-        nodes.push(ui.card(ui.hint('Подарки в этом событии отправляют. Адрес увидит только твой Санта — организатор его не видит.'), addr, saveAddr));
+        nodes.push(ui.card(ui.hint('Подарки в этом событии отправляют. Адрес увидит твой Санта. Владелец может открыть его в служебном просмотре.'), addr, saveAddr));
       }
     }
     if (m.has_santa) {
@@ -311,7 +311,7 @@
     const tile = (id, emoji, title) => h('button', { class: 'ds-choice' + (id === current ? ' ds-choice--selected' : ''), onclick: () => pick(id) },
       emoji, h('span', { class: 'ds-choice__label' }, title));
     grid.append(tile('', null, 'Без маски'), ...state.looks.masks.map((m) => tile(m.id, m.emoji, m.title)));
-    openSheet('Маска в переписке', [ui.hint('Так подопечный увидит тебя в переписке и в сообщениях бота. Кто под маской, он узнает, когда организатор раскроет тайну. Маска своя в каждом событии.'), grid]);
+    openSheet('Маска в переписке', [ui.hint('Так подопечный увидит тебя в переписке и в сообщениях бота. Кто под маской, он узнает, когда раскроется тайна. Маска своя в каждом событии.'), grid]);
   }
 
   const renderWard = screen(async ({ cached = false } = {}) => {
@@ -325,8 +325,8 @@
     }
     if (d.state !== 'ok') {
       main.replaceChildren(...[finishedNotice(), d.state === 'no_draw'
-        ? ui.empty('🎲', 'Жеребьёвка ещё не проведена', 'Как только организатор её проведёт, здесь появится имя и письмо твоего подопечного. Бот пришлёт уведомление.')
-        : ui.empty('⏳', 'Скоро тебя добавят', 'Ты присоединился после жеребьёвки. Организатор впишет тебя — и бот пришлёт уведомление.')].filter(Boolean));
+        ? ui.empty('🎲', 'Жеребьёвка ещё не проведена', 'После жеребьёвки здесь появится имя и письмо твоего подопечного. Бот пришлёт уведомление.')
+        : ui.empty('⏳', 'Скоро тебя добавят', 'Ты присоединился после жеребьёвки. Когда владелец бота впишет тебя, бот пришлёт уведомление.')].filter(Boolean));
       return;
     }
     const nameEl = h('div', { class: 'ds-ward-card__name' + (state.wardNameShown ? '' : ' ds-ward-card__name--hidden') }, d.ward.name);
@@ -378,7 +378,7 @@
       d.ward.delivery !== undefined
         ? ui.card(d.ward.delivery ? h('div', { class: 'ds-letter' }, d.ward.delivery) : h('div', { class: 'ds-text-muted' }, 'Подопечный пока не указал адрес — спроси в переписке.'))
         : null,
-      h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Подарок готов', 'Видно только организатору — для статистики', gift)),
+      h('div', { class: 'ds-card' }, ui.toggleRow('🎁 Подарок готов', 'Отметку видят владелец и администраторы', gift)),
       d.shipment ? outgoingShipment(d, evId) : null,
       ui.section('Переписка с подопечным'),
       ui.card(chatHint, maskCtl, chatButton('ward')),
@@ -464,7 +464,7 @@
       const share = ui.btn('📨 Пригласить друга', 'secondary', 'ds-btn--block');
       share.addEventListener('click', () => shareInvite(r.invite_link, g.title));
       nodes.push(ui.card(ui.hint(g.approval
-        ? 'Позови друга — он отправит заявку, организатор её подтвердит.'
+        ? 'Позови друга — он сможет отправить заявку на участие.'
         : 'Позови друга — по ссылке он сразу вступит в событие.'), share));
     }
     return nodes;
@@ -474,7 +474,7 @@
     const mine = u.id === state.me.id;
     const title = personTitle(u);
     if (mine) title.append(h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)'));
-    const role = u.role === 'owner' ? ui.chip('👑 владелец') : u.role === 'admin' ? ui.chip('🛠 организатор') : null;
+    const role = u.role === 'owner' ? ui.chip('👑 владелец') : u.role === 'admin' ? ui.chip('🛠 администратор') : null;
     if (!state.ev.contacts_on || !u.username || mine) return h('div', { class: 'ds-list-item' }, h('div', { class: 'ds-grow' }, title), role);
     return h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: async () => {
       if (await confirmBox(`Открыть чат с ${u.name} в Telegram?`)) openTgLink('https://t.me/' + encodeURIComponent(u.username));
@@ -492,8 +492,11 @@
     rows.push(['Жеребьёвка', g.draw_done ? 'проведена ✅' : 'ещё не проведена']);
     if (!g.draw_done && g.status !== 'finished') rows.push(['Автожеребьёвка', fmtDate(g.draw_auto_date) || 'не установлена']);
     rows.push(['Кольцевая', g.ring ? 'да — взаимных пар нет' : 'нет — взаимные пары возможны']);
-    const orgs = state.roster ? state.roster.organizers : [];
-    if (orgs.length) rows.push(['Организаторы', orgs.map((o) => o.name).join(', ')]);
+    const managers = state.roster?.organizers ?? [];
+    const owner = managers.find((u) => u.owner);
+    const admins = managers.filter((u) => !u.owner);
+    if (owner) rows.push(['Владелец', owner.name]);
+    if (admins.length) rows.push(['Администраторы', admins.map((u) => u.name).join(', ')]);
     const nodes = [
       finishedNotice(),
       ui.section('О событии'),
@@ -509,16 +512,16 @@
     // 012: обращение к организатору — участнику эвента, если есть кому написать
     const sup = state.support;
     if (state.member && sup && (sup.available || sup.open || sup.unread)) {
-      const btn = ui.btn(state.can.chat_write ? '💬 Написать организатору' : '💬 Обращения к организатору', 'secondary', 'ds-btn--block');
+      const btn = ui.btn(state.can.chat_write ? '💬 Задать вопрос' : '💬 Обращения', 'secondary', 'ds-btn--block');
       if (sup.unread) btn.append(h('span', { class: 'ds-badge' }, String(sup.unread)));
       btn.addEventListener('click', () => openSupport());
-      const status = sup.open ? (sup.assignee_name ? `Твоё обращение ведёт ${sup.assignee_name}.` : 'Обращение отправлено — ждёт ответа организатора.') : '';
+      const status = sup.open ? (sup.assignee_name ? `Твоё обращение ведёт ${sup.assignee_name}.` : 'Обращение отправлено и ждёт ответа.') : '';
       nodes.push(ui.section('Нужна помощь?'), ui.card(
-        ui.hint('Вопрос по игре или что-то не работает? Напиши организатору — ответ придёт в чат бота и сюда. Не пиши, кто твой подопечный: организаторы не должны знать пары.'),
+        ui.hint('Задай вопрос по событию. Ответ придёт сюда и в чат бота. Сохраняй имя подопечного в тайне.'),
         status ? h('div', { class: 'ds-text-sm' }, status) : null,
         btn));
     }
-    if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом событии — тебе доступна только информация и панель организатора.', 'ds-hint--inset'));
+    if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом событии — тебе доступны вкладки «Инфо» и «Управление».', 'ds-hint--inset'));
     nodes.push(
       ui.section('Как это работает'),
       h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
@@ -538,21 +541,21 @@
     if (g.draw_done && state.me.is_owner) {
       return [ui.section('Выход из события'), ui.card(ui.hint(g.revealed
         ? 'Тайна уже раскрыта — жеребьёвку не отменить, поэтому выйти из события нельзя: удалить владельца бота некому.'
-        : 'Ты владелец бота — удалить тебя из события некому. Выйти можно, только отменив жеребьёвку: «Админ» → «Опасная зона» → ' +
+        : 'Ты владелец бота — удалить тебя из события некому. Выйти можно, только отменив жеребьёвку: «Управление» → «Опасная зона» → ' +
           '«↩️ Отменить жеребьёвку» (пары удалятся у всех, участники получат уведомление). Потом выключи «Я участвую» и проведи жеребьёвку заново.'))];
     }
     if (g.draw_done) {
       const sup = state.support;
-      const write = sup && (sup.available || sup.open) ? ui.btn('💬 Написать организатору', 'secondary', 'ds-btn--block') : null;
+      const write = sup && (sup.available || sup.open) ? ui.btn('💬 Задать вопрос', 'secondary', 'ds-btn--block') : null;
       if (write) write.addEventListener('click', () => openSupport());
       return [ui.section('Выход из события'), ui.card(ui.hint(state.me.is_admin
-        ? 'Жеребьёвка уже прошла — удалить из события администратора может только владелец бота. Напиши организатору: обращение увидит и владелец.'
-        : 'Жеребьёвка уже прошла — выйти можно только через организатора: напиши ему, он уберёт тебя из события.'), write)];
+        ? 'Жеребьёвка уже прошла — удалить из события администратора может только владелец бота. Отправь обращение, чтобы владелец мог помочь.'
+        : 'Жеребьёвка уже прошла. Чтобы выйти, обратись к владельцу или администраторам.'), write)];
     }
     const leave = ui.btn('🚪 Выйти из события', 'danger', 'ds-btn--block');
     leave.addEventListener('click', () => typedSheet('Выйти из события', {
-      lines: ['твоё письмо Санте и адрес доставки;', 'твои обращения к организатору в этом событии.'],
-      keep: 'Организаторы получат сообщение, что ты выходишь. Вернуться можно по пригласительной ссылке, пока регистрация открыта.',
+      lines: ['твоё письмо Санте и адрес доставки;', 'твои обращения по этому событию.'],
+      keep: 'Владелец и администраторы получат уведомление о твоём выходе. Вернуться можно по пригласительной ссылке, пока регистрация открыта.',
       word: 'ВЫЙТИ',
       label: '🚪 Выйти',
       run: (word) => api('event.leave', { event: g.id, confirm: word }),

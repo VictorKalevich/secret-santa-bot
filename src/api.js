@@ -201,7 +201,7 @@ export const ACTIONS = {
       const to = Number(body.to);
       const toUser = await getUser(ctx.db, to);
       // Иначе админ получил бы чужие пары и переписку (Конституция, принцип I; 006, FR-601)
-      if (toUser?.is_admin || to === ownerId) return refuse('Переносить участие на аккаунт администратора нельзя.');
+      if (toUser?.is_admin || to === ownerId) return refuse('Переносить участие на аккаунт владельца или администратора нельзя.');
       return out(await transferAccount(ctx, from, to, ctx.me.tg_id), (r) => ({ events: r.events }));
     },
   },

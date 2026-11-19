@@ -168,7 +168,7 @@ try {
     const page = await openPage('шторка: прокрутка', { viewport: { width: 390, height: 600 } });
     await page.goto(`${w.base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
     await page.waitForSelector('.ds-tabs:not([hidden])');
-    await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+    await page.locator('.ds-tab', { hasText: 'Управление' }).click();
     const logBtn = page.locator('.ds-btn', { hasText: 'Журнал действий' });
     await logBtn.waitFor();
     await logBtn.scrollIntoViewIfNeeded();
@@ -199,7 +199,7 @@ try {
     const page = await openPage('поля даты', { viewport: { width: 390, height: 844 } });
     await page.goto(`${w.base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
     await page.waitForSelector('.ds-tabs:not([hidden])');
-    await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+    await page.locator('.ds-tab', { hasText: 'Управление' }).click();
     await page.waitForSelector('input.ds-input[type="date"]');
     const problems = [];
     const dates = page.locator('input.ds-input[type="date"]');
@@ -270,7 +270,7 @@ try {
     const serverDate = async () => (await w.api(admin, 'admin.state', { event: B })).settings.draw_auto_date;
 
     await onPage(problems, 'календарь автожеребьёвки', admin, B, async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       const field = page.locator('.ds-field', { hasText: 'Автожеребьёвка' }).locator('button.ds-input--pick');
       await field.waitFor({ timeout: 5000 });
       const text = () => field.textContent();
@@ -374,7 +374,7 @@ try {
 
     await onPage(problems, 'отступ над «Вопрос решён»', people[3], A, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
-      await page.locator('.ds-btn', { hasText: 'Написать организатору' }).first().click();
+      await page.locator('.ds-btn', { hasText: 'Задать вопрос' }).first().click();
       const btn = page.locator('.ds-sheet .ds-btn', { hasText: 'Вопрос решён' });
       await btn.waitFor({ timeout: 5000 });
       const a = await page.locator('.ds-sheet .ds-composer').boundingBox();
@@ -416,7 +416,7 @@ try {
 
     await onPage(problems, 'драгер: журнал', admin, A, async (page) => {
       await page.setViewportSize({ width: 390, height: 500 });
-      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       await page.locator('#main .ds-btn', { hasText: 'Журнал действий' }).click();
       await page.waitForSelector('.ds-sheet .ds-list-item');
       await atTop(page, 'журнал');
@@ -473,7 +473,7 @@ try {
       await page.goto(`${w.base}/app?event=${A}#tgWebAppData=${encodeURIComponent(initData(admin))}`);
       await page.waitForSelector('.ds-tabs:not([hidden])');
       const swipes = () => page.evaluate(() => [window.Telegram.WebApp.isVerticalSwipesEnabled, window.__swipes.join(' ')]);
-      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       await page.locator('.ds-icon-btn[title="Действия с участником"]').first().click();
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Переименовать' }).waitFor({ timeout: 5000 });
       await atTop(page, 'меню участника');
@@ -523,7 +523,7 @@ try {
     // (1) «Сохранить» в «Параметрах»: панель перестроена по новым данным, экран на месте; (2) событие завершили со
     // стороны — после перерисовки панель без «Полный сброс» и с плашкой «завершено»
     await step('сохранение параметров', admin, C, async (page) => {
-      await tab(page, 'Админ');
+      await tab(page, 'Управление');
       await page.locator('.ds-field', { hasText: 'Название' }).locator('input').fill('Проверка — новое');
       const save = page.locator('.ds-btn', { hasText: /^Сохранить$/ });
       await save.scrollIntoViewIfNeeded();
@@ -547,7 +547,7 @@ try {
 
       await w.api(admin, 'admin.event.finish', { event: C });
       await tab(page, 'Инфо');
-      await tab(page, 'Админ');
+      await tab(page, 'Управление');
       await page.locator('.ds-section-title', { hasText: 'Опасная зона' }).waitFor({ timeout: 5000 });
       if (await page.locator('.ds-btn', { hasText: 'Полный сброс' }).count()) problems.push('событие завершено со стороны — панель предлагает «Полный сброс»');
       if (!(await page.locator('.ds-btn', { hasText: 'Удалить событие' }).count())) problems.push('событие завершено со стороны — нет «Удалить событие»');
@@ -556,7 +556,7 @@ try {
 
     // (3) ответ обращения пришёл, когда открыта уже другая шторка (журнал), — заголовок не её
     await step('заголовок своей шторки', admin, A, async (page) => {
-      await tab(page, 'Админ');
+      await tab(page, 'Управление');
       let release;
       const held = new Promise((r) => { release = r; });
       let first = true;
@@ -580,15 +580,15 @@ try {
     await step('вечный загрузчик (вкладка)', admin, C, async (page) => {
       let broken = true;
       await page.route('**/api/admin.state', (r) => (broken ? r.fulfill(BROKEN) : r.continue()));
-      await tab(page, 'Админ');
+      await tab(page, 'Управление');
       await loadFailed(page);
-      if (await page.locator('#main .ds-loader').count()) problems.push('вкладка «Админ» при сбое: загрузчик остался');
+      if (await page.locator('#main .ds-loader').count()) problems.push('вкладка «Управление» при сбое: загрузчик остался');
       broken = false;
       await page.locator('#main .ds-btn', { hasText: 'Попробовать снова' }).click();
       await page.locator('.ds-btn', { hasText: 'Журнал действий' }).waitFor({ timeout: 5000 });
     });
     await step('вечный загрузчик (закрытие шторки)', admin, A, async (page) => {
-      await tab(page, 'Админ');
+      await tab(page, 'Управление');
       await page.locator('.ds-list-item--link', { hasText: 'Олег' }).click();
       await page.locator('.ds-sheet__title', { hasText: 'Обращение: Олег' }).waitFor({ timeout: 5000 });
       await page.route('**/api/admin.state', (r) => r.fulfill(BROKEN));
@@ -625,7 +625,7 @@ try {
     const toggle = (page) => page.locator('label.ds-switch:has(input[aria-label="Регистрация открыта"])').click();
 
     await onPage(problems, 'переключатель регистрации', admin, B, async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       await page.locator('.ds-section-title', { hasText: 'Журнал' }).waitFor({ timeout: 5000 });
       await page.locator('#main select', { has: page.locator('option', { hasText: 'Из какого события…' }) }).selectOption(String(A));
       await page.locator('#main textarea[placeholder^="Например: собираемся"]').fill('Черновик объявления');
@@ -843,18 +843,18 @@ addEventListener('message', (e) => {
       await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
       await page.locator('#main .ds-section-title', { hasText: 'Выход из события' }).waitFor({ timeout: 3000 });
       if (await leaveBtn(page).count()) problems.push('после жеребьёвки: есть кнопка выхода');
-      if (!(await page.locator('#main .ds-hint', { hasText: 'Жеребьёвка уже прошла — выйти можно только через организатора' }).count())) problems.push('после жеребьёвки: нет подсказки');
-      await page.locator('#main .ds-btn', { hasText: 'Написать организатору' }).last().click();
-      await page.locator('.ds-sheet__title', { hasText: 'Организатору' }).waitFor({ timeout: 3000 });
+      if (!(await page.locator('#main .ds-hint', { hasText: 'Жеребьёвка уже прошла. Чтобы выйти' }).count())) problems.push('после жеребьёвки: нет подсказки');
+      await page.locator('#main .ds-btn', { hasText: 'Задать вопрос' }).last().click();
+      await page.locator('.ds-sheet__title', { hasText: 'Обращения' }).waitFor({ timeout: 3000 });
       if (!member(yulia, D)) problems.push('после жеребьёвки: участие пропало');
     });
 
-    // 036: раздел выхода после жеребьёвки — подсказка по роли; button — есть ли в разделе «Написать организатору»
+    // 036: раздел выхода после жеребьёвки — подсказка по роли; button — есть ли в разделе «Задать вопрос»
     const HINTS = {
-      owner: 'Ты владелец бота — удалить тебя из события некому. Выйти можно, только отменив жеребьёвку: «Админ» → «Опасная зона» → «↩️ Отменить жеребьёвку» (пары удалятся у всех, участники получат уведомление). Потом выключи «Я участвую» и проведи жеребьёвку заново.',
+      owner: 'Ты владелец бота — удалить тебя из события некому. Выйти можно, только отменив жеребьёвку: «Управление» → «Опасная зона» → «↩️ Отменить жеребьёвку» (пары удалятся у всех, участники получат уведомление). Потом выключи «Я участвую» и проведи жеребьёвку заново.',
       ownerRevealed: 'Тайна уже раскрыта — жеребьёвку не отменить, поэтому выйти из события нельзя: удалить владельца бота некому.',
-      admin: 'Жеребьёвка уже прошла — удалить из события администратора может только владелец бота. Напиши организатору: обращение увидит и владелец.',
-      member: 'Жеребьёвка уже прошла — выйти можно только через организатора: напиши ему, он уберёт тебя из события.',
+      admin: 'Жеребьёвка уже прошла — удалить из события администратора может только владелец бота. Отправь обращение, чтобы владелец мог помочь.',
+      member: 'Жеребьёвка уже прошла. Чтобы выйти, обратись к владельцу или администраторам.',
     };
     const leaveHint = (user, what, hint, button) => onPage(problems, what, user, D, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
@@ -864,7 +864,7 @@ addEventListener('message', (e) => {
       const text = await card.locator('.ds-hint').allTextContents();
       if (text.join('|') !== hint) problems.push(`${what}: подсказка «${text.join('|')}»`);
       const buttons = await card.locator('.ds-btn').allTextContents();
-      const want = button ? ['💬 Написать организатору'] : [];
+      const want = button ? ['💬 Задать вопрос'] : [];
       if (buttons.join('|') !== want.join('|')) problems.push(`${what}: кнопки в разделе — ${buttons.join(', ') || 'нет'}, ожидалось ${want.join(', ') || 'нет'}`);
     });
     await leaveHint(admin, 'владелец после жеребьёвки', HINTS.owner, false);
@@ -876,7 +876,7 @@ addEventListener('message', (e) => {
     await leaveHint(yulia, 'участник после раскрытия', HINTS.member, true);
 
     await onPage(problems, 'опасная зона через ту же шторку', admin, L, async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       await page.locator('#main .ds-btn--danger', { hasText: 'Полный сброс' }).click();
       await page.locator('.ds-sheet__title', { hasText: 'Полный сброс' }).waitFor({ timeout: 3000 });
       const go = page.locator('.ds-sheet .ds-btn--danger', { hasText: 'Сбросить' });
@@ -908,7 +908,6 @@ addEventListener('message', (e) => {
     await w.api(admin, 'admin.participate', { event: R, on: true });
     await w.api(people[0], 'admin.participate', { event: R, on: true });
     for (const p of fresh.slice(0, 3)) await w.api(p, 'wishlist.save', { event: R, text: LETTER(p.name) });
-    const organizers = (await w.api(vova, 'event.get', { event: R })).roster.organizers.map((o) => o.name).join(', ');
     const SORTED = ['Вова', 'Галя', 'Дмитрий', 'Евгений', 'Жанна', 'Зоя', 'Игорь', 'Лена', 'Маша', 'Нина'];
 
     // Раздел «Участники · 10»: подсказка над списком, карточка списка; переходы по ссылкам — в window.__opened
@@ -934,7 +933,8 @@ addEventListener('message', (e) => {
       const { hint, list, opened } = await section(page);
       const rows = await info(page);
       if ('Участников' in rows) problems.push('«О событии»: осталась строка «Участников»');
-      if (rows['Организаторы'] !== organizers) problems.push(`«Организаторы»: «${rows['Организаторы']}», ожидалось «${organizers}»`);
+      if (rows['Владелец'] !== 'Дмитрий') problems.push(`«Владелец»: «${rows['Владелец']}»`);
+      if (rows['Администраторы'] !== 'Маша') problems.push(`«Администраторы»: «${rows['Администраторы']}»`);
       if (rows['Автожеребьёвка'] !== 'не установлена') problems.push(`«Автожеребьёвка»: «${rows['Автожеребьёвка']}»`);
       if ((await hint.textContent()) !== '✉️ Письма написали 3 из 10') problems.push(`прогресс: «${await hint.textContent()}»`);
       let titles = await rowTitles(list);
@@ -949,7 +949,7 @@ addEventListener('message', (e) => {
       if (await list.locator('.ds-list-item--link').count()) problems.push('после раскрытия осталась «Показать всех»');
       const chip = async (name) => (await list.locator('.ds-list-item', { hasText: name }).locator('.ds-chip').allTextContents()).join('|');
       if ((await chip('Дмитрий')) !== '👑 владелец') problems.push(`метка владельца: «${await chip('Дмитрий')}»`);
-      if ((await chip('Маша')) !== '🛠 организатор') problems.push(`метка организатора: «${await chip('Маша')}»`);
+      if ((await chip('Маша')) !== '🛠 администратор') problems.push(`метка администратора: «${await chip('Маша')}»`);
       if ((await chip('Галя')) !== '') problems.push(`у участника метка «${await chip('Галя')}»`);
       const invite = page.locator('#main .ds-card', { has: page.locator('.ds-btn', { hasText: '📨 Пригласить друга' }) });
       if ((await invite.locator('.ds-hint').textContent()) !== 'Позови друга — по ссылке он сразу вступит в событие.') problems.push('приглашение: подсказка');
@@ -960,7 +960,7 @@ addEventListener('message', (e) => {
     });
 
     await onPage(problems, 'параметр в «Параметрах»', admin, R, async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       await page.locator('#main .ds-check', { hasText: 'Участники могут писать друг другу' }).locator('input').check();
       await page.locator('.ds-btn', { hasText: /^Сохранить$/ }).click();
       await page.locator('#toast', { hasText: 'Сохранено' }).waitFor({ timeout: 5000 });
@@ -1001,7 +1001,7 @@ addEventListener('message', (e) => {
     });
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'участники на «Инфо» (037): ' + x));
-    else console.log('✔ участники на «Инфо» (037): «Организаторы» и «Автожеребьёвка» в «О событии», список по алфавиту с «(ты)» и метками, свёрнут после 8, прогресс до и после жеребьёвки; параметр в «Параметрах» — @username и чат после вопроса (не своя строка, не без @username); «Пригласить друга» пересылает ссылку и пропадает при закрытой регистрации');
+    else console.log('✔ участники на «Инфо» (037): «Владелец», «Администраторы» и «Автожеребьёвка» в «О событии», список по алфавиту с «(ты)» и метками, свёрнут после 8, прогресс до и после жеребьёвки; параметр в «Параметрах» — @username и чат после вопроса (не своя строка, не без @username); «Пригласить друга» пересылает ссылку и пропадает при закрытой регистрации');
   }
 
   // 038: значок у имени и открытка письма — свои люди и событие «Открытки» (другие снимки и проверки не меняются).
@@ -1076,7 +1076,7 @@ addEventListener('message', (e) => {
 
     // После жеребьёвки у Петра есть подопечный с письмом — событие открывается на «Подопечном»
     await onPage(problems, 'у организатора', admin, E, async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       const item = page.locator('#main .ds-list-item', { hasText: 'Пётр' });
       const title = await item.locator('.ds-list-item__title').first().textContent();
       if (title !== 'Пётр  @petr') problems.push(`панель: «${title}»`);
@@ -1134,7 +1134,7 @@ addEventListener('message', (e) => {
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Сохранить' }).click();
       await toastIs(page, 'Имя сохранено');
       if (await page.locator('#main .ds-spinner').count()) problems.push('после смены имени — загрузчик на главном экране');
-      await textIs(meRow, 'Глеб Петров 🐧  (ты)', '«Администраторы» после имени');
+      await textIs(meRow, 'Глеб Петров 🐧  (ты)', '«Владелец и администраторы» после имени');
       await textIs(family, 'Глеб Петров 🐧, Мила', '«Семьи» после имени');
       await textIs(page.locator('#heroSub'), 'Привет, Глеб Петров 🐧!', 'приветствие после имени');
       await textIs(page.locator('#main .ds-text-strong'), 'Глеб Петров 🐧', '«Профиль» после имени');
@@ -1154,7 +1154,7 @@ addEventListener('message', (e) => {
     const sent = await w.api(liza, 'support.send', { event: E, text: 'Можно поменять адрес после жеребьёвки?' });
     await w.api(gleb, 'admin.support.send', { event: E, thread: sent.thread, text: 'Да, во вкладке «Письмо».' });
     await onPage(problems, 'обращения у владельца', admin, E, async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Админ' }).click();
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       const item = page.locator('#main .ds-list-item--link', { hasText: 'Лиза' });
       await textIs(item.locator('.ds-list-item__title'), 'Лиза 🦄', 'строка «Обращений»');
       await textIs(item.locator('.ds-chip'), '🙋 ведёт Глеб Петров 🐧', 'метка «ведёт»');
@@ -1169,10 +1169,10 @@ addEventListener('message', (e) => {
     await onPage(problems, 'обращение у участника', liza, E, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
       await textIs(page.locator('#main .ds-text-sm'), 'Твоё обращение ведёт Глеб Петров 🐧.', '«Инфо» участника');
-      await page.locator('#main .ds-btn', { hasText: 'Написать организатору' }).first().click();
+      await page.locator('#main .ds-btn', { hasText: 'Задать вопрос' }).first().click();
       const sheet = page.locator('.ds-sheet--full');
       await sheet.locator('.ds-chat__msg').nth(1).waitFor({ timeout: 3000 });
-      await textIs(sheet.locator('.ds-hint'), 'Обращение ведёт Глеб Петров 🐧.', '«Организатору»: «ведёт»');
+      await textIs(sheet.locator('.ds-hint'), 'Обращение ведёт Глеб Петров 🐧.', '«Обращения»: «ведёт»');
       const metas = await sheet.locator('.ds-chat__meta').allTextContents();
       if (!metas[1]?.startsWith('Глеб Петров 🐧 · ')) problems.push(`подпись ответа у участника: ${metas.join(' | ')}`);
     });
@@ -1425,7 +1425,7 @@ addEventListener('message', (e) => {
   await shot(people[0], '02-my-letter', { event: A });
   // 006: Катя заблокировала бота (после того как открыла приложение для скриншота 01) — в панели админа у неё метка «не получает сообщения»
   w.sql('UPDATE users SET blocked_at = 1 WHERE tg_id = 105');
-  await shot(admin, '03-admin-before-draw', { event: A, tab: 'Админ' });
+  await shot(admin, '03-admin-before-draw', { event: A, tab: 'Управление' });
 
   // Жеребьёвка и правка письма подопечного (для подсветки изменений)
   await w.api(admin, 'admin.draw', { event: A });
@@ -1446,29 +1446,29 @@ addEventListener('message', (e) => {
   await w.api(ward, 'ward.received', { event: A, received: true });
   await shot(people[0], '06-info', { event: A, tab: 'Инфо' });
   await shot(ward, '17-my-gift-received', { event: A, tab: 'Письмо' });
-  await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ' });
-  await shot(people[0], '08-admin-as-regular-admin', { event: A, tab: 'Админ' });
-  await shot(admin, '08b-admin-not-member', { event: B, tab: 'Админ' });
+  await shot(admin, '07-admin-after-draw', { event: A, tab: 'Управление' });
+  await shot(people[0], '08-admin-as-regular-admin', { event: A, tab: 'Управление' });
+  await shot(admin, '08b-admin-not-member', { event: B, tab: 'Управление' });
   // 012: вопрос организатору — «Инфо» → «Нужна помощь?», переписка участника, раздел «Обращения», шторка обращения
   await w.api(people[2], 'support.send', { event: A, text: 'Не могу найти, где отметить, что подарок готов 🙈' });
   const sup = await w.api(people[3], 'support.send', { event: A, text: 'Можно поменять адрес доставки после жеребьёвки?' });
   await w.api(people[0], 'admin.support.send', { event: A, thread: sup.thread, text: 'Да, во вкладке «Письмо» — Санта сразу увидит новый адрес.' });
   await shot(people[3], '24-info-support', { event: A, tab: 'Инфо' });
-  const openMySupport = (p) => p.locator('.ds-btn', { hasText: 'Написать организатору' }).first().click();
+  const openMySupport = (p) => p.locator('.ds-btn', { hasText: 'Задать вопрос' }).first().click();
   await shot(people[3], '25-support-chat', { event: A, fullPage: false, tab: 'Инфо', before: openMySupport });
   await shot(people[3], '25-support-chat', { event: A, fullPage: false, tab: 'Инфо', dark: true, before: openMySupport });
-  await shot(admin, '26-admin-support', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-section-title', { hasText: 'Обращения' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -140); }) });
+  await shot(admin, '26-admin-support', { event: A, fullPage: false, tab: 'Управление', before: (p) => p.locator('.ds-section-title', { hasText: 'Обращения' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -140); }) });
   const openThread = (name) => (p) => p.locator('.ds-list-item--link', { hasText: name }).click();
-  await shot(admin, '27-support-thread', { event: A, fullPage: false, tab: 'Админ', before: openThread('Олег') });
-  await shot(admin, '27-support-thread-free', { event: A, fullPage: false, tab: 'Админ', before: openThread('Аня') });
-  await shot(admin, '18-audit', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
-  await shot(admin, '11-participant-menu', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
-  await shot(admin, '12-danger-zone', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
+  await shot(admin, '27-support-thread', { event: A, fullPage: false, tab: 'Управление', before: openThread('Олег') });
+  await shot(admin, '27-support-thread-free', { event: A, fullPage: false, tab: 'Управление', before: openThread('Аня') });
+  await shot(admin, '18-audit', { event: A, fullPage: false, tab: 'Управление', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
+  await shot(admin, '11-participant-menu', { event: A, fullPage: false, tab: 'Управление', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
+  await shot(admin, '12-danger-zone', { event: A, fullPage: false, tab: 'Управление', before: async (p) => {
     await p.locator('.ds-btn', { hasText: 'Полный сброс' }).click();
     await p.locator('.ds-sheet .ds-input').fill('СБРОС');
   } });
   // 012: принудительная отмена жеребьёвки владельцем (подопечных уже открыли)
-  await shot(admin, '28-force-cancel', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
+  await shot(admin, '28-force-cancel', { event: A, fullPage: false, tab: 'Управление', before: async (p) => {
     await p.locator('.ds-btn--danger', { hasText: 'Отменить жеребьёвку' }).click();
     await p.locator('.ds-sheet .ds-input').fill('ОТМЕНА');
   } });
@@ -1477,36 +1477,36 @@ addEventListener('message', (e) => {
     await p.locator('.ds-btn', { hasText: 'Открыть служебный просмотр' }).click();
     await p.locator('.ds-sheet .ds-input').fill('ОТКРЫТЬ');
   };
-  await shot(admin, '19-vault-gate', { event: A, fullPage: false, tab: 'Админ', before: vaultIn });
-  await shot(admin, '20-vault-person', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
+  await shot(admin, '19-vault-gate', { event: A, fullPage: false, tab: 'Управление', before: vaultIn });
+  await shot(admin, '20-vault-person', { event: A, fullPage: false, tab: 'Управление', before: async (p) => {
     await vaultIn(p);
     await p.locator('.ds-sheet .ds-btn', { hasText: 'Войти' }).click();
     await p.locator('.ds-sheet select').selectOption(String(ward.id === admin.id ? people[0].id : ward.id));
     await p.locator('.ds-sheet .ds-btn', { hasText: 'Открыть участника' }).click();
     await p.waitForSelector('.ds-sheet .ds-info-grid');
   } });
-  await shot(admin, '21-vault-pairs', { event: A, fullPage: false, tab: 'Админ', before: async (p) => {
+  await shot(admin, '21-vault-pairs', { event: A, fullPage: false, tab: 'Управление', before: async (p) => {
     p.once('dialog', (d) => d.accept());
     await vaultIn(p);
     await p.locator('.ds-sheet .ds-btn', { hasText: 'Войти' }).click();
     await p.locator('.ds-sheet .ds-btn', { hasText: 'Показать все пары' }).click();
     await p.waitForSelector('.ds-sheet .ds-section-title');
   } });
-  await shot(admin, '23-audit-vault', { event: A, fullPage: false, tab: 'Админ', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
+  await shot(admin, '23-audit-vault', { event: A, fullPage: false, tab: 'Управление', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
   // 010: запрет возврата и список «Удалённые» в эвенте B
   await w.api(admin, 'admin.game', { event: B, rejoin: false });
   await w.api(admin, 'admin.remove', { event: B, id: people[1].id });
-  await shot(admin, '22-removed-list', { event: B, tab: 'Админ' });
+  await shot(admin, '22-removed-list', { event: B, tab: 'Управление' });
   await checkDateFields(admin, B);
   // 027: свой календарь автожеребьёвки — дата не задана: текущий месяц, ничего не выделено, «Готово» недоступна
   const openAutoDraw = (p) => p.locator('.ds-field', { hasText: 'Автожеребьёвка' }).locator('button').click();
-  await shot(admin, '29-auto-draw-calendar', { event: B, fullPage: false, tab: 'Админ', before: openAutoDraw });
-  await shot(admin, '29-auto-draw-calendar', { event: B, fullPage: false, tab: 'Админ', dark: true, before: openAutoDraw });
+  await shot(admin, '29-auto-draw-calendar', { event: B, fullPage: false, tab: 'Управление', before: openAutoDraw });
+  await shot(admin, '29-auto-draw-calendar', { event: B, fullPage: false, tab: 'Управление', dark: true, before: openAutoDraw });
   await checkTweaks();
   await checkSheetHandle();
   await shot(people[0], '02-my-letter', { event: A, dark: true });
   await shot(people[2], '05-ward-hidden', { event: A, tab: 'Подопечный', dark: true });
-  await shot(admin, '07-admin-after-draw', { event: A, tab: 'Админ', dark: true });
+  await shot(admin, '07-admin-after-draw', { event: A, tab: 'Управление', dark: true });
 
   // Завершённый эвент (005): письмо только для чтения, переписка ещё неделю
   await w.api(admin, 'admin.reveal', { event: A });

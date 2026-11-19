@@ -15,18 +15,18 @@ import { joinByInvite, decideRequest, rejoinBlocked, requestRejected, joinedNoti
 import { openContext, makeContext } from './context.js';
 import {
   sendFromUser, sendFromAdmin, take, supportAvailable, threadById, replyBlocks,
-  CLOSED as THREAD_CLOSED, NOT_FOUND as THREAD_NOT_FOUND, OWN_THREAD,
+  CLOSED as THREAD_CLOSED, NOT_FOUND as THREAD_NOT_FOUND, OWN_THREAD, NO_SUPPORT_RECIPIENTS,
 } from './support.js';
 import { menuEvents } from './participant.js';
 import { maskLabel } from './looks.js';
 
 const NAME_PROMPT =
-  'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта и организатор.';
-const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси у организатора пригласительную ссылку события.';
-const STALE_INVITE = 'Эта пригласительная ссылка устарела. Попроси у организатора новую.';
+  'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта, владелец и администраторы.';
+const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси пригласительную ссылку на событие.';
+const STALE_INVITE = 'Эта пригласительная ссылка устарела. Попроси новую ссылку.';
 // Удалённый организатором при запрете возврата (010, FR-1022); админам об этой попытке ничего не приходит
-const REMOVED = (ev) => `Организатор удалил тебя из события ${q(ev)} — вернуться по ссылке нельзя. Если это ошибка — напиши ему.`;
-const registrationClosed = (ev) => `Регистрация на событие ${q(ev)} закрыта. Напиши организатору — он может открыть её снова.`;
+const REMOVED = (ev) => `Тебя удалили из события ${q(ev)} — вернуться по ссылке нельзя. Если это ошибка, свяжись с владельцем или администратором.`;
+const registrationClosed = (ev) => `Регистрация на событие ${q(ev)} закрыта. Владелец или администратор может открыть её снова.`;
 const REPLY_EXPIRED = '⌛ Время ответа истекло — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз и пришли его снова.';
 // Хвост подсказки «напиши сообщение» — у переписки и обращений
 const REPLY_HINT = `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`;
@@ -62,7 +62,7 @@ async function buildMenu(db, user, settings) {
   if (!items.length) {
     lines.push(user.is_admin
       ? 'Идущих событий у тебя нет. Создай событие в приложении — там появится пригласительная ссылка.'
-      : 'Сейчас ты не участвуешь ни в одном идущем событии. Попроси у организатора пригласительную ссылку.');
+      : 'Сейчас ты не участвуешь ни в одном идущем событии. Попроси пригласительную ссылку на событие.');
   } else {
     lines.push('Твои события:');
     for (const ev of items) {
@@ -157,13 +157,13 @@ async function replyJoin(c, ev, status) {
       await c.reply(REMOVED(ev));
       return false;
     case 'request_pending':
-      await c.reply(`⏳ Заявка на участие в событии ${q(ev)} уже отправлена — ждём решения организатора.`);
+      await c.reply(`⏳ Заявка на участие в событии ${q(ev)} уже отправлена — ждём решения.`);
       return false;
     case 'request_rejected':
       await c.reply(requestRejected(ev));
       return false;
     default:
-      await c.reply(`⏳ Заявка на участие в событии ${q(ev)} отправлена организатору. Как только он её рассмотрит, я напишу.`);
+      await c.reply(`⏳ Заявка на участие в событии ${q(ev)} отправлена. Я напишу, когда её рассмотрят.`);
       return false;
   }
 }
@@ -308,9 +308,9 @@ async function onSupportReply(c, mode) {
     const ev = await getEvent(db, mode.id);
     if (!ev || !(await getMember(db, ev.id, from.id))) return c.reply('❌ Ты не участвуешь в этом событии.');
     const res = await sendFromUser(ctx, ev, text);
-    return c.reply(res.ok ? '✅ Отправлено организатору. Ответ придёт сюда.' : '❌ ' + res.error);
+    return c.reply(res.ok ? '✅ Сообщение отправлено. Ответ придёт сюда.' : '❌ ' + res.error);
   }
-  if (!c.user.is_admin) return c.reply('❌ Отвечать на обращения могут только администраторы.');
+  if (!c.user.is_admin) return c.reply('❌ Отвечать на обращения могут владелец и администраторы.');
   const t = await threadById(db, mode.id);
   const ev = t ? await getEvent(db, t.event_id) : null;
   if (!ev) return c.reply('❌ ' + THREAD_NOT_FOUND);
@@ -393,9 +393,9 @@ async function onSupportAsk(k, eventId) {
   const ev = await getEvent(db, eventId);
   if (!ev || !(await getMember(db, ev.id, from.id))) return k.refuse('Ты не участвуешь в этом событии.');
   if (!chatWritable(ev)) return k.refuse(SUPPORT_READ_ONLY);
-  if (!supportAvailable(await ctx.users(), from.id)) return k.refuse('Сейчас некому написать: в боте нет других организаторов.');
+  if (!supportAvailable(await ctx.users(), from.id)) return k.refuse(NO_SUPPORT_RECIPIENTS);
   await k.setPending(supportPending('u', ev.id));
-  return k.prompt(`✍️ Напиши сообщение организатору (${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
+  return k.prompt(`✍️ Напиши сообщение по событию (${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
 }
 
 // Админ: «🙋 Взять»
@@ -417,7 +417,7 @@ async function onSupportAnswer(k, t, ev, name) {
   const blocks = replyBlocks(t, k.user, ev);
   if (blocks.closed) return k.refuse(THREAD_CLOSED);
   if (blocks.own) return k.refuse(OWN_THREAD);
-  if (blocks.other) return k.refuse(`Обращение ведёт ${(await getUser(k.db, t.assignee))?.name || 'другой админ'}.`);
+  if (blocks.other) return k.refuse(`Обращение ведёт ${(await getUser(k.db, t.assignee))?.name || 'другой человек'}.`);
   if (blocks.readOnly) return k.refuse(SUPPORT_READ_ONLY);
   await k.setPending(supportPending('a', t.id));
   return k.prompt(`✍️ Напиши ответ <b>${name}</b> (обращение, ${q(ev)}).` + (t.assignee ? '' : ' Ответив, ты возьмёшь обращение себе.'));

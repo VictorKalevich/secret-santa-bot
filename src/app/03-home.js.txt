@@ -70,7 +70,7 @@
       : null;
     main.replaceChildren(ui.empty('⚠️', 'Не получилось загрузить', e.message, [again, home]));
   }
-  // Асинхронный экран («Подопечный», «Админ»; 026): отказ при построении — экран ошибки с повтором, а не вечный
+  // Асинхронный экран («Подопечный», «Управление»; 026): отказ при построении — экран ошибки с повтором, а не вечный
   // загрузчик, откуда бы экран ни вызвали (render, закрытие шторки, перестройка панели); для покинутого экрана — ничего
   function screen(build) {
     return async (...args) => {
@@ -174,8 +174,8 @@
     nodes.push(ui.section('Мои события'));
     if (mine.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, mine.map(eventRow)));
     else nodes.push(ui.hint(me.is_admin
-      ? 'Ты пока не участвуешь ни в одном событии. Создай событие или вступи в существующее («Админ» → «Я участвую»).'
-      : 'Ты пока не участвуешь ни в одном событии. Попроси у организатора пригласительную ссылку.', 'ds-hint--inset'));
+      ? 'Ты пока не участвуешь ни в одном событии. Создай событие или вступи в существующее («Управление» → «Я участвую»).'
+      : 'Ты пока не участвуешь ни в одном событии. Попроси пригласительную ссылку на событие.', 'ds-hint--inset'));
 
     if (me.is_admin) {
       if (others.length) nodes.push(ui.section('Другие события'), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
@@ -248,7 +248,7 @@
       toast('Имя сохранено');
       saved(r.name);
     }));
-    openSheet('Твоё имя', [ui.hint('Имя одно во всех событиях. Его видят организаторы и твой Санта, а при раскрытии — твой подопечный.'), input, save]);
+    openSheet('Твоё имя', [ui.hint('Имя одно во всех событиях. Его видят владелец, администраторы и твой Санта, а при раскрытии — твой подопечный.'), input, save]);
   }
 
   // Раздел «Семьи» (008): постоянные исключения для всех эвентов. → { box, load }: повторный load заменяет содержимое по
@@ -299,9 +299,9 @@
     return { box, load };
   }
 
-  // Раздел «Администраторы» (002): общий для бота, показывается на главном экране. → { box, load }, как у «Семей»
+  // Раздел «Владелец и администраторы» (002): общий для бота, показывается на главном экране. → { box, load }, как у «Семей»
   function renderAdminsSection() {
-    const box = h('div', {}, ui.section('Администраторы'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
+    const box = h('div', {}, ui.section('Владелец и администраторы'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
     const load = () => api('admin.users').then((d) => {
       const me = state.me;
       const admins = d.users.filter((u) => u.is_admin).sort((a, b) => (b.is_owner ? 1 : 0) - (a.is_owner ? 1 : 0));
@@ -311,7 +311,7 @@
         if (me.is_owner && !u.is_owner) {
           actions.append(
             h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: async () => {
-              if (!(await confirmBox(`Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать админов сможет только новый владелец.`))) return;
+              if (!(await confirmBox(`Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать администраторов сможет только новый владелец.`))) return;
               busy([...actions.children], async () => { await api('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await goHome(); });
             } }, '👑'),
             h('button', { class: 'ds-icon-btn', title: 'Снять права администратора', onclick: async () => {
@@ -322,22 +322,22 @@
         list.append(h('div', { class: 'ds-list-item' },
           h('div', { class: 'ds-grow' },
             h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)') : null),
-            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip('👑 владелец') : ui.chip('🛠 админ'))),
+            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip('👑 владелец') : ui.chip('🛠 администратор'))),
           actions));
       }
-      const parts = [ui.section('Администраторы'), list];
+      const parts = [ui.section('Владелец и администраторы'), list];
       if (me.is_owner) {
         const candidates = d.users.filter((u) => !u.is_admin);
         if (candidates.length) {
           const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Кого назначить…'), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
-          const grant = ui.btn('🛠 Назначить админом', 'secondary', 'ds-btn--block');
+          const grant = ui.btn('🛠 Назначить администратором', 'secondary', 'ds-btn--block');
           grant.addEventListener('click', async () => {
             const u = candidates.find((x) => String(x.id) === sel.value);
             if (!u) return toast('Выбери человека');
-            if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет создавать и вести события. Кто кому дарит, админы не видят.`))) return;
+            if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет создавать и вести события. Пары сможет открыть только владелец в служебном просмотре.`))) return;
             busy(grant, async () => { await api('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await goHome(); });
           });
-          parts.push(ui.card(ui.hint('Админы создают и ведут события. Назначать, снимать админов и передавать права владельца (👑) можешь только ты.'), sel, grant));
+          parts.push(ui.card(ui.hint('Администраторы создают и ведут события. Назначать, снимать администраторов и передавать права владельца (👑) можешь только ты.'), sel, grant));
         }
       } else {
         parts.push(ui.hint(`Назначать и снимать администраторов может только владелец${d.owner_name ? ' — ' + d.owner_name : ''}.`, 'ds-hint--inset'));
@@ -346,7 +346,7 @@
       log.addEventListener('click', () => openAudit(null));
       parts.push(ui.card(ui.hint('Роли, перенос участия, удалённые события — кто и когда.'), log));
       box.replaceChildren(...parts);
-    }).catch((e) => box.replaceChildren(ui.section('Администраторы'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
+    }).catch((e) => box.replaceChildren(ui.section('Владелец и администраторы'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
     load();
     return { box, load };
   }

@@ -357,11 +357,11 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     const wardOfAnya = (await api(anya, 'ward.get', { event: ev.C })).ward?.name;
     const toAdmin = await api(owner, 'admin.transfer', { from: anya.id, to: masha.id }, true);
     assert.equal(toAdmin.status, 400);
-    assert.match(toAdmin.data.error, /аккаунт администратора/);
+    assert.match(toAdmin.data.error, /аккаунт владельца или администратора/);
     assert.equal((await api(owner, 'admin.transfer', { from: anya.id, to: owner.id }, true)).status, 400, 'и на свой');
     assert.equal((await api(anya, 'ward.get', { event: ev.C })).ward?.name, wardOfAnya, 'пары Ани на месте');
     await api(owner, 'admin.transfer', { from: katya.id, to: katya2.id });
-    await waitFor(() => texts(katya2).some((x) => /перенёс на этот аккаунт/.test(x)), 'сообщение новому аккаунту');
+    await waitFor(() => texts(katya2).some((x) => /Владелец перенёс на этот аккаунт/.test(x)), 'сообщение новому аккаунту');
     // 006: перенос не тайный — прежний аккаунт и другие админы узнают о нём
     await waitFor(() => texts(katya).some((x) => /перенесено на аккаунт <b>Катя Новая<\/b>/.test(x)), 'сообщение прежнему аккаунту');
     await waitFor(() => texts(masha).some((x) => /<b>Дмитрий<\/b> перенёс участие <b>Катя<\/b> на аккаунт <b>Катя Новая<\/b>/.test(x)), 'сообщение админу');
@@ -586,7 +586,7 @@ test('007: инструменты организатора', { timeout: 300000 }
       assert.ok(st.users.every((u) => u.ward_seen === false), 'никто не открыл подопечного');
       const r = await zapi(boss, 'admin.draw.cancel', { event: E1 });
       assert.equal(r.count, crew.length);
-      for (const u of crew) await waitFor(() => ztexts(u).some((x) => x.includes('отменил жеребьёвку')), 'уведомление об отмене');
+      for (const u of crew) await waitFor(() => ztexts(u).some((x) => x.includes('Жеребьёвка отменена')), 'уведомление об отмене');
       assert.equal((await zapi(vera, 'ward.get', { event: E1 })).state, 'no_draw');
       assert.match((await zapi(vera, 'event.get', { event: E1 })).member.wishlist, /ТАЙНОЕ-ПИСЬМО-501/, 'письмо на месте');
       const after = await zapi(boss, 'admin.state', { event: E1 });
@@ -876,20 +876,20 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       const st2 = await zapi(boss, 'admin.state', { event: E4 });
       const r2 = st2.requests.find((r) => r.name === stranger.name);
       await zapi(boss, 'admin.request.decide', { event: E4, id: r2.id, approve: false });
-      await waitFor(() => ztexts(stranger).some((x) => x.includes('не одобрил заявку')), 'уведомление об отказе');
+      await waitFor(() => ztexts(stranger).some((x) => x.includes('Заявку на участие в событии «Закрытый клуб» отклонили')), 'уведомление об отказе');
       assert.equal((await zapi(stranger, 'event.get', { event: E4 }, true)).status, 403);
       assert.equal((await zapi(boss, 'admin.request.decide', { event: E4, id: r2.id, approve: true }, true)).data.error, 'Заявка уже рассмотрена.');
       // 009: после отказа — сутки без новых заявок (админов не засыпать); потом можно снова
       const asks = () => z.mock.messagesTo(boss.id).filter((c) => c.params.text.includes('Незнакомец') && c.params.text.includes('хочет участвовать')).length;
       const asked = asks();
       await z.say(stranger, '/start ' + code);
-      assert.match(z.lastText(stranger), /Организатор не одобрил заявку на участие в событии «Закрытый клуб»/);
+      assert.match(z.lastText(stranger), /Заявку на участие в событии «Закрытый клуб» отклонили/);
       assert.deepEqual((await zapi(boss, 'admin.state', { event: E4 })).requests.map((r) => r.name), [], 'новой заявки нет');
       await sleep(300);
       assert.equal(asks(), asked, 'админу ничего');
       z.sql(`UPDATE join_requests SET decided_at = decided_at - ${25 * 3600e3} WHERE id = ${r2.id}`);
       await z.say(stranger, '/start ' + code);
-      assert.match(z.lastText(stranger), /отправлена организатору/, 'через сутки после отказа можно подать снова');
+      assert.match(z.lastText(stranger), /отправлена\. Я напишу/, 'через сутки после отказа можно подать снова');
       // админ вступает сам, без заявки; участник не может решать заявки
       assert.equal((await zapi(newbie, 'admin.request.decide', { event: E4, id: r2.id, approve: true }, true)).status, 403);
       const codes = (await zapi(boss, 'admin.audit', { event: E4 })).entries.map((e) => e.action);
@@ -1118,7 +1118,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
 
       const count = (u, re) => ztexts(u).filter((x) => x.includes('«Гонка»') && re.test(x)).length;
       await waitFor(
-        () => rest.every((u) => count(u, /Тайна раскрыта/) && count(u, /завершено/)) && [liza, misha].every((u) => count(u, /удалил тебя/)),
+        () => rest.every((u) => count(u, /Тайна раскрыта/) && count(u, /завершено/)) && [liza, misha].every((u) => count(u, /Тебя удалили/)),
         'раскрытие, завершение и удаление дошли', 20000
       );
       await z.cron();
@@ -1127,7 +1127,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
         assert.equal(count(u, /Тайна раскрыта/), 1, `${u.name}: одно раскрытие`);
         assert.equal(count(u, /завершено/), 1, `${u.name}: одно завершение`);
       }
-      for (const u of [liza, misha]) assert.equal(count(u, /удалил тебя/), 1, `${u.name}: одно уведомление об удалении`);
+      for (const u of [liza, misha]) assert.equal(count(u, /Тебя удалили/), 1, `${u.name}: одно уведомление об удалении`);
       const audit = await z.query(`SELECT action, COUNT(*) AS n FROM audit WHERE event_id = ${E9} GROUP BY action`);
       const n = Object.fromEntries(audit.map((r) => [r.action, r.n]));
       assert.deepEqual([n.reveal, n.finish, n['member.remove']], [1, 1, 2], 'в журнале по одной записи на действие');
@@ -1352,7 +1352,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       const code = await zInvite(R);
       await z.say(gena, '/start ' + code);
       await z.say(dasha, '/start ' + code);
-      assert.match(z.lastText(gena), /отправлена организатору/);
+      assert.match(z.lastText(gena), /отправлена\. Я напишу/);
       await zapi(helper, 'admin.registration', { event: R, open: false });
       const st = await zapi(helper, 'admin.state', { event: R });
       const rg = st.requests.find((r) => r.user_id === gena.id);
@@ -1393,7 +1393,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
         .filter((c) => c.params.text.includes('Боря') && c.params.text.includes('«Возврат»') && /присоединяется|хочет участвовать/.test(c.params.text)).length);
       await sleep(300);
       const seen0 = toAdmins();
-      const refused = /Организатор удалил тебя из события «Возврат» — вернуться по ссылке нельзя\. Если это ошибка — напиши ему\./;
+      const refused = /Тебя удалили из события «Возврат» — вернуться по ссылке нельзя\. Если это ошибка, свяжись с владельцем или администратором\./;
       const code = await zInvite(J);
       await z.say(borya, '/start ' + code);
       assert.match(z.lastText(borya), refused);
@@ -1452,7 +1452,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       assert.equal(ok.length, 1, 'удалило одно');
       const other = rs.find((r) => r.status !== 200);
       assert.match(other.data.error, /^Событие (уже удалено|не найдено)\.$/);
-      const gone = (u) => ztexts(u).filter((x) => x.includes('«Удаляшка»') && x.includes('удалено организатором')).length;
+      const gone = (u) => ztexts(u).filter((x) => x.includes('«Удаляшка»') && x.includes('удалено владельцем')).length;
       await waitFor(() => [anya, borya, vera].every((u) => gone(u) >= 1), 'уведомления об удалении');
       await z.cron();
       await sleep(300);
@@ -1594,7 +1594,7 @@ test('012: вписывание по группам, принудительна�
       assert.equal(ev.event.draw_done, false);
       assert.equal(ev.member.wishlist, 'Хочу носки', 'письмо сохранено');
       assert.equal((await zapi(boss, 'admin.state', { event: F })).settings.registration_open, true);
-      const note = (u) => ztexts(u).filter((x) => x.includes('отменил жеребьёвку') && x.includes('«Отмена-012»'));
+      const note = (u) => ztexts(u).filter((x) => x.includes('Владелец <b>отменил жеребьёвку') && x.includes('«Отмена-012»'));
       await waitFor(() => [anya, borya, vera].every((u) => note(u).length === 1), 'уведомления об отмене');
       for (const u of [anya, borya, vera]) assert.ok(!/Аня|Боря|Вера/.test(note(u)[0]), 'без имён');
       const log = await zapi(helper, 'admin.audit', { event: F });
@@ -1656,7 +1656,7 @@ test('012: вписывание по группам, принудительна�
       await z.press(helper, `sup:a:${first.thread}`);
       await z.say(helper, 'Открой вкладку «Подопечный»');
       assert.equal(z.lastText(helper), '✅ Отправлено участнику.');
-      const replyOf = () => z.mock.messagesTo(anya.id).find((c) => c.params.text.includes('Организатор <b>Олег</b> отвечает'));
+      const replyOf = () => z.mock.messagesTo(anya.id).find((c) => c.params.text.includes('Администратор <b>Олег</b> отвечает'));
       await waitFor(() => replyOf(), 'ответ участнику');
       assert.equal(replyOf().params.reply_markup.inline_keyboard[0][0].callback_data, `sup:u:${S}`);
       assert.match(replyOf().params.reply_markup.inline_keyboard[0][1].web_app.url, /support=my/);
@@ -1670,7 +1670,7 @@ test('012: вписывание по группам, принудительна�
       // ответ участника из чата бота — только ответственному
       await z.press(anya, `sup:u:${S}`);
       await z.say(anya, 'Спасибо, вижу!');
-      assert.equal(z.lastText(anya), '✅ Отправлено организатору. Ответ придёт сюда.');
+      assert.equal(z.lastText(anya), '✅ Сообщение отправлено. Ответ придёт сюда.');
       await waitFor(() => ztexts(helper).some((x) => x.includes('<b>Аня</b> пишет в обращении') && x.includes('Спасибо, вижу!')), 'ответственному');
       assert.ok(![boss, third].some((u) => ztexts(u).some((x) => x.includes('Спасибо, вижу!'))), 'остальным админам текст не уходит');
       assert.deepEqual((await zapi(helper, 'event.get', { event: S })).support_admin, { waiting: 0, unread: 1 });
@@ -1688,7 +1688,7 @@ test('012: вписывание по группам, принудительна�
 
     await t.test('обращения: передача, закрытие, новое обращение, журнал без текстов', async () => {
       assert.equal((await zapi(third, 'admin.support.pass', { event: S, thread: first.thread, to: third.id }, true)).status, 403);
-      assert.equal((await zapi(helper, 'admin.support.pass', { event: S, thread: first.thread, to: anya.id }, true)).data.error, 'Передать можно другому администратору.');
+      assert.equal((await zapi(helper, 'admin.support.pass', { event: S, thread: first.thread, to: anya.id }, true)).data.error, 'Передать можно владельцу или другому администратору.');
       await zapi(helper, 'admin.support.pass', { event: S, thread: first.thread, to: third.id });
       await waitFor(() => ztexts(third).some((x) => x.includes('<b>Олег</b> передал(а) тебе обращение <b>Аня</b>')), 'новому ответственному');
       await waitFor(() => ztexts(anya).some((x) => x.includes('теперь ведёт <b>Ира</b>')), 'участнику — кто ведёт');
@@ -1709,11 +1709,11 @@ test('012: вписывание по группам, принудительна�
       // ответ админа берёт ничьё обращение; участнику — только ответ, без «взял(а)»
       const before = ztexts(anya).length;
       await zapi(boss, 'admin.support.send', { event: S, thread: second.thread, text: 'Отвечаю как владелец' });
-      await waitFor(() => ztexts(anya).some((x) => x.includes('Организатор <b>Хозяин</b> отвечает')), 'ответ владельца');
+      await waitFor(() => ztexts(anya).some((x) => x.includes('Владелец <b>Хозяин</b> отвечает')), 'ответ владельца');
       assert.ok(!ztexts(anya).slice(before).some((x) => x.includes('взял(а)')));
       assert.equal((await zapi(third, 'admin.state', { event: S })).support.threads.find((x) => x.id === second.thread).assignee_name, 'Хозяин');
       await zapi(boss, 'admin.support.close', { event: S, thread: second.thread });
-      await waitFor(() => ztexts(anya).some((x) => x.includes('закрыл(а) твоё обращение') && x.includes('напиши снова')), 'закрыто организатором');
+      await waitFor(() => ztexts(anya).some((x) => x.includes('Владелец <b>Хозяин</b> закрыл(а) твоё обращение') && x.includes('напиши снова')), 'закрыто организатором');
       const view = await zapi(anya, 'support.get', { event: S });
       assert.deepEqual(view.threads.map((x) => x.status), ['closed', 'closed']);
 
@@ -1737,7 +1737,7 @@ test('012: вписывание по группам, принудительна�
       await zapi(boss, 'admin.role.revoke', { id: winner.id });
       assert.equal(await count(`SELECT assignee AS n FROM support_threads WHERE id = ${b.thread}`), 0, 'снова ничьё');
       await waitFor(() => [boss, other].every((u) => ztexts(u).some((x) => x.includes('<b>Боря</b> («Помощь-012») снова ничьё'))), 'админам — снова ничьё');
-      await waitFor(() => ztexts(borya).some((x) => x.includes('снова ждёт ответа организатора')), 'участнику');
+      await waitFor(() => ztexts(borya).some((x) => x.includes('снова ждёт ответа')), 'участнику');
       await zapi(boss, 'admin.role.grant', { id: winner.id });
 
       // перенос участия: обращения переходят на новый аккаунт

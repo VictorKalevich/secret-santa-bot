@@ -10,7 +10,7 @@ test('041: редактор на телефоне, закрытие при вв�
   t.after(() => browser.close());
   const w = await startWorld();
   t.after(restoreFetch);
-  const owner = { id: 101, name: 'Организатор' };
+  const owner = { id: 101, name: 'Олег' };
   await w.say(owner, '/start ' + (await w.setup()).adminCode);
   await w.say(owner, owner.name);
   const event = (await w.api(owner, 'admin.events.create', { title: 'Семья' })).event.id;
@@ -26,8 +26,9 @@ test('041: редактор на телефоне, закрытие при вв�
   });
   await page.goto('https://w.test/app?event=' + event + '#tgWebAppData=' + encodeURIComponent(initData(owner)));
   const btn = name => page.getByRole('button', { name, exact: true });
+  const management = page.getByRole('button', { name: /🛠 Управление/ });
   const setFlag = async (enabled) => {
-    await page.getByRole('button', { name: /🛠 Админ/ }).click();
+    await management.click();
     await page.getByLabel('Черновики писем').setChecked(enabled);
     const saved = page.waitForResponse(r => r.url().endsWith('/api/event.get'));
     await btn('Сохранить').click();
@@ -36,6 +37,13 @@ test('041: редактор на телефоне, закрытие при вв�
   };
   await btn('Сохранить').waitFor();
   assert.equal(await page.getByRole('status').count(), 0);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.getByRole('button', { name: /ℹ️ Инфо/ }).click();
+  const info = page.locator('.ds-info-grid');
+  assert.equal(await info.getByText('Владелец', { exact: true }).locator('xpath=following-sibling::dd[1]').textContent(), owner.name);
+  assert.equal(await info.getByText('Администраторы', { exact: true }).count(), 0);
+  assert.ok(await management.locator('.ds-tab__label').evaluate((label) => label.scrollWidth <= label.clientWidth));
+  await page.setViewportSize({ width: 390, height: 640 });
   await setFlag(true);
   const field = page.getByLabel('Текст письма'), status = page.getByRole('status');
   await field.fill('Хочу чай');

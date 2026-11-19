@@ -76,7 +76,7 @@ describe('атомарность: жеребьёвка, раскрытие, за
   it('admin.event.delete ×2 — одно удаление', async () => {
     const rs = await z.twice(boss, 'admin.event.delete', { event: z.ev.id, confirm: 'УДАЛИТЬ' });
     assert.deepEqual(sorted(rs), [200, 400]);
-    assert.equal(z.sent(z.people[0], 'удалено организатором'), 1);
+    assert.equal(z.sent(z.people[0], 'удалено владельцем'), 1);
     assert.equal(z.audit('event.delete'), 1);
   });
 });
@@ -88,14 +88,14 @@ describe('атомарность: отмены жеребьёвки', () => {
   it('admin.draw.cancel ×2 — одна отмена', async () => {
     const rs = await z.twice(adm, 'admin.draw.cancel', { event: z.ev.id });
     assert.deepEqual(sorted(rs), [200, 400]);
-    assert.equal(z.sent(z.people[0], 'отменил жеребьёвку'), 1);
+    assert.equal(z.sent(z.people[0], 'Жеребьёвка отменена'), 1);
     assert.equal(z.audit('draw.cancel'), 1);
   });
   it('admin.draw.cancel.force ×2 — одна принудительная отмена', async () => {
     await z.w.api(boss, 'admin.draw', { event: z.ev.id });
     const rs = await z.twice(boss, 'admin.draw.cancel.force', { event: z.ev.id, confirm: 'ОТМЕНА' });
     assert.deepEqual(sorted(rs), [200, 400]);
-    assert.equal(z.sent(z.people[0], 'отменил жеребьёвку'), 2, 'одно от обычной отмены, одно от принудительной');
+    assert.equal(z.sent(z.people[0], 'Владелец <b>отменил жеребьёвку'), 1);
     assert.equal(z.audit('draw.cancel.force'), 1);
   });
 });
@@ -109,7 +109,7 @@ describe('атомарность: удаление и вписывание по�
     assert.deepEqual(sorted(rs), [200, 400]);
     assert.equal(z.audit('member.remove'), 1);
     assert.equal(z.orphans(), 0);
-    assert.equal(z.sent(z.people[0], 'удалил тебя'), 1);
+    assert.equal(z.sent(z.people[0], 'Тебя удалили'), 1);
   });
   it('admin.remove двух разных людей — второй просит повторить, пары целы', async () => {
     const rs = await z.w.together([
@@ -142,7 +142,7 @@ describe('атомарность: до жеребьёвки', () => {
     assert.equal(rs.find((r) => r.status === 400).data.error, 'Человек не участвует в этом событии.');
     assert.equal(z.w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, z.people[0].id).length, 0, 'удалён');
     assert.equal(z.audit('member.remove'), 1, 'записей журнала');
-    assert.equal(z.sent(z.people[0], 'удалил тебя'), 1, 'уведомлений удалённому');
+    assert.equal(z.sent(z.people[0], 'Тебя удалили'), 1, 'уведомлений удалённому');
   });
   it('admin.exclusion.add ×2 — одна запись журнала (исправлено в шаге 5, 020)', async () => {
     await z.twice(adm, 'admin.exclusion.add', { event: z.ev.id, giver: z.people[1].id, receiver: z.people[2].id });
@@ -606,7 +606,7 @@ describe('атомарность: выход из события и своё и�
     const z = await world();
     const rs = await z.w.together([leave(z, z.people[0]), () => z.w.api(boss, 'admin.draw', { event: z.ev.id }, true)], { writeOrder: [1, 0] });
     assert.deepEqual(statuses(rs), [400, 200]);
-    assert.equal(rs[0].data.error, 'Жеребьёвка уже прошла — выйти можно только через организатора: напиши ему.');
+    assert.equal(rs[0].data.error, 'Жеребьёвка уже прошла. Чтобы выйти, обратись к владельцу или администраторам.');
     assert.ok(member(z, z.people[0]), 'остался участником');
     assert.equal(z.w.query('SELECT COUNT(*) AS n FROM pairs WHERE event_id = ? AND santa = ?', z.ev.id, z.people[0].id)[0].n, 1, 'в парах');
     assert.equal(z.orphans(), 0);
