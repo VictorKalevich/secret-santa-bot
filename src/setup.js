@@ -4,6 +4,9 @@ import { getSettings, setSettings } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
 import { escapeHtml } from './format.js';
 import { ownerLinkCode, ownerLinkUsed } from './roles.js';
+import TOKENS_CSS from '../design-system/tokens.css';
+import COMPONENTS_CSS from '../design-system/components.css';
+import CLEARABLE_INPUT from '../design-system/clearable-input.js.txt';
 
 // Страница настройки (010): ключ — только из формы (POST), не из адреса; ссылка владельца одноразовая, после неё
 // страница заблокирована до смены ADMIN_SECRET. Адрес страницы не уходит другим сайтам, страница не кэшируется.
@@ -17,9 +20,11 @@ const SETUP_HEADERS = {
 
 const SETUP_FORM = `<form method="post" action="/setup" autocomplete="off">
 <label for="key">Ключ настройки (значение секрета ADMIN_SECRET)</label>
-<input id="key" name="key" type="password" required minlength="8" autofocus>
+<span class="ds-clearable"><input class="ds-input" id="key" name="key" type="password" required minlength="8" autofocus></span>
 <button type="submit">Настроить бота</button>
-</form>`;
+</form>
+<script>${CLEARABLE_INPUT}
+bindClearableInput(document.querySelector('.ds-clearable'), 'Ключ настройки');</script>`;
 
 export async function setup(request, url, env) {
   const page = (title, body, status = 200) =>
@@ -27,11 +32,14 @@ export async function setup(request, url, env) {
       `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer"><meta name="robots" content="noindex">
 <title>${title}</title><style>
+${TOKENS_CSS}
+${COMPONENTS_CSS}
+:root{color-scheme:light}
 body{font:16px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;max-width:640px;margin:40px auto;padding:0 20px;color:#1d1d1f}
 h1{font-size:24px}code,.link{background:#f4f4f6;border-radius:8px;padding:2px 6px;word-break:break-all}
 .link{display:block;padding:12px;margin:8px 0 16px;font-family:ui-monospace,monospace;font-size:14px}
 .ok{color:#1a7f37}.bad{color:#c62828}.warn{background:#fff6e5;border-radius:10px;padding:12px}
-form{display:grid;gap:10px;margin:16px 0}input{font:inherit;padding:10px;border:1px solid #c7c7cc;border-radius:10px}
+form{display:grid;gap:10px;margin:16px 0}input{font:inherit}
 button{font:inherit;padding:10px 16px;border:0;border-radius:10px;background:#2481cc;color:#fff;cursor:pointer}
 </style></head><body>${body}</body></html>`,
       { status, headers: SETUP_HEADERS }

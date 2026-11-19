@@ -269,7 +269,7 @@
         const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
         const ok = ui.btn('Сохранить', '', 'ds-btn--block');
         ok.addEventListener('click', () => busy(ok, async () => { await api('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
-        openSheet('Имя участника', [ui.hint('Имя одно на все события.'), inp, ok]);
+        openSheet('Имя участника', [ui.hint('Имя одно на все события.'), clearable(inp, 'Имя участника'), ok]);
       });
       if (canRename) items.push(r);
     }
@@ -651,7 +651,6 @@
       haptic('success');
       toast('Сохранено');
     }));
-    const field = (label, el) => h('label', { class: 'ds-field' }, h('span', { class: 'ds-field__label' }, label), el);
     return [
       ui.section('Параметры'),
       ui.card(

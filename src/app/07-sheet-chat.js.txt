@@ -111,7 +111,7 @@
     openSheet(title, [
       h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Будет удалено без возможности восстановления:'), h('ul', { class: 'ds-bullets' }, lines.map((l) => h('li', {}, l)))),
       keep ? ui.hint(keep) : null,
-      inp, go]);
+      clearable(inp, 'Слово подтверждения'), go]);
   }
 
   // ---------- поле ответа: переписка Санты и подопечного, обращения ----------

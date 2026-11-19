@@ -26,6 +26,17 @@
     }
     return el;
   }
+  /*@clearable-input*/
+  function clearable(input, label) {
+    return bindClearableInput(h('span', { class: 'ds-clearable' }, input), label);
+  }
+  let fieldId = 0;
+  function field(label, el) {
+    el.id = 'field-' + ++fieldId;
+    return h('div', { class: 'ds-field' },
+      h('label', { class: 'ds-field__label', for: el.id }, label),
+      el.matches('input[type="text"], input:not([type])') ? clearable(el, label) : el);
+  }
   const ui = {
     section: (title) => h('div', { class: 'ds-section-title' }, title),
     card: (...c) => h('div', { class: 'ds-card ds-stack' }, ...c),

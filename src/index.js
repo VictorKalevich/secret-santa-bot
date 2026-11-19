@@ -3,6 +3,7 @@
 import APP_HTML from './app-page.js';
 import TOKENS_CSS from '../design-system/tokens.css';
 import COMPONENTS_CSS from '../design-system/components.css';
+import CLEARABLE_INPUT from '../design-system/clearable-input.js.txt';
 import { checkSchema, SchemaError } from './db.js';
 import { derivedSecret } from './telegram.js';
 import { handleUpdate } from './bot.js';
@@ -14,7 +15,8 @@ import { setup } from './setup.js';
 import { appPolicy } from './csp.js';
 
 // Страница мини-приложения (склейка частей src/app/, 021) со встроенной дизайн-системой (без сборщика).
-const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS);
+const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS)
+  .replace('/*@clearable-input*/', () => CLEARABLE_INPUT);
 // Политика страницы (032): отпечаток встроенного скрипта считается при первом /app — один раз на экземпляр Worker
 let appCsp;
 

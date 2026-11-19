@@ -417,7 +417,6 @@
       date.max = today;
       const carrier = h('input', { class: 'ds-input', value: s.carrier || '', maxlength: 200 });
       const tracking = h('input', { class: 'ds-input', value: s.tracking || '', maxlength: 200 });
-      const field = (label, input) => h('label', { class: 'ds-field' }, h('span', { class: 'ds-field__label' }, label), input);
       const submit = ui.btn(s.sent ? 'Сохранить изменения' : 'Подтвердить отправку', '', 'ds-btn--block');
       const dateError = ui.hint('Выбери сегодняшний или прошедший день.');
       dateError.hidden = true;
