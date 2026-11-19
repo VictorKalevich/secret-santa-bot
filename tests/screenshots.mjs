@@ -1307,6 +1307,39 @@ addEventListener('message', (e) => {
       await expect(page, 'шторка имени: тап по подсказке', '.ds-sheet .ds-input', ['.ds-sheet .ds-hint', 'Имя одно'], {}, false);
     });
 
+    await onPage(problems, 'новая семья', admin, null, async (page) => {
+      await page.getByRole('button', { name: 'Новая семья' }).click();
+      const sheet = page.locator('.ds-sheet');
+      const members = sheet.getByRole('checkbox');
+      await members.nth(0).check();
+      await members.nth(1).check();
+      const name = sheet.getByRole('textbox');
+      await name.fill('Ивановы');
+      const clickedBackdrop = await name.evaluate((field) => {
+        const sheet = field.closest('.ds-sheet');
+        const title = sheet.querySelector('.ds-sheet__title');
+        const { left, top, height } = title.getBoundingClientRect();
+        const tap = { bubbles: true, isPrimary: true, pointerId: 7, pointerType: 'touch', clientX: left + 8, clientY: top + height / 2 };
+        // Имитируем сдвиг шторки при закрытии клавиатуры и определяем цель click по тем же координатам.
+        field.addEventListener('blur', () => { sheet.style.transform = 'translateY(80px)'; }, { once: true });
+        title.dispatchEvent(new PointerEvent('pointerdown', tap));
+        title.dispatchEvent(new PointerEvent('pointerup', tap));
+        const target = document.elementFromPoint(tap.clientX, tap.clientY);
+        target.dispatchEvent(new MouseEvent('click', tap));
+        sheet.style.transform = '';
+        return target === sheet.parentElement;
+      });
+      if (!clickedBackdrop) problems.push('новая семья: после скрытия клавиатуры тап не попал на фон');
+      if (!(await sheet.count())) problems.push('новая семья: тап по заголовку закрыл шторку');
+      else {
+        if ((await name.inputValue()) !== 'Ивановы' || (await sheet.locator('input:checked').count()) !== 2) {
+          problems.push('новая семья: название или выбранные участники потерялись');
+        }
+        await page.mouse.click(10, 10); // Фон над шторкой (максимальная высота шторки — 88vh).
+        await sheet.waitFor({ state: 'detached' });
+      }
+    });
+
     await w.api(admin, 'admin.registration', { event: E, open: false });
     await w.api(admin, 'admin.draw', { event: E });
     await onPage(problems, 'переписка', olya, E, async (page) => {

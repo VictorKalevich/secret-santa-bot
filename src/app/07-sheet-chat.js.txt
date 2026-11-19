@@ -13,8 +13,18 @@
     closeSheet();
     const header = h('div', { class: 'ds-row ds-row--between' }, h('h2', { class: 'ds-sheet__title' }, title),
       h('button', { class: 'ds-icon-btn', title: 'Закрыть', onclick: requestCloseSheet }, '✕'));
-    sheetEl = h('div', { class: 'ds-sheet-backdrop', onclick: (e) => { if (e.target === sheetEl) requestCloseSheet(); } },
-      h('div', { class: full ? 'ds-sheet ds-sheet--full' : 'ds-sheet ds-stack' }, header, ...[].concat(content)));
+    // Закрытие клавиатуры может сдвинуть шторку между pointerup и click. Учитываем, где начался тап.
+    let pressedBackdrop = false;
+    sheetEl = h('div', {
+      class: 'ds-sheet-backdrop',
+      onpointerdown: (e) => { pressedBackdrop = e.isPrimary && e.target === e.currentTarget; },
+      onpointercancel: () => { pressedBackdrop = false; },
+      onclick: (e) => {
+        const close = pressedBackdrop && e.target === e.currentTarget;
+        pressedBackdrop = false;
+        if (close) requestCloseSheet();
+      },
+    }, h('div', { class: full ? 'ds-sheet ds-sheet--full' : 'ds-sheet ds-stack' }, header, ...[].concat(content)));
     sheetHandle(sheetEl);
     sheetOnClose = onClose;
     sheetBeforeClose = beforeClose;
