@@ -15,7 +15,7 @@
   },
   "devDependencies": {
     "playwright-core": "^1.65.0",
-    "wrangler": "^4.160.1"
+    "wrangler": "^4.165.0"
   },
   "engines": {
     "node": "^22.15.0 || >=23.5.0"
