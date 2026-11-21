@@ -233,7 +233,7 @@
       const text = annText.value;
       busy(annBtn, async () => {
         const r = await xapi('admin.announce', { text });
-        if (annText.value === text) annText.value = '';
+        if (annText.value === text) { annText.value = ''; annText.dispatchEvent(new Event('input')); }
         await reloadEvent(evId).catch(() => {});
         toast(`📣 Объявление отправлено: ${r.count}`);
       }).then(annUpdate);
