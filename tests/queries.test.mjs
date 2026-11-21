@@ -1,6 +1,7 @@
 // Число запросов на действие (016, FR-1610; Конституция, принцип V — не больше 50 внешних запросов на вызов).
 // К базе — не больше базового замера (шаг 4 плана рефакторинга их сократил — числа ниже после 019, до него — в
-// git на 5d8cc0e: docs/refactoring/baseline.md, раздел 3; остальные фичи не добавляют); к Telegram — ровно столько же (сообщения —
+// git на 5d8cc0e: docs/refactoring/baseline.md, раздел 3; остальные фичи не добавляют; 047 — ввод имени без перечитывания
+// пользователя); к Telegram — ровно столько же (сообщения —
 // поведение). Посмотреть текущие числа и SQL: node tests/bench/queries.mjs [sql].
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,11 +33,11 @@ const STEP4 = {
 const BASELINE = {
   '/setup (POST)': [3, 6],
   'bot: /start adm_ (ссылка владельца)': [8, 1],
-  'bot: ввод имени': [4, 2],
+  'bot: ввод имени': [3, 2],
   'admin.events.create': [3, 0],
   'admin.state (пустое событие)': [4, 0],
   'bot: /start inv_ (новый человек)': [4, 1],
-  'bot: имя после ссылки': [11, 3],
+  'bot: имя после ссылки': [9, 3],
   'admin.role.grant': [6, 1],
   'admin.participate (вкл)': [4, 0],
   'wishlist.save': [4, 0],
@@ -68,6 +69,7 @@ const BASELINE = {
   'admin.remind.santas': [8, 13],
   'admin.remove (после жеребьёвки)': [8, 2],
   'admin.registration': [4, 0],
+  'bot: «Участвовать как …» (после ссылки)': [9, 5],
   'admin.insert': [8, 2],
   'admin.vault.pairs': [5, 0],
   'admin.vault.person': [6, 0],
@@ -81,7 +83,7 @@ const BASELINE = {
 test('запросы: каждое действие сценария не тяжелее базового замера', async () => {
   const { rows, world } = await runQueriesScenario();
   assert.deepEqual(rows.map((r) => r.name), Object.keys(BASELINE), 'тот же набор действий');
-  assert.equal(rows.length, 46);
+  assert.equal(rows.length, 47);
   const worse = [];
   for (const { name, db, tg } of rows) {
     const [maxDb, wantTg] = BASELINE[name];

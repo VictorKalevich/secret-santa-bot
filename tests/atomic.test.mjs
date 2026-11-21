@@ -1,13 +1,14 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 53 проверки «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 56 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
 // проверка повторов без изменений), одиннадцать — повторные нажатия (024: объявление, напоминания и приглашение —
 // раз в минуту, роли, владение, полный сброс, новая семья), по одной — переименование (025) и сохранение семьи (034):
 // запись журнала — только при настоящем изменении; четыре — выход из события и своё имя (035: выход ×2, выход ↔
-// жеребьёвка в обоих порядках, имя ×2). Известный дефект — todo с номером фичи, которая его чинит: фича
+// жеребьёвка в обоих порядках, имя ×2); три — регистрация в боте (047: «Участвовать как …» ×2 в одну миллисекунду,
+// нажатие ↔ имя текстом в обоих порядках). Известный дефект — todo с номером фичи, которая его чинит: фича
 // снимает пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -620,4 +621,39 @@ describe('атомарность: выход из события и своё и�
     assert.equal(z.w.query('SELECT name FROM users WHERE tg_id = ?', z.people[0].id)[0].name, 'Игрок Первый');
     assert.equal(z.audit('rename'), 1, 'записей журнала');
   });
+});
+
+describe('атомарность: регистрация в боте (047)', () => {
+  const newcomer = { id: 700, name: 'Новичок', username: 'novice' };
+  const NAME_SAVED = 'Имя уже сохранено. Сменить его можно в приложении: «Профиль» → «✏️ Изменить имя».';
+  const named = (z) => z.w.query('SELECT name, registered FROM users WHERE tg_id = ?', newcomer.id)[0];
+  const answers = (z, from) => z.w.calls.slice(from).filter((c) => c.method === 'answerCallbackQuery').map((c) => c.params.text ?? '');
+
+  it('«Участвовать как …» ×2 в одну миллисекунду — одна регистрация: одно приветствие, одно «присоединяется»', async () => {
+    const z = await world();
+    await z.w.say(newcomer, '/start ' + z.code);
+    const mark = z.w.calls.length;
+    await z.w.together([() => z.w.press(newcomer, 'reg:ok'), () => z.w.press(newcomer, 'reg:ok')], { sameMoment: true });
+    assert.deepEqual(named(z), { name: 'Новичок', registered: 1 });
+    assert.deepEqual(answers(z, mark).sort(), ['', NAME_SAVED]);
+    assert.equal(z.sent(newcomer, 'Приятно познакомиться'), 1, 'приветствий');
+    for (const a of [boss, adm, adm2]) assert.equal(z.sent(a, '<b>Новичок</b> присоединяется'), 1, 'организатору ' + a.name);
+  });
+  for (const [first, writeOrder] of [['нажатие', [0, 1]], ['имя текстом', [1, 0]]]) {
+    it(`нажатие ↔ имя текстом, первым пишет ${first} — одна регистрация, второму «Имя уже сохранено»`, async () => {
+      const z = await world();
+      await z.w.say(newcomer, '/start ' + z.code);
+      const mark = z.w.calls.length;
+      await z.w.together([() => z.w.press(newcomer, 'reg:ok'), () => z.w.say(newcomer, 'Другое имя')], { writeOrder });
+      const [won, lost] = writeOrder[0] === 0 ? ['Новичок', 'Другое имя'] : ['Другое имя', 'Новичок'];
+      assert.deepEqual(named(z), { name: won, registered: 1 });
+      assert.equal(z.sent(newcomer, 'Приятно познакомиться'), 1, 'приветствий');
+      assert.deepEqual(answers(z, mark), [writeOrder[0] === 0 ? '' : NAME_SAVED], 'ответ на нажатие');
+      assert.equal(z.sent(newcomer, NAME_SAVED), writeOrder[0] === 0 ? 1 : 0, 'сообщение проигравшему тексту');
+      for (const a of [boss, adm, adm2]) {
+        assert.equal(z.sent(a, `<b>${won}</b> присоединяется`), 1, 'организатору ' + a.name);
+        assert.equal(z.sent(a, `<b>${lost}</b> присоединяется`), 0, 'организатору ' + a.name);
+      }
+    });
+  }
 });

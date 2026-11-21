@@ -214,11 +214,27 @@ export async function rejoinBlocked(db, ev, userId) {
 // Отказ по заявке (008): ответ боту и сообщение участнику — один текст (019)
 export const requestRejected = (ev) => `Заявку на участие в событии ${q(ev)} отклонили. Если это ошибка, свяжись с владельцем или администратором.`;
 
-// Админам (кроме самого человека) — «… присоединяется к событию»: вступление по ссылке и ввод имени в боте (019)
-export function joinedNoticeStmts(db, users, user, ev) {
-  return adminRecipients(users, [user.tg_id]).map((a) => enqueueStmt(db, a.tg_id, msg(
-    `👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к событию ${q(ev)}`, { disable_notification: true }
-  )));
+// Админам (кроме самого человека) — «… присоединяется к событию»: вступление по ссылке и регистрация в боте (019, 047)
+const joinedNotice = (user, ev) =>
+  msg(`👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к событию ${q(ev)}`, { disable_notification: true });
+
+function joinedNoticeStmts(db, users, user, ev) {
+  return adminRecipients(users, [user.tg_id]).map((a) => enqueueStmt(db, a.tg_id, joinedNotice(user, ev)));
+}
+
+// Регистрация в боте (047): имя — текстом или кнопкой «Участвовать как …». По прежнему состоянию (020): «присоединяется»
+// (если человек уже участник ev — вступил по ссылке до имени) — перед захватом, пока он не зарегистрирован; захват —
+// строка пользователя. Второе нажатие или сообщение (даже в ту же миллисекунду) видит имя сохранённым и ничего не
+// рассылает. → true, если имя записал этот вызов
+export async function register(ctx, name, username, ev = null) {
+  const { db, me } = ctx;
+  const fresh = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND registered = 0)', me.tg_id);
+  if (ev) {
+    const member = fresh.and('EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)', ev.id, me.tg_id);
+    for (const a of adminRecipients(await ctx.users(), [me.tg_id])) member.enqueue(a.tg_id, joinedNotice({ ...me, name }, ev));
+  }
+  fresh.claim(fresh.where("UPDATE users SET name = ?, username = ?, registered = 1, pending = '' WHERE tg_id = ?", name, username, me.tg_id));
+  return (await fresh.run()).won;
 }
 
 // Результат: 'joined' | 'closed' | 'removed' | 'request_sent' | 'request_pending' | 'request_rejected'.

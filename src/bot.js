@@ -11,7 +11,7 @@ import {
 import { isFinished, chatWritable } from './status.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
-import { joinByInvite, decideRequest, rejoinBlocked, requestRejected, joinedNoticeStmts } from './membership.js';
+import { joinByInvite, decideRequest, rejoinBlocked, requestRejected, register } from './membership.js';
 import { openContext, makeContext } from './context.js';
 import {
   sendFromUser, sendFromAdmin, take, supportAvailable, threadById, replyBlocks,
@@ -22,6 +22,13 @@ import { maskLabel } from './looks.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта, владелец и администраторы.';
+// 047: имя из Telegram — одним нажатием
+const NAME_OFFER = (name) =>
+  `Имя в игре — <b>${escapeHtml(name)}</b>, как в Telegram. Его увидят твой Санта, владелец и администраторы. ` +
+  'Хочешь другое — нажми «✏️ Изменить имя» или просто напиши его.';
+const NAME_ASK =
+  '✏️ Напиши имя (и, если нужно, фамилию) одним сообщением — до 40 символов. Так тебя увидят твой Санта, владелец и администраторы.';
+const NAME_SAVED = 'Имя уже сохранено. Сменить его можно в приложении: «Профиль» → «✏️ Изменить имя».';
 const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси пригласительную ссылку на событие.';
 const STALE_INVITE = 'Эта пригласительная ссылка устарела. Попроси новую ссылку.';
 // Удалённый организатором при запрете возврата (010, FR-1022); админам об этой попытке ничего не приходит
@@ -50,6 +57,27 @@ function parsePending(pending) {
 }
 const inReplyMode = (pending) => parsePending(pending) !== null;
 const expired = (since) => !since || Date.now() - since > REPLY_WINDOW_MS;
+
+// ---------- имя при регистрации ----------
+// Одно правило для имени текстом и имени из Telegram (047): одна строка, 1–40 символов, не команда
+const nameOk = (name) => !!name && !name.startsWith('/') && name.length <= 40;
+
+// Имя из профиля Telegram для «Участвовать как …» (047): имя и фамилия, вместе не подходят — только имя; '' — нечего
+// предложить
+function telegramName(from) {
+  return [oneLine(`${from?.first_name || ''} ${from?.last_name || ''}`), oneLine(from?.first_name)].find(nameOk) || '';
+}
+
+// Просьба имени (047): с подходящим именем из Telegram — оно и кнопки (каждая своей строкой: длинное имя на кнопке в
+// одной строке с другой обрезалось бы); без него — прежний вопрос. joining — после пригласительной ссылки
+function nameOffer(from, intro, joining) {
+  const name = telegramName(from);
+  if (!name) return msg(intro + NAME_PROMPT);
+  return msg(intro + NAME_OFFER(name), { reply_markup: { inline_keyboard: [
+    [{ text: `✅ ${joining ? 'Участвовать' : 'Продолжить'} как ${name}`, callback_data: 'reg:ok' }],
+    [{ text: '✏️ Изменить имя', callback_data: 'reg:edit' }],
+  ] } });
+}
 
 // Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913).
 async function buildMenu(db, user, settings) {
@@ -108,11 +136,15 @@ async function openChat(env, m) {
     sendMenu: async () => c.reply(await buildMenu(db, c.user, settings)),
     menuIfRegistered: () => (c.user?.registered ? c.sendMenu() : undefined),
     writeLetter: (text, ev) => ({ ...msg(text), ...appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }) }),
+    // joining — по умолчанию по ожиданию имени: name:<эвент>:<код> — после пригласительной ссылки
+    askName: (intro = '', joining = c.user?.pending.startsWith('name:')) => c.reply(nameOffer(from, intro, joining)),
     setPending: (pending) => updateUser(db, from.id, { pending }),
     async reload() {
       c.user = ctx.me = await getUser(db, from.id);
     },
   };
+  // Человек пишет боту или нажал кнопку регистрации — значит, бот у него не заблокирован (006, FR-609)
+  if (c.user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 });
   return c;
 }
 
@@ -122,9 +154,7 @@ export async function handleUpdate(update, env) {
   const m = update.message;
   if (!m || !m.from || m.chat?.type !== 'private') return;
   const c = await openChat(env, m);
-  const { db, from, text } = c;
-  // Человек пишет боту — значит, бот у него не заблокирован (006, FR-609)
-  if (c.user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 });
+  const { text } = c;
 
   // Любая команда выключает режим ответа в переписку (009, FR-916) и в обращение (012): текст после неё не уйдёт собеседнику
   if (c.user && text.startsWith('/') && inReplyMode(c.user.pending)) {
@@ -136,7 +166,7 @@ export async function handleUpdate(update, env) {
   if (!c.user) return c.reply(CLOSED_BOT);
   if (text === '/cancel') return onCancel(c);
   if (c.user.pending.startsWith('name')) return onName(c);
-  if (!c.user.registered) return c.reply(NAME_PROMPT);
+  if (!c.user.registered) return c.askName();
 
   const mode = parsePending(c.user.pending);
   if (mode?.kind === 'reply') return onChatReply(c, mode);
@@ -176,7 +206,7 @@ async function onStart(c) {
   // Пригласительная ссылка эвента (005; 009 — единая логика с вводом имени)
   if (payload.startsWith('inv_')) return onInvite(c, payload.slice(4));
   if (c.user?.registered) return c.sendMenu();
-  if (c.user && c.user.pending.startsWith('name')) return c.reply(NAME_PROMPT);
+  if (c.user && c.user.pending.startsWith('name')) return c.askName();
   return c.reply(CLOSED_BOT);
 }
 
@@ -198,7 +228,7 @@ async function onOwnerLink(c) {
   await c.reload();
   if (!c.user.registered) {
     await c.setPending('name');
-    return c.reply('👑 Ты — владелец бота «Тайный Санта»: создаёшь события и назначаешь администраторов.\n\n' + NAME_PROMPT);
+    return c.askName('👑 Ты — владелец бота «Тайный Санта»: создаёшь события и назначаешь администраторов.\n\n', false);
   }
   await c.reply('👑 Теперь ты владелец бота: события и администраторы — в приложении.');
   return c.sendMenu();
@@ -231,48 +261,51 @@ async function onInvite(c, code) {
   else await c.setPending(pending);
   // Без одобрения человек сразу виден организатору в списке (ещё без имени)
   if (!member && !ev.approval) await db.batch([addMemberStmt(db, ev, from.id), clearRemovedStmt(db, ev.id, from.id)]);
-  return c.reply(`🎄 Привет! Это бот для игры в Тайного Санту, ${q(ev)}.\n\n` + NAME_PROMPT);
+  return c.askName(`🎄 Привет! Это бот для игры в Тайного Санту, ${q(ev)}.\n\n`, true);
 }
 
 async function onCancel(c) {
-  if (!c.user.registered) return c.reply(NAME_PROMPT);
+  if (!c.user.registered) return c.askName();
   await c.setPending('');
   return c.reply('Отменено.');
 }
 
 // ---------- ввод имени при регистрации ----------
 async function onName(c) {
-  const { db, ctx, from } = c;
   const name = oneLine(c.text);
-  if (!name || name.startsWith('/') || name.length > 40) {
-    return c.reply('Напиши, пожалуйста, имя обычным текстом (до 40 символов).');
-  }
+  if (!nameOk(name)) return c.reply('Напиши, пожалуйста, имя обычным текстом (до 40 символов).');
+  if (!(await signUp(c, name))) return c.reply(NAME_SAVED);
+}
+
+// Имя сохранено — регистрация завершена (текстом или кнопкой «Участвовать как …», 047), затем вступление по
+// запомненной ссылке. saved — сразу после записи (у кнопки — ответ на нажатие). false — имя уже сохранил другой вызов,
+// ничего не отправлено
+async function signUp(c, name, saved = async () => {}) {
+  const { db, ctx, from } = c;
   const [, eid, code] = c.user.pending.split(':');
-  await updateUser(db, from.id, { name, username: from.username || '', registered: 1, pending: '' });
-  await c.reload();
-  const hello = `Приятно познакомиться, ${escapeHtml(name)}! 🎉`;
   const ev = Number(eid) ? await getEvent(db, eid) : null;
+  const member = ev ? await getMember(db, ev.id, from.id) : null;
+  const username = from.username || '';
+  // Уже участник (вступил до имени) — организаторам «присоединяется» в том же пакете, что и имя
+  if (!(await register(ctx, name, username, member ? ev : null))) return false;
+  await saved();
+  c.user = ctx.me = { ...c.user, name, username, registered: 1, pending: '' };
+  const hello = `Приятно познакомиться, ${escapeHtml(name)}! 🎉`;
   if (!ev) {
     if (eid) await c.reply(hello + '\n\n' + STALE_INVITE);
     else await c.reply(hello + (c.user.is_admin ? '\n\nСоздай первое событие в приложении — там появится пригласительная ссылка.' : ''));
-    return c.sendMenu();
-  }
-  // Уже участник (вступил до имени) — приветствие, организатору «присоединяется» (имя уже сохранено в user)
-  if (await getMember(db, ev.id, from.id)) {
-    const notice = joinedNoticeStmts(db, await ctx.users(), c.user, ev);
-    if (notice.length) await db.batch(notice);
+  } else if (member) {
     await c.reply(c.writeLetter(`${hello}\n\nТеперь открой приложение и напиши письмо своему Тайному Санте в событии ${q(ev)}: что хочешь получить, что любишь, размеры, чего точно не надо.`, ev));
-    return c.sendMenu();
-  }
-  // Не участник (заявка, удалили до имени, сменили ссылку) — вступление как по ссылке (009, FR-922)
-  if (ev.invite_code !== code) {
+  } else if (ev.invite_code !== code) {
+    // Не участник (заявка, удалили до имени, сменили ссылку) — вступление как по ссылке (009, FR-922)
     await c.reply(hello + '\n\n' + STALE_INVITE);
-    return c.sendMenu();
+  } else {
+    await c.reply(hello);
+    const status = await joinByInvite(ctx, ev, c.user);
+    if (!(await replyJoin(c, ev, status)) && status !== 'closed' && status !== 'removed') return true;
   }
-  await c.reply(hello);
-  const status = await joinByInvite(ctx, ev, c.user);
-  const menu = await replyJoin(c, ev, status);
-  if (menu || status === 'closed' || status === 'removed') return c.sendMenu();
+  await c.sendMenu();
+  return true;
 }
 
 // ---------- ответ в переписку (003/005; 009 — привязан к собеседнику и истекает через час) ----------
@@ -327,6 +360,8 @@ const NOTIFY_LABELS = {
 };
 
 async function handleCallback(cq, env) {
+  // Кнопки регистрации (047) нажимает человек без имени — до проверки «зарегистрирован»
+  if (SIGNUP_BUTTON.test(cq.data || '')) return onSignupButton(cq, env);
   const db = env.DB;
   const call = tgApi(env);
   const from = cq.from;
@@ -355,6 +390,35 @@ async function handleCallback(cq, env) {
     if (found) return handler(k, found);
   }
   return answer();
+}
+
+// «✅ Участвовать / Продолжить как …» и «✏️ Изменить имя» под просьбой имени (047). Тот же чат, что у сообщения;
+// ответ на нажатие — ровно один
+const SIGNUP_BUTTON = /^reg:(ok|edit)$/;
+async function onSignupButton(cq, env) {
+  const call = tgApi(env);
+  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
+  const c = await openChat(env, { from: cq.from });
+  if (!c.user) return answer(NOT_REGISTERED);
+  if (c.user.registered) return answer(NAME_SAVED);
+  if (cq.data === 'reg:edit') {
+    await answer();
+    return c.reply(NAME_ASK);
+  }
+  // Имя из Telegram — в момент нажатия; стало неподходящим — прежний вопрос
+  const name = telegramName(cq.from);
+  if (!name) {
+    await answer();
+    return c.reply(NAME_PROMPT);
+  }
+  // Кнопки под просьбой больше не нужны
+  const saved = () => Promise.all([
+    answer(),
+    cq.message && call('editMessageReplyMarkup', {
+      chat_id: cq.from.id, message_id: cq.message.message_id, reply_markup: { inline_keyboard: [] },
+    }),
+  ]);
+  if (!(await signUp(c, name, saved))) return answer(NAME_SAVED);
 }
 
 // «💬 Подопечному / Санте» в меню и «↩️ Ответить» под сообщением переписки

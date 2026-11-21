@@ -1,4 +1,4 @@
-// Сценарий из 46 действий через весь Worker (016): число запросов к базе и к Telegram на каждое действие.
+// Сценарий из 47 действий через весь Worker (016): число запросов к базе и к Telegram на каждое действие.
 // Пользуются tests/queries.test.mjs (не больше базового замера) и tests/bench/queries.mjs (печать таблицы и SQL).
 // Базовые числа — таблица в tests/queries.test.mjs.
 import assert from 'node:assert/strict';
@@ -82,7 +82,7 @@ async function scenario() {
   await w.api(adm, 'admin.registration', { event: ev.id, open: true }); note('admin.registration');
   st = await w.api(boss, 'admin.state', { event: ev.id });
   await w.say(late, '/start ' + inviteOf(st));
-  await w.say(late, late.name);
+  await w.press(late, 'reg:ok'); note('bot: «Участвовать как …» (после ссылки)');
   await w.api(boss, 'admin.insert', { event: ev.id, id: late.id }); note('admin.insert');
   await w.api(boss, 'admin.vault.pairs', { event: ev.id, confirm: 'ОТКРЫТЬ' }); note('admin.vault.pairs');
   await w.api(boss, 'admin.vault.person', { event: ev.id, id: people[2].id, confirm: 'ОТКРЫТЬ' }); note('admin.vault.person');

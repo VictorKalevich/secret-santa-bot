@@ -119,8 +119,14 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     for (const p of people) {
       await say(p, '/start ' + code);
       assert.match(lastText(p), /Семья 2026/);
-      assert.match(lastText(p), /Как тебя зовут/);
-      await say(p, p.name);
+      assert.match(lastText(p), new RegExp(`Имя в игре — <b>${p.name}</b>, как в Telegram`));
+      // 047: первый вступает нажатием «Участвовать как …», остальные пишут имя
+      if (p === masha) {
+        const offer = mock.calls.filter((c) => c.method === 'sendMessage' && c.params.chat_id === p.id).at(-1);
+        assert.deepEqual(offer.params.reply_markup.inline_keyboard.map((row) => row.map((b) => b.callback_data)), [['reg:ok'], ['reg:edit']]);
+        await press(p, 'reg:ok');
+        assert.match(texts(p).at(-2), new RegExp(`^Приятно познакомиться, ${p.name}! 🎉`));
+      } else await say(p, p.name);
     }
     await waitFor(() => texts(owner).filter((x) => /присоединяется к событию/.test(x)).length === people.length, 'уведомления владельцу');
     await api(owner, 'admin.participate', { event: ev.A, on: true });
@@ -1069,7 +1075,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
       const nina = { id: 710, name: 'Нина', username: 'nina' };
       const E7 = (await zapi(boss, 'admin.events.create', { title: 'Открытый' })).event.id;
       await z.say(nina, '/start ' + (await zInvite(E7)));
-      assert.match(z.lastText(nina), /Как тебя зовут/);
+      assert.match(z.lastText(nina), /Имя в игре — <b>Нина<\/b>/);
       await zapi(boss, 'admin.remove', { event: E7, id: nina.id });
       await zapi(boss, 'admin.registration', { event: E7, open: false });
       await z.say(nina, nina.name);
