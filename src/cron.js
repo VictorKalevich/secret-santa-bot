@@ -10,7 +10,8 @@ import { makeContext } from './context.js';
 
 // Шаги запуска независимы (009, FR-910): ошибка в одном не мешает остальным, а очередь сообщений отправляется
 // всегда — в пределах оставшегося бюджета запросов вызова (outbox.js).
-// Один контекст на запуск (019): настройки и пользователи читаются не больше раза и только если нужны.
+// Один контекст на запуск (019): настройки и пользователи читаются не больше раза и только если нужны. Действие над
+// событием — в контексте его компании (050, ctx.in): люди, организаторы и права — этой компании.
 export async function runScheduled(env) {
   const ctx = makeContext(env);
   await step('notify', () => notifyWishlistChanges(ctx));
@@ -80,18 +81,20 @@ async function dailyStep(ctx) {
   const { db, env } = ctx;
   const now = localDate(env);
   if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
-  // Все идущие эвенты (их немного): автодействие, заданное уже после сегодняшнего прохода, выполняется сразу
-  const { results } = await db.prepare("SELECT * FROM events WHERE status = 'active'").all();
+  // Все идущие эвенты (их немного): автодействие, заданное уже после сегодняшнего прохода, выполняется сразу.
+  // Компании — в том же пакете (050): контекст компании события без отдельного запроса
+  const { events: results } = await ctx.read({ events: db.prepare("SELECT * FROM events WHERE status = 'active'"), companies: true });
+  const inCompany = (ev) => ctx.in(ev.company_id);
   const autos = [];
   const reminders = [];
   const quiet = [];
   for (const ev of results) {
     const due = dueAutoAction(ev, now.iso);
-    if (due) autos.push(() => runAutoAction(ctx, ev, due));
+    if (due) autos.push(async () => runAutoAction(await inCompany(ev), ev, due));
     else if (ev.last_daily !== now.iso) {
       const remind = dailyReminder(env, ev);
       // Отметка «сегодня сделано» — в одном batch с напоминанием: либо оба, либо ничего
-      if (remind) reminders.push(() => remind(ctx, ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso })]));
+      if (remind) reminders.push(async () => remind(await inCompany(ev), ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso })]));
       else quiet.push(ev.id);
     }
   }
@@ -122,7 +125,7 @@ async function runAutoAction(ctx, ev, what) {
   const r = await runDraw(ctx, ev, { actor: 0, action: 'draw.auto' });
   if (r.ok) return r;
   if ((await getEvent(db, ev.id))?.draw_done) return r; // жеребьёвку уже провёл кто-то другой
-  // Неудача: админам — причина, дата снимается, чтобы не пытаться каждую минуту
+  // Неудача: организаторам компании события — причина, дата снимается, чтобы не пытаться каждую минуту
   const users = await ctx.users();
   await db.batch([
     updateEventStmt(db, ev.id, { draw_auto_date: '' }),

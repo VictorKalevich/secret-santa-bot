@@ -55,6 +55,11 @@ describe('029: параметры события', () => {
 
   it('каждая колонка events — параметр или служебная; умолчания совпадают со схемой', () => {
     assert.deepEqual(paramProblems(columns), []);
+    // 050: компания события — служебная (не копируется из образца, сброс её не трогает)
+    assert.ok(EVENT_SERVICE.includes('company_id'));
+    assert.ok(!('company_id' in EVENT_STATE_RESET));
+    assert.deepEqual(paramProblems(columns, EVENT_PARAMS, EVENT_SERVICE.filter((c) => c !== 'company_id')),
+      ['колонка company_id не описана: ни параметр, ни служебная']);
   });
 
   it('от противного: новая колонка, лишняя строка списка и другое умолчание — замечены', () => {

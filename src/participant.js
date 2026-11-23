@@ -32,24 +32,25 @@ export async function menuEvents(db, userId) {
   return results;
 }
 
-// me: незарегистрированному — только registered: false; владельца вычисляет только для админа
+// me: незарегистрированному — только registered: false. Общий контекст (050): события — где человек участник, плюс
+// все события компаний, где он администратор; владельцу бота — все. is_admin — «админ где-нибудь», is_owner — владелец бота
 export async function homeView(ctx) {
   const { db, me } = ctx;
   if (!me || !me.registered) return { registered: false };
-  // Одним пакетом чтений (019); админу в нём же — пользователи, чтобы найти владельца
+  // Одним пакетом чтений (019); компании и владелец бота — из первого пакета вызова
   const r = await ctx.read({
     mine: db.prepare('SELECT event_id FROM members WHERE user_id = ?').bind(me.tg_id),
     unread: unreadByEventQuery(db, me.tg_id),
     supUnread: supportUnreadQuery(db, me),
     events: eventsQuery(db),
-    users: !!me.is_admin,
   });
-  const ownerId = me.is_admin ? await ctx.ownerId() : null;
+  const botOwner = !!me.is_admin && (await ctx.isBotOwner());
+  const adminOf = new Set([...(await ctx.mine())].filter(([, c]) => c.is_admin).map(([id]) => id));
   const memberOf = new Set(r.mine.map((x) => x.event_id));
   const unread = unreadByEventFrom(r.unread);
   const supUnread = supportUnreadFrom(r.supUnread);
   const events = r.events
-    .filter((e) => me.is_admin || memberOf.has(e.id))
+    .filter((e) => botOwner || adminOf.has(e.company_id) || memberOf.has(e.id))
     .map((e) => ({
       id: e.id, title: e.title, status: e.status, finished_at: e.finished_at, event_date: e.event_date,
       draw_done: !!e.draw_done, member: memberOf.has(e.id), unread: (unread[e.id] || 0) + (supUnread[e.id] || 0),
@@ -57,7 +58,7 @@ export async function homeView(ctx) {
   return {
     registered: true,
     me: {
-      id: me.tg_id, name: me.name, is_admin: !!me.is_admin, is_owner: !!me.is_admin && ownerId === me.tg_id,
+      id: me.tg_id, name: me.name, is_admin: !!me.is_admin, is_owner: botOwner,
       notify_mode: me.notify_mode,
     },
     events,

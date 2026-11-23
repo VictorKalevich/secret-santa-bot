@@ -35,7 +35,7 @@ export const EVENT_PARAMS = {
 export const EVENT_STATE_RESET = {
   status: 'active', finished_at: 0, registration_open: 1, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, last_daily: '',
 };
-export const EVENT_SERVICE = ['id', 'title', 'created_at', 'created_by', 'invite_code', ...Object.keys(EVENT_STATE_RESET)];
+export const EVENT_SERVICE = ['id', 'company_id', 'title', 'created_at', 'created_by', 'invite_code', ...Object.keys(EVENT_STATE_RESET)];
 
 // Значение параметра из тела запроса — как его хранит база
 export function paramValue(spec, raw) {

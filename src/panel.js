@@ -1,8 +1,9 @@
 // Панель организатора (019): admin.state — состояние события одним ответом, письмо участника для админа, список
 // пользователей. Здесь нет ни пар, ни текстов писем и адресов — только статусы (Конституция, принцип I).
+// 050: всё — в пределах компании контекста (люди, права, другие события, семьи).
 
 import {
-  panelMembersQuery, panelPairsQuery, exclusionsQuery, eventsQuery, fixedPairsQuery, getUser, getMember, auditStmt,
+  panelMembersQuery, panelPairsQuery, exclusionsQuery, companyEventsQuery, fixedPairsQuery, getUser, getMember, auditStmt,
 } from './db.js';
 import { inviteLink, displayName } from './format.js';
 import { atomic } from './claim.js';
@@ -20,9 +21,10 @@ export async function adminState(ctx, ev) {
     members: panelMembersQuery(db, ev.id),
     pairs: panelPairsQuery(db, ev.id),
     exclusions: exclusionsQuery(db, ev.id),
-    events: eventsQuery(db),
+    events: companyEventsQuery(db, ev.company_id),
     cancelable: cancelableQuery(db, ev),
-    famRows: db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id'),
+    famRows: db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id WHERE fm.company_id = ?')
+      .bind(ev.company_id),
     requests: db.prepare(
       `SELECT r.id, r.user_id, r.created_at, u.name, u.username FROM join_requests r JOIN users u ON u.tg_id = r.user_id
         WHERE r.event_id = ? AND r.status = 'pending' ORDER BY r.id`
@@ -105,10 +107,10 @@ export async function memberLetter(ctx, ev, rawId) {
   return { ok: true, name: u.name, wishlist: m.wishlist, card: m.card, updated_at: m.wishlist_updated_at };
 }
 
-// admin.users: зарегистрированные пользователи бота и владелец
+// admin.users: зарегистрированные люди компании (без гостя) и её владелец
 export async function usersList(ctx) {
   const [all, ownerId] = await Promise.all([ctx.users(), ctx.ownerId()]);
-  const users = all.filter((u) => u.registered);
+  const users = all.filter((u) => u.registered && !u.guest);
   return {
     users: users.map((u) => ({ id: u.tg_id, name: u.name, username: u.username, is_admin: !!u.is_admin, is_owner: u.tg_id === ownerId })),
     owner_id: ownerId,
@@ -116,13 +118,14 @@ export async function usersList(ctx) {
   };
 }
 
-// Переименование админом (025): запись общего журнала «старое → новое» — только при настоящем изменении. По прежнему
+// Переименование (025): запись общего журнала «старое → новое» — только при настоящем изменении. По прежнему
 // состоянию (020): запись — пока имя другое, само имя — последним (захват). Второй вызов с тем же именем ничего не
-// пишет и тоже успех: имя уже такое, какое просили. Права и длину проверяет строка admin.rename.
-export async function renameUser(ctx, target, name, actor) {
+// пишет и тоже успех: имя уже такое, какое просили. Права и длину проверяет строка admin.rename. companies — в чьи общие
+// журналы запись (050): организатор — компания вызова, сам человек — каждая его компания; пакет и условие — общие.
+export async function renameUser(ctx, target, name, actor, companies) {
   if (target.name === name) return;
   const a = atomic(ctx.db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND name IS NOT ?)', target.tg_id, name);
-  a.audit(0, actor, 'rename', `${displayName(target)} → ${name}`);
+  for (const id of companies) a.audit({ company: id }, actor, 'rename', `${displayName(target)} → ${name}`);
   a.claim(a.where('UPDATE users SET name = ? WHERE tg_id = ?', name, target.tg_id));
   await a.run();
 }

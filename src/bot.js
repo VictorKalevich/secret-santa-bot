@@ -1,8 +1,10 @@
 // Обработка сообщений в чате с ботом (webhook от Telegram).
 // 029: у каждой команды и каждого вида кнопки — свой обработчик; запросов к базе здесь нет (чтения — функциями модулей).
+// 050: обработчик, который нашёл событие, дальше работает с контекстом компании события (ctx.in(ev.company_id)).
 
 import {
-  getUser, createUser, updateUser, pairOfSanta, pairOfWard, getEvent, getEventByInvite, getMember, addMemberStmt, clearRemovedStmt,
+  getUser, createUser, createUserStmt, updateUser, updateUserStmt, pairOfSanta, pairOfWard, getEvent, getEventByInvite, getMember,
+  addMemberStmt, clearRemovedStmt, joinCompanyStmt,
 } from './db.js';
 import { tgApi } from './telegram.js';
 import {
@@ -12,7 +14,7 @@ import { isFinished, chatWritable } from './status.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
 import { joinByInvite, decideRequest, rejoinBlocked, requestRejected, register } from './membership.js';
-import { openContext, makeContext } from './context.js';
+import { openContext } from './context.js';
 import {
   sendFromUser, sendFromAdmin, take, supportAvailable, threadById, replyBlocks,
   CLOSED as THREAD_CLOSED, NOT_FOUND as THREAD_NOT_FOUND, OWN_THREAD, NO_SUPPORT_RECIPIENTS,
@@ -216,7 +218,7 @@ async function onOwnerLink(c) {
     await c.reply('Ссылка владельца уже использована. Чтобы получить новую — смени ADMIN_SECRET и снова открой страницу настройки.');
     return c.menuIfRegistered();
   }
-  const prevOwnerId = await ctx.ownerId();
+  const prevOwnerId = await ctx.botOwnerId();
   if (!c.user) await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
   ctx.forgetUsers(); // список пользователей изменился — setOwner читает его заново
   await setOwner(ctx, from.id, {
@@ -248,7 +250,7 @@ async function onInvite(c, code) {
       await c.reply(`🎄 Ты уже участвуешь в событии ${q(ev)}.`);
       return c.sendMenu();
     }
-    if (await replyJoin(c, ev, await joinByInvite(ctx, ev, user))) return c.sendMenu();
+    if (await replyJoin(c, ev, await joinByInvite(await ctx.in(ev.company_id), ev, user))) return c.sendMenu();
     return;
   }
   // Ещё без имени: сначала имя, вступление — после него (joinByInvite). Код ссылки запоминаем, чтобы после имени
@@ -257,8 +259,11 @@ async function onInvite(c, code) {
   // Удалили ещё до ввода имени, а возврат запрещён (010): не добавляем и имя не спрашиваем
   if (!member && user && (await rejoinBlocked(db, ev, from.id))) return c.reply(REMOVED(ev));
   const pending = `name:${ev.id}:${code}`;
-  if (!user) await createUser(db, from.id, from.username, { pending });
-  else await c.setPending(pending);
+  // Человек компании события (050) — тем же пакетом, что запись или ожидание имени
+  await db.batch([
+    user ? updateUserStmt(db, from.id, { pending }) : createUserStmt(db, from.id, from.username, { pending }),
+    joinCompanyStmt(db, ev.company_id, from.id),
+  ]);
   // Без одобрения человек сразу виден организатору в списке (ещё без имени)
   if (!member && !ev.approval) await db.batch([addMemberStmt(db, ev, from.id), clearRemovedStmt(db, ev.id, from.id)]);
   return c.askName(`🎄 Привет! Это бот для игры в Тайного Санту, ${q(ev)}.\n\n`, true);
@@ -281,15 +286,16 @@ async function onName(c) {
 // запомненной ссылке. saved — сразу после записи (у кнопки — ответ на нажатие). false — имя уже сохранил другой вызов,
 // ничего не отправлено
 async function signUp(c, name, saved = async () => {}) {
-  const { db, ctx, from } = c;
+  const { db, from } = c;
   const [, eid, code] = c.user.pending.split(':');
   const ev = Number(eid) ? await getEvent(db, eid) : null;
   const member = ev ? await getMember(db, ev.id, from.id) : null;
   const username = from.username || '';
+  const ctx = (ev && (await c.ctx.in(ev.company_id))) || c.ctx;
   // Уже участник (вступил до имени) — организаторам «присоединяется» в том же пакете, что и имя
   if (!(await register(ctx, name, username, member ? ev : null))) return false;
   await saved();
-  c.user = ctx.me = { ...c.user, name, username, registered: 1, pending: '' };
+  c.user = c.ctx.me = { ...c.user, name, username, registered: 1, pending: '' };
   const hello = `Приятно познакомиться, ${escapeHtml(name)}! 🎉`;
   if (!ev) {
     if (eid) await c.reply(hello + '\n\n' + STALE_INVITE);
@@ -326,7 +332,7 @@ async function onChatReply(c, mode) {
   const ev = await getEvent(db, mode.event);
   await c.setPending('');
   if (!ev) return c.reply('❌ Событие не найдено.');
-  const res = await sendChatMessage(ctx, ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: mode.other });
+  const res = await sendChatMessage(await ctx.in(ev.company_id), ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: mode.other });
   if (res.ok) return c.reply(toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.');
   return c.reply(res.pairChanged ? res.error : '❌ ' + res.error);
 }
@@ -340,14 +346,18 @@ async function onSupportReply(c, mode) {
   if (mode.who === 'u') {
     const ev = await getEvent(db, mode.id);
     if (!ev || !(await getMember(db, ev.id, from.id))) return c.reply('❌ Ты не участвуешь в этом событии.');
-    const res = await sendFromUser(ctx, ev, text);
+    const res = await sendFromUser(await ctx.in(ev.company_id), ev, text);
     return c.reply(res.ok ? '✅ Сообщение отправлено. Ответ придёт сюда.' : '❌ ' + res.error);
   }
-  if (!c.user.is_admin) return c.reply('❌ Отвечать на обращения могут владелец и администраторы.');
+  const ADMINS_ONLY = '❌ Отвечать на обращения могут владелец и администраторы.';
+  if (!c.user.is_admin) return c.reply(ADMINS_ONLY);
   const t = await threadById(db, mode.id);
   const ev = t ? await getEvent(db, t.event_id) : null;
   if (!ev) return c.reply('❌ ' + THREAD_NOT_FOUND);
-  const res = await sendFromAdmin(ctx, ev, Number(mode.id), text);
+  // Права — в компании события (050): тот же отказ
+  const company = await ctx.in(ev.company_id);
+  if (!company?.me.is_admin) return c.reply(ADMINS_ONLY);
+  const res = await sendFromAdmin(company, ev, Number(mode.id), text);
   return c.reply(res.ok ? '✅ Отправлено участнику.' : `❌ ${res.error} Сообщение не отправлено.`);
 }
 
@@ -366,8 +376,9 @@ async function handleCallback(cq, env) {
   const call = tgApi(env);
   const from = cq.from;
   const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
-  const user = await getUser(db, from.id);
-  const ctx = makeContext(env, { me: user }); // настройки и пользователи — лениво: не всем нажатиям они нужны
+  // Пользователь, настройки, его компании и владелец бота — одним пакетом (050: вместо одного чтения пользователя)
+  const ctx = await openContext(env, from.id);
+  const user = ctx.me;
   if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 }); // 006, FR-609
   if (!user || !user.registered) return answer(NOT_REGISTERED);
   const k = {
@@ -447,8 +458,11 @@ async function onSupportButton(k, [, kind, id]) {
   const t = await threadById(db, id);
   const ev = t ? await getEvent(db, t.event_id) : null;
   if (!ev) return k.refuse(THREAD_NOT_FOUND);
+  // Права — в компании события (050): тот же отказ
+  const company = await k.ctx.in(ev.company_id);
+  if (!company?.me.is_admin) return k.refuse(ADMIN_ONLY);
   const name = escapeHtml((await getUser(db, t.user_id))?.name || 'участник');
-  return kind === 'take' ? onSupportTake(k, t, ev, name) : onSupportAnswer(k, t, ev, name);
+  return kind === 'take' ? onSupportTake(k, company, t, ev, name) : onSupportAnswer(k, t, ev, name);
 }
 
 // Участник: «↩️ Ответить» под ответом организатора
@@ -457,15 +471,15 @@ async function onSupportAsk(k, eventId) {
   const ev = await getEvent(db, eventId);
   if (!ev || !(await getMember(db, ev.id, from.id))) return k.refuse('Ты не участвуешь в этом событии.');
   if (!chatWritable(ev)) return k.refuse(SUPPORT_READ_ONLY);
-  if (!supportAvailable(await ctx.users(), from.id)) return k.refuse(NO_SUPPORT_RECIPIENTS);
+  if (!supportAvailable(await (await ctx.in(ev.company_id)).users(), from.id)) return k.refuse(NO_SUPPORT_RECIPIENTS);
   await k.setPending(supportPending('u', ev.id));
   return k.prompt(`✍️ Напиши сообщение по событию (${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
 }
 
 // Админ: «🙋 Взять»
-async function onSupportTake(k, t, ev, name) {
-  const settings = await k.ctx.settings();
-  const r = await take(k.ctx, ev, t.id);
+async function onSupportTake(k, ctx, t, ev, name) {
+  const settings = await ctx.settings();
+  const r = await take(ctx, ev, t.id);
   if (!r.ok) return k.refuse(r.error);
   await k.answer('🙋 Обращение твоё');
   return k.send(msg(`🙋 Обращение <b>${name}</b> (${q(ev)}) теперь ведёшь ты. Ответь кнопкой ниже или в приложении.`, {

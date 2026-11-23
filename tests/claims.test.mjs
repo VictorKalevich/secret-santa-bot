@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createMigratedD1 } from './support/d1-sqlite.mjs';
+import { stringLiterals } from './support/js-literals.mjs';
 import { atomic, closedParens } from '../src/claim.js';
 
 const clean = (s) => s.replace(/\s+/g, ' ').trim();
@@ -44,7 +45,7 @@ describe('помощник захватов', () => {
   it('claim уже добавленного оператора не дублирует его', async () => {
     const db = createMigratedD1();
     const a = atomic(db, '1 = 1');
-    const s = a.audit(0, 1, 'x');
+    const s = a.audit({ company: 1 }, 1, 'x');
     a.claim(s);
     const { won, results } = await a.run();
     assert.equal(results.length, 1);
@@ -55,7 +56,7 @@ describe('помощник захватов', () => {
   it('без захвата — won = null; захват по RETURNING — по вернувшейся строке', async () => {
     const db = createMigratedD1();
     const a = atomic(db, '1 = 1');
-    a.audit(0, 1, 'y');
+    a.audit({ company: 1 }, 1, 'y');
     assert.equal((await a.run()).won, null);
     const b = atomic(db, '1 = 1');
     b.claim(db.prepare("INSERT INTO settings (key, value) SELECT 'k', 'v' WHERE " + b.sql + ' RETURNING key'));
@@ -70,7 +71,7 @@ describe('помощник захватов', () => {
     const once = () => {
       const a = atomic(db, "EXISTS (SELECT 1 FROM settings WHERE key = 'flag' AND value = '0')");
       a.enqueue(5, { text: 'один раз' });
-      a.audit(0, 5, 'flag.set');
+      a.audit({ company: 1 }, 5, 'flag.set');
       a.claim(db.prepare("UPDATE settings SET value = '1' WHERE key = 'flag' AND value = '0'"));
       return a.run();
     };
@@ -82,78 +83,6 @@ describe('помощник захватов', () => {
 });
 
 // ---------- исходники: фрагменты SQL со скобками закрыты (FR-2011) ----------
-
-// Строковые литералы исходника JS: в кавычках и шаблоны (выражение ${…} — «?», литералы внутри него — отдельно).
-// Комментарии и регулярные выражения пропускаются.
-const REGEX_AFTER_WORD = /(?:^|[^\w$])(return|typeof|case|in|of|void|delete|throw|new|else|yield|await)$/;
-export function stringLiterals(src) {
-  const out = [];
-  let i = 0;
-  let prev = ''; // последний значимый символ кода: отличает регулярное выражение от деления
-  const escaped = (s) => {
-    i += 2;
-    return s + src[i - 1];
-  };
-  const quoted = (q) => {
-    let s = '';
-    for (i++; i < src.length && src[i] !== q;) s = src[i] === '\\' ? escaped(s) : s + src[i++];
-    i++;
-    return s;
-  };
-  const template = () => {
-    let s = '';
-    for (i++; i < src.length && src[i] !== '`';) {
-      if (src[i] === '\\') s = escaped(s);
-      else if (src[i] === '$' && src[i + 1] === '{') {
-        i += 2;
-        code('}');
-        i++;
-        s += '?';
-      } else s += src[i++];
-    }
-    i++;
-    return s;
-  };
-  const regexHere = () => {
-    if (!prev || '(,=:[!&|?{};+-*%<>~^'.includes(prev)) return true;
-    return /[\w$]/.test(prev) && REGEX_AFTER_WORD.test(src.slice(Math.max(0, i - 12), i).trimEnd());
-  };
-  const skipRegex = () => {
-    let cls = false;
-    for (i++; i < src.length && (cls || src[i] !== '/'); i++) {
-      if (src[i] === '\\') i++;
-      else if (src[i] === '[') cls = true;
-      else if (src[i] === ']') cls = false;
-    }
-    for (i++; /[a-z]/.test(src[i] || ''); i++);
-  };
-  // Код до непарного end (или до конца файла)
-  function code(end) {
-    let depth = 0;
-    while (i < src.length) {
-      const c = src[i];
-      if (c === end && depth === 0) return;
-      if (c === '/' && src[i + 1] === '/') {
-        while (i < src.length && src[i] !== '\n') i++;
-      } else if (c === '/' && src[i + 1] === '*') {
-        i = src.indexOf('*/', i + 2) + 2;
-      } else if (c === "'" || c === '"' || c === '`') {
-        out.push(c === '`' ? template() : quoted(c));
-        prev = 'x';
-      } else if (c === '/' && regexHere()) {
-        skipRegex();
-        prev = 'x';
-      } else {
-        if (c === '{') depth++;
-        if (c === '}') depth--;
-        if (!/\s/.test(c)) prev = c;
-        i++;
-      }
-    }
-  }
-  code(null);
-  return out;
-}
 
 const SQL_WORDS = /\b(SELECT|INSERT|UPDATE|DELETE|EXISTS|WHERE)\b/;
 const unclosedSql = (src) => stringLiterals(src).filter((s) => SQL_WORDS.test(s) && !closedParens(s));

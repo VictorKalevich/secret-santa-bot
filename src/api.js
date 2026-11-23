@@ -4,7 +4,7 @@
 // порядке. Предметная логика и SQL — в модулях; здесь — разбор запроса, таблица и ответ. Контракт —
 // specs/019-api-actions/contracts/api-actions.md.
 
-import { getUser, updateUser, getEvent, getMember, getAudit } from './db.js';
+import { updateUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
 import { saveShipment } from './shipment.js';
 import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
@@ -33,7 +33,8 @@ import { changeExclusions, changeFixed } from './constraints.js';
 // ---------- роли и общие отказы ----------
 
 // ANY — любой с подписью; USER — зарегистрированный; VIEWER — участник события или админ; MEMBER — участник события;
-// ADMIN — админ; OWNER — владелец бота (с текстом отказа в поле owner)
+// ADMIN — админ; OWNER — владелец бота (с текстом отказа в поле owner). 050: админ и владелец — в компании действия
+// (событие — его компания; общее действие организатора с признаком company — body.company или единственная компания)
 export const ROLES = Object.freeze({ ANY: 'any', USER: 'user', VIEWER: 'viewer', MEMBER: 'member', ADMIN: 'admin', OWNER: 'owner' });
 const { ANY, USER, VIEWER, MEMBER, ADMIN, OWNER } = ROLES;
 
@@ -94,7 +95,8 @@ export const ACTIONS = {
     async run(ctx, body) {
       const name = validName(body.name);
       if (!name) return refuse(NAME_RULE);
-      await renameUser(ctx, ctx.me, name, ctx.me.tg_id);
+      // Запись rename — в журнал каждой компании человека (050)
+      await renameUser(ctx, ctx.me, name, ctx.me.tg_id, [...(await ctx.mine()).keys()]);
       return { name };
     },
   },
@@ -149,67 +151,77 @@ export const ACTIONS = {
   // ---------- администратор: общие (без события) ----------
   'admin.events.create': {
     role: ADMIN,
+    company: true,
     async run(ctx, body) {
       let from = null;
       if (body.from) {
         from = await getEvent(ctx.db, body.from);
-        if (!from) return refuse('Образец не найден.');
+        // Образец — событие той же компании (050)
+        if (!from || from.company_id !== ctx.company.id) return refuse('Образец не найден.');
       }
       const r = await createEvent(ctx, body.title, ctx.me.tg_id, { from, invite: !!body.invite });
       return out(r, () => ({ event: publicEvent(r.event), invited: r.invited, invite_error: r.inviteError }));
     },
   },
-  // Семьи (008) — общие для бота; адресов и пар здесь нет
-  'admin.families': { role: ADMIN, run: (ctx) => familiesList(ctx) },
+  // Семьи (008) — общие для компании (050); адресов и пар здесь нет
+  'admin.families': { role: ADMIN, company: true, run: (ctx) => familiesList(ctx) },
   // Владелец видит пары и так — заморозка семей против вычисления пар на него не действует (010, FR-1008)
   'admin.family.save': {
     role: ADMIN,
+    company: true,
     run: async (ctx, body) => out(await saveFamily(ctx, ctx.me.tg_id, { id: body.id, name: body.name, members: body.members }), none),
   },
   'admin.family.delete': {
     role: ADMIN,
+    company: true,
     run: async (ctx, body) => out(await deleteFamily(ctx, ctx.me.tg_id, body.id), none),
   },
-  // Без поля event — общий журнал, с ним — журнал события (несуществующее — 404)
-  'admin.audit': { role: ADMIN, event: 'given', finished: true, run: async (ctx, body, ev) => ({ entries: await getAudit(ctx.db, ev ? ev.id : 0) }) },
-  'admin.users': { role: ADMIN, run: (ctx) => usersList(ctx) },
+  // Без поля event — общий журнал компании, с ним — журнал события (несуществующее — 404)
+  'admin.audit': {
+    role: ADMIN,
+    event: 'given',
+    company: true,
+    finished: true,
+    run: async (ctx, body, ev) => ({ entries: await getAudit(ctx.db, ev ? ev.id : { company: ctx.company.id }) }),
+  },
+  'admin.users': { role: ADMIN, company: true, run: (ctx) => usersList(ctx) },
   'admin.rename': {
     role: ADMIN,
+    company: true,
     async run(ctx, body) {
       const name = validName(body.name);
       if (!name) return refuse(NAME_RULE);
-      const target = await getUser(ctx.db, Number(body.id));
+      // Цель — человек компании (050; гость — не человек компании)
+      const target = (await ctx.users()).find((u) => u.tg_id === Number(body.id) && !u.guest);
       if (!target) return refuse('Участник не найден');
       // Администраторов и владельца переименовывает только владелец; себя — любой админ (006, FR-613)
       const ownerId = await ctx.ownerId();
       if ((target.is_admin || target.tg_id === ownerId) && target.tg_id !== ctx.me.tg_id && !(await ctx.isOwner())) {
         return refuse('Переименовать администратора может только владелец бота.', 403);
       }
-      await renameUser(ctx, target, name, ctx.me.tg_id); // журнал — только при настоящем изменении (025)
+      await renameUser(ctx, target, name, ctx.me.tg_id, [ctx.company.id]); // журнал — только при настоящем изменении (025)
       return {};
     },
   },
   // Иначе админ перенёс бы участие игрока на свой второй, не-админский аккаунт и увидел его пары (010, FR-1001)
   'admin.transfer': {
     role: OWNER,
+    company: true,
     owner: onlyOwner('Переносить участие на новый аккаунт'),
     async run(ctx, body) {
-      const ownerId = await ctx.ownerId();
       const from = Number(body.from);
-      if (from === ownerId) {
+      if (from === (await ctx.ownerId()) || from === (await ctx.botOwnerId())) {
         return refuse('Запись владельца не переносится: владелец восстанавливает доступ по новой ссылке владельца (смена ADMIN_SECRET → страница /setup).');
       }
-      const to = Number(body.to);
-      const toUser = await getUser(ctx.db, to);
-      // Иначе админ получил бы чужие пары и переписку (Конституция, принцип I; 006, FR-601)
-      if (toUser?.is_admin || to === ownerId) return refuse('Переносить участие на аккаунт владельца или администратора нельзя.');
-      return out(await transferAccount(ctx, from, to, ctx.me.tg_id), (r) => ({ events: r.events }));
+      // Цель — не владелец и не администратор (050: где-нибудь) — проверяет transferAccount, до остальных отказов
+      return out(await transferAccount(ctx, from, Number(body.to), ctx.me.tg_id), (r) => ({ events: r.events }));
     },
   },
-  'admin.role.grant': { role: OWNER, owner: ROLES_OWNER, run: async (ctx, body) => out(await grantAdmin(ctx, Number(body.id), ctx.me.tg_id), none) },
-  'admin.role.revoke': { role: OWNER, owner: ROLES_OWNER, run: async (ctx, body) => out(await revokeAdmin(ctx, Number(body.id), ctx.me.tg_id), none) },
+  'admin.role.grant': { role: OWNER, company: true, owner: ROLES_OWNER, run: async (ctx, body) => out(await grantAdmin(ctx, Number(body.id), ctx.me.tg_id), none) },
+  'admin.role.revoke': { role: OWNER, company: true, owner: ROLES_OWNER, run: async (ctx, body) => out(await revokeAdmin(ctx, Number(body.id), ctx.me.tg_id), none) },
   'admin.owner.transfer': {
     role: OWNER,
+    company: true,
     owner: onlyOwner('Передать права владельца'),
     run: async (ctx, body) => out(await transferOwnership(ctx, ctx.me.tg_id, Number(body.id)), none),
   },
@@ -357,7 +369,7 @@ export const ACTIONS = {
     finished: true,
     async run(ctx, body, ev) {
       const fromEv = await getEvent(ctx.db, body.from);
-      if (!fromEv || fromEv.id === ev.id) return refuse('Выбери другое событие.');
+      if (!fromEv || fromEv.id === ev.id || fromEv.company_id !== ev.company_id) return refuse('Выбери другое событие.');
       if (isFinished(ev)) return refuse('Событие завершено — приглашать в него нельзя.');
       return out(await inviteFromEvent(ctx, ev, fromEv, ctx.me.tg_id), count);
     },
@@ -412,6 +424,8 @@ const UNKNOWN = { role: MEMBER, event: true, finished: true, run: unknown };
 
 const respond = (data) => (data instanceof Refusal ? fail(data.error, data.status) : json({ ok: true, ...data }));
 
+const NO_EVENT = 'Событие не найдено.';
+
 // ---------- конвейер проверок ----------
 
 export async function handleApi(request, env, action) {
@@ -428,26 +442,37 @@ export async function handleApi(request, env, action) {
   const row = Object.hasOwn(ACTIONS, action) ? ACTIONS[action] : admin ? UNKNOWN_ADMIN : UNKNOWN;
   if (row.role !== ANY && (!me || !me.registered)) return fail(NOT_REGISTERED, 403);
   if (admin) {
-    if (!me.is_admin) return fail(ADMIN_ONLY, 403);
-    // Владелец — сразу: если он в настройках недействителен, назначается самый ранний админ (не откладывать запись)
-    await ctx.ownerId();
+    // Общий признак: админ хотя бы в одной компании или владелец бота (050)
+    if (!me.is_admin && !(await ctx.isBotOwner())) return fail(ADMIN_ONLY, 403);
+    // Владелец бота — сразу: если он в настройках недействителен, назначается самый ранний админ (не откладывать запись)
+    await ctx.botOwnerId();
   }
-  const owner = async () => !row.owner || (await ctx.isOwner());
+  const owner = async (c) => !row.owner || (await c.isOwner());
 
   if (!(row.event === true || (row.event === 'given' && body.event))) {
-    if (!(await owner())) return fail(row.owner, 403);
-    return respond(await row.run(ctx, body));
+    if (!row.company) return respond(await row.run(ctx, body));
+    // Общее действие организатора — в компании из запроса или в единственной компании вызывающего
+    const id = Number(body.company) || (await ctx.soleCompany());
+    if (!id) return fail('Выбери компанию.');
+    const c = await ctx.in(id);
+    if (!c?.me.is_admin) return fail(ADMIN_ONLY, 403);
+    if (!(await owner(c))) return fail(row.owner, 403);
+    return respond(await row.run(c, body));
   }
   const ev = await getEvent(db, body.event);
-  if (!ev) return fail('Событие не найдено.', 404);
+  const c = ev && (await ctx.in(ev.company_id));
+  if (!c) return fail(NO_EVENT, 404);
   let member = null;
-  if (!admin) {
+  if (admin) {
+    // Событие чужой компании — как несуществующее: номера событий не выдают соседей (050, R9)
+    if (!c.me.is_admin) return fail(NO_EVENT, 404);
+  } else {
     member = await getMember(db, ev.id, me.tg_id);
-    if (!member && !(row.role === VIEWER && me.is_admin)) return fail(NOT_MEMBER, 403);
+    if (!member && !(row.role === VIEWER && c.me.is_admin)) return fail(NOT_MEMBER, 403);
   }
   if (isFinished(ev) && row.finished !== true) return fail(row.finished);
   // Владелец — после «событие завершено»: админ на завершённом событии получает 400, а не 403
-  if (!(await owner())) return fail(row.owner, 403);
+  if (!(await owner(c))) return fail(row.owner, 403);
   if (row.confirm && !confirmed(body, row.confirm[0])) return fail(row.confirm[1]);
-  return respond(await row.run(ctx, body, ev, member));
+  return respond(await row.run(c, body, ev, member));
 }
