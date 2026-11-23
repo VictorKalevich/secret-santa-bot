@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { startWorld } from './world.mjs';
 import { seeded } from './draw-cases.mjs';
+import { invariants } from './companies.mjs';
 
 // Случайные числа сценария — с зерном (017): жеребьёвка и замена после удаления берут Math.random, и без зерна удаление
 // после жеребьёвки меняло то одну пару, то две (2 или 3 сообщения в Telegram) — тест падал примерно в 10% прогонов.
@@ -93,5 +94,7 @@ async function scenario() {
   await w.cron(); note('cron (обычная минута)');
   await w.api(boss, 'admin.events.create', { title: 'Второе', from: ev.id, invite: true }); note('admin.events.create (по образцу + приглашения)');
   await w.api(boss, 'admin.event.delete', { event: ev.id, confirm: 'УДАЛИТЬ' }); note('admin.event.delete');
+  // 050: после всего сценария инварианты компаний держатся (data-model.md, I1–I6)
+  assert.deepEqual(invariants(w), [], 'инварианты компаний');
   return { rows, world: w, ms: performance.now() - t0 };
 }

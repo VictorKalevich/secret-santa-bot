@@ -3,7 +3,7 @@
 // adminFlagStmt. Владелец бота — администратор каждой компании, которую он ведёт (owner_id = 0, инвариант I2).
 
 import {
-  setSettings, setSettingStmt, allUsers, getEvent, userQuery, adminFlagStmt,
+  setSettings, setSettingStmt, getEvent, userQuery, adminFlagStmt,
   mergeMembership, personTransferStmts,
 } from './db.js';
 import { msg, escapeHtml, appKeyboard, displayName, adminRecipients } from './format.js';
@@ -41,21 +41,10 @@ export async function claimOwnerLink(env) {
   return r.meta.changes > 0;
 }
 
-// Владелец бота: settings.owner_id; если не задан или недействителен — самый ранний админ (FR-109).
-export async function resolveOwner(db, settings, users) {
-  users = users || (await allUsers(db));
-  const current = Number(settings.owner_id || 0);
-  if (users.some((u) => u.tg_id === current && u.is_admin)) return current;
-  const fallback = users.filter((u) => u.is_admin).sort((a, b) => a.created_at - b.created_at)[0];
-  const id = fallback ? fallback.tg_id : 0;
-  if (id !== current) await setSettings(db, { owner_id: String(id || '') });
-  settings.owner_id = String(id || '');
-  return id || null;
-}
-
-// Владелец бота (050): запись по настройке owner_id действительна, если она есть и users.is_admin = 1 (owner — эта
-// запись или null); иначе — самый ранний по времени регистрации администратор компаний, которые ведёт владелец бота.
-export async function resolveBotOwner(db, settings, owner) {
+// Владелец бота: settings.owner_id; если не задан или недействителен — самый ранний админ (FR-109). 050: запись по
+// настройке действительна, если она есть и users.is_admin = 1 (owner — эта запись или null); иначе — самый ранний по
+// времени регистрации администратор компаний, которые ведёт владелец бота.
+export async function resolveOwner(db, settings, owner) {
   const current = Number(settings.owner_id || 0);
   if (owner && owner.tg_id === current && owner.is_admin) return current;
   const fallback = await db
@@ -187,7 +176,7 @@ const staffOfQuery = (db, userId) => db.prepare(
     WHERE u.tg_id IN (SELECT a.user_id FROM company_members a JOIN company_members p ON p.company_id = a.company_id
                        WHERE p.user_id = ?1 AND a.is_admin = 1)
        OR u.tg_id IN (SELECT c.owner_id FROM companies c JOIN company_members p ON p.company_id = c.id WHERE p.user_id = ?1)
-       OR (u.is_admin = 1 AND u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'))`
+       OR u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')`
 ).bind(userId);
 
 // Перенос человека целиком (050): участия во всех компаниях. Цель — не владелец бота, не администратор где-нибудь

@@ -6,13 +6,14 @@
 //
 // Компании (050, specs/050-company-scope/contracts/company-scope.md): общий контекст знает компании, свои строки
 // вызывающего и владельца бота; ctx.in(companyId) — контекст, привязанный к компании: users(), ownerId(), isOwner(),
-// me.is_admin и read({ users: true }) в нём значат «в этой компании». Модули работают только с привязанным контекстом.
+// me.is_admin и read({ users: true }) в нём значат «в этой компании». Модули работают только с привязанным контекстом:
+// у общего users(), ownerId(), isOwner() и read({ users: true }) бросают ошибку «контекст без компании».
 
 import {
-  readMany, userQuery, settingsQuery, settingsFrom, usersQuery, getSettings, allUsers,
+  readMany, userQuery, settingsQuery, settingsFrom, getSettings,
   companiesQuery, myCompaniesQuery, botOwnerQuery, companyUsersQuery, companyUsersFrom,
 } from './db.js';
-import { resolveOwner, resolveBotOwner } from './roles.js';
+import { resolveOwner } from './roles.js';
 
 // Обещание в кэше; при ошибке — забыть его
 function remember(promise, forget) {
@@ -26,6 +27,11 @@ const SETTINGS = '\u0000settings';
 const COMPANIES = '\u0000companies';
 
 const companiesFrom = (rows) => new Map(rows.map((c) => [c.id, { id: c.id, owner_id: c.owner_id }]));
+
+// Люди, владелец и «я владелец» есть только у контекста компании (ctx.in): общий контекст их не знает
+const noCompany = () => {
+  throw new Error('контекст без компании');
+};
 const mineFrom = (rows) => new Map(rows.map((r) => [r.company_id, { is_admin: r.is_admin, label: r.label }]));
 
 // first — строки первого пакета (openContext): mine, companies, owner (запись владельца бота по настройке)
@@ -36,8 +42,6 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
   let mineP = first ? Promise.resolve(mineFrom(first.mine)) : null;
   let ownerRowP = first ? Promise.resolve(first.owner[0] ?? null) : null;
   let botOwnerP = null;
-  let usersP = null;
-  let ownerP = null;
   const bound = new Map();
   const live = new Set(); // готовые привязанные контексты (forgetUsers сбрасывает и их людей)
 
@@ -81,7 +85,7 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
         if (!settingsP) settingsP = Promise.resolve(settingsFrom(r.settings));
         ownerRowP = Promise.resolve(r.owner[0] ?? null);
       }
-      return resolveBotOwner(db, await ctx.settings(), await ownerRowP);
+      return resolveOwner(db, await ctx.settings(), await ownerRowP);
     })(), () => { botOwnerP = null; })),
     isBotOwner: async () => !!me && (await ctx.botOwnerId()) === me.tg_id,
     // Единственная компания вызывающего (общее действие организатора без поля company) или 0: у человека — единственная
@@ -101,28 +105,19 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
       if (!bound.has(id)) bound.set(id, remember(bindCompany(ctx, id), () => bound.delete(id)));
       return bound.get(id);
     },
-    // Временно (до снятия в 050, T019): общий список людей и владелец — как до компаний
-    users: () => (usersP ||= remember(allUsers(db), () => { usersP = null; })),
-    ownerId: () => (ownerP ||= remember(
-      Promise.all([ctx.settings(), ctx.users()]).then(([s, u]) => resolveOwner(db, s, u)),
-      () => { ownerP = null; },
-    )),
-    isOwner: async () => !!ctx.me && (await ctx.ownerId()) === ctx.me.tg_id,
+    users: noCompany,
+    ownerId: noCompany,
+    isOwner: noCompany,
     read(want = {}) {
-      return readWith({
-        get: () => usersP,
-        set: (p) => { usersP = p; },
-        query: () => usersQuery(db),
-        from: (rows) => rows,
-        users: () => ctx.users(),
-      }, want);
+      if (want.users) noCompany();
+      return readWith({ get: noCompany }, want);
     },
-    // Вызов сам добавил пользователя (ссылка владельца в чате): следующее чтение списка и владельца — заново
+    // Вызов сам добавил пользователя (ссылка владельца в чате): следующее чтение людей и владельца — заново
     forgetUsers() {
-      usersP = null;
-      ownerP = null;
       ownerRowP = null;
       botOwnerP = null;
+      mineP = null; // права в компаниях могли измениться: следующий ctx.in считает их заново
+      bound.clear();
       for (const c of live) c.forgetUsers();
     },
   };

@@ -77,14 +77,9 @@ export async function setSettings(db, obj) {
 // ---------- users ----------
 
 export const userQuery = (db, id) => db.prepare('SELECT * FROM users WHERE tg_id = ?').bind(id);
-export const usersQuery = (db) => db.prepare('SELECT * FROM users ORDER BY created_at');
 
 export async function getUser(db, id) {
   return userQuery(db, id).first();
-}
-
-export async function allUsers(db) {
-  return (await usersQuery(db).all()).results;
 }
 
 export function createUserStmt(db, id, username, fields = {}) {
@@ -114,7 +109,7 @@ export const companyUsersQuery = (db, companyId) => db.prepare(
   `SELECT u.*, COALESCE(cm.is_admin, 0) AS company_admin, cm.user_id IS NULL AS guest
      FROM users u LEFT JOIN company_members cm ON cm.company_id = ? AND cm.user_id = u.tg_id
     WHERE cm.user_id IS NOT NULL
-       OR (u.is_admin = 1 AND u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'))
+       OR u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')
     ORDER BY u.created_at, u.tg_id`
 ).bind(companyId);
 
