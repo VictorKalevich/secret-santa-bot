@@ -182,8 +182,8 @@ async function ownerChange(ctx, { next, target, actor, code = '' }) {
       : NEW_COMPANY_OWNER, appKeyboard(settings, '🛠 Открыть')));
   }
   if (!next && !fromBot) a.enqueue(botOwnerId, msg(`👑 ${by} передал(а) тебе компанию ${quoted(company.name)}: её снова ведёшь ты.`));
-  // Прежний назначенный владелец остаётся администратором
-  if (prev) {
+  // Прежний назначенный владелец остаётся администратором (передал сам — видит итог в приложении)
+  if (prev && prev !== actor.tg_id) {
     a.enqueue(prev, msg(next
       ? `ℹ️ Права владельца компании теперь у ${who}. Ты остаёшься администратором.`
       : 'ℹ️ Компанию снова ведёт владелец бота. Ты остаёшься администратором.'));

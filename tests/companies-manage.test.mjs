@@ -241,8 +241,9 @@ describe('051: владелец компании (US2)', () => {
   });
 
   it('передача владельцем компании: новый — владелец, прежний — администратор; сообщения и отказы', async () => {
-    const [ty, tb, tq] = [z.w.texts(y).length, z.w.texts(boss).length, z.w.texts(q).length];
+    const [ty, tb, tq, tx] = [z.w.texts(y).length, z.w.texts(boss).length, z.w.texts(q).length, z.w.texts(x).length];
     await z.ok(x, 'admin.owner.transfer', { company: C, id: y.id });
+    assert.equal(z.w.texts(x).length, tx, 'передал сам — без сообщения');
     assert.equal(z.company(C).owner_id, y.id);
     assert.equal(z.row(C, x.id).is_admin, 1, 'прежний владелец остаётся администратором');
     assert.match(z.w.texts(y).slice(ty).join('\n'), /Тебе переданы права владельца компании/);
