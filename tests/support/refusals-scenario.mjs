@@ -7,9 +7,9 @@
 // слов подтверждения, людей и текстов) — опасные действия получают отказ по данным, а не по правам. Админ и владелец
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
 //
-// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 040: NEW_ACTIONS_040, 041, 042, 048),
+// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 040: NEW_ACTIONS_040, 041, 042, 048, 051),
 // проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются; их
-// ответы — новые ключи эталона «035 …», «038 …», «040 …», «041 …», «042 …» и «048 …».
+// ответы — новые ключи эталона «035 …», «038 …», «040 …», «041 …», «042 …», «048 …» и «051 …».
 import { startWorld } from './world.mjs';
 
 // 59 действий в порядке прежних `case` в src/api.js: 13 участника, 11 общих админа, 35 — в пределах события
@@ -38,6 +38,8 @@ export const NEW_ACTIONS_042 = ['ward.shipment'];
 export const NEW_ACTIONS_041 = ['wishlist.draft', 'wishlist.publish'];
 // 048: обмен подопечных после жеребьёвки — только владелец
 export const NEW_ACTIONS_048 = ['admin.draw.swap.check', 'admin.draw.swap'];
+// 051: компании — своё название и действия владельца бота
+export const NEW_ACTIONS_051 = ['company.label.set', 'bot.company.create', 'bot.company.link', 'bot.company.delete', 'bot.owner.transfer', 'bot.audit'];
 
 const MISSING = 999999;
 const WEEK = 7 * 24 * 3600 * 1000;
@@ -226,5 +228,33 @@ export async function runRefusals() {
     ['swap.check-admin', adm, 'admin.draw.swap.check', { event: S, a: member.id, b: outsider.id }],
   ];
   for (const [name, user, action, b] of extra048) await record(`048 extra ${name}`, user, action, b);
+
+  // ---------- 051: компании — те же ситуации; названия, повтор создания, слово, «есть события», владелец ----------
+  for (const [name, user, ev] of situations) {
+    for (const a of NEW_ACTIONS_051) await record(`051 ${name} ${a}`, user, a, body(await ev()));
+  }
+  // Участник — ещё и во второй компании: имя меняет он сам
+  const second = (await w.api(boss, 'bot.company.create', { name: 'Работа' })).company;
+  w.sql(`INSERT INTO company_members (company_id, user_id, is_admin, joined_at) VALUES (${second}, ${member.id}, 0, 1)`);
+  const extra051 = [
+    ['create-repeat', boss, 'bot.company.create', { name: 'Работа' }],
+    ['label-long', member, 'company.label.set', { company: 1, label: 'я'.repeat(41) }],
+    ['label-missing', member, 'company.label.set', { company: MISSING, label: 'Своя' }],
+    ['label-not-visible', outsider, 'company.label.set', { company: second, label: 'Своя' }],
+    ['create-blank', boss, 'bot.company.create', { name: '   ' }],
+    ['create-long', boss, 'bot.company.create', { name: 'я'.repeat(41) }],
+    ['link-missing', boss, 'bot.company.link', { company: MISSING, on: true }],
+    ['delete-word', boss, 'bot.company.delete', { company: 1, confirm: 'СБРОС' }],
+    ['delete-has-events', boss, 'bot.company.delete', { company: 1, confirm: 'УДАЛИТЬ' }],
+    ['delete-missing', boss, 'bot.company.delete', { company: MISSING, confirm: 'УДАЛИТЬ' }],
+    ['owner.transfer-admin', adm, 'admin.owner.transfer', { company: 1, id: adm.id }],
+    ['owner.transfer-self', boss, 'admin.owner.transfer', { company: 1, id: boss.id }],
+    ['owner.transfer-stranger', boss, 'admin.owner.transfer', { company: 1, id: stranger.id }],
+    ['owner.transfer-no-company', boss, 'admin.owner.transfer', { id: adm.id }],
+    ['bot.owner.transfer-self', boss, 'bot.owner.transfer', { id: boss.id }],
+    ['bot.owner.transfer-admin', adm, 'bot.owner.transfer', { id: adm.id }],
+    ['rename-many-companies', adm, 'admin.rename', { id: member.id, name: 'Иное' }],
+  ];
+  for (const [name, user, action, b] of extra051) await record(`051 extra ${name}`, user, action, b);
   return { actions: ACTION_LIST, cases };
 }

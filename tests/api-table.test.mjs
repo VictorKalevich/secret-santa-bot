@@ -12,8 +12,14 @@ const filled = (s) => typeof s === 'string' && s.trim().length > 0;
 function rowProblems(name, row) {
   const p = [];
   const admin = name.startsWith('admin.');
+  const bot = name.startsWith('bot.');
   if (!ROLE_SET.has(row.role)) p.push(`${name}: роль не из списка (${row.role})`);
   else if (admin !== (row.role === ROLES.ADMIN || row.role === ROLES.OWNER)) p.push(`${name}: роль ${row.role} не для ${admin ? 'admin.*' : 'участника'}`);
+  // 051: действия владельца бота — bot.* с ролью BOT, без события и без компании конвейера
+  if (bot !== (row.role === ROLES.BOT)) p.push(`${name}: роль BOT — тогда и только тогда, когда имя bot.*`);
+  if (bot && (row.event !== undefined || row.company !== undefined)) p.push(`${name}: bot.* — без события и без company`);
+  // Признак bot у admin.* — «только владелец бота» после проверки владельца (admin.transfer)
+  if (row.bot !== undefined && !(row.bot === true && row.role === ROLES.OWNER)) p.push(`${name}: bot — только true и только у роли OWNER`);
   if ((row.role === ROLES.OWNER) !== filled(row.owner)) p.push(`${name}: текст отказа владельца — тогда и только тогда, когда роль OWNER`);
   if (row.event !== undefined && row.event !== true && row.event !== 'given') p.push(`${name}: event — true, 'given' или не задано`);
   if (row.event && row.finished !== true && !filled(row.finished)) p.push(`${name}: у действия события не задано, что в завершённом событии`);
@@ -29,10 +35,11 @@ function rowProblems(name, row) {
   return p;
 }
 
-test('таблица действий: 68 строк (20 действий участника, 48 admin.*), каждая — по правилам', () => {
+test('таблица действий: 74 строки (21 действие участника, 48 admin.*, 5 bot.*), каждая — по правилам', () => {
   const names = Object.keys(ACTIONS);
-  assert.equal(names.length, 68);
+  assert.equal(names.length, 74);
   assert.equal(names.filter((a) => a.startsWith('admin.')).length, 48);
+  assert.deepEqual(names.filter((a) => a.startsWith('bot.')).sort(), ['bot.audit', 'bot.company.create', 'bot.company.delete', 'bot.company.link', 'bot.owner.transfer']);
   assert.deepEqual(names.flatMap((n) => rowProblems(n, ACTIONS[n])), []);
 });
 
@@ -43,10 +50,10 @@ test('таблица действий: действия владельца и с
     'admin.reset.full', 'admin.role.grant', 'admin.role.revoke', 'admin.transfer', 'admin.vault.pairs', 'admin.vault.person',
   ]);
   const words = Object.fromEntries(Object.entries(ACTIONS).filter(([, r]) => r.confirm).map(([a, r]) => [a, r.confirm[0]]));
-  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер; 035: выход из события — ВЫЙТИ
+  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер; 035: выход из события — ВЫЙТИ; 051: удаление компании
   assert.deepEqual(words, {
     'event.leave': 'ВЫЙТИ', 'admin.draw.cancel.force': 'ОТМЕНА', 'admin.event.delete': 'УДАЛИТЬ', 'admin.vault.person': 'ОТКРЫТЬ',
-    'admin.vault.pairs': 'ОТКРЫТЬ', 'admin.reset.full': 'СБРОС',
+    'admin.vault.pairs': 'ОТКРЫТЬ', 'admin.reset.full': 'СБРОС', 'bot.company.delete': 'УДАЛИТЬ',
   });
 });
 
@@ -62,4 +69,10 @@ test('таблица действий: «от противного» — стр�
   assert.match(rowProblems('admin.x', { ...common, company: undefined }).join('\n'), /admin\.x: admin\.\* без event: true — нужен company/);
   assert.match(rowProblems('admin.x', { ...row, company: true }).join('\n'), /admin\.x: company — только true/);
   assert.match(rowProblems('ward.x', { ...ACTIONS['ward.get'], company: true }).join('\n'), /ward\.x: company — только true/);
+  // 051: роль BOT — только у bot.*, bot.* — без события; признак bot — только у OWNER
+  assert.match(rowProblems('bot.x', { ...ACTIONS.me }).join('\n'), /bot\.x: роль BOT — тогда и только тогда/);
+  assert.match(rowProblems('me.x', { ...ACTIONS.me, role: ROLES.BOT }).join('\n'), /me\.x: роль BOT — тогда и только тогда/);
+  assert.match(rowProblems('bot.x', { ...ACTIONS.me, role: ROLES.BOT, event: true, finished: true }).join('\n'), /bot\.x: bot\.\* — без события/);
+  assert.match(rowProblems('admin.x', { ...row, bot: true }).join('\n'), /admin\.x: bot — только true и только у роли OWNER/);
+  assert.deepEqual(rowProblems('admin.transfer', ACTIONS['admin.transfer']), []);
 });

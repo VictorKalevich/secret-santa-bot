@@ -150,12 +150,13 @@ export async function familiesList(ctx) {
 
 // ---------- участие админа и возврат удалённых (019: из api.js) ----------
 
-const AFTER_DRAW = 'После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.';
+// 051: в компании с назначенным владельцем — «владельца», в компании владельца бота — прежний текст (ownerWord)
+const AFTER_DRAW = (w) => `После жеребьёвки так нельзя. Попроси ${w.gen} вписать тебя.`;
 
 // «Я участвую» админа: вход и выход — только до жеребьёвки (вписывает после неё только владелец, 012)
 export async function participate(ctx, ev, on, actor) {
   const db = ctx.db;
-  if (ev.draw_done) return no(AFTER_DRAW);
+  if (ev.draw_done) return no(AFTER_DRAW(ctx.ownerWord()));
   if (on) {
     await db.batch([
       joinCompanyStmt(db, ev.company_id, actor), addMemberStmt(db, ev, actor), clearRemovedStmt(db, ev.id, actor),
@@ -169,7 +170,7 @@ export async function participate(ctx, ev, on, actor) {
   const beforeDraw = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)', ev.id);
   beforeDraw.claim(beforeDraw.audit(ev.id, actor, 'participate', 'не участвует'));
   beforeDraw.add(...memberDataDeleteStmts(db, ev.id, actor, ...beforeDraw.guard));
-  return (await beforeDraw.run()).won ? { ok: true } : no(AFTER_DRAW);
+  return (await beforeDraw.run()).won ? { ok: true } : no(AFTER_DRAW(ctx.ownerWord()));
 }
 
 const LEAVE_AFTER_DRAW = 'Жеребьёвка уже прошла. Чтобы выйти, обратись к владельцу или администраторам.';
@@ -333,7 +334,7 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
   p.enqueue(req.user_id, approve
     ? msg(
       ev.draw_done
-        ? `🎉 Заявка одобрена — ты в событии ${q(ev)}! Жеребьёвка уже прошла — владелец бота впишет тебя, бот пришлёт уведомление. А пока напиши письмо Санте.`
+        ? `🎉 Заявка одобрена — ты в событии ${q(ev)}! Жеребьёвка уже прошла — ${ctx.ownerWord().nom} впишет тебя, бот пришлёт уведомление. А пока напиши письмо Санте.`
         : `🎉 Заявка одобрена — ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`,
       appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }))
     : msg(requestRejected(ev)));

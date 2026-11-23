@@ -14,6 +14,7 @@ import {
   companiesQuery, myCompaniesQuery, botOwnerQuery, companyUsersQuery, companyUsersFrom,
 } from './db.js';
 import { resolveOwner } from './roles.js';
+import { ownerWord } from './format.js';
 
 // Обещание в кэше; при ошибке — забыть его
 function remember(promise, forget) {
@@ -26,13 +27,14 @@ const USERS = '\u0000users';
 const SETTINGS = '\u0000settings';
 const COMPANIES = '\u0000companies';
 
-const companiesFrom = (rows) => new Map(rows.map((c) => [c.id, { id: c.id, owner_id: c.owner_id }]));
+// name и link (051) — только для ответов владельцу бота
+const companiesFrom = (rows) => new Map(rows.map((c) => [c.id, { id: c.id, owner_id: c.owner_id, name: c.name, link: !!c.link }]));
 
 // Люди, владелец и «я владелец» есть только у контекста компании (ctx.in): общий контекст их не знает
 const noCompany = () => {
   throw new Error('контекст без компании');
 };
-const mineFrom = (rows) => new Map(rows.map((r) => [r.company_id, { is_admin: r.is_admin, label: r.label }]));
+const mineFrom = (rows) => new Map(rows.map((r) => [r.company_id, { is_admin: r.is_admin, label: r.label, joined_at: r.joined_at }]));
 
 // first — строки первого пакета (openContext): mine, companies, owner (запись владельца бота по настройке)
 export function makeContext(env, { me = null, settings = null, first = null } = {}) {
@@ -103,14 +105,17 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
     users: noCompany,
     ownerId: noCompany,
     isOwner: noCompany,
+    ownerWord: noCompany,
     read(want = {}) {
       if (want.users) noCompany();
       return readWith({ get: noCompany }, want);
     },
-    // Вызов сам добавил пользователя (ссылка владельца в чате): следующее чтение людей и владельца — заново
+    // Вызов сам добавил пользователя или сменил владельца (ссылки владельца в чате): следующее чтение людей, компаний и
+    // владельца — заново
     forgetUsers() {
       ownerRowP = null;
       botOwnerP = null;
+      companiesP = null; // 051: владелец компании мог смениться
       mineP = null; // права в компаниях могли измениться: следующий ctx.in считает их заново
       bound.clear();
       for (const c of live) c.forgetUsers();
@@ -138,6 +143,8 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
       )),
       ownerId: async () => company.owner_id || (await base.botOwnerId()) || null,
       isOwner: async () => !!me && ((await c.ownerId()) === me.tg_id || (await base.isBotOwner())),
+      // Как назвать того, кто может действие владельца (051): компанию ведёт владелец бота — «владелец бота»
+      ownerWord: () => ownerWord(!company.owner_id),
       read(want = {}) {
         return readWith({
           get: () => cUsersP,

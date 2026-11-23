@@ -1,6 +1,6 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 60 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 66 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
@@ -10,8 +10,9 @@
 // жеребьёвка в обоих порядках, имя ×2); три — регистрация в боте (047: «Участвовать как …» ×2 в одну миллисекунду,
 // нажатие ↔ имя текстом в обоих порядках); три — обмен подопечных (048: ×2 в одну миллисекунду, обмен ↔ вписывание в
 // обоих порядках); одна — роли в двух компаниях (050: назначение в А и в Б одновременно, ×2 в одной компании в одну
-// миллисекунду). После сценариев с ролями и переносом — инварианты компаний (050, tests/support/companies.mjs). Известный
-// дефект — todo с номером фичи, которая его чинит: фича снимает пометку; сейчас таких нет.
+// миллисекунду); шесть — компании (051: два перехода по ссылке владельца в одну миллисекунду, назначение ×2, «Вести самому»
+// ↔ передача и новая ссылка ↔ переход — в обоих порядках). После сценариев с ролями и переносом — инварианты компаний
+// (050, tests/support/companies.mjs). Известный дефект — todo с номером фичи, которая его чинит: фича снимает пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
@@ -246,12 +247,15 @@ describe('атомарность: повторные нажатия (024)', () =
       assert.equal(z.audit('role.revoke'), 1);
       assert.equal(z.audit('support.return'), 1);
     });
-    it('admin.owner.transfer ×2 — одна передача', async () => {
-      const rs = await z.twice(boss, 'admin.owner.transfer', { id: adm.id }, once);
+    // 051: права владельца бота передаёт bot.owner.transfer (прежний admin.owner.transfer); запись — в журнале компании и
+    // в журнале бота
+    it('bot.owner.transfer ×2 — одна передача', async () => {
+      const rs = await z.twice(boss, 'bot.owner.transfer', { id: adm.id }, once);
       assert.deepEqual(sorted(rs), [200, 400]);
       assert.equal(refusal(rs), 'Права владельца уже переданы.');
       assert.equal(z.sent(adm, 'Тебе переданы права владельца'), 1);
-      assert.equal(z.audit('owner.transfer'), 1);
+      assert.equal(z.audit('owner.transfer'), 2);
+      assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'owner.transfer' AND company_id = 0")[0].n, 1);
     });
     it('после ролей и передачи владения инварианты компаний держатся (050)', () => {
       assert.deepEqual(invariants(z.w), []);
@@ -737,6 +741,82 @@ describe('атомарность: обмен подопечных (048)', () => 
       whole(z);
       assert.equal(z.audit('draw.swap'), writeOrder[0] === 0 ? 1 : 0);
       assert.equal(z.audit('member.insert'), writeOrder[0] === 0 ? 0 : 1);
+    });
+  }
+});
+
+describe('атомарность: компании (051)', () => {
+  const GONE = 'Эта ссылка владельца уже использована или отозвана. Попроси новую.';
+  // Мир atomic и вторая компания «Клуб» с событием: игроки 1–4 — её люди
+  async function club() {
+    const z = await world();
+    z.C = (await z.w.api(boss, 'bot.company.create', { name: 'Клуб' })).company;
+    const ev = (await z.w.api(boss, 'admin.events.create', { company: z.C, title: 'Клубное' })).event.id;
+    const code = inviteOf(await z.w.api(boss, 'admin.state', { event: ev }));
+    for (const u of z.people.slice(0, 4)) await z.w.say(u, '/start ' + code);
+    z.owner = () => z.w.query('SELECT owner_id FROM companies WHERE id = ?', z.C)[0].owner_id;
+    z.code = () => z.w.query('SELECT owner_code FROM companies WHERE id = ?', z.C)[0].owner_code;
+    z.link = async () => /start=(own_[a-z0-9]+)/.exec((await z.w.api(boss, 'bot.company.link', { company: z.C, on: true })).link)[1];
+    return z;
+  }
+
+  it('два перехода по ссылке в одну миллисекунду (разные люди) — один владелец, одно сообщение владельцу бота', async () => {
+    const z = await club();
+    const [p, q] = z.people;
+    const code = await z.link();
+    await z.w.together([() => z.w.say(p, '/start ' + code), () => z.w.say(q, '/start ' + code)], { sameMoment: true });
+    assert.ok([p.id, q.id].includes(z.owner()));
+    const [won, lost] = z.owner() === p.id ? [p, q] : [q, p];
+    assert.equal(z.sent(boss, 'теперь владелец компании'), 1);
+    assert.equal(z.sent(won, '👑 Ты — владелец своей компании'), 1);
+    assert.equal(z.sent(lost, GONE), 1);
+    assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.owner' AND company_id = ?", z.C)[0].n, 1);
+    assert.deepEqual(invariants(z.w), []);
+  });
+
+  it('admin.owner.transfer ×2 в одну миллисекунду — одно назначение, одно сообщение, по записи в журналах', async () => {
+    const z = await club();
+    const [p] = z.people;
+    const rs = await z.twice(boss, 'admin.owner.transfer', { company: z.C, id: p.id }, { sameMoment: true });
+    assert.deepEqual(sorted(rs), [200, 400]);
+    assert.equal(rs.find((r) => r.status === 400).data.error, 'Права владельца уже переданы.');
+    assert.equal(z.owner(), p.id);
+    assert.equal(z.sent(p, '👑 Ты — владелец своей компании'), 1);
+    assert.equal(z.audit('company.owner'), 2, 'журнал компании и журнал бота');
+    assert.deepEqual(invariants(z.w), []);
+  });
+
+  for (const [first, writeOrder] of [['«Вести самому»', [0, 1]], ['передача', [1, 0]]]) {
+    it(`«Вести самому» ↔ передача владельцем компании, первым пишет ${first} — одна смена`, async () => {
+      const z = await club();
+      const [p, q] = z.people;
+      await z.w.api(boss, 'admin.owner.transfer', { company: z.C, id: p.id });
+      await z.w.api(p, 'admin.role.grant', { company: z.C, id: q.id });
+      const rs = await z.w.together([
+        () => z.w.api(boss, 'admin.owner.transfer', { company: z.C, id: boss.id }, true),
+        () => z.w.api(p, 'admin.owner.transfer', { company: z.C, id: q.id }, true),
+      ], { writeOrder });
+      assert.deepEqual(statuses(rs), writeOrder[0] === 0 ? [200, 400] : [400, 200]);
+      assert.equal(z.owner(), writeOrder[0] === 0 ? 0 : q.id);
+      assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.owner' AND company_id = ?", z.C)[0].n, 2);
+      assert.deepEqual(invariants(z.w), []);
+    });
+  }
+
+  for (const [first, writeOrder] of [['новая ссылка', [0, 1]], ['переход', [1, 0]]]) {
+    it(`новая ссылка ↔ переход по прежней, первым пишет ${first} — ссылка в ответе действует`, async () => {
+      const z = await club();
+      const [p] = z.people;
+      const old = await z.link();
+      const [made] = await z.w.together([
+        () => z.w.api(boss, 'bot.company.link', { company: z.C, on: true }, true),
+        () => z.w.say(p, '/start ' + old),
+      ], { writeOrder });
+      assert.equal(z.owner(), writeOrder[0] === 0 ? 0 : p.id);
+      assert.equal(z.sent(p, GONE), writeOrder[0] === 0 ? 1 : 0);
+      assert.ok(z.code(), 'ссылка действует');
+      assert.equal(made.data.link.endsWith('own_' + z.code()), true, 'владельцу бота — действующая ссылка');
+      assert.deepEqual(invariants(z.w), []);
     });
   }
 });

@@ -4,7 +4,9 @@ import {
   getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt,
   updateEventStmt, updateEventIfStmt, auditStmt, eventDataDeleteStmts,
 } from './db.js';
-import { msg, q, escapeHtml, formatDate, formatMs, appKeyboard, inviteLink, randomCode, oneLine, cleanText, NO_DRAW, PAIRS_RACE } from './format.js';
+import {
+  msg, q, escapeHtml, formatDate, formatMs, appKeyboard, inviteLink, randomCode, oneLine, cleanText, NO_DRAW, PAIRS_RACE, COMPANY_NOT_FOUND,
+} from './format.js';
 import { EVENT_PARAMS, EVENT_STATE_RESET, eventDefaults, templateValues, paramValue } from './event-params.js';
 
 import { CHAT_GRACE_MS, isFinished } from './status.js';
@@ -31,20 +33,25 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
   // Параметры — по списку EVENT_PARAMS (029): копируемые — из образца, остальные задаёт схема
   const fields = { company_id: cid, title: clean, created_at: Date.now(), created_by: createdBy, invite_code: code, ...templateValues(from) };
   const cols = Object.keys(fields);
-  // Новый эвент в остальных операторах batch находим по уникальному коду приглашения
+  // Новый эвент в остальных операторах batch находим по уникальному коду приглашения. 051: событие вставляется, только
+  // если компания ещё есть (её могли удалить одновременно); нет события — нет и остальных строк
   const newId = '(SELECT id FROM events WHERE invite_code = ?)';
   const stmts = [
-    db.prepare(`INSERT INTO events (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')}) RETURNING *`)
-      .bind(...cols.map((k) => fields[k])),
+    db.prepare(`INSERT INTO events (${cols.join(', ')}) SELECT ${cols.map(() => '?').join(', ')}
+                 WHERE EXISTS (SELECT 1 FROM companies WHERE id = ?) RETURNING *`)
+      .bind(...cols.map((k) => fields[k]), cid),
   ];
   if (from) {
-    stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions WHERE event_id = ?`)
-      .bind(code, from.id));
+    stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions
+                            WHERE event_id = ? AND EXISTS ${newId}`)
+      .bind(code, from.id, code));
   }
-  stmts.push(db.prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) VALUES (${newId}, ?, ?, 'event.create', ?, ?)`)
-    .bind(code, cid, createdBy, from ? `по образцу «${from.title}»` : '', Date.now()));
+  stmts.push(db.prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) SELECT id, ?, ?, 'event.create', ?, ?
+                          FROM events WHERE invite_code = ?`)
+    .bind(cid, createdBy, from ? `по образцу «${from.title}»` : '', Date.now(), code));
   const [ins] = await db.batch(stmts);
   const row = ins.results[0];
+  if (!row) return no(COMPANY_NOT_FOUND, 404);
   let invited = 0;
   let inviteError = '';
   if (from && invite) {

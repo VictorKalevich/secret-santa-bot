@@ -34,6 +34,13 @@ export function displayName(u) {
   return u?.name || (u?.username ? '@' + u.username : 'Кто-то');
 }
 
+// Кто может действие владельца (051): в компании, которую ведёт владелец бота (botRun), — «владелец бота», в компании с
+// назначенным владельцем — «владелец». Формы по падежам: именительный, родительный, дательный, творительный
+export function ownerWord(botRun) {
+  const tail = botRun ? ' бота' : '';
+  return { nom: 'владелец' + tail, gen: 'владельца' + tail, dat: 'владельцу' + tail, ins: 'владельцем' + tail };
+}
+
 // Кому из админов писать: зарегистрированные администраторы, кроме перечисленных
 export function adminRecipients(users, exclude = []) {
   return users.filter((u) => u.is_admin && u.registered && !exclude.includes(u.tg_id));
@@ -91,6 +98,7 @@ export const ADMIN_ONLY = 'Только для администратора.';
 export const NO_DRAW = 'Жеребьёвка ещё не проведена.';
 export const PAIRS_RACE = 'Пары изменились одновременно с этим действием — попробуй ещё раз.';
 export const NOT_MEMBER = 'Ты не участвуешь в этом событии.';
+export const COMPANY_NOT_FOUND = 'Компания не найдена.'; // 051: удаление компании и создание события в ней
 // 034: те же тексты показывает приложение (свои копии в 07-sheet-chat — сверяет тест behavior)
 export const CHAT_READ_ONLY = 'Событие завершено больше недели назад — переписка только для чтения.';
 export const SUPPORT_READ_ONLY = 'Событие завершено больше недели назад — обращения только для чтения.';

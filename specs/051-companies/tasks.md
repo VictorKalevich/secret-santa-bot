@@ -22,16 +22,16 @@
   личные; принцип VII — «владелец бота ⊇ владелец компании ⊇ администратор», что остаётся только владельцу бота;
   «Безопасность и данные» — ссылка владельца компании, журнал бота; Sync Impact Report. Без этой задачи код этапа 4 не
   сливается.
-- [ ] T003 `src/format.js`: `ownerWord(botRun)` → `{ nom, gen, dat, ins }` (контракт, раздел 6); `src/context.js`:
+- [X] T003 `src/format.js`: `ownerWord(botRun)` → `{ nom, gen, dat, ins }` (контракт, раздел 6); `src/context.js`:
   `ctx.ownerWord()` привязанного контекста; `companies()` дополнительно читает `name` и признак «ссылка действует» (в
   ответы уходит только владельцу бота).
-- [ ] T004 `src/api.js`: роль `ROLES.BOT` и её проверка в конвейере (403 «Только для владельца бота.»); признак
+- [X] T004 `src/api.js`: роль `ROLES.BOT` и её проверка в конвейере (403 «Только для владельца бота.»); признак
   `bot: true` у `admin.transfer`; текст отказа владельца — от компании вызова (`onlyOwner` через `ownerWord`).
   `tests/api-table.test.mjs`: правила для роли `BOT` (без события, имя с `bot.`) и признака `bot`.
-- [ ] T005 `src/db.js`: `REGISTRY` — `onCompanyDelete` у таблиц с ключом `company` (data-model), построитель
+- [X] T005 `src/db.js`: `REGISTRY` — `onCompanyDelete` у таблиц с ключом `company` (data-model), построитель
   `companyDataDeleteStmts`; `tests/data-registry.test.mjs`: решение обязательно у каждой таблицы с `company`, после
   построителя не остаётся строк компании, «от противного».
-- [ ] T006 [P] `tests/support/companies.mjs`: `invariants` += I3, I7, I8; помощники сценариев — `newCompany(w, boss,
+- [X] T006 [P] `tests/support/companies.mjs`: `invariants` += I3, I7, I8; помощники сценариев — `newCompany(w, boss,
   name)` (настоящим действием), `ownerByLink(w, boss, company, user)`.
 
 ## Этап 3. US1 — владелец бота создаёт компанию (P1)
@@ -39,16 +39,16 @@
 Цель: компания создаётся действием, название видит только владелец бота, `me` отдаёт список.
 Независимая проверка: `tests/companies-manage.test.mjs`, раздел «создание».
 
-- [ ] T007 [US1] Создать `src/companies.js`: `createCompany(ctx, name)` — `atomic` (компания, строка владельца бота
+- [X] T007 [US1] Создать `src/companies.js`: `createCompany(ctx, name)` — `atomic` (компания, строка владельца бота
   `is_admin = 1`, журнал бота `company.create`, повтор названия за минуту — отказ); `setLabel(ctx, companyId, label)` —
   владельцу бота название компании, остальным своё; правила длины и тексты — контракт, раздел 2.
-- [ ] T008 [US1] `src/participant.js` (`homeView`) и `src/companies.js` (`companiesView`): `me.companies` (видимость, роль,
+- [X] T008 [US1] `src/participant.js` (`homeView`) и `src/companies.js` (`companiesView`): `me.companies` (видимость, роль,
   `organizer`, `owner`, `bot_run`, `owner_name`, `events`, `active`, `unread`, название по data-model; владельцу бота —
   `people`, `owner_id`, `link`), `events[].company`; `eventView` → `event.company`. Чтения — в существующем пакете
   `homeView`; `tests/queries.test.mjs`: `me` — по-прежнему в пределах `BASELINE`.
-- [ ] T009 [US1] `src/api.js`: строки `bot.company.create` (`BOT`), `company.label.set` (`USER`); `src/events.js`:
+- [X] T009 [US1] `src/api.js`: строки `bot.company.create` (`BOT`), `company.label.set` (`USER`); `src/events.js`:
   создание события — с условием «компания существует» (404 «Компания не найдена.»).
-- [ ] T010 [P] [US1] `tests/companies-manage.test.mjs` (+ скрипт `test` в `package.json`): создание (данные, журнал бота,
+- [X] T010 [P] [US1] `tests/companies-manage.test.mjs` (+ скрипт `test` в `package.json`): создание (данные, журнал бота,
   I2), двойное нажатие — одна компания, правила названия, отказ не владельцу бота (участник, администратор, владелец
   компании); название владельца бота не встречается ни в одном ответе и сообщении другим людям (перебор всех ответов
   сценария: `me`, `event.get`, `admin.state`, `admin.users`, `admin.audit`, сообщения бота); новая компания без владельца
@@ -60,36 +60,36 @@
 Независимая проверка: человек по ссылке становится владельцем и проходит путь до служебного просмотра; в чужой компании
 — отказ.
 
-- [ ] T011 [US2] `src/companies.js`: `setCompanyOwner(ctx, id, actor)` — проверки, пакет `atomic` по прежнему
+- [X] T011 [US2] `src/companies.js`: `setCompanyOwner(ctx, id, actor)` — проверки, пакет `atomic` по прежнему
   `owner_id`, владелец бота как цель → 0, строка `is_admin = 1` и `adminFlagStmt` новому, сообщения и журнал (компании и
   бота) — контракт, раздел 2. `src/api.js`: `admin.owner.transfer` вызывает её.
-- [ ] T012 [US2] `src/roles.js`, `src/api.js`: `bot.owner.transfer` (`BOT`) — прежняя передача прав владельца бота;
+- [X] T012 [US2] `src/roles.js`, `src/api.js`: `bot.owner.transfer` (`BOT`) — прежняя передача прав владельца бота;
   получатель — человек компании с `owner_id = 0`; в том же пакете компании, где новый владелец бота был назначенным
   владельцем, получают 0 (I8); записи `owner.transfer` — в журнал бота и компаний, которые ведёт владелец бота. Перевести
   на новое действие прежние тесты передачи (`tests/atomic.test.mjs`, `tests/behavior.test.mjs`, `tests/e2e.test.mjs`,
   `tests/support/queries-scenario.mjs`) без изменения ожиданий.
-- [ ] T013 [US2] `src/companies.js`: `ownerLink(ctx, companyId, on)` (`bot.company.link`: новый код / отзыв, журнал бота
+- [X] T013 [US2] `src/companies.js`: `ownerLink(ctx, companyId, on)` (`bot.company.link`: новый код / отзыв, журнал бота
   `company.link` только при изменении) и `claimOwnerLink(ctx, code, user)` — пакет `atomic` «код компании всё ещё этот»
   (data-model, R4). `src/api.js`: строка `bot.company.link`.
-- [ ] T014 [US2] `src/bot.js`: `/start own_<код>` — обработчик `onCompanyOwnerLink` по таблице контракта (раздел 4);
+- [X] T014 [US2] `src/bot.js`: `/start own_<код>` — обработчик `onCompanyOwnerLink` по таблице контракта (раздел 4);
   ожидание `name_own:<компания>:<код>`; `signUp` — выдача прав после имени или «ссылка уже использована»; сообщение
   владельцу бота. SQL в `bot.js` нет, функции ≤ 60 строк.
-- [ ] T015 [US2] Тексты через `ownerWord`: `src/api.js`, `src/roles.js`, `src/membership.js`, `src/events.js`,
+- [X] T015 [US2] Тексты через `ownerWord`: `src/api.js`, `src/roles.js`, `src/membership.js`, `src/events.js`,
   `src/pairs.js`, `src/support.js`, `src/vault.js`, `src/cron.js`, `src/bot.js` — все тексты для людей с «владел… бота»
   разобрать на «по компании» и «всегда владелец бота» (контракт, раздел 6). Меню бота: строка роли для назначенного
   владельца компании.
-- [ ] T016 [US2] `src/panel.js`, `src/api.js`: `admin.rename` — отказ для человека из нескольких компаний (не владельцу
+- [X] T016 [US2] `src/panel.js`, `src/api.js`: `admin.rename` — отказ для человека из нескольких компаний (не владельцу
   бота).
-- [ ] T017 [P] [US2] `tests/companies-manage.test.mjs`: назначение человека компании, передача владельцем компании, «Вести
+- [X] T017 [P] [US2] `tests/companies-manage.test.mjs`: назначение человека компании, передача владельцем компании, «Вести
   самому», прежний владелец — администратор, получатели сообщений, журнал компании без названия и журнал бота; ссылка —
   все строки таблицы раздела 4, новый человек (в т.ч. кнопкой «Продолжить как …»), отзыв во время ввода имени, замена
   ссылки, ссылка не встречается ни в одном ответе, кроме `bot.company.link`; `admin.transfer` и `bot.*` — отказ владельцу
   компании; `admin.rename` человека из двух компаний; тексты: в компании с назначенным владельцем — «владелец», в
   остальных — прежние.
-- [ ] T018 [P] [US2] `tests/rights.test.mjs`: владелец компании проходит по правам все `admin.*` своей компании, кроме
+- [X] T018 [P] [US2] `tests/rights.test.mjs`: владелец компании проходит по правам все `admin.*` своей компании, кроме
   `admin.transfer`; над событием чужой компании — 404; администратор — прежний список `OWNER_ONLY`. `tests/e2e.test.mjs`:
   автотест «⊇» — и для владельца компании.
-- [ ] T019 [P] [US2] `tests/atomic.test.mjs`: два перехода по ссылке в одну миллисекунду (разные люди) — один владелец,
+- [X] T019 [P] [US2] `tests/atomic.test.mjs`: два перехода по ссылке в одну миллисекунду (разные люди) — один владелец,
   одно сообщение владельцу бота; назначение ×2; «Вести самому» ↔ передача; создание ссылки ↔ переход; `invariants`
   в конце.
 - [ ] T020 [P] [US2] `tests/wording.test.mjs`: правило «владел… бота — только в помощнике и в списке разрешённых мест»,
