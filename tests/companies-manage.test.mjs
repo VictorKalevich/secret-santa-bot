@@ -447,3 +447,89 @@ describe('051: видимость и названия (US3)', () => {
     assert.deepEqual(invariants(z.w), []);
   });
 });
+
+describe('051: владелец бота в чужой компании — гость (US5)', () => {
+  let z;
+  let C;
+  let evC;
+  const [x, y, n] = [person(4001, 'Ира'), person(4002, 'Яков'), person(4003, 'Нил')];
+  before(async () => {
+    z = await bossWorld();
+    C = await newCompany(z.w, boss, 'Гостевая');
+    evC = await z.event(C, 'Событие гостевой', [x, y]);
+    await z.ok(boss, 'admin.owner.transfer', { company: C, id: x.id });
+  });
+
+  it('гость: метка в me, нет в списках людей, «присоединяется» ему не приходит; изменения — в журнале под его именем', async () => {
+    const me = await z.w.api(boss, 'me');
+    assert.deepEqual(me.companies.filter((c) => c.id === C).map((c) => [c.role, c.organizer, c.owner, c.bot_run]), [['guest', true, true, false]]);
+    assert.equal(z.row(C, boss.id), undefined);
+    for (const u of [x, boss]) {
+      const { users } = await z.w.api(u, 'admin.users', { company: C });
+      assert.ok(!users.some((p) => p.id === boss.id), `${u.name}: владелец бота в списке людей компании`);
+    }
+    const state = await z.ok(x, 'admin.state', { event: evC });
+    assert.ok(!JSON.stringify(state.users ?? state).includes('"Владелец"'), 'в панели события его нет');
+    const before = z.w.texts(boss).length;
+    await z.join(evC, [n]);
+    assert.ok(z.w.texts(x).some((t) => t.includes('присоединяется')), 'владельцу компании — да');
+    assert.ok(!z.w.texts(boss).slice(before).some((t) => t.includes('присоединяется')), 'гостю — нет');
+    await z.w.api(boss, 'admin.announce', { event: evC, text: 'Собираемся в пятницу' });
+    const { entries } = await z.ok(x, 'admin.audit', { event: evC });
+    assert.equal(entries[0].actor_name, 'Владелец');
+    assert.deepEqual(invariants(z.w, { guests: [C] }), []);
+  });
+
+  it('«Я участвую» делает гостя человеком компании (без прав администратора)', async () => {
+    await z.w.api(boss, 'admin.participate', { event: evC, on: true });
+    assert.deepEqual(z.row(C, boss.id), { is_admin: 0, label: '' });
+    const me = await z.w.api(boss, 'me');
+    assert.deepEqual(me.companies.filter((c) => c.id === C).map((c) => [c.role, c.organizer, c.owner]), [['member', true, true]]);
+    const { users } = await z.ok(x, 'admin.users', { company: C });
+    assert.ok(users.some((p) => p.id === boss.id && !p.is_admin));
+    assert.deepEqual(invariants(z.w), []);
+  });
+});
+
+describe('051: удаление компании и журнал бота (US6)', () => {
+  let z;
+  const [o, p] = [person(5001, 'Оксана'), person(5002, 'Пётр')];
+
+  it('пустая компания: строк не осталось, владельцу и администратору — сообщение, журнал бота; у людей — пустой экран', async () => {
+    z = await bossWorld();
+    const C = await newCompany(z.w, boss, 'Пустеющая');
+    const ev = await z.event(C, 'Ненадолго', [o, p]);
+    await z.ok(boss, 'admin.owner.transfer', { company: C, id: o.id });
+    await z.ok(o, 'admin.role.grant', { company: C, id: p.id });
+    await z.ok(o, 'admin.family.save', { company: C, name: 'Семья', members: [o.id, p.id] });
+    await z.ok(o, 'admin.event.delete', { event: ev, confirm: 'УДАЛИТЬ' });
+    const word = await z.w.api(boss, 'bot.company.delete', { company: C }, true);
+    assert.deepEqual([word.status, word.data.error], [400, 'Для удаления введи слово УДАЛИТЬ.']);
+    const t0 = [o, p].map((u) => z.w.texts(u).length);
+    await z.ok(boss, 'bot.company.delete', { company: C, confirm: 'УДАЛИТЬ' });
+    for (const table of ['companies WHERE id', 'company_members WHERE company_id', 'families WHERE company_id', 'family_members WHERE company_id', 'audit WHERE company_id']) {
+      assert.equal(z.w.query(`SELECT COUNT(*) AS n FROM ${table} = ?`, C)[0].n, 0, table);
+    }
+    assert.deepEqual(z.w.texts(o).slice(t0[0]), ['Владелец бота удалил компанию, которую ты вёл: событий в ней не было.']);
+    assert.deepEqual(z.w.texts(p).slice(t0[1]), ['Владелец бота удалил компанию, в которой ты был администратором: событий в ней не было.']);
+    assert.deepEqual(z.botLog().at(-1), { action: 'company.delete', details: '«Пустеющая», людей: 2', actor: boss.id });
+    for (const u of [o, p]) {
+      const me = await z.ok(u, 'me');
+      assert.deepEqual([me.companies, me.events, me.me.is_admin], [[], [], false], u.name);
+    }
+    assert.ok(!z.others().some((t) => t.includes('Пустеющая')), 'название — только владельцу бота');
+    assert.deepEqual(invariants(z.w), []);
+  });
+
+  it('отказы: в компании есть события, компании нет; журнал бота — только владельцу бота', async () => {
+    const busy = await z.w.api(boss, 'bot.company.delete', { company: 1, confirm: 'УДАЛИТЬ' }, true);
+    assert.deepEqual([busy.status, busy.data.error], [400, 'В компании есть события — сначала удали их.']);
+    const gone = await z.w.api(boss, 'bot.company.delete', { company: 999, confirm: 'УДАЛИТЬ' }, true);
+    assert.deepEqual([gone.status, gone.data.error], [404, 'Компания не найдена.']);
+    const { entries } = await z.ok(boss, 'bot.audit');
+    assert.deepEqual(entries.slice(0, 1).map((e) => [e.action, e.actor_name]), [['company.delete', 'Владелец']]);
+    assert.equal((await z.api(z.adm, 'bot.audit')).status, 403);
+    const { entries: shared } = await z.ok(z.adm, 'admin.audit', { company: 1 });
+    assert.ok(!shared.some((e) => e.action.startsWith('company.')), 'в общий журнал «Основной» записи бота не попадают');
+  });
+});

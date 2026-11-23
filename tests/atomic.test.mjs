@@ -1,6 +1,6 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 66 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 69 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
@@ -10,8 +10,9 @@
 // жеребьёвка в обоих порядках, имя ×2); три — регистрация в боте (047: «Участвовать как …» ×2 в одну миллисекунду,
 // нажатие ↔ имя текстом в обоих порядках); три — обмен подопечных (048: ×2 в одну миллисекунду, обмен ↔ вписывание в
 // обоих порядках); одна — роли в двух компаниях (050: назначение в А и в Б одновременно, ×2 в одной компании в одну
-// миллисекунду); шесть — компании (051: два перехода по ссылке владельца в одну миллисекунду, назначение ×2, «Вести самому»
-// ↔ передача и новая ссылка ↔ переход — в обоих порядках). После сценариев с ролями и переносом — инварианты компаний
+// миллисекунду); девять — компании (051: два перехода по ссылке владельца в одну миллисекунду, назначение ×2, «Вести самому»
+// ↔ передача и новая ссылка ↔ переход — в обоих порядках, удаление ×2 в одну миллисекунду, удаление ↔ создание события в
+// обоих порядках). После сценариев с ролями и переносом — инварианты компаний
 // (050, tests/support/companies.mjs). Известный дефект — todo с номером фичи, которая его чинит: фича снимает пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -816,6 +817,54 @@ describe('атомарность: компании (051)', () => {
       assert.equal(z.sent(p, GONE), writeOrder[0] === 0 ? 1 : 0);
       assert.ok(z.code(), 'ссылка действует');
       assert.equal(made.data.link.endsWith('own_' + z.code()), true, 'владельцу бота — действующая ссылка');
+      assert.deepEqual(invariants(z.w), []);
+    });
+  }
+
+  // Пустая компания с администратором (событие было и удалено): люди и права остались, событий нет
+  async function emptyClub() {
+    const z = await club();
+    const [p] = z.people;
+    await z.w.api(boss, 'admin.role.grant', { company: z.C, id: p.id });
+    const ev = z.w.query('SELECT id FROM events WHERE company_id = ?', z.C)[0].id;
+    await z.w.api(boss, 'admin.event.delete', { event: ev, confirm: 'УДАЛИТЬ' });
+    z.left = () => z.w.query('SELECT COUNT(*) AS n FROM companies WHERE id = ?', z.C)[0].n;
+    return z;
+  }
+
+  it('bot.company.delete ×2 в одну миллисекунду — одно удаление, одно сообщение администратору, одна запись', async () => {
+    const z = await emptyClub();
+    const [p] = z.people;
+    const rs = await z.twice(boss, 'bot.company.delete', { company: z.C, confirm: 'УДАЛИТЬ' }, { sameMoment: true });
+    assert.deepEqual(sorted(rs), [200, 404]);
+    assert.equal(rs.find((r) => r.status === 404).data.error, 'Компания не найдена.');
+    assert.equal(z.left(), 0);
+    assert.equal(z.sent(p, 'Владелец бота удалил компанию'), 1);
+    assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 1);
+    assert.deepEqual(invariants(z.w), []);
+  });
+
+  for (const [first, writeOrder] of [['удаление', [0, 1]], ['создание события', [1, 0]]]) {
+    it(`удаление компании ↔ создание в ней события, первым пишет ${first} — или компании нет, или событие в ней`, async () => {
+      const z = await emptyClub();
+      const [p] = z.people;
+      const rs = await z.w.together([
+        () => z.w.api(boss, 'bot.company.delete', { company: z.C, confirm: 'УДАЛИТЬ' }, true),
+        () => z.w.api(p, 'admin.events.create', { company: z.C, title: 'Успеть' }, true),
+      ], { writeOrder });
+      if (writeOrder[0] === 0) {
+        assert.deepEqual(statuses(rs), [200, 404]);
+        assert.equal(rs[1].data.error, 'Компания не найдена.');
+        assert.equal(z.left(), 0);
+        assert.equal(z.sent(p, 'Владелец бота удалил компанию'), 1);
+      } else {
+        assert.deepEqual(statuses(rs), [400, 200]);
+        assert.equal(rs[0].data.error, 'В компании есть события — сначала удали их.');
+        assert.equal(z.left(), 1);
+        assert.equal(z.sent(p, 'Владелец бота удалил компанию'), 0);
+        assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 0);
+      }
+      assert.equal(z.w.query('SELECT COUNT(*) AS n FROM events WHERE company_id NOT IN (SELECT id FROM companies)')[0].n, 0);
       assert.deepEqual(invariants(z.w), []);
     });
   }
