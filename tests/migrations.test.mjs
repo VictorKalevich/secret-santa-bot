@@ -7,6 +7,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { createMigratedD1, createD1 } from './support/d1-sqlite.mjs';
 import { unreadByEventQuery } from '../src/chat.js';
+import { addCompany, invariants } from './support/companies.mjs';
 
 after(restoreFetch);
 
@@ -286,4 +287,51 @@ test('0015 на пустой базе: компания 1 без людей, в�
   assert.equal(rowsOf(db.sqlite, 'SELECT COUNT(*) AS n FROM companies')[0].n, 1);
   assert.equal(rowsOf(db.sqlite, 'SELECT COUNT(*) AS n FROM company_members')[0].n, 0);
   assert.equal(rowsOf(db.sqlite, "SELECT value FROM settings WHERE key = 'schema'")[0].value, '17');
+});
+
+// ---------- сверка компаний (050, tools/companies-reconcile.sql) ----------
+
+const RECONCILE = readFileSync(new URL('../tools/companies-reconcile.sql', import.meta.url), 'utf8');
+const reconcileStatements = RECONCILE.replace(/--[^\n]*/g, '').split(';').map((s) => s.trim()).filter(Boolean);
+const rights = (w) => w.query('SELECT company_id, user_id, is_admin FROM company_members ORDER BY company_id, user_id')
+  .map((r) => `${r.company_id}:${r.user_id}:${r.is_admin}`);
+
+test('сверка: четыре оператора, без версии схемы и без DELETE', () => {
+  assert.equal(reconcileStatements.length, 4);
+  assert.ok(reconcileStatements.every((s) => /^(INSERT|UPDATE)\b/.test(s)), 'только вставка и обновление');
+  assert.ok(!/schema/.test(RECONCILE.replace(/--[^\n]*/g, '')), 'версию схемы не трогает');
+});
+
+test('сверка: нарушенные I2, I5 и права, изменённые «прежним кодом», — исправлены; повтор ничего не меняет', async () => {
+  const { w } = await filledWorld();
+  assert.deepEqual(invariants(w), [], 'до нарушения');
+  // Прежний код: новый участник без строки компании (I5), ждущий имени по ссылке, заявка; владелец бота без строки (I2);
+  // назначение и снятие админа — только общим признаком
+  const E = w.query('SELECT id FROM events')[0].id;
+  w.sql(`DELETE FROM company_members WHERE user_id IN (100, 9001);
+    INSERT INTO users (tg_id, username, created_at, pending) VALUES (501, 'n', 1, 'name:${E}:inv_x'), (502, 'r', 1, '');
+    INSERT INTO join_requests (event_id, user_id, created_at) VALUES (${E}, 502, 1);
+    UPDATE users SET is_admin = 1 WHERE tg_id = 101;
+    UPDATE users SET is_admin = 0 WHERE tg_id = 9002;`);
+  const broken = invariants(w);
+  for (const code of ['I2', 'I4', 'I5']) assert.ok(broken.some((v) => v.startsWith(code + ':')), 'нарушено ' + code);
+  w.sql(RECONCILE);
+  assert.deepEqual(invariants(w), []);
+  const row = (id) => w.query('SELECT is_admin FROM company_members WHERE company_id = 1 AND user_id = ?', id)[0]?.is_admin;
+  assert.deepEqual([row(100), row(501), row(502), row(9001), row(101), row(9002)], [0, 0, 0, 1, 1, 0]);
+  const once = snapshot(w);
+  w.sql(RECONCILE);
+  assert.deepEqual(snapshot(w), once, 'повтор ничего не меняет');
+});
+
+test('сверка при двух компаниях: оператор 3 ничего не меняет — признак пересчитывается по строкам', async () => {
+  const { w } = await filledWorld();
+  addCompany(w, 'Вторая');
+  w.sql(`INSERT INTO company_members (company_id, user_id, is_admin) VALUES (2, 9001, 1);
+    UPDATE users SET is_admin = 1 WHERE tg_id = 101;`);
+  const before = rights(w);
+  w.sql(RECONCILE);
+  assert.deepEqual(rights(w), before, 'строки компаний прежние');
+  assert.equal(w.query('SELECT is_admin FROM users WHERE tg_id = 101')[0].is_admin, 0, 'признак — по строкам');
+  assert.deepEqual(invariants(w), []);
 });
