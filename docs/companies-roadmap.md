@@ -25,6 +25,9 @@ git checkout 050-company-scope
 /speckit-implement
 ```
 
+Перед запуском проверить `.specify/feature.json` (файл вне git): в нём должна быть папка шага, например
+`{"feature_directory":"specs/050-company-scope"}`.
+
 Реализующему: сначала прочитать `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `tasks.md` шага и раздел
 «Главное правило шага» в `tasks.md`. Задачи отмечать в `tasks.md` по мере выполнения.
 

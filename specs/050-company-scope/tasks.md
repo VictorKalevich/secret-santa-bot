@@ -20,7 +20,7 @@
 ## Этап 2. Основа: схема и контекст (до историй)
 
 - [ ] T003 Создать `migrations/0015_companies.sql` по `data-model.md`: `companies` (`id`, `name`, `owner_id`, `owner_code`,
-  `created_by`, `created_at`), `company_members` (`PRIMARY KEY (company_id, user_id)`, индекс `company_members_user`),
+  `created_by`, `created_at`; уникальный индекс `companies_owner_code` по непустому `owner_code`), `company_members` (`PRIMARY KEY (company_id, user_id)`, индекс `company_members_user`),
   компания №1 «Основная», строки людей из `users` (`is_admin` — как в `users`), `company_id INTEGER NOT NULL DEFAULT 1` у
   `events` (+ индекс `events_company`), `families`, `audit` (+ индекс `audit_company`), пересборка `family_members` с
   `PRIMARY KEY (company_id, user_id)` и прежним индексом `family_members_family`, `schema = 17`.

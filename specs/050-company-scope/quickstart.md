@@ -26,16 +26,17 @@ npm run test:all     # быстрые + e2e
 Проверяется один раз перед слиянием, в отдельной рабочей копии прежнего `main`:
 
 ```powershell
-git worktree add ..\santa-old main
-Copy-Item migrations\0015_companies.sql ..\santa-old\migrations\
-cd ..\santa-old; npm ci; npm test
+git worktree add test-results\santa-old main
+Copy-Item migrations\0015_companies.sql test-results\santa-old\migrations\
+Push-Location test-results\santa-old; npm ci; npm test; Pop-Location
 ```
 
 Ожидаемо падают только тесты устройства схемы прежнего кода (`data-registry` — число таблиц, `server-shape` — колонка
-`company_id`, `migrations` — число файлов). Остальные — зелёные. После проверки: `git worktree remove ..\santa-old`.
+`company_id`, `migrations` — число файлов). Остальные — зелёные. После проверки:
+`git worktree remove --force test-results\santa-old`.
 
-Рабочая копия создаётся рядом с проектом, в `C:\ClaudeProjects\` файлы не кладутся: путь должен быть вне неё или внутри
-папки проекта (например, `test-results\santa-old`).
+Рабочая копия — внутри папки проекта (`test-results/` в `.gitignore`): в самой `C:\ClaudeProjects\` ничего не создаётся.
+`main` здесь — состояние до слияния 050 (проверку делать до слияния).
 
 ## Выкат (владелец)
 

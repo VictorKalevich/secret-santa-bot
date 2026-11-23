@@ -12,7 +12,7 @@
 | `id` | INTEGER PK AUTOINCREMENT | компания; №1 — «Основная» |
 | `name` | TEXT NOT NULL DEFAULT '' | название владельца бота; людям компании не отдаётся |
 | `owner_id` | INTEGER NOT NULL DEFAULT 0 | назначенный владелец компании; 0 — компанию ведёт владелец бота (в 050 всегда 0) |
-| `owner_code` | TEXT NOT NULL DEFAULT '' | одноразовый код ссылки владельца компании (051); в 050 не используется |
+| `owner_code` | TEXT NOT NULL DEFAULT '' | одноразовый код ссылки владельца компании (051); в 050 не используется; уникальный индекс `companies_owner_code (owner_code) WHERE owner_code != ''` |
 | `created_by` | INTEGER NOT NULL DEFAULT 0 | кто создал (0 — миграция) |
 | `created_at` | INTEGER NOT NULL DEFAULT 0 | мс |
 
