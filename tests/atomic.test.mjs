@@ -1,6 +1,6 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 59 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 60 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
@@ -9,11 +9,13 @@
 // запись журнала — только при настоящем изменении; четыре — выход из события и своё имя (035: выход ×2, выход ↔
 // жеребьёвка в обоих порядках, имя ×2); три — регистрация в боте (047: «Участвовать как …» ×2 в одну миллисекунду,
 // нажатие ↔ имя текстом в обоих порядках); три — обмен подопечных (048: ×2 в одну миллисекунду, обмен ↔ вписывание в
-// обоих порядках). Известный дефект — todo с номером фичи, которая его чинит: фича
-// снимает пометку; сейчас таких нет.
+// обоих порядках); одна — роли в двух компаниях (050: назначение в А и в Б одновременно, ×2 в одной компании в одну
+// миллисекунду). После сценариев с ролями и переносом — инварианты компаний (050, tests/support/companies.mjs). Известный
+// дефект — todo с номером фичи, которая его чинит: фича снимает пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
+import { addCompany, invariants } from './support/companies.mjs';
 
 after(restoreFetch);
 
@@ -250,6 +252,9 @@ describe('атомарность: повторные нажатия (024)', () =
       assert.equal(refusal(rs), 'Права владельца уже переданы.');
       assert.equal(z.sent(adm, 'Тебе переданы права владельца'), 1);
       assert.equal(z.audit('owner.transfer'), 1);
+    });
+    it('после ролей и передачи владения инварианты компаний держатся (050)', () => {
+      assert.deepEqual(invariants(z.w), []);
     });
   });
 
@@ -558,6 +563,34 @@ describe('атомарность: перенос участия', () => {
     assert.ok(z.w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, z.people[1].id).length, 'участие нового аккаунта есть');
     assert.equal(z.audit('transfer'), 1, 'записей журнала');
     assert.equal(z.sent(z.people[1], 'перенёс на этот аккаунт'), 1, 'уведомлений новому аккаунту');
+    assert.deepEqual(invariants(z.w), [], 'инварианты компаний (050)');
+  });
+});
+
+describe('атомарность: роли в двух компаниях (050)', () => {
+  it('назначение в А и в Б одновременно — оба успешны; ×2 в одной компании в одну миллисекунду — один успех', async () => {
+    const z = await world();
+    const B = addCompany(z.w, 'Б');
+    const evB = (await z.w.api(boss, 'admin.events.create', { title: 'Событие Б', company: B })).event;
+    const codeB = inviteOf(await z.w.api(boss, 'admin.state', { event: evB.id }));
+    const [x, y, admB] = z.people;
+    for (const u of [x, y, admB]) await z.w.say(u, '/start ' + codeB);
+    await z.w.api(boss, 'admin.role.grant', { company: B, id: admB.id });
+    const both = await z.w.together([1, B].map((company) => () => z.w.api(boss, 'admin.role.grant', { company, id: x.id }, true)));
+    assert.deepEqual(statuses(both), [200, 200]);
+    assert.deepEqual(z.w.query('SELECT company_id, is_admin FROM company_members WHERE user_id = ? ORDER BY company_id', x.id)
+      .map((r) => [r.company_id, r.is_admin]), [[1, 1], [B, 1]]);
+    assert.equal(z.w.query('SELECT is_admin FROM users WHERE tg_id = ?', x.id)[0].is_admin, 1);
+    assert.deepEqual(z.w.query("SELECT company_id FROM audit WHERE action = 'role.grant' AND details = ? ORDER BY company_id", x.name)
+      .map((r) => r.company_id), [1, B]);
+    const notice = `${y.name}</b> теперь администратор`;
+    const rs = await z.twice(boss, 'admin.role.grant', { company: B, id: y.id }, { sameMoment: true });
+    assert.deepEqual(sorted(rs), [200, 400]);
+    assert.equal(z.sent(y, 'назначил тебя администратором'), 1);
+    assert.equal(z.sent(admB, notice), 1, 'администратору Б — одно');
+    assert.equal(z.sent(adm, notice), 0, 'администратору А — ничего');
+    assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'role.grant' AND details = ?", y.name)[0].n, 1);
+    assert.deepEqual(invariants(z.w, { guests: [B] }), []);
   });
 });
 

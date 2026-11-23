@@ -91,13 +91,8 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
     // Единственная компания вызывающего (общее действие организатора без поля company) или 0: у человека — единственная
     // его строка; у владельца бота — единственная компания бота
     async soleCompany() {
-      const mine = await ctx.mine();
-      if (mine.size === 1) return [...mine.keys()][0];
-      if (await ctx.isBotOwner()) {
-        const all = await ctx.companies();
-        if (all.size === 1) return [...all.keys()][0];
-      }
-      return 0;
+      const set = (await ctx.isBotOwner()) ? await ctx.companies() : await ctx.mine();
+      return set.size === 1 ? [...set.keys()][0] : 0;
     },
     // Контекст компании; компании нет — null. Один объект на компанию за вызов
     in(companyId) {
