@@ -197,11 +197,14 @@
     'draw.cancel.force': '↩️ Жеребьёвка отменена владельцем', 'draw.swap': '🔀 Подопечные поменялись', 'support.open': '🆘 Новое обращение', 'support.take': '🙋 Обращение взято',
     'support.reply': '💬 Ответ в обращение',
     'support.pass': '↪️ Обращение передано', 'support.close': '✅ Обращение закрыто', 'support.return': '🔄 Обращение снова ничьё',
+    // 051: журнал бота (и смена владельца — в общем журнале компании)
+    'company.create': '🏢 Создана компания', 'company.owner': '👑 Новый владелец', 'company.link': '🔗 Ссылка владельца', 'company.delete': '🗑 Компания удалена',
   };
-  function openAudit(eventId) {
+  // Журнал события, общий журнал компании открытого экрана или журнал бота (bot, 051: только владельцу бота)
+  function openAudit(eventId, bot = false) {
     const box = h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…');
-    openSheet(eventId ? 'Журнал события' : 'Общий журнал', [box]);
-    api('admin.audit', eventId ? { event: eventId } : {}).then((d) => {
+    openSheet(bot ? 'Журнал бота' : eventId ? 'Журнал события' : 'Общий журнал', [box]);
+    (bot ? api('bot.audit') : eventId ? api('admin.audit', { event: eventId }) : capi('admin.audit')).then((d) => {
       const list = h('div', { class: 'ds-card ds-card--flush' });
       if (!d.entries.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Записей пока нет.'));
       for (const e of d.entries) {

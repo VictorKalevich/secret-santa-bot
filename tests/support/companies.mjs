@@ -2,11 +2,27 @@
 //   addCompany(w, name) → id: единственная прямая запись в базу — строка companies; дальше компания наполняется
 //     настоящими действиями (владелец бота создаёт в ней событие с { company }, люди входят по ссылке, администратор
 //     назначается admin.role.grant { company, id });
-//   invariants(w, { guests }) → список нарушений инвариантов I1–I6 (data-model.md); пустой — всё верно. guests — компании,
-//     где владелец бота намеренно гость (строки нет): I2 для них не проверяется (research.md, R15).
+//   invariants(w, { guests }) → список нарушений инвариантов I1–I8 (data-model.md 050 и 051); пустой — всё верно. guests —
+//     компании, где владелец бота намеренно гость (строки нет): I2 для них не проверяется (research.md 050, R15).
+//   newCompany(w, boss, name) → id (051): компания настоящим действием bot.company.create;
+//   ownerByLink(w, boss, company, user) (051): владелец бота создаёт ссылку владельца компании, user переходит по ней
+//     (новый человек пишет имя) — он владелец компании.
 
 export function addCompany(w, name = 'Вторая') {
   return w.query('INSERT INTO companies (name, created_at) VALUES (?, ?) RETURNING id', name, Date.now())[0].id;
+}
+
+export async function newCompany(w, boss, name = 'Вторая') {
+  return (await w.api(boss, 'bot.company.create', { name })).company;
+}
+
+export const ownerCode = (link) => /start=(own_[a-z0-9]+)/.exec(link)[1];
+
+export async function ownerByLink(w, boss, company, user) {
+  const { link } = await w.api(boss, 'bot.company.link', { company, on: true });
+  const known = w.query('SELECT registered FROM users WHERE tg_id = ?', user.id)[0]?.registered;
+  await w.say(user, '/start ' + ownerCode(link));
+  if (!known) await w.say(user, user.name);
 }
 
 export function invariants(w, { guests = [] } = {}) {
@@ -53,5 +69,10 @@ export function invariants(w, { guests = [] } = {}) {
     `SELECT fm.user_id, fm.family_id, f.company_id FROM family_members fm JOIN families f ON f.id = fm.family_id
       WHERE NOT EXISTS (SELECT 1 FROM company_members cm WHERE cm.company_id = f.company_id AND cm.user_id = fm.user_id)`
   ), (r) => `член семьи ${r.family_id} ${r.user_id} не человек компании ${r.company_id}`);
+  // I7: непустой код ссылки владельца компании уникален
+  add('I7', w.query("SELECT owner_code, COUNT(*) AS n FROM companies WHERE owner_code != '' GROUP BY owner_code HAVING n > 1"),
+    (r) => `код ссылки владельца у ${r.n} компаний`);
+  // I8: назначенный владелец компании — не владелец бота (компанию владельца бота отмечает 0)
+  if (owner) add('I8', w.query('SELECT id FROM companies WHERE owner_id = ?', owner), (r) => `компания ${r.id}: owner_id — владелец бота`);
   return out;
 }

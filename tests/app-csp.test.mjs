@@ -158,6 +158,6 @@ describe('код приложения', () => {
     const n = lines.findIndex((l) => l.includes('async function start()')) + 1;
     lines.splice(n, 0, '    eval(initData);');
     assert.deepEqual(codeProblems(lines.join('\n'), where), [`${where(n + 1)}: eval — выполнение строки как кода`]);
-    assert.match(where(n + 1), /^src\/app\/08-start\.html:\d+$/);
+    assert.match(where(n + 1), /^src\/app\/09-start\.html:\d+$/);
   });
 });

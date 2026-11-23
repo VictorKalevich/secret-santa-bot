@@ -98,9 +98,12 @@ export async function createUser(db, id, username, fields = {}) {
 
 // ---------- компании (050) ----------
 
-export const companiesQuery = (db) => db.prepare('SELECT id, owner_id FROM companies');
-// Компании человека: права и своё название
-export const myCompaniesQuery = (db, userId) => db.prepare('SELECT company_id, is_admin, label FROM company_members WHERE user_id = ?').bind(userId);
+// Компании: название владельца бота и признак «ссылка владельца действует» (051) — в ответы уходят только владельцу бота;
+// самого кода ссылки здесь нет
+export const companiesQuery = (db) => db.prepare("SELECT id, owner_id, name, owner_code != '' AS link FROM companies");
+// Компании человека: права, своё название и время вступления (номер «Компания N», 051)
+export const myCompaniesQuery = (db, userId) =>
+  db.prepare('SELECT company_id, is_admin, label, joined_at FROM company_members WHERE user_id = ?').bind(userId);
 // Запись владельца бота по настройке owner_id (действительна, если is_admin = 1 — resolveOwner)
 export const botOwnerQuery = (db) => db.prepare("SELECT * FROM users WHERE tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')");
 // Люди компании: строки users, is_admin — права в этой компании (company_admin), порядок — время регистрации. Владелец
@@ -336,7 +339,11 @@ export function enqueueStmt(db, chatId, payload) {
 // Сфера записи журнала (050): число > 0 — событие (компания записи — компания события, подзапросом в операторе;
 // события уже нет — 0); { company: id } — общая запись компании (event_id = 0). Ноль и пустое значение — ошибка: общая
 // запись без компании попала бы мимо журналов компаний.
+// Журнал бота (051): компании и владелец бота — записи вне компаний (company_id = 0, event_id = 0); читает только владелец бота
+export const BOT_LOG = Object.freeze({ bot: true });
+
 function auditSphere(sphere) {
+  if (sphere === BOT_LOG) return { event: 0, company: '?', args: [0] };
   if (sphere && typeof sphere === 'object') {
     const company = Number(sphere.company) || 0;
     if (!company) throw new Error('журнал: у общей записи не указана компания');
@@ -355,7 +362,7 @@ export function auditStmt(db, sphere, actor, action, details = '') {
     .bind(s.event, ...s.args, actor || 0, action, String(details).slice(0, 500), Date.now());
 }
 
-// Последние записи: события (число) или общие записи компании ({ company })
+// Последние записи: события (число), общие записи компании ({ company }) или журнал бота (BOT_LOG)
 export async function getAudit(db, sphere, limit = 100) {
   const s = auditSphere(sphere);
   const where = s.event ? 'a.event_id = ?' : 'a.company_id = ? AND a.event_id = 0';
@@ -409,6 +416,8 @@ export const NOT_PERSON = 'not-person'; // имя похоже на челове
 //   people — колонки человека и их роли; anchor — строка-опора действия ('event', 'member', 'person');
 //   onEventDelete — удаление события и сброс: 'delete' | 'keep';
 //   onLeave — уход участника из события: 'delete' | 'keep' | 'rebuild' (пары перестраивает applyPairsChange);
+//   onCompanyDelete (051) — удаление компании у таблиц с company: 'delete' | 'block' (компания с такими строками не
+//     удаляется — условие пакета); якорь 'company' — строка компании, удаляется последней;
 //   onTransfer — перенос: 'update' (конфликтов нет), 'dedupe' (UPDATE OR IGNORE, остатки старого — удалить),
 //     'merge' (участия: одно на событие); noSelf — строка «сам себе» недопустима;
 //   transferBefore/transferAfter — свои правила таблицы до и после переноса колонок (sql оканчивается условием WHERE).
@@ -425,11 +434,12 @@ export const REGISTRY = {
     }],
   },
   // 050: компании и их люди — не данные события: удаление события, сброс и уход участника их не трогают
-  companies: { company: 'id', people: { owner_id: ACTOR, created_by: ACTOR }, onTransfer: 'update' },
+  companies: { company: 'id', people: { owner_id: ACTOR, created_by: ACTOR }, anchor: 'company', onTransfer: 'update' },
   // Если у нового аккаунта уже есть строка в компании — остаётся она (с его названием), права — большие из двух
   company_members: {
     company: 'company_id',
     people: { user_id: MEMBER },
+    onCompanyDelete: 'delete', // перед удалением — пересчёт users.is_admin её администраторам (deleteCompany)
     onTransfer: 'dedupe',
     transferBefore: [{
       sql: `UPDATE company_members SET is_admin = MAX(is_admin, COALESCE((SELECT c.is_admin FROM company_members c
@@ -437,7 +447,8 @@ export const REGISTRY = {
       args: (from, to) => [from, to],
     }],
   },
-  events: { event: 'id', company: 'company_id', people: { created_by: ACTOR }, anchor: 'event', onTransfer: 'update' },
+  // 051: компанию с событиями не удалить — сначала удаляются события (со своими подтверждениями и рассылками)
+  events: { event: 'id', company: 'company_id', people: { created_by: ACTOR }, anchor: 'event', onCompanyDelete: 'block', onTransfer: 'update' },
   members: {
     event: 'event_id',
     people: { user_id: MEMBER },
@@ -458,7 +469,8 @@ export const REGISTRY = {
   messages: { event: 'event_id', people: { santa: MEMBER, ward: MEMBER, sender: NOT_PERSON }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'update' },
   announcements: { event: 'event_id', people: { author: ACTOR }, onEventDelete: 'delete', onTransfer: 'update' },
   // Журнал события остаётся и после удаления события (007); event_id = 0 — общий журнал
-  audit: { event: 'event_id', company: 'company_id', people: { actor: ACTOR }, onEventDelete: 'keep', onTransfer: 'update' },
+  // Удаление компании стирает её общий журнал и остатки журналов удалённых событий; журнал бота — company_id = 0 (051)
+  audit: { event: 'event_id', company: 'company_id', people: { actor: ACTOR }, onEventDelete: 'keep', onCompanyDelete: 'delete', onTransfer: 'update' },
   // Заявки — история: остаются, когда участник уходит (008)
   join_requests: { event: 'event_id', people: { user_id: MEMBER, decided_by: ACTOR }, onEventDelete: 'delete', onLeave: 'keep', onTransfer: 'dedupe' },
   removed_members: {
@@ -492,9 +504,11 @@ export const REGISTRY = {
     // Сам себе не отвечает: такое обращение снова ничьё
     transferAfter: [{ sql: 'UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = user_id', args: () => [] }],
   },
-  families: { company: 'company_id', people: { created_by: ACTOR }, onTransfer: 'update' },
+  families: { company: 'company_id', people: { created_by: ACTOR }, onCompanyDelete: 'delete', onTransfer: 'update' },
   // 008: семьи — общие для компании (050); если новый аккаунт уже в семье этой компании — остаётся его семья
-  family_members: { company: 'company_id', via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onTransfer: 'dedupe' },
+  family_members: {
+    company: 'company_id', via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onCompanyDelete: 'delete', onTransfer: 'dedupe',
+  },
   outbox: { people: { chat_id: RECIPIENT } },
 };
 
@@ -564,6 +578,19 @@ export function memberDataDeleteStmts(db, eventId, userId, guard = '1', ...args)
     if (spec.anchor === 'member' || spec.onLeave === 'delete') {
       add(`DELETE FROM ${table} WHERE ${spec.event} = ? AND ${anyOf(who)}`, eventId, ...who.map(() => userId));
     }
+  }
+  return out;
+}
+
+// Удалить данные компании (051, удаление пустой компании): таблицы с onCompanyDelete 'delete' — дочерние (via) раньше
+// родителя, строка компании — последней (захват). Таблицы с 'block' не трогаются: их строки исключает условие пакета.
+// guard и args — как в enqueueIfStmt.
+export function companyDataDeleteStmts(db, companyId, guard = '1', ...args) {
+  const { out, add } = collector(db, guard, args);
+  const all = inOrder('company').filter(([, s]) => s.company);
+  for (const [table, spec] of [...all.filter(([, s]) => s.via), ...all.filter(([, s]) => !s.via)]) {
+    if (spec.anchor === 'company' || spec.onCompanyDelete === 'delete') add(`DELETE FROM ${table} WHERE ${spec.company} = ?`, companyId);
+    else if (spec.onCompanyDelete !== 'block') throw new Error(`REGISTRY.${table}: не задано удаление компании (onCompanyDelete)`);
   }
   return out;
 }

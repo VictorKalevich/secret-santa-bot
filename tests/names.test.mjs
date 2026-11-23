@@ -54,9 +54,14 @@ const part = (prefix) => PARTS.find((p) => p.name.startsWith(prefix)).text.split
 
 test('главный экран обновляется после смены имени и не предлагает отдельный значок', () => {
   const home = part('03-');
-  const [start, end] = topBlock(home, 'renderHome');
-  const body = home.slice(start, end + 1).map(code).join('\n');
-  assert.match(body, /heroSub\.textContent = 'Привет, ' \+ me\.name/);
+  const block = (name) => {
+    const [start, end] = topBlock(home, name);
+    return home.slice(start, end + 1).map(code).join('\n');
+  };
+  // «Профиль» и «Уведомления» корневого экрана (051) — personalSections: главный экран передаёт ей приветствие и разделы
+  const body = block('personalSections');
+  assert.match(block('renderHome'), /heroSub\.textContent = 'Привет, ' \+ me\.name/);
+  assert.match(block('renderHome'), /personalSections\(nav, greet, people\)/);
   assert.match(body, /openNameSheet\(profileChanged\)/);
   assert.match(body, /nameText\.textContent = me\.name/);
   assert.match(body, /nav !== state\.nav/);

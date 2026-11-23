@@ -247,7 +247,8 @@
   // --- меню участника (004)
   const canRemove = (p, u) => !p.done && u.id !== p.me.id && !u.is_owner && (!u.is_admin || p.me.is_owner);
   // Переносит участие только владелец (010): админ мог бы перенести игрока на свой второй аккаунт и увидеть его пары
-  const canTransfer = (p, u) => p.me.is_owner && u.registered && !u.is_owner;
+  // Перенос участия — только владелец бота (051): владельцу компании кнопки нет
+  const canTransfer = (p, u) => state.botOwner && u.registered && !u.is_owner;
   // На аккаунт администратора переносить нельзя: он получил бы чужие пары (006)
   const transferTargets = (p, u) => p.users.filter((x) => x.id !== u.id && x.registered && !x.in_draw && !x.is_admin);
   function adminMemberMenu(p, u, chips) {
@@ -270,7 +271,7 @@
       if (canRename) r.addEventListener('click', () => {
         const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
         const ok = ui.btn('Сохранить', '', 'ds-btn--block');
-        ok.addEventListener('click', () => busy(ok, async () => { await api('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
+        ok.addEventListener('click', () => busy(ok, async () => { await capi('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
         openSheet('Имя участника', [ui.hint('Имя одно на все события.'), clearable(inp, 'Имя участника'), ok]);
       });
       if (canRename) items.push(r);
@@ -289,10 +290,13 @@
       });
       items.push(b);
     }
+    // 051: в компании с назначенным владельцем переносит участие только владелец бота
+    const assigned = !!state.company && !state.company.bot_run;
     if (u.is_owner) items.push(ui.hint('Владельца нельзя удалить или перенести: он может только передать права (главный экран → «Владелец и администраторы»).'));
     else if (!me.is_owner) items.push(ui.hint(u.is_admin
-      ? 'Удалять администраторов и переносить участие может только владелец.'
-      : 'Переносить участие на новый аккаунт может только владелец.'));
+      ? (assigned ? 'Удалять администраторов может только владелец, переносить участие — владелец бота.' : 'Удалять администраторов и переносить участие может только владелец.')
+      : (assigned ? 'Переносить участие на новый аккаунт может только владелец бота.' : 'Переносить участие на новый аккаунт может только владелец.')));
+    else if (!state.botOwner && u.registered) items.push(ui.hint('Переносить участие на новый аккаунт может только владелец бота.'));
     openSheet(u.name || 'без имени', [
       h('div', {}, u.username ? ui.hint('@' + u.username) : null, h('div', { class: 'ds-chips' }, chips)),
       ...(items.length ? items : [ui.hint('Для этой записи действий нет.')]),
@@ -307,7 +311,7 @@
       const t = targets.find((x) => String(x.id) === sel.value);
       if (!t) return toast('Выбери новый аккаунт');
       if (!(await confirmBox(`Перенести участие «${u.name}» на «${t.name}»? Письма, подопечные, Санты и переписка во всех событиях перейдут на новый аккаунт, старая запись будет удалена.`))) return;
-      busy(go, async () => { await api('admin.transfer', { from: u.id, to: t.id }); closeSheet(); toast('🔁 Участие перенесено'); await p.refresh(); });
+      busy(go, async () => { await capi('admin.transfer', { from: u.id, to: t.id }); closeSheet(); toast('🔁 Участие перенесено'); await p.refresh(); });
     });
     openSheet('Перенести на новый аккаунт', [
       ui.hint(`Если «${u.name || 'участник'}» потерял доступ к Telegram и вступил в событие заново с нового аккаунта, выбери его новую запись. ` +
@@ -356,7 +360,7 @@
           });
           list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ins));
         } else {
-          list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ui.hint('Вписать в жеребьёвку может владелец бота')));
+          list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ui.hint(`Вписать в жеребьёвку может ${ownerWord().nom}`)));
         }
       }
     }
@@ -691,7 +695,7 @@
     btn.addEventListener('click', () => openSwapSheet(p));
     return [
       ui.section('Управление жеребьёвкой'),
-      ui.card(ui.hint('Только для владельца бота: поменять подопечных у двух участников. Кто кому дарит, не видно и здесь.'), btn),
+      ui.card(ui.hint(`Только для ${ownerWord().gen}: поменять подопечных у двух участников. Кто кому дарит, не видно и здесь.`), btn),
     ];
   }
 
@@ -703,7 +707,7 @@
     vaultBtn.addEventListener('click', () => openVaultGate(evId, s, users, d.me_member));
     return [
       ui.section('Служебный просмотр'),
-      ui.card(ui.hint('Только для владельца бота: кто кому дарит, письма, адреса и переписка — если что-то пошло не так. ' +
+      ui.card(ui.hint(`Только для ${ownerWord().gen}: кто кому дарит, письма, адреса и переписка — если что-то пошло не так. ` +
         'Каждое открытие записывается в журнал события, его видят владелец и администраторы.'), vaultBtn),
     ];
   }

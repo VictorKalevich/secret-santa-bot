@@ -1,6 +1,8 @@
 
   // ---------- состояние ----------
-  // view: 'home' (список эвентов) или 'event' (вкладки одного эвента).
+  // view: 'companies' (список компаний, 051), 'home' (события одной компании) или 'event' (вкладки одного эвента).
+  // companies — видимые компании из me; companyId, company — компания открытого экрана (enterCompany); botOwner — владелец
+  // бота (me.is_owner до входа в компанию: в компании state.me.is_owner — «владелец этой компании»).
   // nav — номер экрана (009): растёт при каждом переходе; ответ сервера для прежнего экрана не рисуется.
   // drafts[evId] — несохранённые объявление и параметры эвента (переживают перерисовку панели).
   // wardCache — последний ответ ward.get: после закрытия переписки «Подопечный» перерисовывается без нового запроса,
@@ -12,6 +14,7 @@
     support: null, supportAdmin: null, // 012: обращения — участнику его статус, админу — ничьи и непрочитанные
     roster: null, rosterOpen: null, // 037: участники на «Инфо»; rosterOpen — id события, где список раскрыт
     looks: { postcards: [], masks: [] }, // наборы открыток и масок — с сервера (me)
+    companies: [], companyId: null, company: null, botOwner: false,
   };
   const main = document.getElementById('main');
   const heroTitle = document.getElementById('heroTitle');
@@ -23,7 +26,12 @@
     setDirty(false);
     await goHome();
   }
-  heroBack.addEventListener('click', leaveEvent);
+  // «‹» и системная «Назад» (051): из события — на главный экран его компании, оттуда — к «Компаниям», если их несколько
+  function goBack() {
+    if (state.view === 'event') return leaveEvent();
+    if (state.view === 'home' && state.companies.length >= 2) return goCompanies();
+  }
+  heroBack.addEventListener('click', goBack);
 
   // Запросы в пределах открытого эвента
   const eapi = (action, body) => api(action, { ...(body || {}), event: state.evId });
@@ -39,10 +47,25 @@
     const d = await api('me');
     if (!d.registered) return d;
     state.me = d.me;
+    state.botOwner = !!d.me.is_owner;
+    state.companies = d.companies || [];
     state.events = d.events;
     state.limits = d.limits;
     state.looks = d.looks;
+    enterCompany(state.companyId);
     return d;
+  }
+
+  // Компания открытого экрана (051, R13): права человека в ней — в state.me.is_admin / is_owner, остальные части читают
+  // их как раньше. Компании нет (удалена, больше не видна) — экран без компании
+  function enterCompany(id) {
+    const c = state.companies.find((x) => x.id === id) || null;
+    state.companyId = c ? c.id : null;
+    state.company = c;
+    if (c) {
+      state.me.is_admin = c.organizer;
+      state.me.is_owner = c.owner;
+    }
   }
 
   // Данные эвента evId; если пользователь уже в другом эвенте — ничего не меняет (009).
@@ -84,7 +107,8 @@
     state.nav++;
     window.scrollTo(0, 0);
     try {
-      if (state.view === 'home') renderHome();
+      if (state.view === 'companies') renderCompanies();
+      else if (state.view === 'home') renderHome();
       else {
         renderHero();
         renderTabs();
@@ -110,6 +134,26 @@
     if (nav === state.nav) render();
   }
 
+  // Экран «Компании» (051): корневой у человека с несколькими компаниями
+  async function goCompanies() {
+    const nav = ++state.nav;
+    state.view = 'companies';
+    state.evId = null;
+    state.ev = null;
+    state.wardCache = null;
+    state.companyId = null;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    syncBack();
+    showLoader();
+    try { await reloadMe(); } catch (e) { if (nav === state.nav) showError(e, goCompanies); return; }
+    if (nav === state.nav) render();
+  }
+  // Главный экран компании
+  function openCompany(id) {
+    state.companyId = id;
+    return goHome();
+  }
+
   async function openEvent(id, tab, chat, support) {
     const nav = ++state.nav;
     state.view = 'event';
@@ -122,6 +166,7 @@
     showLoader();
     try { await reloadEvent(id); } catch (e) { if (nav === state.nav) showError(e, () => openEvent(id, tab, chat, support)); return; }
     if (nav !== state.nav) return;
+    enterCompany(state.ev.company); // права в компании события (051)
     const m = state.member;
     // Админу «Подопечный» по умолчанию не открывается: просмотр подопечного запрещает отмену жеребьёвки (009)
     // 012: из кнопок бота «💬 Открыть» — обращение участника (support=my) или обращение в панели админа (support=<id>)
@@ -138,15 +183,16 @@
     if (supportThread) openSupportThread(supportThread, id, () => (state.evId === id && state.tab === 'admin' ? render() : undefined));
   }
 
-  // Системная кнопка «Назад» Telegram (009): закрывает шторку, на экране эвента — возврат к списку
+  // Системная кнопка «Назад» Telegram (009): закрывает шторку, иначе — как «‹» (на экране эвента — к его компании, на
+  // главном экране — к «Компаниям», 051)
   function syncBack() {
     try {
       if (!tg || !ver('6.1')) return;
-      if (sheetEl || (state.view === 'event' && !heroBack.hidden)) tg.BackButton.show();
+      if (sheetEl || ((state.view === 'event' || (state.view === 'home' && state.companies.length >= 2)) && !heroBack.hidden)) tg.BackButton.show();
       else tg.BackButton.hide();
     } catch (e) {}
   }
-  try { if (tg && ver('6.1')) tg.BackButton.onClick(() => (sheetEl ? requestCloseSheet() : state.view === 'event' ? leaveEvent() : null)); } catch (e) {}
+  try { if (tg && ver('6.1')) tg.BackButton.onClick(() => (sheetEl ? requestCloseSheet() : goBack())); } catch (e) {}
 
   function eventRow(e) {
     const chips = [e.status === 'finished' ? ui.chip('завершён') : ui.chip('идёт', 'success')];
@@ -161,16 +207,24 @@
   function renderHome() {
     const me = state.me;
     const nav = state.nav;
-    heroBack.hidden = true;
-    heroTitle.textContent = 'Тайный Санта';
+    const many = state.companies.length >= 2;
+    heroBack.hidden = !many;
+    heroTitle.textContent = companyTitle();
     const greet = () => { heroSub.textContent = 'Привет, ' + me.name + '!'; };
     greet();
     // Разделы с именами людей (039): после смены своего имени перечитываются на месте
     const people = [];
     document.getElementById('tabs').hidden = true;
-    const mine = state.events.filter((e) => e.member);
-    const others = state.events.filter((e) => !e.member);
+    // События — только этой компании (051)
+    const events = state.events.filter((e) => !state.companyId || e.company === state.companyId);
+    const mine = events.filter((e) => e.member);
+    const others = events.filter((e) => !e.member);
     const nodes = [];
+    // 051, R9: владелец бота в чужой компании — гость
+    if (state.company && state.company.role === 'guest') {
+      nodes.push(h('div', { class: 'ds-notice ds-text-sm' }, 'Ты здесь как владелец бота: в списках компании тебя нет, уведомления её ' +
+        'администраторам тебе не приходят. Твои изменения записываются в журнал компании.'));
+    }
     nodes.push(ui.section('Мои события'));
     if (mine.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, mine.map(eventRow)));
     else nodes.push(ui.hint(me.is_admin
@@ -184,21 +238,21 @@
         const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: `Например: Новый год ${new Date().getFullYear() + 1} — семья` });
         // Образец (007): параметры и исключения прошлого эвента, по желанию — приглашение его участников
         const from = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Без образца — с чистого листа'),
-          ...state.events.map((e) => h('option', { value: e.id }, 'По образцу: ' + e.title)));
+          ...events.map((e) => h('option', { value: e.id }, 'По образцу: ' + e.title)));
         const invite = h('input', { type: 'checkbox', checked: true, disabled: true });
         const inviteRow = h('label', { class: 'ds-check' }, invite, 'Пригласить участников образца');
         from.addEventListener('change', () => { invite.disabled = !from.value; });
         const ok = ui.btn('Создать', '', 'ds-btn--block');
         ok.addEventListener('click', () => busy(ok, async () => {
           if (!title.value.trim()) return toast('Напиши название');
-          const r = await api('admin.events.create', { title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked });
+          const r = await capi('admin.events.create', { title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked });
           closeSheet();
           toast(r.invited ? `🎄 Событие создано, приглашения: ${r.invited}` : r.invite_error ? '🎄 Событие создано. ' + r.invite_error : '🎄 Событие создано');
           await reloadMe();
           await openEvent(r.event.id, 'admin');
         }));
         const sheet = [ui.hint('У события будут свои участники, пригласительная ссылка, письма и жеребьёвка. Можно вести несколько событий одновременно.'), clearable(title, 'Название события')];
-        if (state.events.length) {
+        if (events.length) {
           sheet.push(from, inviteRow, ui.hint('Из образца копируются бюджет, место, заметки, правила жеребьёвки и исключения. Даты — нет.'));
         }
         openSheet('Новое событие', [...sheet, ok]);
@@ -210,7 +264,17 @@
       }
     }
 
-    // Профиль: новое имя сразу отображается на главном экране (039)
+    // 051: у владельца бота с одной компанией (или без компаний) — раздел «Компании» здесь же
+    if (state.botOwner && !many) nodes.push(...companiesTools(state.company));
+    // «Профиль» и «Уведомления» — на корневом экране (051, FR-5125): у человека с несколькими компаниями — на «Компаниях»
+    if (!many) nodes.push(...personalSections(nav, greet, people));
+    main.replaceChildren(...nodes);
+  }
+
+  // «Профиль» и «Уведомления» корневого экрана. Новое имя сразу отображается на экране (039): приветствие и разделы с
+  // именами людей (people — их load) перечитываются на месте
+  function personalSections(nav, greet, people = []) {
+    const me = state.me;
     const nameText = h('div', { class: 'ds-text-strong' }, me.name);
     const profileChanged = () => {
       if (nav !== state.nav) return;
@@ -220,7 +284,6 @@
     };
     const editName = ui.btn('✏️ Изменить имя', 'secondary', 'ds-btn--block');
     editName.addEventListener('click', () => openNameSheet(profileChanged));
-    nodes.push(ui.section('Профиль'), ui.card(nameText, editName));
 
     // Уведомления — общие для всех эвентов
     const modes = [['sound', '🔔 Звук'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
@@ -230,9 +293,8 @@
       onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast('Сохранено'); }),
     }, label)));
     draw();
-    nodes.push(ui.section('Уведомления'),
-      ui.card(ui.hint('Когда подопечный меняет письмо (в любом событии), бот сообщит об этом — без имени и подробностей.'), seg));
-    main.replaceChildren(...nodes);
+    return [ui.section('Профиль'), ui.card(nameText, editName), ui.section('Уведомления'),
+      ui.card(ui.hint('Когда подопечный меняет письмо (в любом событии), бот сообщит об этом — без имени и подробностей.'), seg)];
   }
 
   // Шторка «Твоё имя» (035): правило — как при регистрации (до 40 символов, пробелы схлопывает сервер); saved(имя из
@@ -255,7 +317,7 @@
   // ответу, без загрузчика (039)
   function renderFamiliesSection() {
     const box = h('div', {}, ui.section('Семьи'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
-    const load = () => api('admin.families').then((d) => {
+    const load = () => capi('admin.families').then((d) => {
       const list = h('div', { class: 'ds-card ds-card--flush' });
       if (!d.families.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Семей пока нет.'));
       for (const f of d.families) {
@@ -279,7 +341,7 @@
       const save = ui.btn('Сохранить', '', 'ds-btn--block');
       save.addEventListener('click', () => busy(save, async () => {
         const members = boxes.filter(([c]) => c.checked).map(([c]) => +c.dataset.id);
-        await api('admin.family.save', { id: f ? f.id : undefined, name: name.value, members });
+        await capi('admin.family.save', { id: f ? f.id : undefined, name: name.value, members });
         closeSheet();
         toast('Семья сохранена');
         await load();
@@ -289,7 +351,7 @@
         const del = ui.btn('🗑 Удалить семью', 'danger', 'ds-btn--block');
         del.addEventListener('click', async () => {
           if (!(await confirmBox(`Удалить семью «${f.name}»? Уже проведённые жеребьёвки не изменятся.`))) return;
-          busy(del, async () => { await api('admin.family.delete', { id: f.id }); closeSheet(); toast('Семья удалена'); await load(); });
+          busy(del, async () => { await capi('admin.family.delete', { id: f.id }); closeSheet(); toast('Семья удалена'); await load(); });
         });
         items.push(del);
       }
@@ -299,10 +361,17 @@
     return { box, load };
   }
 
-  // Раздел «Владелец и администраторы» (002): общий для бота, показывается на главном экране. → { box, load }, как у «Семей»
+  // Раздел «Владелец и администраторы» (002): люди и права компании открытого экрана. → { box, load }, как у «Семей»
   function renderAdminsSection() {
     const box = h('div', {}, ui.section('Владелец и администраторы'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
-    const load = () => api('admin.users').then((d) => {
+    // 👑 (051): владелец компании передаёт свои права; владелец бота делает человека владельцем компании
+    const makeOwner = async (u, btns) => {
+      if (!(await confirmBox(state.botOwner
+        ? `Сделать «${u.name}» владельцем этой компании? Он(а) сможет всё, что владелец: администраторы, сброс и удаление событий, служебный просмотр пар. Ты останешься владельцем бота и сможешь вернуть компанию себе.`
+        : `Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать администраторов сможет только новый владелец.`))) return;
+      busy(btns, async () => { await capi('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await goHome(); });
+    };
+    const load = () => capi('admin.users').then((d) => {
       const me = state.me;
       const admins = d.users.filter((u) => u.is_admin).sort((a, b) => (b.is_owner ? 1 : 0) - (a.is_owner ? 1 : 0));
       const list = h('div', { class: 'ds-card ds-card--flush' });
@@ -310,13 +379,10 @@
         const actions = h('div', { class: 'ds-row ds-row--tight' });
         if (me.is_owner && !u.is_owner) {
           actions.append(
-            h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: async () => {
-              if (!(await confirmBox(`Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать администраторов сможет только новый владелец.`))) return;
-              busy([...actions.children], async () => { await api('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await goHome(); });
-            } }, '👑'),
+            h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: () => makeOwner(u, [...actions.children]) }, '👑'),
             h('button', { class: 'ds-icon-btn', title: 'Снять права администратора', onclick: async () => {
               if (!(await confirmBox(`Снять права администратора с «${u.name}»?`))) return;
-              busy([...actions.children], async () => { await api('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await goHome(); });
+              busy([...actions.children], async () => { await capi('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await goHome(); });
             } }, '✕'));
         }
         list.append(h('div', { class: 'ds-list-item' },
@@ -335,9 +401,17 @@
             const u = candidates.find((x) => String(x.id) === sel.value);
             if (!u) return toast('Выбери человека');
             if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет создавать и вести события. Пары сможет открыть только владелец в служебном просмотре.`))) return;
-            busy(grant, async () => { await api('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await goHome(); });
+            busy(grant, async () => { await capi('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await goHome(); });
           });
           parts.push(ui.card(ui.hint('Администраторы создают и ведут события. Назначать, снимать администраторов и передавать права владельца (👑) можешь только ты.'), sel, grant));
+          // Владельцем можно сделать и не администратора (051)
+          const pick = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Кого сделать владельцем…'), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
+          const crown = ui.btn('👑 Сделать владельцем', 'secondary', 'ds-btn--block');
+          crown.addEventListener('click', () => {
+            const u = candidates.find((x) => String(x.id) === pick.value);
+            return u ? makeOwner(u, crown) : toast('Выбери человека');
+          });
+          parts.push(ui.card(pick, crown));
         }
       } else {
         parts.push(ui.hint(`Назначать и снимать администраторов может только владелец${d.owner_name ? ' — ' + d.owner_name : ''}.`, 'ds-hint--inset'));

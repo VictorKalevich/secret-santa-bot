@@ -107,6 +107,9 @@ export async function memberLetter(ctx, ev, rawId) {
   return { ok: true, name: u.name, wishlist: m.wishlist, card: m.card, updated_at: m.wishlist_updated_at };
 }
 
+// Человек состоит больше чем в одной компании (051, FR-5116): его имя меняет он сам или владелец бота
+export const companyCountQuery = (db, userId) => db.prepare('SELECT COUNT(*) AS n FROM company_members WHERE user_id = ?').bind(userId);
+
 // admin.users: зарегистрированные люди компании (без гостя) и её владелец
 export async function usersList(ctx) {
   const [all, ownerId] = await Promise.all([ctx.users(), ctx.ownerId()]);

@@ -384,19 +384,19 @@ test('приложение: маска — текстом только чере�
   assert.ok(masksUse.length > 0 && masksUse.every((x) => /maskLabel|openMaskSheet|masks\.(find|map)/.test(x.line)), JSON.stringify(masksUse));
   const setCalls = all.filter((x) => /'mask\.set'/.test(x.line));
   assert.equal(setCalls.length, 1, 'mask.set — одно место');
-  const ev = part('04-');
+  const ev = part('05-');
   const sheet = topBlock(ev, 'openMaskSheet');
   assert.ok(sheet, 'нет openMaskSheet');
   const body = ev.slice(sheet[0], sheet[1] + 1).join('\n');
   assert.match(body, /'mask\.set'/);
   assert.match(body, /busy\(\[\.\.\.grid\.children\]/);
   assert.match(body, /ds-choices--labeled/);
-  const chat = part('07-');
+  const chat = part('08-');
   const oc = topBlock(chat, 'openChat');
   const ocBody = chat.slice(oc[0], oc[1] + 1).join('\n');
   assert.match(ocBody, /maskedSanta\(/, 'openChat — маска через maskedSanta (maskLabel)');
   assert.match(ocBody, /d\.mask/, 'openChat — маска из ответа chat.get');
-  for (const p of ['05-', '06-']) {
+  for (const p of ['06-', '07-']) {
     const bad = part(p).filter((l) => /\bmask/i.test(code(l)));
     assert.deepEqual(bad, [], `${p}: без масок`);
   }

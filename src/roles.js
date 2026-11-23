@@ -4,7 +4,7 @@
 
 import {
   setSettings, setSettingStmt, getEvent, userQuery, adminFlagStmt,
-  mergeMembership, personTransferStmts,
+  mergeMembership, personTransferStmts, BOT_LOG,
 } from './db.js';
 import { msg, escapeHtml, appKeyboard, displayName, adminRecipients } from './format.js';
 import { derivedSecret } from './telegram.js';
@@ -83,15 +83,17 @@ export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabe
     ? atomic(db, "EXISTS (SELECT 1 FROM settings WHERE key = 'owner_id' AND value = ?)", String(prevOwnerId))
     : atomic(db, '1 = 1');
   a.where('UPDATE users SET is_admin = 1 WHERE tg_id = ?', newOwnerId);
+  // 051, I8: компании, где новый владелец бота был назначенным владельцем, теперь ведёт он как владелец бота
+  a.where('UPDATE companies SET owner_id = 0 WHERE owner_id = ?', newOwnerId);
   // Строка администратора в каждой компании, которую ведёт владелец бота (I2)
   a.add(db.prepare(
     `INSERT INTO company_members (company_id, user_id, is_admin, joined_at) SELECT id, ?, 1, ? FROM companies WHERE owner_id = 0 AND ${a.sql}
      ON CONFLICT(company_id, user_id) DO UPDATE SET is_admin = 1`
   ).bind(newOwnerId, Date.now(), ...a.args));
-  for (const c of companies.values()) {
-    if (c.owner_id) continue;
-    if (transfer) a.audit({ company: c.id }, prevOwnerId, 'owner.transfer', `→ ${newOwnerLabel || displayName(target)}`);
-    else a.audit({ company: c.id }, newOwnerId, 'owner.link', newOwnerLabel || displayName(target));
+  const who = newOwnerLabel || displayName(target);
+  for (const sphere of [...[...companies.values()].filter((c) => !c.owner_id || c.owner_id === newOwnerId).map((c) => ({ company: c.id })), BOT_LOG]) {
+    if (transfer) a.audit(sphere, prevOwnerId, 'owner.transfer', `→ ${who}`);
+    else a.audit(sphere, newOwnerId, 'owner.link', who);
   }
   if (prevOwnerId && prevOwnerId !== newOwnerId) {
     if (via === 'link') {
@@ -158,11 +160,16 @@ export async function revokeAdmin(ctx, id, actor = 0) {
   return { ok: true };
 }
 
-// Цель — зарегистрированный человек компании вызова (050); смысл прежний — права владельца бота
-export async function transferOwnership(ctx, fromId, toId) {
-  const users = await ctx.users();
-  const u = users.find((x) => x.tg_id === toId && !x.guest);
-  if (!u || !u.registered) return no('Передать права владельца можно только зарегистрированному человеку.');
+// bot.owner.transfer (051; до 051 — admin.owner.transfer): права владельца бота. Цель — зарегистрированный человек
+// компании, которую ведёт владелец бота (R3)
+const botRunPersonQuery = (db, id) => db.prepare(
+  `SELECT u.tg_id FROM users u WHERE u.tg_id = ? AND u.registered = 1
+      AND EXISTS (SELECT 1 FROM company_members cm JOIN companies c ON c.id = cm.company_id WHERE cm.user_id = u.tg_id AND c.owner_id = 0)`
+).bind(id);
+
+export async function transferBotOwnership(ctx, fromId, toId) {
+  const { u } = await ctx.read({ u: botRunPersonQuery(ctx.db, toId || 0) });
+  if (!u.length) return no('Передать права владельца можно только зарегистрированному человеку.');
   if (toId === fromId) return no('Ты и так владелец.');
   if (!(await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId })).won) return no('Права владельца уже переданы.');
   return { ok: true };

@@ -335,7 +335,7 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     assert.equal((await api(masha, 'admin.remove', { event: ev.C, id: petya.id }, true)).status, 403);
     await api(owner, 'admin.role.revoke', { id: petya.id });
     assert.equal((await api(petya, 'admin.state', { event: ev.C }, true)).status, 403);
-    await api(owner, 'admin.owner.transfer', { id: masha.id });
+    await api(owner, 'bot.owner.transfer', { id: masha.id }); // 051: прежний admin.owner.transfer
     assert.equal((await api(masha, 'me')).me.is_owner, true);
     assert.equal((await api(owner, 'admin.role.grant', { id: petya.id }, true)).status, 403);
     // 010: ссылка владельца одноразовая — повторный переход владельца не меняет
@@ -1465,6 +1465,29 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       for (const u of [anya, borya, vera]) assert.equal(gone(u), 1, `${u.name}: одно уведомление`);
       const rows = await z.query("SELECT COUNT(*) AS n FROM audit WHERE event_id = 0 AND action = 'event.delete' AND details LIKE '«Удаляшка»%'");
       assert.equal(rows[0].n, 1, 'одна запись в общем журнале');
+    });
+
+    // 051: владелец компании ⊇ администратор в своей компании (кроме admin.transfer — только владелец бота). Последним: со
+    // второй компанией общим действиям владельца бота нужно поле company
+    await t.test('владелец компании может в своей компании всё, что админ (автотест по admin.*)', async () => {
+      const { ACTIONS } = await import('../src/api.js');
+      const actions = Object.keys(ACTIONS).filter((a) => a.startsWith('admin.'));
+      const chief = { id: 1190, name: 'Владелица', username: 'chief051' };
+      const company = (await zapi(boss, 'bot.company.create', { name: 'Вторая компания' })).company;
+      const { link } = await zapi(boss, 'bot.company.link', { company, on: true });
+      await z.say(chief, '/start ' + /start=(own_[a-z0-9]+)/.exec(link)[1]);
+      await z.say(chief, chief.name);
+      await waitFor(() => ztexts(chief).some((x) => /Создай первое событие/.test(x)), 'владелица по ссылке');
+      const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
+      const denied = [];
+      for (const a of actions) {
+        const ev = (await zapi(chief, 'admin.events.create', { title: 'Права ' + a })).event.id;
+        const r = await zapi(chief, a, body(ev), true);
+        if (r.status === 403) denied.push(a);
+      }
+      assert.deepEqual(denied, ['admin.transfer']);
+      const other = await zapi(chief, 'admin.state', { event: E }, true);
+      assert.equal(other.status, 404, 'событие другой компании — как несуществующее');
     });
   } finally {
     const log = z.log();

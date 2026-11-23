@@ -21,6 +21,7 @@ import {
 } from './support.js';
 import { menuEvents } from './participant.js';
 import { maskLabel } from './looks.js';
+import { claimCompanyOwner, companyByOwnerCode, menuCompanyTitles, NEW_COMPANY_OWNER, OWNER_LINK_GONE } from './companies.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта, владелец и администраторы.';
@@ -81,9 +82,11 @@ function nameOffer(from, intro, joining) {
   ] } });
 }
 
-// Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913).
-async function buildMenu(db, user, settings) {
-  const results = await menuEvents(db, user.tg_id);
+// Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913). 051: у
+// человека с двумя и более видимыми компаниями рядом с событием — название компании (компании — из первого пакета вызова)
+async function buildMenu(ctx, user, settings) {
+  const results = await menuEvents(ctx.db, user.tg_id);
+  const titles = await menuCompanyTitles(ctx, user.tg_id, new Set(results.map((e) => e.company_id)));
   const active = results.filter((e) => e.status === 'active');
   const finishedCount = results.length - active.length;
   const items = active.slice(0, 5);
@@ -98,15 +101,18 @@ async function buildMenu(db, user, settings) {
     for (const ev of items) {
       const letter = ev.wishlist.trim() ? 'письмо ✅' : 'письмо пустое ✏️';
       const draw = !ev.draw_done ? 'жеребьёвка впереди' : ev.has_ward ? 'подопечный назначен 🎁' : 'ждёт добавления в жеребьёвку';
-      lines.push(`• ${q(ev)} — ${letter}, ${draw}`);
+      const company = titles ? ` (${escapeHtml(titles.get(ev.company_id) ?? '')})` : '';
+      lines.push(`• ${q(ev)}${company} — ${letter}, ${draw}`);
     }
   }
   if (finishedCount) lines.push('', `📚 Завершённых событий: ${finishedCount} — их история в приложении.`);
   if (user.is_admin) {
     const owner = Number(settings.owner_id || 0) === user.tg_id;
+    // 051: назначенный владелец компании
+    const companyOwner = !owner && [...(await ctx.companies()).values()].some((c) => c.owner_id === user.tg_id);
     lines.push('', owner
       ? '👑 Ты владелец бота — события и администраторы в приложении.'
-      : '🛠 Ты администратор — события в приложении.');
+      : companyOwner ? '👑 Ты владелец — события и администраторы в приложении.' : '🛠 Ты администратор — события в приложении.');
   }
   const kb = [[openAppButton(settings)]];
   for (const ev of items.slice(0, 3)) {
@@ -135,7 +141,7 @@ async function openChat(env, m) {
     text: (m.text || '').trim(),
     user: ctx.me,
     reply: (payload) => call('sendMessage', { chat_id: from.id, ...(typeof payload === 'string' ? msg(payload) : payload) }),
-    sendMenu: async () => c.reply(await buildMenu(db, c.user, settings)),
+    sendMenu: async () => c.reply(await buildMenu(ctx, c.user, settings)),
     menuIfRegistered: () => (c.user?.registered ? c.sendMenu() : undefined),
     writeLetter: (text, ev) => ({ ...msg(text), ...appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }) }),
     // joining — по умолчанию по ожиданию имени: name:<эвент>:<код> — после пригласительной ссылки
@@ -207,6 +213,8 @@ async function onStart(c) {
   if (payload.startsWith('adm_') && payload === (await ownerLinkCode(c.env))) return onOwnerLink(c);
   // Пригласительная ссылка эвента (005; 009 — единая логика с вводом имени)
   if (payload.startsWith('inv_')) return onInvite(c, payload.slice(4));
+  // Ссылка владельца компании (051)
+  if (payload.startsWith('own_')) return onCompanyOwnerLink(c, payload.slice(4));
   if (c.user?.registered) return c.sendMenu();
   if (c.user && c.user.pending.startsWith('name')) return c.askName();
   return c.reply(CLOSED_BOT);
@@ -234,6 +242,32 @@ async function onOwnerLink(c) {
   }
   await c.reply('👑 Теперь ты владелец бота: события и администраторы — в приложении.');
   return c.sendMenu();
+}
+
+// Ссылка владельца компании (051, контракт — раздел 4): зарегистрированный становится владельцем сразу, новый — после
+// имени (ожидание name_own:<компания>:<код>), если код к тому времени тот же
+const OWNER_LINK_REPLIES = {
+  gone: OWNER_LINK_GONE,
+  bot: 'Ты владелец бота — эту компанию и так ведёшь ты.',
+  already: 'Ты уже владелец.',
+  owner: NEW_COMPANY_OWNER + ' Всё — в приложении.',
+};
+async function onCompanyOwnerLink(c, code) {
+  const { db, ctx, from } = c;
+  if (c.user?.registered) {
+    const status = await claimCompanyOwner(ctx, code, c.user);
+    await c.reply(OWNER_LINK_REPLIES[status]);
+    if (status === 'owner') {
+      ctx.forgetUsers(); // права и компании изменились — меню читает их заново
+      await c.reload();
+    }
+    return c.sendMenu();
+  }
+  const company = await companyByOwnerCode(db, code);
+  if (!company) return c.reply(OWNER_LINK_GONE);
+  const pending = `name_own:${company.id}:${code}`;
+  await (c.user ? c.setPending(pending) : createUser(db, from.id, from.username, { pending }));
+  return c.askName(NEW_COMPANY_OWNER + '\n\n', false);
 }
 
 async function onInvite(c, code) {
@@ -287,6 +321,8 @@ async function onName(c) {
 // ничего не отправлено
 async function signUp(c, name, saved = async () => {}) {
   const { db, from } = c;
+  const own = OWNER_PENDING.exec(c.user.pending);
+  if (own) return signUpOwner(c, name, own[1], saved);
   const [, eid, code] = c.user.pending.split(':');
   const ev = Number(eid) ? await getEvent(db, eid) : null;
   const member = ev ? await getMember(db, ev.id, from.id) : null;
@@ -310,6 +346,24 @@ async function signUp(c, name, saved = async () => {}) {
     const status = await joinByInvite(ctx, ev, c.user);
     if (!(await replyJoin(c, ev, status)) && status !== 'closed' && status !== 'removed') return true;
   }
+  await c.sendMenu();
+  return true;
+}
+
+// После ссылки владельца компании (051): имя, затем права — если код ссылки всё ещё тот же
+const OWNER_PENDING = /^name_own:\d+:([a-z0-9]+)$/;
+async function signUpOwner(c, name, code, saved) {
+  if (!(await register(c.ctx, name, c.from.username || ''))) return false;
+  await saved();
+  c.user = c.ctx.me = { ...c.user, name, username: c.from.username || '', registered: 1, pending: '' };
+  const owner = (await claimCompanyOwner(c.ctx, code, c.user)) === 'owner';
+  if (owner) {
+    c.ctx.forgetUsers();
+    await c.reload();
+  }
+  await c.reply(`Приятно познакомиться, ${escapeHtml(name)}! 🎉\n\n` + (owner
+    ? 'Создай первое событие в приложении — там появится пригласительная ссылка.'
+    : 'Ссылка владельца уже использована или отозвана. Попроси новую.'));
   await c.sendMenu();
   return true;
 }

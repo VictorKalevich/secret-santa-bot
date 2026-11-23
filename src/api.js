@@ -7,7 +7,7 @@
 import { updateUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
 import { saveShipment } from './shipment.js';
-import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
+import { inviteLink, oneLine, ownerWord, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
 import { isFinished, publicEvent } from './status.js';
 import { openContext } from './context.js';
 import {
@@ -16,7 +16,8 @@ import {
 } from './events.js';
 import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw, checkSwap, swapWards } from './pairs.js';
 import { sendChatMessage, chatHistory } from './chat.js';
-import { grantAdmin, revokeAdmin, transferOwnership, transferAccount } from './roles.js';
+import { grantAdmin, revokeAdmin, transferBotOwnership, transferAccount } from './roles.js';
+import { createCompany, setLabel, setCompanyOwner, ownerLink, deleteCompany, botAudit } from './companies.js';
 import {
   saveFamily, deleteFamily, decideRequest, familiesList, participate, allowRemoved, leaveEvent, LEAVE_FINISHED,
 } from './membership.js';
@@ -27,24 +28,39 @@ import {
 import {
   homeView, eventView, saveWishlist, writeLetterDraft, saveDelivery, wardView, setGiftReady, setGiftReceived, setCard, setMask,
 } from './participant.js';
-import { adminState, memberLetter, usersList, renameUser } from './panel.js';
+import { adminState, memberLetter, usersList, renameUser, companyCountQuery } from './panel.js';
 import { changeExclusions, changeFixed } from './constraints.js';
 
 // ---------- роли и общие отказы ----------
 
 // ANY — любой с подписью; USER — зарегистрированный; VIEWER — участник события или админ; MEMBER — участник события;
-// ADMIN — админ; OWNER — владелец бота (с текстом отказа в поле owner). 050: админ и владелец — в компании действия
-// (событие — его компания; общее действие организатора с признаком company — body.company или единственная компания)
-export const ROLES = Object.freeze({ ANY: 'any', USER: 'user', VIEWER: 'viewer', MEMBER: 'member', ADMIN: 'admin', OWNER: 'owner' });
-const { ANY, USER, VIEWER, MEMBER, ADMIN, OWNER } = ROLES;
+// ADMIN — админ; OWNER — владелец (с текстом отказа в поле owner); BOT — владелец бота (051, действия bot.*). 050: админ и
+// владелец — в компании действия (событие — его компания; общее действие организатора с признаком company — body.company
+// или единственная компания); 051: владелец — владелец этой компании или владелец бота
+export const ROLES = Object.freeze({
+  ANY: 'any', USER: 'user', VIEWER: 'viewer', MEMBER: 'member', ADMIN: 'admin', OWNER: 'owner', BOT: 'bot',
+});
+const { ANY, USER, VIEWER, MEMBER, ADMIN, OWNER, BOT } = ROLES;
 
 // Завершённый эвент — только просмотр, раскрытие, удаление и приглашение его участников в новый. Сброс запрещён: он
 // вернул бы эвент в «идёт», а завершение необратимо (FR-506).
 const CLOSED = 'Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).';
 const VAULT_WORD = ['ОТКРЫТЬ', 'Для служебного просмотра введи слово ОТКРЫТЬ.'];
-const onlyOwner = (what) => `${what} может только владелец бота.`;
+// Отказ не владельцу (051): в таблице — текст компании, которую ведёт владелец бота (прежний, его сверяет docs/api.md);
+// в компании с назначенным владельцем конвейер строит тот же текст со словом «владелец» (ownerRefusal)
+const OWNER_TEXTS = new Map();
+const byOwner = (build) => {
+  const text = build(ownerWord(true));
+  OWNER_TEXTS.set(text, build);
+  return text;
+};
+const ownerRefusal = (text, c) => OWNER_TEXTS.get(text)?.(c.ownerWord()) ?? text;
+const onlyOwner = (what) => byOwner((w) => `${what} может только ${w.nom}.`);
+// Только владельцу бота — в любой компании одним текстом
+const onlyBotOwner = (what) => `${what} может только ${ownerWord(true).nom}.`;
+const BOT_ONLY = `Только для ${ownerWord(true).gen}.`;
 const ROLES_OWNER = onlyOwner('Назначать и снимать администраторов');
-const VAULT_OWNER = 'Служебный просмотр доступен только владельцу бота.';
+const VAULT_OWNER = byOwner((w) => `Служебный просмотр доступен только ${w.dat}.`);
 const SWAP_OWNER = onlyOwner('Менять подопечных после жеребьёвки');
 const LETTER_CLOSED = 'Событие завершено: письмо теперь только для чтения.';
 const MARK_CLOSED = 'Событие завершено: отметка только для чтения.';
@@ -100,6 +116,8 @@ export const ACTIONS = {
       return { name };
     },
   },
+  // 051: «как я называю эту компанию» — владельцу бота название компании, остальным своё; без журнала и сообщений
+  'company.label.set': { role: USER, run: async (ctx, body) => out(await setLabel(ctx, body.company, body.label)) },
   // 038: открытка письма — из набора src/looks.js, без журнала и сообщений
   'card.set': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev) => out(await setCard(ctx, ev, body.card)) },
   'event.get': { role: VIEWER, event: true, finished: true, run: (ctx, body, ev, member) => eventView(ctx, ev, member) },
@@ -191,23 +209,28 @@ export const ACTIONS = {
     async run(ctx, body) {
       const name = validName(body.name);
       if (!name) return refuse(NAME_RULE);
-      // Цель — человек компании (050; гость — не человек компании)
-      const target = (await ctx.users()).find((u) => u.tg_id === Number(body.id) && !u.guest);
+      // Цель — человек компании (050; гость — не человек компании); в скольких компаниях он — тем же пакетом (051)
+      const { users, count } = await ctx.read({ users: true, count: companyCountQuery(ctx.db, Number(body.id) || 0) });
+      const target = users.find((u) => u.tg_id === Number(body.id) && !u.guest);
       if (!target) return refuse('Участник не найден');
       // Администраторов и владельца переименовывает только владелец; себя — любой админ (006, FR-613)
       const ownerId = await ctx.ownerId();
       if ((target.is_admin || target.tg_id === ownerId) && target.tg_id !== ctx.me.tg_id && !(await ctx.isOwner())) {
-        return refuse('Переименовать администратора может только владелец бота.', 403);
+        return refuse(`Переименовать администратора может только ${ctx.ownerWord().nom}.`, 403);
       }
+      // 051, FR-5116: имя одно во всех компаниях — человека из нескольких компаний переименовывает он сам
+      if (count[0].n > 1 && !(await ctx.isBotOwner())) return refuse('Имя этого человека меняет он сам: «Профиль» → «✏️ Изменить имя».');
       await renameUser(ctx, target, name, ctx.me.tg_id, [ctx.company.id]); // журнал — только при настоящем изменении (025)
       return {};
     },
   },
-  // Иначе админ перенёс бы участие игрока на свой второй, не-админский аккаунт и увидел его пары (010, FR-1001)
+  // Иначе админ перенёс бы участие игрока на свой второй, не-админский аккаунт и увидел его пары (010, FR-1001). 051: только
+  // владелец бота (bot) — аккаунт один на все компании, владелец компании увидел бы чужие пары в другой компании
   'admin.transfer': {
     role: OWNER,
     company: true,
-    owner: onlyOwner('Переносить участие на новый аккаунт'),
+    bot: true,
+    owner: onlyBotOwner('Переносить участие на новый аккаунт'),
     async run(ctx, body) {
       const from = Number(body.from);
       if (from === (await ctx.ownerId()) || from === (await ctx.botOwnerId())) {
@@ -219,11 +242,12 @@ export const ACTIONS = {
   },
   'admin.role.grant': { role: OWNER, company: true, owner: ROLES_OWNER, run: async (ctx, body) => out(await grantAdmin(ctx, Number(body.id), ctx.me.tg_id), none) },
   'admin.role.revoke': { role: OWNER, company: true, owner: ROLES_OWNER, run: async (ctx, body) => out(await revokeAdmin(ctx, Number(body.id), ctx.me.tg_id), none) },
+  // 051: «сделать владельцем этой компании» — назначение, передача своих прав и «Вести самому» (id — владелец бота)
   'admin.owner.transfer': {
     role: OWNER,
     company: true,
     owner: onlyOwner('Передать права владельца'),
-    run: async (ctx, body) => out(await transferOwnership(ctx, ctx.me.tg_id, Number(body.id)), none),
+    run: async (ctx, body) => out(await setCompanyOwner(ctx, body.id), none),
   },
 
   // ---------- администратор: в пределах события ----------
@@ -246,7 +270,7 @@ export const ACTIONS = {
       if (id === (await ctx.ownerId())) return refuse('Владельца нельзя удалить из события. Сначала он должен передать права владельца.');
       // Человек — из списка пользователей вызова (019); «не участвует» отвечает removeMember тем же текстом
       const target = (await ctx.users()).find((u) => u.tg_id === id);
-      if (target?.is_admin && !(await ctx.isOwner())) return refuse('Удалить администратора может только владелец бота.', 403);
+      if (target?.is_admin && !(await ctx.isOwner())) return refuse(`Удалить администратора может только ${ctx.ownerWord().nom}.`, 403);
       // Отметка «удалён организатором» (010): при запрете возврата человек не войдёт по ссылке снова
       return out(await removeMember(ctx, ev, id, { actor: me.tg_id, mark: true }), none);
     },
@@ -405,6 +429,18 @@ export const ACTIONS = {
       return { removed: r.removed, invite_link: inviteLink(await ctx.settings(), { invite_code: r.inviteCode }) };
     },
   },
+
+  // ---------- владелец бота (051): компании, их ссылки владельца, права владельца бота, журнал бота ----------
+  'bot.company.create': { role: BOT, run: async (ctx, body) => out(await createCompany(ctx, body.name)) },
+  'bot.company.link': { role: BOT, run: async (ctx, body) => out(await ownerLink(ctx, body.company, !!body.on)) },
+  'bot.company.delete': {
+    role: BOT,
+    confirm: ['УДАЛИТЬ', 'Для удаления введи слово УДАЛИТЬ.'],
+    run: async (ctx, body) => out(await deleteCompany(ctx, body.company), none),
+  },
+  // Прежняя передача прав владельца бота (до 051 — admin.owner.transfer)
+  'bot.owner.transfer': { role: BOT, run: async (ctx, body) => out(await transferBotOwnership(ctx, ctx.me.tg_id, Number(body.id)), none) },
+  'bot.audit': { role: BOT, run: (ctx) => botAudit(ctx) },
 };
 
 function pair(body) {
@@ -441,22 +477,25 @@ export async function handleApi(request, env, action) {
   const admin = action.startsWith('admin.');
   const row = Object.hasOwn(ACTIONS, action) ? ACTIONS[action] : admin ? UNKNOWN_ADMIN : UNKNOWN;
   if (row.role !== ANY && (!me || !me.registered)) return fail(NOT_REGISTERED, 403);
+  // Действия владельца бота (051): без события и без компании конвейера — компанию из тела проверяет обработчик
+  if (row.role === BOT && !(await ctx.isBotOwner())) return fail(BOT_ONLY, 403);
   if (admin) {
     // Общий признак: админ хотя бы в одной компании или владелец бота (050)
     if (!me.is_admin && !(await ctx.isBotOwner())) return fail(ADMIN_ONLY, 403);
     // Владелец бота — сразу: если он в настройках недействителен, назначается самый ранний админ (не откладывать запись)
     await ctx.botOwnerId();
   }
-  const owner = async (c) => !row.owner || (await c.isOwner());
+  const owner = async (c) => !row.owner || ((await c.isOwner()) && (!row.bot || (await c.isBotOwner())));
+  const word = () => row.confirm && !confirmed(body, row.confirm[0]);
 
   if (!(row.event === true || (row.event === 'given' && body.event))) {
-    if (!row.company) return respond(await row.run(ctx, body));
+    if (!row.company) return word() ? fail(row.confirm[1]) : respond(await row.run(ctx, body));
     // Общее действие организатора — в компании из запроса или в единственной компании вызывающего
     const id = Number(body.company) || (await ctx.soleCompany());
     if (!id) return fail('Выбери компанию.');
     const c = await ctx.in(id);
     if (!c?.me.is_admin) return fail(ADMIN_ONLY, 403);
-    if (!(await owner(c))) return fail(row.owner, 403);
+    if (!(await owner(c))) return fail(ownerRefusal(row.owner, c), 403);
     return respond(await row.run(c, body));
   }
   const ev = await getEvent(db, body.event);
@@ -472,7 +511,7 @@ export async function handleApi(request, env, action) {
   }
   if (isFinished(ev) && row.finished !== true) return fail(row.finished);
   // Владелец — после «событие завершено»: админ на завершённом событии получает 400, а не 403
-  if (!(await owner(c))) return fail(row.owner, 403);
-  if (row.confirm && !confirmed(body, row.confirm[0])) return fail(row.confirm[1]);
+  if (!(await owner(c))) return fail(ownerRefusal(row.owner, c), 403);
+  if (word()) return fail(row.confirm[1]);
   return respond(await row.run(c, body, ev, member));
 }

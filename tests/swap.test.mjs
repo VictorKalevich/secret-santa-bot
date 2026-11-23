@@ -337,18 +337,18 @@ test('swapRules: чистая функция на малых примерах', 
 
 test('приложение: секция только владельцу после жеребьёвки, шторка зовёт оба действия и «Подробнее», метка «не открыл» (049)', () => {
   const lines = (name) => PARTS.find((p) => p.name === name).text.split('\n');
-  const admin = lines('05-admin.js.txt');
+  const admin = lines('06-admin.js.txt');
   const section = topBlock(admin, 'adminSwap');
-  assert.ok(section, 'нет adminSwap в 05-admin');
+  assert.ok(section, 'нет adminSwap в 06-admin');
   const body = admin.slice(section[0], section[1] + 1).map(code).join('\n');
   assert.match(body, /me\.is_owner/);
   assert.match(body, /s\.draw_done/);
   assert.match(body, /s\.revealed/);
   assert.match(body, /\bdone\b/);
   assert.match(admin.join('\n'), /adminSwap, adminVault/, 'секция — перед служебным просмотром');
-  const sheet = lines('06-vault-audit.js.txt');
+  const sheet = lines('07-vault-audit.js.txt');
   const open = topBlock(sheet, 'openSwapSheet');
-  assert.ok(open, 'нет openSwapSheet в 06-vault-audit');
+  assert.ok(open, 'нет openSwapSheet в 07-vault-audit');
   const text = sheet.slice(open[0], open[1] + 1).map(code).join('\n');
   for (const needle of ["'admin.draw.swap.check'", "'admin.draw.swap'", 'ds-details', 'ds-details__summary', 'confirmBox(', 'busy(']) {
     assert.ok(text.includes(needle), 'в шторке нет ' + needle);

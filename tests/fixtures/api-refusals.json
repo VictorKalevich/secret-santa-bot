@@ -5296,6 +5296,506 @@
   "048 extra swap.check-admin": {
    "status": 403,
    "error": "Менять подопечных после жеребьёвки может только владелец бота."
+  },
+  "051 stranger company.label.set": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "051 stranger bot.company.create": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "051 stranger bot.company.link": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "051 stranger bot.company.delete": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "051 stranger bot.owner.transfer": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "051 stranger bot.audit": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "051 outsider company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 outsider bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 outsider bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 outsider bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 outsider bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 outsider bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 member company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 member bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 member bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 member bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 member bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 member bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 admin company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 admin bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 admin bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 admin bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 admin bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 admin bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 owner company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 owner bot.company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "051 owner bot.company.link": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 owner bot.company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "051 owner bot.owner.transfer": {
+   "status": 400,
+   "error": "Передать права владельца можно только зарегистрированному человеку."
+  },
+  "051 owner bot.audit": {
+   "status": 200,
+   "error": null
+  },
+  "051 missing-owner company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 missing-owner bot.company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "051 missing-owner bot.company.link": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 missing-owner bot.company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "051 missing-owner bot.owner.transfer": {
+   "status": 400,
+   "error": "Передать права владельца можно только зарегистрированному человеку."
+  },
+  "051 missing-owner bot.audit": {
+   "status": 200,
+   "error": null
+  },
+  "051 missing-admin company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 missing-admin bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-admin bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-admin bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-admin bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-admin bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-member company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 missing-member bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-member bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-member bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-member bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 missing-member bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-owner company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 none-owner bot.company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "051 none-owner bot.company.link": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 none-owner bot.company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "051 none-owner bot.owner.transfer": {
+   "status": 400,
+   "error": "Передать права владельца можно только зарегистрированному человеку."
+  },
+  "051 none-owner bot.audit": {
+   "status": 200,
+   "error": null
+  },
+  "051 none-admin company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 none-admin bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-admin bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-admin bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-admin bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-admin bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-member company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 none-member bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-member bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-member bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-member bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 none-member bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-owner company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-owner bot.company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "051 finished-owner bot.company.link": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-owner bot.company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "051 finished-owner bot.owner.transfer": {
+   "status": 400,
+   "error": "Передать права владельца можно только зарегистрированному человеку."
+  },
+  "051 finished-owner bot.audit": {
+   "status": 200,
+   "error": null
+  },
+  "051 finished-admin company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-admin bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-admin bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-admin bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-admin bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-admin bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-member company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-member bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-member bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-member bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-member bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-member bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-delivery-member company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-delivery-member bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-delivery-member bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-delivery-member bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-delivery-member bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-delivery-member bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-owner company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-old-owner bot.company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "051 finished-old-owner bot.company.link": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-old-owner bot.company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "051 finished-old-owner bot.owner.transfer": {
+   "status": 400,
+   "error": "Передать права владельца можно только зарегистрированному человеку."
+  },
+  "051 finished-old-owner bot.audit": {
+   "status": 200,
+   "error": null
+  },
+  "051 finished-old-admin company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-old-admin bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-admin bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-admin bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-admin bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-admin bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-member company.label.set": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 finished-old-member bot.company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-member bot.company.link": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-member bot.company.delete": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-member bot.owner.transfer": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 finished-old-member bot.audit": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 extra create-repeat": {
+   "status": 400,
+   "error": "Компания с таким названием только что создана."
+  },
+  "051 extra label-long": {
+   "status": 400,
+   "error": "Название — до 40 символов."
+  },
+  "051 extra label-missing": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 extra label-not-visible": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 extra create-blank": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "051 extra create-long": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "051 extra link-missing": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 extra delete-word": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "051 extra delete-has-events": {
+   "status": 400,
+   "error": "В компании есть события — сначала удали их."
+  },
+  "051 extra delete-missing": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "051 extra owner.transfer-admin": {
+   "status": 403,
+   "error": "Передать права владельца может только владелец бота."
+  },
+  "051 extra owner.transfer-self": {
+   "status": 400,
+   "error": "Ты и так владелец."
+  },
+  "051 extra owner.transfer-stranger": {
+   "status": 400,
+   "error": "Передать права владельца можно только зарегистрированному человеку."
+  },
+  "051 extra owner.transfer-no-company": {
+   "status": 400,
+   "error": "Выбери компанию."
+  },
+  "051 extra bot.owner.transfer-self": {
+   "status": 400,
+   "error": "Ты и так владелец."
+  },
+  "051 extra bot.owner.transfer-admin": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "051 extra rename-many-companies": {
+   "status": 400,
+   "error": "Имя этого человека меняет он сам: «Профиль» → «✏️ Изменить имя»."
   }
  }
 }
