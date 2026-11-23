@@ -80,6 +80,97 @@
     ];
   }
 
+  // ---------- управление жеребьёвкой (048): обмен подопечных у двух участников, только владелец ----------
+  // Владелец может играть сам: в шторке только имена, сервер отвечает кодами и текстами правил без имён. Обмен
+  // симметричен — порядок отметок не важен; повтор запроса после успеха сервер отклонит по версии пар
+  function openSwapSheet(p) {
+    const { me, xapi } = p;
+    const inDraw = p.players.filter((u) => u.in_draw).sort((x, y) => (x.name || '').localeCompare(y.name || '', 'ru'));
+    const picked = [];
+    const result = h('div');
+    const go = ui.btn('🔀 Поменять подопечных', '', 'ds-btn--block');
+    const boxes = inDraw.map((u) => {
+      const box = h('input', { type: 'checkbox' });
+      box.addEventListener('change', () => {
+        if (box.checked) picked.push(u);
+        else picked.splice(picked.indexOf(u), 1);
+        result.replaceChildren();
+        syncBoxes();
+      });
+      return [u, box];
+    });
+    // Отмечены двое — остальные недоступны; кнопка — только при двух
+    const syncBoxes = () => {
+      for (const [u, box] of boxes) box.disabled = picked.length === 2 && !picked.includes(u);
+      go.disabled = picked.length !== 2;
+    };
+    // Плашка проверки — под списком: в шторке она может оказаться ниже края экрана
+    const show = (node) => {
+      result.replaceChildren(node);
+      node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+    const details = (rules) => h('details', { class: 'ds-details' }, h('summary', { class: 'ds-details__summary' }, 'Подробнее'),
+      h('ul', { class: 'ds-bullets' }, rules.map((r) => h('li', {}, r.text))));
+    const success = async () => {
+      haptic('success');
+      toast('🔀 Подопечные поменялись');
+      picked.length = 0;
+      for (const [, box] of boxes) box.checked = false;
+      result.replaceChildren();
+      await p.again({ quiet: true });
+    };
+    // Нарушения — абстрактный текст, правила в «Подробнее», обмен — только с галочкой; отказ сервера убирает плашку
+    const warning = (u, t, c) => {
+      const agree = h('input', { type: 'checkbox' });
+      const btn = ui.btn('🔀 Поменять подопечных', 'danger', 'ds-btn--block');
+      btn.disabled = true;
+      agree.addEventListener('change', () => { btn.disabled = !agree.checked; });
+      btn.addEventListener('click', async () => {
+        let ok = false;
+        await busy([btn, go], async () => {
+          await xapi('admin.draw.swap', { a: u.id, b: t.id, version: c.version, agree: c.rules.map((r) => r.rule) });
+          ok = true;
+          await success();
+        });
+        if (!ok) result.replaceChildren();
+        syncBoxes();
+      });
+      return h('div', { class: 'ds-notice ds-notice--error ds-stack ds-stack--sm' },
+        h('b', {}, c.rules.length > 1 ? '⚠️ Обмен нарушает несколько принципов жеребьёвки.' : '⚠️ Обмен нарушает один из принципов жеребьёвки.'),
+        details(c.rules),
+        h('div', {}, 'Если поменять, бот напишет обоим, что подопечный сменился. Отметки подарка, маски и переписка этих двух пар начнутся заново.'),
+        h('label', { class: 'ds-check' }, agree, 'Согласен — всё равно поменять'),
+        btn);
+    };
+    go.addEventListener('click', async () => {
+      await busy(go, async () => {
+        const [u, t] = picked;
+        const c = await xapi('admin.draw.swap.check', { a: u.id, b: t.id });
+        if (!c.possible) {
+          haptic('error');
+          show(h('div', { class: 'ds-notice ds-notice--error ds-stack ds-stack--sm' },
+            h('b', {}, 'Этих двоих поменять нельзя — выбери другую пару.'), details(c.rules)));
+          return;
+        }
+        if (c.rules.length) return show(warning(u, t, c));
+        if (!(await confirmBox(`Поменять подопечных у «${u.name}» и «${t.name}»? Бот напишет обоим, что подопечный сменился. Отметки подарка, маски и переписка этих двух пар начнутся заново.`))) return;
+        await xapi('admin.draw.swap', { a: u.id, b: t.id, version: c.version });
+        await success();
+      });
+      syncBoxes(); // busy вернул кнопке доступность — после обмена отметок нет
+    });
+    syncBoxes();
+    const meInDraw = inDraw.some((u) => u.id === me.id);
+    openSheet('🔀 Управление жеребьёвкой', [
+      meInDraw ? h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Ты участник этого события. '),
+        'Если выберешь себя, предупреждение о правилах или отказ могут подсказать, кто твой Санта.') : null,
+      ui.hint('Выбери двух участников — они обменяются подопечными. Кто кому дарит, здесь не видно.'),
+      h('div', { class: 'ds-card ds-card--flush' }, boxes.map(([u, box]) =>
+        h('label', { class: 'ds-list-item ds-check' }, box, h('span', { class: 'ds-grow' }, u.name || 'без имени', u.id === me.id ? ' (ты)' : '')))),
+      go, result,
+    ].filter(Boolean));
+  }
+
   // ---------- журнал действий (007) ----------
   const AUDIT_LABELS = {
     'event.create': '🎄 Создано событие', 'event.settings': '⚙️ Параметры', registration: '🔓 Регистрация', 'invite.regen': '🔄 Новая ссылка',
@@ -93,7 +184,7 @@
     'role.grant': '🛠 Назначен администратор', 'role.revoke': '🛠 Сняты права администратора', 'owner.transfer': '👑 Переданы права владельца', 'owner.link': '👑 Владелец по ссылке /setup',
     'family.save': '👪 Семья сохранена', 'family.delete': '👪 Семья удалена', 'request.approve': '✅ Заявка принята', 'request.reject': '❌ Заявка отклонена',
     'member.allow': '↩️ Разрешено вернуться', rename: '✏️ Переименован', 'vault.person': '🔐 Служебный просмотр участника', 'vault.pairs': '🔐 Служебный просмотр: все пары',
-    'draw.cancel.force': '↩️ Жеребьёвка отменена владельцем', 'support.open': '🆘 Новое обращение', 'support.take': '🙋 Обращение взято',
+    'draw.cancel.force': '↩️ Жеребьёвка отменена владельцем', 'draw.swap': '🔀 Подопечные поменялись', 'support.open': '🆘 Новое обращение', 'support.take': '🙋 Обращение взято',
     'support.reply': '💬 Ответ в обращение',
     'support.pass': '↪️ Обращение передано', 'support.close': '✅ Обращение закрыто', 'support.return': '🔄 Обращение снова ничьё',
   };

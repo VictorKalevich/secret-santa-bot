@@ -1279,6 +1279,109 @@ addEventListener('message', (e) => {
     else console.log('✔ маска Санты (040): шторка — «Без маски» и 20 масок с подписью под эмодзи, выбранная отмечена; кнопка, подсказки «Подопечного» и переписки Санты — с маской; у подопечного маска в «Письме» и в заголовке переписки, смена доходит опросом; после раскрытия — только подсказка');
   }
 
+  // 048: управление жеребьёвкой — секция только владельцу; шторка без пар; плашка владельцу-участнику; нарушение —
+  // плашка, «Подробнее» свёрнуто, обмен только с галочкой; невозможный обмен — без кнопки; обмен — окно с именами
+  async function checkSwap() {
+    const problems = [];
+    const ppl = [['Арина', 'arina'], ['Борис', 'boris'], ['Вера', 'vera'], ['Дина', 'dina'], ['Ефим', 'efim']]
+      .map(([name, username], i) => ({ id: 220 + i, name, username }));
+    const [arina, boris, vera, dina, efim] = ppl;
+    const E = (await w.api(admin, 'admin.events.create', { title: 'Обмен' })).event.id;
+    const code = await inv(E);
+    for (const p of ppl) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
+    await w.api(admin, 'admin.participate', { event: E, on: true });
+    await w.api(admin, 'admin.draw', { event: E });
+    // Круг: владелец → Арина → Борис → Вера → Дина → Ефим → владелец
+    const cycle = [admin, ...ppl].map((u) => u.id);
+    const setCycle = () => {
+      w.sql(`DELETE FROM pairs WHERE event_id = ${Number(E)}`);
+      cycle.forEach((id, i) => w.sql(`INSERT INTO pairs (event_id, santa, ward) VALUES (${Number(E)}, ${id}, ${cycle[(i + 1) % cycle.length]})`));
+    };
+    setCycle();
+    const wardOf = (u) => w.query(`SELECT ward FROM pairs WHERE event_id = ${Number(E)} AND santa = ${u.id}`)[0].ward;
+    const sheet = (page) => page.locator('.ds-sheet', { hasText: 'Управление жеребьёвкой' });
+    const openSwap = async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
+      await page.locator('#main .ds-btn', { hasText: 'Открыть управление жеребьёвкой' }).click();
+      await sheet(page).locator('.ds-check').first().waitFor({ timeout: 5000 });
+    };
+    const box = (page, u) => sheet(page).locator('label.ds-list-item', { hasText: u.name }).locator('input');
+    const go = (page) => sheet(page).locator('.ds-btn', { hasText: 'Поменять подопечных' }).first();
+    const pick = async (page, ...us) => { for (const u of us) await box(page, u).check(); };
+    const unpick = async (page, ...us) => { for (const u of us) await box(page, u).uncheck(); };
+
+    await onPage(problems, 'шторка обмена', admin, E, async (page) => {
+      await openSwap(page);
+      const s = sheet(page);
+      const rows = await s.locator('label.ds-list-item').allTextContents();
+      if (rows.join('|') !== 'Арина|Борис|Вера|Дина|Ефим|Дмитрий (ты)'.split('|').sort((x, y) => x.localeCompare(y, 'ru')).join('|')) problems.push(`список: ${rows.join(', ')}`);
+      if (!(await s.locator('.ds-notice', { hasText: 'Ты участник этого события' }).count())) problems.push('нет плашки владельцу-участнику');
+      if ((await s.textContent()).includes('→')) problems.push('в шторке видно пару');
+      if (!(await go(page).isDisabled())) problems.push('кнопка доступна без выбора');
+
+      // Нарушение: Арина и Вера — при кольцевой появится взаимная пара
+      await pick(page, arina, vera);
+      if (await go(page).isDisabled()) problems.push('кнопка недоступна при двух отмеченных');
+      if (!(await box(page, boris).isDisabled())) problems.push('третий флажок доступен при двух отмеченных');
+      await go(page).click();
+      const notice = s.locator('.ds-notice--error', { hasText: 'Обмен нарушает один из принципов жеребьёвки' });
+      await notice.waitFor({ timeout: 5000 });
+      await page.waitForTimeout(800); // плавная прокрутка к плашке
+      const nb = await notice.boundingBox();
+      if (nb.y + nb.height > 844 + 1) problems.push(`плашка ниже края экрана: ${Math.round(nb.y)} + ${Math.round(nb.height)}`);
+      const bullet = notice.locator('.ds-bullets li');
+      if (await bullet.isVisible()) problems.push('«Подробнее» раскрыто сразу');
+      await notice.locator('.ds-details__summary', { hasText: 'Подробнее' }).click();
+      if (!(await bullet.isVisible()) || !(await bullet.textContent()).startsWith('Кольцевая жеребьёвка')) problems.push(`«Подробнее»: «${await bullet.textContent()}»`);
+      const danger = notice.locator('.ds-btn--danger');
+      if (!(await danger.isDisabled())) problems.push('обмен вопреки правилу доступен без галочки');
+      await notice.locator('label.ds-check').click();
+      if (await danger.isDisabled()) problems.push('галочка «Согласен» не открыла кнопку');
+      await unpick(page, vera);
+      if (await notice.count()) problems.push('плашка осталась после смены выбора');
+
+      // Невозможный обмен: Арина дарит Борису
+      await pick(page, boris);
+      await go(page).click();
+      const no = s.locator('.ds-notice--error', { hasText: 'Этих двоих поменять нельзя' });
+      await no.waitFor({ timeout: 5000 });
+      if (await no.locator('.ds-btn').count()) problems.push('у невозможного обмена есть кнопка');
+      await unpick(page, arina, boris);
+
+      // Обмен без нарушений: Арина и Дина — окно подтверждения с именами
+      await pick(page, arina, dina);
+      let asked = '';
+      page.once('dialog', (d) => { asked = d.message(); d.accept(); });
+      await go(page).click();
+      await page.locator('#toast', { hasText: 'Подопечные поменялись' }).waitFor({ timeout: 5000 });
+      if (!asked.startsWith('Поменять подопечных у «Арина» и «Дина»?')) problems.push(`окно подтверждения: «${asked}»`);
+      if (wardOf(arina) !== efim.id || wardOf(dina) !== boris.id) problems.push('пары на сервере не поменялись');
+      if (await box(page, arina).isChecked()) problems.push('отметки не сброшены после обмена');
+    });
+    setCycle(); // снимок — с нарушением: Арина и Вера в прежнем круге
+    const openWarning = async (page) => {
+      await openSwap(page);
+      await pick(page, arina, vera);
+      await go(page).click();
+      await sheet(page).locator('.ds-details__summary').waitFor({ timeout: 5000 });
+      await page.waitForTimeout(800);
+      await sheet(page).locator('.ds-details__summary').click();
+    };
+    await shot(admin, '48-swap-sheet', { event: E, fullPage: false, before: openWarning });
+    await shot(admin, '48-swap-sheet', { event: E, fullPage: false, dark: true, before: openWarning });
+
+    await w.api(admin, 'admin.role.grant', { id: boris.id });
+    await onPage(problems, 'админ не видит секцию', boris, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
+      await page.locator('.ds-section-title', { hasText: 'Журнал' }).waitFor({ timeout: 5000 });
+      if (await page.locator('.ds-section-title', { hasText: 'Управление жеребьёвкой' }).count()) problems.push('админ видит «Управление жеребьёвкой»');
+    });
+    await w.api(admin, 'admin.role.revoke', { id: boris.id });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'управление жеребьёвкой (048): ' + x));
+    else console.log('✔ управление жеребьёвкой (048): секция только владельцу, шторка без пар с плашкой участнику; нарушение — плашка, «Подробнее» свёрнуто, обмен только с галочкой; невозможный — без кнопки; обмен — окно с именами, пары поменялись, отметки сброшены');
+  }
+
   async function checkKeyboard() {
     const problems = [];
     const [olya, pasha, roma] = [['Оля', 'olya'], ['Паша', 'pasha'], ['Рома', 'roma']].map(([name, username], i) => ({ id: 190 + i, name, username }));
@@ -1545,6 +1648,7 @@ addEventListener('message', (e) => {
   await checkNames();
   await checkKeyboard();
   await checkMask();
+  await checkSwap();
   await checkCsp();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
   else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);

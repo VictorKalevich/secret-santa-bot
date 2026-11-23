@@ -7,9 +7,9 @@
 // слов подтверждения, людей и текстов) — опасные действия получают отказ по данным, а не по правам. Админ и владелец
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
 //
-// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 040: NEW_ACTIONS_040), проходят те же
-// ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются; их ответы — новые
-// ключи эталона «035 …», «038 …» и «040 …».
+// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 040: NEW_ACTIONS_040, 041, 042, 048),
+// проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются; их
+// ответы — новые ключи эталона «035 …», «038 …», «040 …», «041 …», «042 …» и «048 …».
 import { startWorld } from './world.mjs';
 
 // 59 действий в порядке прежних `case` в src/api.js: 13 участника, 11 общих админа, 35 — в пределах события
@@ -36,6 +36,8 @@ export const NEW_ACTIONS_038 = ['card.set'];
 export const NEW_ACTIONS_040 = ['mask.set'];
 export const NEW_ACTIONS_042 = ['ward.shipment'];
 export const NEW_ACTIONS_041 = ['wishlist.draft', 'wishlist.publish'];
+// 048: обмен подопечных после жеребьёвки — только владелец
+export const NEW_ACTIONS_048 = ['admin.draw.swap.check', 'admin.draw.swap'];
 
 const MISSING = 999999;
 const WEEK = 7 * 24 * 3600 * 1000;
@@ -206,5 +208,23 @@ export async function runRefusals() {
   for (const [name, user, ev] of situations) {
     for (const a of NEW_ACTIONS_042) await record(`042 ${name} ${a}`, user, a, body(await ev()));
   }
+  // ---------- 048: обмен подопечных — те же ситуации; один человек дважды, не в жеребьёвке, «сам себе», версия ----------
+  for (const [name, user, ev] of situations) {
+    for (const a of NEW_ACTIONS_048) await record(`048 ${name} ${a}`, user, a, body(await ev()));
+  }
+  const S = await create('Обмен');
+  await join(S, [member, outsider, adm]);
+  await w.api(boss, 'admin.draw', { event: S });
+  const wardOf = (id) => w.query('SELECT ward FROM pairs WHERE event_id = ? AND santa = ?', S, id)[0].ward;
+  const version = w.query('SELECT draw_token FROM events WHERE id = ?', S)[0].draw_token;
+  const extra048 = [
+    ['swap.check-same', boss, 'admin.draw.swap.check', { event: S, a: member.id, b: member.id }],
+    ['swap.check-not-in-draw', boss, 'admin.draw.swap.check', { event: S, a: member.id, b: stranger.id }],
+    ['swap.check-no-draw', boss, 'admin.draw.swap.check', { event: E, a: member.id, b: outsider.id }],
+    ['swap-self', boss, 'admin.draw.swap', { event: S, a: member.id, b: wardOf(member.id), version }],
+    ['swap-stale', boss, 'admin.draw.swap', { event: S, a: member.id, b: outsider.id, version: 'old' }],
+    ['swap.check-admin', adm, 'admin.draw.swap.check', { event: S, a: member.id, b: outsider.id }],
+  ];
+  for (const [name, user, action, b] of extra048) await record(`048 extra ${name}`, user, action, b);
   return { actions: ACTION_LIST, cases };
 }

@@ -24,17 +24,17 @@ function rowProblems(name, row) {
   return p;
 }
 
-test('таблица действий: 66 строк (20 действий участника, 46 admin.*), каждая — по правилам', () => {
+test('таблица действий: 68 строк (20 действий участника, 48 admin.*), каждая — по правилам', () => {
   const names = Object.keys(ACTIONS);
-  assert.equal(names.length, 66);
-  assert.equal(names.filter((a) => a.startsWith('admin.')).length, 46);
+  assert.equal(names.length, 68);
+  assert.equal(names.filter((a) => a.startsWith('admin.')).length, 48);
   assert.deepEqual(names.flatMap((n) => rowProblems(n, ACTIONS[n])), []);
 });
 
 test('таблица действий: действия владельца и слова подтверждения — прежние', () => {
   const owner = Object.keys(ACTIONS).filter((a) => ACTIONS[a].role === ROLES.OWNER).sort();
   assert.deepEqual(owner, [
-    'admin.draw.cancel.force', 'admin.event.delete', 'admin.fixed.add', 'admin.fixed.del', 'admin.insert', 'admin.owner.transfer',
+    'admin.draw.cancel.force', 'admin.draw.swap', 'admin.draw.swap.check', 'admin.event.delete', 'admin.fixed.add', 'admin.fixed.del', 'admin.insert', 'admin.owner.transfer',
     'admin.reset.full', 'admin.role.grant', 'admin.role.revoke', 'admin.transfer', 'admin.vault.pairs', 'admin.vault.person',
   ]);
   const words = Object.fromEntries(Object.entries(ACTIONS).filter(([, r]) => r.confirm).map(([a, r]) => [a, r.confirm[0]]));

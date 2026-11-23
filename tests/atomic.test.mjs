@@ -1,6 +1,6 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 56 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 59 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
@@ -8,7 +8,8 @@
 // раз в минуту, роли, владение, полный сброс, новая семья), по одной — переименование (025) и сохранение семьи (034):
 // запись журнала — только при настоящем изменении; четыре — выход из события и своё имя (035: выход ×2, выход ↔
 // жеребьёвка в обоих порядках, имя ×2); три — регистрация в боте (047: «Участвовать как …» ×2 в одну миллисекунду,
-// нажатие ↔ имя текстом в обоих порядках). Известный дефект — todo с номером фичи, которая его чинит: фича
+// нажатие ↔ имя текстом в обоих порядках); три — обмен подопечных (048: ×2 в одну миллисекунду, обмен ↔ вписывание в
+// обоих порядках). Известный дефект — todo с номером фичи, которая его чинит: фича
 // снимает пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -654,6 +655,53 @@ describe('атомарность: регистрация в боте (047)', () 
         assert.equal(z.sent(a, `<b>${won}</b> присоединяется`), 1, 'организатору ' + a.name);
         assert.equal(z.sent(a, `<b>${lost}</b> присоединяется`), 0, 'организатору ' + a.name);
       }
+    });
+  }
+});
+
+describe('атомарность: обмен подопечных (048)', () => {
+  const late = { id: 778, name: 'Опоздавший', username: 'late2' };
+  const pairs = (z) => new Map(z.w.query('SELECT santa, ward FROM pairs WHERE event_id = ?', z.ev.id).map((r) => [r.santa, r.ward]));
+  // Каждый в парах дарит ровно одному и получает ровно от одного
+  const whole = (z) => {
+    const m = pairs(z);
+    assert.deepEqual([...m.keys()].sort(), [...new Set(m.values())].sort(), 'пары — перестановка');
+  };
+  // Двое, которые не дарят друг другу (обмен возможен), и тело запроса с версией и согласием на любые правила
+  async function swapBody(z) {
+    const m = pairs(z);
+    const a = z.people[0].id;
+    const b = z.people.slice(1).map((u) => u.id).find((id) => m.get(a) !== id && m.get(id) !== a);
+    const c = await z.w.api(boss, 'admin.draw.swap.check', { event: z.ev.id, a, b });
+    return { a, b, before: m, body: { event: z.ev.id, a, b, version: c.version, agree: c.rules.map((r) => r.rule) } };
+  }
+
+  it('admin.draw.swap ×2 в одну миллисекунду — один обмен: пары не вернулись, одна запись, по сообщению двум Сантам', async () => {
+    const z = await world({ draw: true });
+    const { a, b, before, body } = await swapBody(z);
+    const rs = await z.twice(boss, 'admin.draw.swap', body, { sameMoment: true });
+    assert.deepEqual(sorted(rs), [200, 400]);
+    const now = pairs(z);
+    assert.deepEqual([now.get(a), now.get(b)], [before.get(b), before.get(a)]);
+    whole(z);
+    assert.equal(z.audit('draw.swap'), 1);
+    for (const id of [a, b]) assert.equal(z.sent({ id }, 'Владелец изменил жеребьёвку'), 1);
+  });
+  for (const [first, writeOrder] of [['обмен', [0, 1]], ['вписывание', [1, 0]]]) {
+    it(`обмен ↔ вписывание, первым пишет ${first} — второй просит повторить, пары целы`, async () => {
+      const z = await world({ draw: true });
+      await z.w.api(boss, 'admin.registration', { event: z.ev.id, open: true });
+      await z.w.say(late, '/start ' + inviteOf(await z.w.api(boss, 'admin.state', { event: z.ev.id })));
+      await z.w.say(late, late.name);
+      const { body } = await swapBody(z);
+      const rs = await z.w.together([
+        () => z.w.api(boss, 'admin.draw.swap', body, true),
+        () => z.w.api(boss, 'admin.insert', { event: z.ev.id, id: late.id }, true),
+      ], { writeOrder });
+      assert.deepEqual(statuses(rs), writeOrder[0] === 0 ? [200, 400] : [400, 200]);
+      whole(z);
+      assert.equal(z.audit('draw.swap'), writeOrder[0] === 0 ? 1 : 0);
+      assert.equal(z.audit('member.insert'), writeOrder[0] === 0 ? 0 : 1);
     });
   }
 });

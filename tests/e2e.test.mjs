@@ -1327,10 +1327,10 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
     });
 
     await t.test('владелец может всё, что админ (автотест по всем действиям admin.*)', async () => {
-      // 019: список — из таблицы действий (порядок строк = прежний порядок case); ровно 46 — потерю действия видно сразу
+      // 019: список — из таблицы действий (порядок строк = прежний порядок case); ровно 48 (048) — потерю действия видно сразу
       const { ACTIONS } = await import('../src/api.js');
       const actions = Object.keys(ACTIONS).filter((a) => a.startsWith('admin.'));
-      assert.equal(actions.length, 46, `найдено действий: ${actions.length}`);
+      assert.equal(actions.length, 48, `найдено действий: ${actions.length}`);
       // Минимальное тело: без слов подтверждения и без людей — опасные действия получают отказ по данным, а не по правам
       const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
       const P1 = (await zapi(boss, 'admin.events.create', { title: 'Права владельца' })).event.id;
@@ -1347,7 +1347,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
         const r = await zapi(helper, a, body(P2), true);
         if (r.status === 403) deniedAdmin.push(a);
       }
-      for (const a of ['admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete', 'admin.insert', 'admin.draw.cancel.force', 'admin.fixed.add', 'admin.fixed.del']) {
+      for (const a of ['admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete', 'admin.insert', 'admin.draw.cancel.force', 'admin.fixed.add', 'admin.fixed.del', 'admin.draw.swap.check', 'admin.draw.swap']) {
         assert.ok(deniedAdmin.includes(a), `админу отказано: ${a}`);
       }
     });

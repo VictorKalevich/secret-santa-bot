@@ -236,6 +236,16 @@
     <div class="ds-card ds-stack">
       <div class="ds-notice">🎁 Подарки готовы: 3 из 7</div>
       <div class="ds-notice ds-notice--error"><b>Жеребьёвка невозможна:</b><ul class="ds-bullets"><li>Олег не может дарить никому — проверь исключения.</li></ul></div>
+      <!-- Подробнее (048): свёрнутый блок внутри плашки; второй — раскрыт -->
+      <div class="ds-notice ds-notice--error ds-stack ds-stack--sm">
+        <b>⚠️ Обмен нарушает один из принципов жеребьёвки.</b>
+        <details class="ds-details"><summary class="ds-details__summary">Подробнее</summary><ul class="ds-bullets"><li>Исключения: кто-то из двоих будет дарить тому, кому по исключениям дарить не должен.</li></ul></details>
+        <label class="ds-check"><input type="checkbox"> Согласен — всё равно поменять</label>
+        <button class="ds-btn ds-btn--danger ds-btn--block" disabled>🔀 Поменять подопечных</button>
+      </div>
+      <div class="ds-notice ds-notice--error">
+        <details class="ds-details" open><summary class="ds-details__summary">Подробнее</summary><ul class="ds-bullets"><li>Кольцевая жеребьёвка: появится взаимная пара — двое будут дарить друг другу.</li></ul></details>
+      </div>
     </div>
 
     <!-- Переписка -->

@@ -345,6 +345,17 @@ select.ds-input {
 .ds-notice--error { background: var(--ds-color-warning-soft); color: var(--ds-color-warning); font-size: var(--ds-text-md); }
 .ds-notice--error .ds-bullets { margin-top: var(--ds-space-1-5); }
 
+/* ========== Подробнее (048): свёрнутый блок на <details>, цвет — от родителя ========== */
+.ds-details { color: inherit; }
+.ds-details__summary {
+  display: flex; align-items: center; gap: var(--ds-space-1-5); min-height: var(--ds-size-control-sm);
+  font-weight: var(--ds-weight-semibold); cursor: pointer; list-style: none; -webkit-user-select: none; user-select: none;
+}
+.ds-details__summary::-webkit-details-marker { display: none; }
+.ds-details__summary::before { content: '▸'; transition: transform var(--ds-duration-fast); }
+.ds-details[open] > .ds-details__summary::before { transform: rotate(90deg); }
+.ds-details__summary:focus-visible { outline: var(--ds-border-focus) solid var(--ds-color-accent); outline-offset: var(--ds-border-focus); border-radius: var(--ds-radius-xs); }
+
 /* ========== Всплывающее сообщение ========== */
 .ds-toast {
   position: fixed; left: 50%; z-index: var(--ds-z-toast);

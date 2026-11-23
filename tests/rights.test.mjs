@@ -13,7 +13,7 @@ const ACTIONS = Object.keys(TABLE).filter((a) => a.startsWith('admin.'));
 
 // Действия только владельца — админ получает 403
 const OWNER_ONLY = [
-  'admin.transfer', 'admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.insert',
+  'admin.transfer', 'admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.insert', 'admin.draw.swap.check', 'admin.draw.swap',
   'admin.fixed.add', 'admin.fixed.del', 'admin.draw.cancel.force', 'admin.event.delete', 'admin.vault.person',
   'admin.vault.pairs', 'admin.reset.full',
 ].sort();
@@ -44,9 +44,9 @@ before(async () => {
   await w.api(boss, 'admin.role.grant', { id: adm.id });
 });
 
-test('права: список действий admin.* — ровно 46, включая действия с «_»; всего действий — 66 (043)', () => {
-  assert.equal(ACTIONS.length, 46, ACTIONS.join(', '));
-  assert.equal(Object.keys(TABLE).length, 66);
+test('права: список действий admin.* — ровно 48, включая действия с «_»; всего действий — 68 (048)', () => {
+  assert.equal(ACTIONS.length, 48, ACTIONS.join(', '));
+  assert.equal(Object.keys(TABLE).length, 68);
   assert.ok(ACTIONS.includes('admin.avoid_previous') && ACTIONS.includes('admin.event.invite_from'));
   for (const a of OWNER_ONLY) assert.ok(ACTIONS.includes(a), 'действие владельца есть в коде: ' + a);
 });

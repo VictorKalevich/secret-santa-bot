@@ -162,8 +162,8 @@ function pairsVersion(db, ev, cond = '', ...condArgs) {
 }
 
 // Применяем изменённое распределение эвента: переписываем только изменившиеся пары (все операторы — в построитель a,
-// при его условии — версии пар).
-async function applyPairsChange(ctx, ev, a, oldRows, newMap, changed, members) {
+// при его условии — версии пар). text(ev) — своё сообщение Сантам со сменившимся подопечным (обмен, 048).
+async function applyPairsChange(ctx, ev, a, oldRows, newMap, changed, members, text = null) {
   const settings = await ctx.settings();
   const oldMap = pairsToMap(oldRows);
   const byId = Object.fromEntries(members.map((u) => [u.user_id, u]));
@@ -186,7 +186,7 @@ async function applyPairsChange(ctx, ev, a, oldRows, newMap, changed, members) {
   for (const santa of changed) {
     const isNew = !oldMap.has(santa);
     a.enqueue(santa, msg(
-      isNew
+      text ? text(ev) : isNew
         ? `🎄 <b>Ты в игре!</b> Жеребьёвка события ${q(ev)} для тебя проведена — загляни во вкладку «Подопечный» 🤫`
         : `🔄 Состав события ${q(ev)} изменился, и у тебя теперь <b>новый подопечный</b>. Загляни во вкладку «Подопечный».`,
       appKeyboard(settings, '🎁 Посмотреть', { event: ev.id })
@@ -288,6 +288,102 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
   a.audit(ev.id, actor, 'member.insert', displayName(u));
   a.claim(version);
   if (!(await a.run()).won) return no(PAIRS_RACE);
+  return { ok: true };
+}
+
+// ---------- обмен подопечных (048): только владелец — проверка прав в api.js ----------
+
+// Тексты без имён (контракт specs/048-owner-ward-swap/contracts/draw-swap.md): видит только владелец, но людей они не
+// называют — владелец, который сам играет, не хочет знать пары
+export const SWAP_RULES = {
+  self: 'Один из двоих дарит другому: после обмена кто-то дарил бы сам себе.',
+  exclusion: 'Исключения: кто-то из двоих будет дарить тому, кому по исключениям дарить не должен.',
+  family: 'Семьи: кто-то из двоих будет дарить члену своей семьи.',
+  ring: 'Кольцевая жеребьёвка: появится взаимная пара — двое будут дарить друг другу.',
+  fixed: 'Закреплённые пары: обмен разорвёт пару, которую ты закрепил.',
+  history: 'Прошлые пары: кто-то из двоих будет дарить тому же, кому дарил в прошлом событии.',
+};
+const SWAP_REVEALED = 'Тайна уже раскрыта — менять подопечных нельзя.';
+const SWAP_TEXT = (ev) => `🔄 Владелец изменил жеребьёвку события ${q(ev)}: у тебя теперь <b>новый подопечный</b>. ` +
+  'Прежняя пара больше не действует, переписка в ней удалена. Загляни во вкладку «Подопечный».';
+
+// Нарушения обмена подопечных a и b (pairs — Map Санта → подопечный): меняются только связки a → w(b) и b → w(a).
+// self — кто-то дарил бы сам себе: обмен невозможен, остальное не считается. families, history — пары { giver, receiver }.
+export function swapRules(pairs, a, b, { exclusions = [], families = [], ring = false, fixed = [], history = [] } = {}) {
+  const wa = pairs.get(a);
+  const wb = pairs.get(b);
+  if (wa === b || wb === a) return ['self'];
+  const links = [[a, wb], [b, wa]];
+  const hit = (rows) => links.some(([g, r]) => rows.some((e) => e.giver === g && e.receiver === r));
+  const after = new Map(pairs).set(a, wb).set(b, wa);
+  const rules = [];
+  if (hit(exclusions)) rules.push('exclusion');
+  if (hit(families)) rules.push('family');
+  if (ring && (pairs.get(wb) === a || pairs.get(wa) === b)) rules.push('ring');
+  // Закреплённая пара, которая действовала, а после обмена — нет
+  if (fixed.some((f) => pairs.get(f.giver) === f.receiver && after.get(f.giver) !== f.receiver)) rules.push('fixed');
+  if (hit(history)) rules.push('history');
+  return rules;
+}
+
+// Пары и правила — одним пакетом чтений (019); общие отказы — в порядке контракта
+async function swapData(ctx, ev, a, b) {
+  if (!ev.draw_done) return no(NO_DRAW);
+  if (ev.revealed) return no(SWAP_REVEALED);
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a <= 0 || b <= 0 || a === b) return no('Выбери двух разных участников.');
+  const db = ctx.db;
+  const r = await ctx.read({
+    members: drawMembersQuery(db, ev.id),
+    rows: pairsQuery(db, ev.id),
+    exclusions: exclusionsQuery(db, ev.id),
+    families: ev.families_on && familyRowsQuery(db),
+    fixed: fixedPairsQuery(db, ev.id),
+    previous: ev.avoid_previous && previousPairsQuery(db, ev),
+  });
+  const pairs = pairsToMap(r.rows);
+  if (!pairs.has(a) || !pairs.has(b)) return no('Участник не в жеребьёвке.');
+  const ids = r.members.filter((m) => m.registered).map((m) => m.user_id);
+  const history = ev.avoid_previous ? previousPairs(r.previous, ids).map((p) => ({ giver: p.santa, receiver: p.ward })) : [];
+  const rules = swapRules(pairs, a, b, {
+    exclusions: r.exclusions, families: familyExclusions(ev, ids, r.families), ring: !!ev.ring, fixed: r.fixed, history,
+  });
+  // Снимок правил — в условии записи, как у жеребьёвки: обмен не запишется по правилам, изменившимся во время вызова
+  const snapshot = drawSnapshot(ev, { ids, exclusions: r.exclusions, families: r.families, fixed: r.fixed });
+  return { ok: true, members: r.members, rows: r.rows, pairs, rules, snapshot };
+}
+
+export async function checkSwap(ctx, ev, a, b) {
+  const d = await swapData(ctx, ev, a, b);
+  if (!d.ok) return d;
+  return {
+    ok: true,
+    possible: !d.rules.includes('self'),
+    rules: d.rules.map((rule) => ({ rule, text: SWAP_RULES[rule] })),
+    // Версия пар: обмен с другой не пройдёт — повтор после успеха не вернёт пары обратно
+    version: ev.draw_token,
+  };
+}
+
+// agree — коды правил, на нарушение которых владелец согласился
+export async function swapWards(ctx, ev, { a, b, version, agree }, actor) {
+  const d = await swapData(ctx, ev, a, b);
+  if (!d.ok) return d;
+  if (String(version ?? '') !== ev.draw_token) return no('Пары уже изменились — открой обмен заново.');
+  if (d.rules.includes('self')) return no('Этих двоих поменять нельзя — выбери другую пару.');
+  const agreed = Array.isArray(agree) ? agree : [];
+  if (d.rules.some((rule) => !agreed.includes(rule))) return no('Правила жеребьёвки для этого обмена изменились — проверь ещё раз.');
+  const same = snapshotGuard(ev.id, d.snapshot);
+  const { a: change, version: claim } = pairsVersion(ctx.db, ev,
+    `revealed = 0 AND status = 'active' AND families_on = ? AND avoid_previous = ? AND ${same.sql}`,
+    ev.families_on ? 1 : 0, ev.avoid_previous ? 1 : 0, ...same.args);
+  const next = new Map(d.pairs).set(a, d.pairs.get(b)).set(b, d.pairs.get(a));
+  await applyPairsChange(ctx, ev, change, d.rows, next, [a, b], d.members, SWAP_TEXT);
+  change.audit(ev.id, actor, 'draw.swap', 'пар изменено: 2');
+  change.claim(claim);
+  if (!(await change.run()).won) {
+    const cur = await getEvent(ctx.db, ev.id);
+    return no(cur?.revealed ? SWAP_REVEALED : PAIRS_RACE);
+  }
   return { ok: true };
 }
 

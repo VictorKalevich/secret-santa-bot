@@ -5128,6 +5128,174 @@
   "042 finished-old-member ward.shipment": {
    "status": 400,
    "error": "Событие завершено: отметка только для чтения."
+  },
+  "048 stranger admin.draw.swap.check": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "048 stranger admin.draw.swap": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "048 outsider admin.draw.swap.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 outsider admin.draw.swap": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 member admin.draw.swap.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 member admin.draw.swap": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 admin admin.draw.swap.check": {
+   "status": 403,
+   "error": "Менять подопечных после жеребьёвки может только владелец бота."
+  },
+  "048 admin admin.draw.swap": {
+   "status": 403,
+   "error": "Менять подопечных после жеребьёвки может только владелец бота."
+  },
+  "048 owner admin.draw.swap.check": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "048 owner admin.draw.swap": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "048 missing-owner admin.draw.swap.check": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "048 missing-owner admin.draw.swap": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "048 missing-admin admin.draw.swap.check": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "048 missing-admin admin.draw.swap": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "048 missing-member admin.draw.swap.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 missing-member admin.draw.swap": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 none-owner admin.draw.swap.check": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "048 none-owner admin.draw.swap": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "048 none-admin admin.draw.swap.check": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "048 none-admin admin.draw.swap": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "048 none-member admin.draw.swap.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 none-member admin.draw.swap": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 finished-owner admin.draw.swap.check": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "048 finished-owner admin.draw.swap": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "048 finished-admin admin.draw.swap.check": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "048 finished-admin admin.draw.swap": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "048 finished-member admin.draw.swap.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 finished-member admin.draw.swap": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 finished-delivery-member admin.draw.swap.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 finished-delivery-member admin.draw.swap": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 finished-old-owner admin.draw.swap.check": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "048 finished-old-owner admin.draw.swap": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "048 finished-old-admin admin.draw.swap.check": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "048 finished-old-admin admin.draw.swap": {
+   "status": 400,
+   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
+  },
+  "048 finished-old-member admin.draw.swap.check": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 finished-old-member admin.draw.swap": {
+   "status": 403,
+   "error": "Только для администратора."
+  },
+  "048 extra swap.check-same": {
+   "status": 400,
+   "error": "Выбери двух разных участников."
+  },
+  "048 extra swap.check-not-in-draw": {
+   "status": 400,
+   "error": "Участник не в жеребьёвке."
+  },
+  "048 extra swap.check-no-draw": {
+   "status": 400,
+   "error": "Жеребьёвка ещё не проведена."
+  },
+  "048 extra swap-self": {
+   "status": 400,
+   "error": "Этих двоих поменять нельзя — выбери другую пару."
+  },
+  "048 extra swap-stale": {
+   "status": 400,
+   "error": "Пары уже изменились — открой обмен заново."
+  },
+  "048 extra swap.check-admin": {
+   "status": 403,
+   "error": "Менять подопечных после жеребьёвки может только владелец бота."
   }
  }
 }

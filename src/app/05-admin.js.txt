@@ -45,7 +45,7 @@
       ? [adminRequests, adminSupport]
       : [adminInvite, adminRequests, adminRemoved, adminInviteFrom, adminSupport, adminAnnounce];
     const nodes = [finishedNotice(s)];
-    for (const section of [...sections, adminMembers, adminExclusions, adminFixed, adminDraw, adminParams, adminLog, adminVault, adminDanger]) {
+    for (const section of [...sections, adminMembers, adminExclusions, adminFixed, adminDraw, adminParams, adminLog, adminSwap, adminVault, adminDanger]) {
       nodes.push(...section(p));
     }
     const y = window.scrollY;
@@ -679,6 +679,18 @@
     const logBtn = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
     logBtn.addEventListener('click', () => openAudit(p.evId));
     return [ui.section('Журнал'), ui.card(ui.hint('Действия владельца, администраторов и бота в этом событии.'), logBtn)];
+  }
+
+  // --- управление жеребьёвкой (048): только владелец, после жеребьёвки и до раскрытия; пар не показывает
+  function adminSwap(p) {
+    const { s, me, done } = p;
+    if (!me.is_owner || !s.draw_done || s.revealed || done) return [];
+    const btn = ui.btn('🔀 Открыть управление жеребьёвкой', 'secondary', 'ds-btn--block');
+    btn.addEventListener('click', () => openSwapSheet(p));
+    return [
+      ui.section('Управление жеребьёвкой'),
+      ui.card(ui.hint('Только для владельца бота: поменять подопечных у двух участников. Кто кому дарит, не видно и здесь.'), btn),
+    ];
   }
 
   // --- служебный просмотр (010): только владелец, вход словом, каждое открытие — в журнал

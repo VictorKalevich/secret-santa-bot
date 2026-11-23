@@ -14,7 +14,7 @@ import {
   createEvent, finishEvent, deleteEvent, resetEvent, inviteFromEvent, revealAll, remindUnfilled, remindSantas, announce,
   saveEventSettings, setRing, setRegistration, regenInvite, setAvoidPrevious,
 } from './events.js';
-import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw } from './pairs.js';
+import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw, checkSwap, swapWards } from './pairs.js';
 import { sendChatMessage, chatHistory } from './chat.js';
 import { grantAdmin, revokeAdmin, transferOwnership, transferAccount } from './roles.js';
 import {
@@ -44,6 +44,7 @@ const VAULT_WORD = ['ОТКРЫТЬ', 'Для служебного просмо�
 const onlyOwner = (what) => `${what} может только владелец бота.`;
 const ROLES_OWNER = onlyOwner('Назначать и снимать администраторов');
 const VAULT_OWNER = 'Служебный просмотр доступен только владельцу бота.';
+const SWAP_OWNER = onlyOwner('Менять подопечных после жеребьёвки');
 const LETTER_CLOSED = 'Событие завершено: письмо теперь только для чтения.';
 const MARK_CLOSED = 'Событие завершено: отметка только для чтения.';
 // Имя — одна строка до 40 символов, как при регистрации в боте: своё (035) и от организатора
@@ -280,6 +281,23 @@ export const ACTIONS = {
     finished: CLOSED,
     confirm: ['ОТМЕНА', 'Для отмены введи слово ОТМЕНА.'],
     run: async (ctx, body, ev) => out(await forceCancelDraw(ctx, ev, ctx.me.tg_id), count),
+  },
+  // 048: обмен подопечных у двух участников после жеребьёвки — только владелец (админ по смене статусов вычислил бы
+  // пары); ответы — коды и тексты правил без имён и версия пар, пар нет
+  'admin.draw.swap.check': {
+    role: OWNER,
+    owner: SWAP_OWNER,
+    event: true,
+    finished: CLOSED,
+    run: async (ctx, body, ev) => out(await checkSwap(ctx, ev, Number(body.a), Number(body.b))),
+  },
+  'admin.draw.swap': {
+    role: OWNER,
+    owner: SWAP_OWNER,
+    event: true,
+    finished: CLOSED,
+    run: async (ctx, body, ev) => out(await swapWards(ctx, ev,
+      { a: Number(body.a), b: Number(body.b), version: body.version, agree: body.agree }, ctx.me.tg_id), none),
   },
   // ---------- обращения к организатору (012): чтение всегда, изменения — пока открыта переписка (support.js) ----------
   'admin.support.get': {
