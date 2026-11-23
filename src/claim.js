@@ -46,7 +46,8 @@ function builder(db, batch, sql, args) {
     // Тот же пакет, условие — это и ещё одно
     and: (more, ...moreArgs) => builder(db, batch, `(${sql} AND ${checked(more)})`, [...args, ...moreArgs]),
     enqueue: (chatId, payload) => push(enqueueIfStmt(db, chatId, payload, sql, ...args)),
-    audit: (eventId, actor, action, details = '') => push(auditIfStmt(db, eventId, actor, action, details, sql, ...args)),
+    // sphere — событие или { company } (050, как у auditStmt)
+    audit: (sphere, actor, action, details = '') => push(auditIfStmt(db, sphere, actor, action, details, sql, ...args)),
     // Текст оканчивается условием WHERE: условие добавляется через AND, его параметры — после params
     where: (text, ...params) => push(db.prepare(`${text} AND ${sql}`).bind(...params, ...args)),
     // INSERT … SELECT … без WHERE: условие становится его WHERE

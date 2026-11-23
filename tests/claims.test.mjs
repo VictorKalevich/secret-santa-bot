@@ -44,7 +44,7 @@ describe('помощник захватов', () => {
   it('claim уже добавленного оператора не дублирует его', async () => {
     const db = createMigratedD1();
     const a = atomic(db, '1 = 1');
-    const s = a.audit(0, 1, 'x');
+    const s = a.audit({ company: 1 }, 1, 'x');
     a.claim(s);
     const { won, results } = await a.run();
     assert.equal(results.length, 1);
@@ -55,7 +55,7 @@ describe('помощник захватов', () => {
   it('без захвата — won = null; захват по RETURNING — по вернувшейся строке', async () => {
     const db = createMigratedD1();
     const a = atomic(db, '1 = 1');
-    a.audit(0, 1, 'y');
+    a.audit({ company: 1 }, 1, 'y');
     assert.equal((await a.run()).won, null);
     const b = atomic(db, '1 = 1');
     b.claim(db.prepare("INSERT INTO settings (key, value) SELECT 'k', 'v' WHERE " + b.sql + ' RETURNING key'));
@@ -70,7 +70,7 @@ describe('помощник захватов', () => {
     const once = () => {
       const a = atomic(db, "EXISTS (SELECT 1 FROM settings WHERE key = 'flag' AND value = '0')");
       a.enqueue(5, { text: 'один раз' });
-      a.audit(0, 5, 'flag.set');
+      a.audit({ company: 1 }, 5, 'flag.set');
       a.claim(db.prepare("UPDATE settings SET value = '1' WHERE key = 'flag' AND value = '0'"));
       return a.run();
     };

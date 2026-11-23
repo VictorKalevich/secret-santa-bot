@@ -40,8 +40,8 @@ function links(table) {
 const exclusions = links('exclusions');
 const fixed = links('fixed_pairs');
 
-// data = { ids — зарегистрированные участники, exclusions — все исключения события, families — все строки «человек —
-// семья», fixed — закреплённые пары события }
+// data = { ids — зарегистрированные участники, exclusions — все исключения события, families — строки «человек — семья»
+// компании события (050: familyRowsQuery(db, ev.company_id)), fixed — закреплённые пары события }
 export const SNAPSHOTS = {
   members: {
     js({ ids }) {
@@ -53,7 +53,8 @@ export const SNAPSHOTS = {
             WHERE m.event_id = ? AND u.registered = 1)`,
   },
   exclusions: { js: (data) => exclusions.js(data.exclusions), sql: exclusions.sql },
-  // Строки семей участников: число, Σ(человек × семья), Σ семья — смена семьи меняет снимок
+  // Строки семей участников в компании события (050): число, Σ(человек × семья), Σ семья — смена семьи меняет снимок,
+  // семьи других компаний — нет. Компания — через событие, параметр по-прежнему один
   families: {
     js({ ids, families }) {
       const set = new Set(ids);
@@ -69,7 +70,8 @@ export const SNAPSHOTS = {
       return `${count}:${mixed}:${fams}`;
     },
     sql: `(SELECT COUNT(*) || ':' || ${SUM(PRODUCT('fm.user_id', 'fm.family_id'))} || ':' || ${SUM('fm.family_id')}
-             FROM family_members fm WHERE fm.user_id IN (${PARTICIPANTS}))`,
+             FROM events e JOIN family_members fm ON fm.company_id = e.company_id
+            WHERE e.id = ? AND fm.user_id IN (${PARTICIPANTS.replace('m.event_id = ?', 'm.event_id = e.id')}))`,
   },
   fixed: { js: (data) => fixed.js(data.fixed), sql: fixed.sql },
 };

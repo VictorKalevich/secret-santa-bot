@@ -21,14 +21,15 @@ const notRepeated = (db, ev, action) => atomic(db, RECENT_AUDIT, ev.id, action, 
 const REMIND_AGAIN = 'Напоминание уже отправлено — повторить можно через минуту.';
 
 // from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
-// invite — разослать участникам образца приглашение в новый эвент.
+// invite — разослать участникам образца приглашение в новый эвент. Эвент — в компании вызова (050).
 export async function createEvent(ctx, title, createdBy, { from = null, invite = false } = {}) {
   const db = ctx.db;
   const clean = oneLine(title);
   if (!clean || clean.length > 80) return no('Название события — от 1 до 80 символов.');
   const code = randomCode();
+  const cid = ctx.company.id;
   // Параметры — по списку EVENT_PARAMS (029): копируемые — из образца, остальные задаёт схема
-  const fields = { title: clean, created_at: Date.now(), created_by: createdBy, invite_code: code, ...templateValues(from) };
+  const fields = { company_id: cid, title: clean, created_at: Date.now(), created_by: createdBy, invite_code: code, ...templateValues(from) };
   const cols = Object.keys(fields);
   // Новый эвент в остальных операторах batch находим по уникальному коду приглашения
   const newId = '(SELECT id FROM events WHERE invite_code = ?)';
@@ -40,8 +41,8 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
     stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions WHERE event_id = ?`)
       .bind(code, from.id));
   }
-  stmts.push(db.prepare(`INSERT INTO audit (event_id, actor, action, details, created_at) VALUES (${newId}, ?, 'event.create', ?, ?)`)
-    .bind(code, createdBy, from ? `по образцу «${from.title}»` : '', Date.now()));
+  stmts.push(db.prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) VALUES (${newId}, ?, ?, 'event.create', ?, ?)`)
+    .bind(code, cid, createdBy, from ? `по образцу «${from.title}»` : '', Date.now()));
   const [ins] = await db.batch(stmts);
   const row = ins.results[0];
   let invited = 0;
@@ -86,8 +87,8 @@ export async function deleteEvent(ctx, ev, actor = 0) {
   const members = await rowsOf(memberIdsQuery(db, ev.id));
   const exists = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ?)', ev.id);
   for (const m of members) exists.enqueue(m.user_id, msg(`🗑 Событие ${q(ev)} удалено владельцем вместе с письмами и перепиской.`));
-  // Журнал эвента остаётся; само удаление — в общем журнале (007)
-  exists.audit(0, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`);
+  // Журнал эвента остаётся; само удаление — в общем журнале компании (007, 050)
+  exists.audit({ company: ev.company_id }, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`);
   // Данные эвента — по списку REGISTRY (018), строка эвента — последней: она и есть захват
   exists.claim(exists.add(...eventDataDeleteStmts(db, ev.id, {}, ...exists.guard)));
   if (!(await exists.run()).won) return no('Событие уже удалено.');

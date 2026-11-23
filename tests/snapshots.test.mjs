@@ -30,7 +30,8 @@ function telegramId(r) {
   return Math.floor(r() * 2 ** 20) * 2 ** 32 + Math.floor(r() * 2 ** 32);
 }
 
-// Тестовая база: событие 1 (проверяемое) и событие 2 (его строки не должны влиять)
+// Тестовая база: событие 1 (проверяемое) в компании 1 и событие 2 в компании 2 (его строки и семьи компании 2 не
+// должны влиять; 050)
 function randomBase(seed) {
   const r = rng(seed);
   const db = createMigratedD1();
@@ -38,7 +39,8 @@ function randomBase(seed) {
   while (ids.size < 40 + Math.floor(r() * 41)) ids.add(telegramId(r));
   const people = [...ids];
   const sql = [
-    "INSERT INTO events (id, title, invite_code, families_on) VALUES (1, 'Проверяемое', 'a', 1), (2, 'Другое', 'b', 1)",
+    "INSERT INTO companies (id, name, created_at) VALUES (2, 'Вторая', 0)",
+    "INSERT INTO events (id, company_id, title, invite_code, families_on) VALUES (1, 1, 'Проверяемое', 'a', 1), (2, 2, 'Другое', 'b', 1)",
   ];
   const pick = (list) => list[Math.floor(r() * list.length)];
   const inEvent = [];
@@ -52,10 +54,15 @@ function randomBase(seed) {
       sql.push(`INSERT INTO members (event_id, user_id, joined_at) VALUES (2, ${id}, ${i})`);
     }
   });
-  // Семьи с большими номерами — и с людьми вне события
+  // Семьи с большими номерами — и с людьми вне события; у компании 2 свои семьи, в них есть и люди события 1
   const families = Array.from({ length: 6 }, () => 1 + Math.floor(r() * 2 ** 40));
-  for (const f of families) sql.push(`INSERT INTO families (id, name, created_at) VALUES (${f}, 'f', 0)`);
-  for (const id of people) if (r() < 0.5) sql.push(`INSERT INTO family_members (user_id, family_id) VALUES (${id}, ${pick(families)})`);
+  const others = Array.from({ length: 4 }, () => 2 ** 40 + 1 + Math.floor(r() * 2 ** 40));
+  for (const f of families) sql.push(`INSERT INTO families (id, company_id, name, created_at) VALUES (${f}, 1, 'f', 0)`);
+  for (const f of others) sql.push(`INSERT INTO families (id, company_id, name, created_at) VALUES (${f}, 2, 'g', 0)`);
+  for (const id of people) {
+    if (r() < 0.5) sql.push(`INSERT INTO family_members (company_id, user_id, family_id) VALUES (1, ${id}, ${pick(families)})`);
+    if (r() < 0.4) sql.push(`INSERT INTO family_members (company_id, user_id, family_id) VALUES (2, ${id}, ${pick(others)})`);
+  }
   const links = (table, event, n, unique) => {
     const used = new Set();
     for (let k = 0; k < n; k++) {
@@ -74,14 +81,15 @@ function randomBase(seed) {
   return db;
 }
 
-// Те же чтения, что у checkDraw
+// Те же чтения, что у checkDraw (семьи — компании события, 050)
 async function readLikeCheckDraw(db, eventId) {
   const rows = async (stmt) => (await stmt.all()).results;
   const members = await rows(drawMembersQuery(db, eventId));
+  const company = db.sqlite.prepare('SELECT company_id FROM events WHERE id = ?').get(eventId).company_id;
   return {
     ids: members.filter((m) => m.registered).map((m) => m.user_id),
     exclusions: await rows(exclusionsQuery(db, eventId)),
-    families: await rows(familyRowsQuery(db)),
+    families: await rows(familyRowsQuery(db, company)),
     fixed: await rows(fixedPairsQuery(db, eventId)),
   };
 }
@@ -94,6 +102,10 @@ describe('снимки: формула в коде = выражение в ба�
       const db = randomBase(seed);
       const data = await readLikeCheckDraw(db, 1);
       assert.ok(data.ids.length > 10 && data.exclusions.length > 5 && data.fixed.length > 2, 'данные не вырождены');
+      const ids = new Set(data.ids);
+      const foreign = db.sqlite.prepare('SELECT user_id FROM family_members WHERE company_id = 2').all();
+      assert.ok(foreign.some((f) => ids.has(f.user_id)), 'у людей события есть семьи другой компании');
+      assert.ok(data.families.length > 0 && data.families.every((f) => f.family_id <= 2 ** 40), 'семьи — только компании события');
       for (const [name, s] of Object.entries(SNAPSHOTS)) assert.equal(s.js(data), inBase(db, s.sql, 1), name);
       // Условие захвата жеребьёвки целиком — истинно на тех же данных
       const g = snapshotGuard(1, drawSnapshot({ families_on: 1 }, data));
@@ -155,9 +167,14 @@ describe('снимки: формула в коде = выражение в ба�
     db.sqlite.exec(`UPDATE users SET registered = 0 WHERE tg_id = ${x}`);
     const unreg = drawSnapshot({ families_on: 1 }, await readLikeCheckDraw(db, 1));
     assert.notEqual(unreg.members, base.members);
-    db.sqlite.exec(`UPDATE users SET registered = 1 WHERE tg_id = ${x};
-      DELETE FROM family_members WHERE user_id IN (${x}, ${y});
-      INSERT INTO family_members (user_id, family_id) VALUES (${x}, 777), (${y}, 778)`);
+    db.sqlite.exec(`UPDATE users SET registered = 1 WHERE tg_id = ${x}`);
+    // Семья другой компании (050) — не влияет ни в коде, ни в базе
+    db.sqlite.exec(`DELETE FROM family_members WHERE company_id = 2 AND user_id IN (${x}, ${y});
+      INSERT INTO family_members (company_id, user_id, family_id) VALUES (2, ${x}, 779), (2, ${y}, 779)`);
+    assert.deepEqual(drawSnapshot({ families_on: 1 }, await readLikeCheckDraw(db, 1)), base, 'семья другой компании');
+    assert.equal(inBase(db, SNAPSHOTS.families.sql, 1), base.families);
+    db.sqlite.exec(`DELETE FROM family_members WHERE company_id = 1 AND user_id IN (${x}, ${y});
+      INSERT INTO family_members (company_id, user_id, family_id) VALUES (1, ${x}, 777), (1, ${y}, 778)`);
     const fam = drawSnapshot({ families_on: 1 }, await readLikeCheckDraw(db, 1));
     assert.equal(fam.members, base.members);
     assert.notEqual(fam.families, base.families);

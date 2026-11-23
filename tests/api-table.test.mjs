@@ -21,6 +21,11 @@ function rowProblems(name, row) {
     p.push(`${name}: confirm — пара «слово, текст отказа»`);
   }
   if (typeof row.run !== 'function') p.push(`${name}: нет обработчика`);
+  // 050: общее действие организатора (admin.* не только над событием) выполняется в компании — признак company
+  if (admin && row.event !== true && row.company !== true) p.push(`${name}: admin.* без event: true — нужен company: true`);
+  if (row.company !== undefined && !(admin && row.company === true && row.event !== true)) {
+    p.push(`${name}: company — только true и только у admin.* без event: true`);
+  }
   return p;
 }
 
@@ -53,4 +58,8 @@ test('таблица действий: «от противного» — стр�
   assert.match(rowProblems('admin.x', { ...row, confirm: ['СЛОВО'] }).join('\n'), /admin\.x: confirm/);
   assert.match(rowProblems('ward.x', { ...row }).join('\n'), /ward\.x: роль admin не для участника/);
   assert.match(rowProblems('admin.x', { ...row, run: undefined }).join('\n'), /admin\.x: нет обработчика/);
+  const common = ACTIONS['admin.users'];
+  assert.match(rowProblems('admin.x', { ...common, company: undefined }).join('\n'), /admin\.x: admin\.\* без event: true — нужен company/);
+  assert.match(rowProblems('admin.x', { ...row, company: true }).join('\n'), /admin\.x: company — только true/);
+  assert.match(rowProblems('ward.x', { ...ACTIONS['ward.get'], company: true }).join('\n'), /ward\.x: company — только true/);
 });

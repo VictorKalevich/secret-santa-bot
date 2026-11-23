@@ -13,13 +13,14 @@ import { isFinished } from './status.js';
 import { no } from './result.js';
 
 // Пары прошлого эвента с наибольшим числом пар среди этих людей; при равенстве — последнего
-// (для «не повторять пары», FR-510). Так параллельный эвент другой группы не подменяет «свой».
+// (для «не повторять пары», FR-510). Так параллельный эвент другой группы не подменяет «свой». Только эвенты той же
+// компании (050, R12): иначе пары соседней компании влияли бы на жеребьёвку и выдавали бы себя предупреждением обмена.
 const previousPairsQuery = (db, ev) => db
   .prepare(
     `SELECT p.event_id, p.santa, p.ward FROM pairs p JOIN events e ON e.id = p.event_id
-      WHERE p.event_id != ? AND e.created_at <= ? ORDER BY e.created_at DESC, e.id DESC`
+      WHERE e.company_id = ? AND p.event_id != ? AND e.created_at <= ? ORDER BY e.created_at DESC, e.id DESC`
   )
-  .bind(ev.id, ev.created_at);
+  .bind(ev.company_id, ev.id, ev.created_at);
 
 function previousPairs(results, ids) {
   const set = new Set(ids);
@@ -59,7 +60,7 @@ export async function checkDraw(ctx, ev) {
     members: drawMembersQuery(db, ev.id),
     exclusions: exclusionsQuery(db, ev.id),
     // 008: семьи — как исключения; строки семей читаются один раз — и для исключений, и для снимка (010)
-    families: ev.families_on && familyRowsQuery(db),
+    families: ev.families_on && familyRowsQuery(db, ev.company_id),
     previous: ev.avoid_previous && previousPairsQuery(db, ev),
     // 014: закреплённые пары владельца (planDraw сам берёт только пары участников жеребьёвки)
     fixed: fixedPairsQuery(db, ev.id),
@@ -205,7 +206,7 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
     pairs: done && pairsQuery(db, ev.id),
     fixed: done && fixedPairsQuery(db, ev.id),
     exclusions: done && exclusionsQuery(db, ev.id),
-    families: done && ev.families_on && familyRowsQuery(db),
+    families: done && ev.families_on && familyRowsQuery(db, ev.company_id),
   });
   const { members } = read;
   const target = members.find((m) => m.user_id === userId);
@@ -261,7 +262,7 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
     members: drawMembersQuery(db, ev.id),
     rows: pairsQuery(db, ev.id),
     ownEx: exclusionsQuery(db, ev.id),
-    families: ev.families_on && familyRowsQuery(db),
+    families: ev.families_on && familyRowsQuery(db, ev.company_id),
     chats: db.prepare('SELECT DISTINCT santa, ward FROM messages WHERE event_id = ?').bind(ev.id),
     fixed: fixedPairsQuery(db, ev.id), // 014: вписывание не разрывает закреплённых пар
   });
@@ -336,7 +337,7 @@ async function swapData(ctx, ev, a, b) {
     members: drawMembersQuery(db, ev.id),
     rows: pairsQuery(db, ev.id),
     exclusions: exclusionsQuery(db, ev.id),
-    families: ev.families_on && familyRowsQuery(db),
+    families: ev.families_on && familyRowsQuery(db, ev.company_id),
     fixed: fixedPairsQuery(db, ev.id),
     previous: ev.avoid_previous && previousPairsQuery(db, ev),
   });

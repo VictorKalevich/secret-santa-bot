@@ -13,35 +13,35 @@
 
 ## Этап 1. Подготовка
 
-- [ ] T001 Убедиться, что `npm run test:all` на ветке `050-company-scope` зелёный до изменений (точка отсчёта); записать
-  число тестов.
-- [ ] T002 В `.gitignore` после `!migrations/*.sql` добавить `!tools/*.sql` (сверка — не копия базы).
+- [X] T001 Убедиться, что `npm run test:all` на ветке `050-company-scope` зелёный до изменений (точка отсчёта); записать
+  число тестов. **Результат (2026-11-23):** `npm test` — 412 из 412, `npm run test:e2e` — 70 из 70 (всего 482).
+- [X] T002 В `.gitignore` после `!migrations/*.sql` добавить `!tools/*.sql` (сверка — не копия базы).
 
 ## Этап 2. Основа: схема и контекст (до историй)
 
-- [ ] T003 Создать `migrations/0015_companies.sql` по `data-model.md`: `companies` (`id`, `name`, `owner_id`, `owner_code`,
+- [X] T003 Создать `migrations/0015_companies.sql` по `data-model.md`: `companies` (`id`, `name`, `owner_id`, `owner_code`,
   `created_by`, `created_at`; уникальный индекс `companies_owner_code` по непустому `owner_code`), `company_members` (`PRIMARY KEY (company_id, user_id)`, индекс `company_members_user`),
   компания №1 «Основная», строки людей из `users` (`is_admin` — как в `users`), `company_id INTEGER NOT NULL DEFAULT 1` у
   `events` (+ индекс `events_company`), `families`, `audit` (+ индекс `audit_company`), пересборка `family_members` с
   `PRIMARY KEY (company_id, user_id)` и прежним индексом `family_members_family`, `schema = 17`.
-- [ ] T004 В `src/db.js`: `REQUIRED_SCHEMA = 17`; `REGISTRY` — `companies`, `company_members` и ключ `company` у `events`,
+- [X] T004 В `src/db.js`: `REQUIRED_SCHEMA = 17`; `REGISTRY` — `companies`, `company_members` и ключ `company` у `events`,
   `families`, `family_members`, `audit` (таблица — `data-model.md`); перенос `company_members`: до переноса — права нового
   аккаунта `MAX` в той же компании, затем `dedupe`. В `src/event-params.js`: `EVENT_SERVICE` += `company_id`.
-- [ ] T005 [P] Тесты устройства (единственные прежние тесты, которые правятся): `tests/data-registry.test.mjs` — 19 таблиц,
+- [X] T005 [P] Тесты устройства (единственные прежние тесты, которые правятся): `tests/data-registry.test.mjs` — 19 таблиц,
   колонка компании считается описанной (`spec.company`), «от противного» для неописанной `company_id`, перенос
   `company_members` (права `MAX`, строка нового остаётся); `tests/server-shape.test.mjs` — `company_id` среди служебных;
   `tests/migrations.test.mjs` — база схемы 16 с событиями, людьми (в т.ч. без имени), админами, семьями и журналом → после
   0015 число строк каждой прежней таблицы прежнее, всё в компании 1, права админов перенесены, ключ `family_members`
   позволяет одному человеку по строке в двух компаниях, версия 17.
-- [ ] T006 В `src/context.js` по разделу 1 контракта: первый пакет `openContext` (пользователь, настройки, `mine`,
+- [X] T006 В `src/context.js` по разделу 1 контракта: первый пакет `openContext` (пользователь, настройки, `mine`,
   `companies`, владелец бота — один запрос), `companies()`, `mine()`, `botOwnerId()`, `isBotOwner()`, `soleCompany()`,
   `in(companyId)` с привязанными `company`, `me`, `users()` (люди компании + гость), `ownerId()`, `isOwner()`, `read`,
   `forgetUsers()`. **Временно** общий контекст ещё отдаёт прежние `users()`/`ownerId()`/`isOwner()` (снимается в T021).
   В `src/db.js`: запрос людей компании (`is_admin` из `company_members`, порядок `users.created_at`, гость — тем же
   запросом), `joinCompanyStmt`.
-- [ ] T007 [P] Создать `tests/support/companies.mjs`: `addCompany(w, name)` (строка `companies` через `w.sql`),
+- [X] T007 [P] Создать `tests/support/companies.mjs`: `addCompany(w, name)` (строка `companies` через `w.sql`),
   `invariants(w)` → нарушения I1–I6 (`data-model.md`).
-- [ ] T008 В `src/api.js`: конвейер по разделу 2 контракта — признак `company: true` у 11 общих действий, компания общего
+- [X] T008 В `src/api.js`: конвейер по разделу 2 контракта — признак `company: true` у 11 общих действий, компания общего
   действия (`body.company` или `soleCompany()`; «Выбери компанию.» 400; не организатор — «Только для администратора.»
   403), привязка к `ev.company_id`, чужое событие для `admin.*` — 404 «Событие не найдено.», `event.get` — организатор
   компании события; обработчики получают привязанный контекст. `tests/api-table.test.mjs`: у строки `admin.*` без
@@ -54,41 +54,41 @@
 Цель: все «общие» чтения и права — через привязанный контекст; с одной компанией поведение побайтно прежнее.
 Независимая проверка: прежние тесты без правки ожиданий (см. «Главное правило»).
 
-- [ ] T009 [US1] `src/roles.js`: `grantAdmin`/`revokeAdmin` — условие и захват на строке `company_members` компании вызова,
+- [X] T009 [US1] `src/roles.js`: `grantAdmin`/`revokeAdmin` — условие и захват на строке `company_members` компании вызова,
   цель — человек компании (не гость), после захвата безусловный `adminFlagStmt` (пересчёт `users.is_admin`, I4);
   `resolveOwner` — резерв среди админов компаний с `owner_id = 0`; `setOwner` — строка `is_admin = 1` новому владельцу в
   каждой компании с `owner_id = 0` (I2), сообщения — админам этих компаний; `transferOwnership` — цель из людей компании.
-- [ ] T010 [US1] Журнал со сферой (контракт, раздел 6): `auditStmt`, `auditIfStmt`, `getAudit` в `src/db.js`, `audit` в
+- [X] T010 [US1] Журнал со сферой (контракт, раздел 6): `auditStmt`, `auditIfStmt`, `getAudit` в `src/db.js`, `audit` в
   `src/claim.js`; запись события хранит компанию события подзапросом, общая — `{ company }`, ноль — ошибка. Вызовы:
   `src/events.js` (`event.delete`, `event.create`), `src/membership.js` (`family.save`, `family.delete`), `src/panel.js`
   (`rename`: `admin.rename` — компания вызова; `name.set` — строка на каждую компанию человека в одном пакете),
   `src/roles.js` (`role.grant`, `role.revoke` — компания; `owner.link`, `owner.transfer` — каждая компания с
   `owner_id = 0`; `transfer` — каждая компания старой записи), `src/api.js` (`admin.audit`).
-- [ ] T011 [US1] `src/membership.js`: семьи компании (создание с `company_id`, чтения и «уже в семье» — в компании, чужая
+- [X] T011 [US1] `src/membership.js`: семьи компании (создание с `company_id`, чтения и «уже в семье» — в компании, чужая
   семья — «Семья не найдена.», члены — люди компании без гостя), `frozenFamilyEvent` — события компании, `familiesList`;
   `joinCompanyStmt` — в пакетах `joinByInvite`, `requestJoin` (вставка заявки и строка компании — одним пакетом),
   `decideRequest`, `participate`; «админы вступают без заявки» — организатор компании события.
-- [ ] T012 [US1] `src/bot.js`: нажатие кнопки открывает контекст через `openContext` (вместо `getUser`); обработчики после
+- [X] T012 [US1] `src/bot.js`: нажатие кнопки открывает контекст через `openContext` (вместо `getUser`); обработчики после
   поиска события работают с `ctx.in(ev.company_id)` (`onInvite`, `signUp`, `onChatReply`, `onSupportReply`,
   `onReplyButton`, `onSupportButton`, `onSupportAsk`, `onRequestButton`); `onInvite` — `joinCompanyStmt` вместе с
   созданием пользователя / записью ожидания имени (число запросов прежнее); права кнопок `req:`, `sup:` и ответа админа —
   по компании события; `onOwnerLink` — `botOwnerId()`. SQL в `bot.js` по-прежнему нет, функции ≤ 60 строк.
-- [ ] T013 [US1] `src/support.js`: `supportCountsQuery` — число организаторов компании события; `supportUnreadQuery` для
+- [X] T013 [US1] `src/support.js`: `supportCountsQuery` — число организаторов компании события; `supportUnreadQuery` для
   `me` — «ничьи» только в событиях компаний, где человек администратор; `returnThreadsStmts` — только обращения событий
   компании; передать обращение можно администратору компании (не гостю) или владельцу — себе.
-- [ ] T014 [US1] `src/events.js` и обработчики `src/api.js`: `createEvent` пишет `company_id` компании вызова; образец из
+- [X] T014 [US1] `src/events.js` и обработчики `src/api.js`: `createEvent` пишет `company_id` компании вызова; образец из
   другой компании — «Образец не найден.»; `admin.event.invite_from` из другой компании — «Выбери другое событие.».
-- [ ] T015 [US1] `src/pairs.js`, `src/snapshots.js`, `src/db.js`: `familyRowsQuery(db, ev.company_id)` во всех четырёх
+- [X] T015 [US1] `src/pairs.js`, `src/snapshots.js`, `src/db.js`: `familyRowsQuery(db, ev.company_id)` во всех четырёх
   местах; `previousPairsQuery` — события той же компании; `SNAPSHOTS.families.sql` — строки семей компании события
   (параметры `snapshotGuard` дополнить), `js` — по строкам, уже отфильтрованным чтением. `tests/snapshots.test.mjs`:
   паритет на случайных данных с семьями двух компаний.
-- [ ] T016 [US1] `src/panel.js`, `src/participant.js`, `src/db.js`, `src/vault.js`, `src/constraints.js`: `panelMembersQuery`
+- [X] T016 [US1] `src/panel.js`, `src/participant.js`, `src/db.js`, `src/vault.js`, `src/constraints.js`: `panelMembersQuery`
   и `peopleQuery` берут `is_admin` из `company_members` компании события; `adminState` — `other_events` и семьи компании;
   `usersList` — люди компании без гостя, владелец компании; `homeView` — события по правилу раздела 3 контракта;
   `rosterView` — организаторы компании (гость не показан); `vault`, `constraints` — привязанный контекст.
-- [ ] T017 [US1] `src/cron.js`: автодействия и напоминания получают `ctx.in(ev.company_id)`; о неудаче автожеребьёвки —
+- [X] T017 [US1] `src/cron.js`: автодействия и напоминания получают `ctx.in(ev.company_id)`; о неудаче автожеребьёвки —
   организаторам компании события; чтение компании — в существующем пакете шага (R13).
-- [ ] T018 [US1] `src/roles.js` (`transferAccount`) и `src/api.js` (`admin.transfer`, `admin.rename`): цель переноса не
+- [X] T018 [US1] `src/roles.js` (`transferAccount`) и `src/api.js` (`admin.transfer`, `admin.rename`): цель переноса не
   владелец бота, не `users.is_admin`, не `companies.owner_id`; сообщения организаторам — по каждой компании старой записи
   (чтения — одним пакетом, запросов не больше прежнего); `admin.rename` — цель из людей компании, иначе «Участник не
   найден».
