@@ -89,6 +89,9 @@
     const picked = [];
     const result = h('div');
     const go = ui.btn('🔀 Поменять подопечных', '', 'ds-btn--block');
+    // Метка «не открыл подопечного» (049) — своим узлом: после обмена её ставят обоим
+    const marks = new Map(inDraw.map((u) => [u, h('div')]));
+    const mark = (u) => marks.get(u).replaceChildren(...(u.ward_seen === false ? [h('div', { class: 'ds-chips' }, unseenChip())] : []));
     const boxes = inDraw.map((u) => {
       const box = h('input', { type: 'checkbox' });
       box.addEventListener('change', () => {
@@ -111,9 +114,14 @@
     };
     const details = (rules) => h('details', { class: 'ds-details' }, h('summary', { class: 'ds-details__summary' }, 'Подробнее'),
       h('ul', { class: 'ds-bullets' }, rules.map((r) => h('li', {}, r.text))));
-    const success = async () => {
+    // Новые пары — с чистого листа (048): новых подопечных оба ещё не открывали
+    const success = async (u, t) => {
       haptic('success');
       toast('🔀 Подопечные поменялись');
+      for (const x of [u, t]) {
+        x.ward_seen = false;
+        mark(x);
+      }
       picked.length = 0;
       for (const [, box] of boxes) box.checked = false;
       result.replaceChildren();
@@ -130,7 +138,7 @@
         await busy([btn, go], async () => {
           await xapi('admin.draw.swap', { a: u.id, b: t.id, version: c.version, agree: c.rules.map((r) => r.rule) });
           ok = true;
-          await success();
+          await success(u, t);
         });
         if (!ok) result.replaceChildren();
         syncBoxes();
@@ -138,7 +146,7 @@
       return h('div', { class: 'ds-notice ds-notice--error ds-stack ds-stack--sm' },
         h('b', {}, c.rules.length > 1 ? '⚠️ Обмен нарушает несколько принципов жеребьёвки.' : '⚠️ Обмен нарушает один из принципов жеребьёвки.'),
         details(c.rules),
-        h('div', {}, 'Если поменять, бот напишет обоим, что подопечный сменился. Отметки подарка, маски и переписка этих двух пар начнутся заново.'),
+        h('div', {}, 'Если поменять, тем, кто уже открыл подопечного, бот напишет, что он сменился. Отметки подарка, маски и переписка этих двух пар начнутся заново.'),
         h('label', { class: 'ds-check' }, agree, 'Согласен — всё равно поменять'),
         btn);
     };
@@ -153,12 +161,13 @@
           return;
         }
         if (c.rules.length) return show(warning(u, t, c));
-        if (!(await confirmBox(`Поменять подопечных у «${u.name}» и «${t.name}»? Бот напишет обоим, что подопечный сменился. Отметки подарка, маски и переписка этих двух пар начнутся заново.`))) return;
+        if (!(await confirmBox(`Поменять подопечных у «${u.name}» и «${t.name}»? Тем, кто уже открыл подопечного, бот напишет, что он сменился. Отметки подарка, маски и переписка этих двух пар начнутся заново.`))) return;
         await xapi('admin.draw.swap', { a: u.id, b: t.id, version: c.version });
-        await success();
+        await success(u, t);
       });
       syncBoxes(); // busy вернул кнопке доступность — после обмена отметок нет
     });
+    for (const u of inDraw) mark(u);
     syncBoxes();
     const meInDraw = inDraw.some((u) => u.id === me.id);
     openSheet('🔀 Управление жеребьёвкой', [
@@ -166,7 +175,8 @@
         'Если выберешь себя, предупреждение о правилах или отказ могут подсказать, кто твой Санта.') : null,
       ui.hint('Выбери двух участников — они обменяются подопечными. Кто кому дарит, здесь не видно.'),
       h('div', { class: 'ds-card ds-card--flush' }, boxes.map(([u, box]) =>
-        h('label', { class: 'ds-list-item ds-check' }, box, h('span', { class: 'ds-grow' }, u.name || 'без имени', u.id === me.id ? ' (ты)' : '')))),
+        h('label', { class: 'ds-list-item ds-check' }, box,
+          h('div', { class: 'ds-grow' }, h('div', {}, u.name || 'без имени', u.id === me.id ? ' (ты)' : ''), marks.get(u))))),
       go, result,
     ].filter(Boolean));
   }

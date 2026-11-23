@@ -136,6 +136,41 @@ describe('обмен без нарушений (US1)', () => {
   });
 });
 
+// 049: строгое правило владельца — о смене пишем только Санте, открывшему прежнего подопечного; решение — в момент записи
+describe('сообщение о смене — только открывшему подопечного (049)', () => {
+  let z;
+  before(async () => { z = await world(); });
+  const open = (u) => z.w.sql(`UPDATE pairs SET seen_text = 'письмо' WHERE event_id = ${z.ev} AND santa = ${u.id}`);
+  const swapAgreed = async (a, b) => {
+    const c = await z.check(a, b);
+    return z.swap(a, b, { version: c.version, agree: c.rules.map((r) => r.rule) });
+  };
+
+  it('открыл один — сообщение только ему', async () => {
+    open(p1);
+    const r = await swapAgreed(p1, p4);
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual([z.sent(p1, SANTA_NOTE), z.sent(p4, SANTA_NOTE)], [1, 0]);
+    assert.deepEqual([z.pairs().get(p1.id), z.pairs().get(p4.id)], [p5.id, p2.id]);
+  });
+
+  it('не открыл никто — сообщений нет, обмен и запись журнала есть', async () => {
+    const r = await swapAgreed(p2, p5);
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual([z.sent(p2, SANTA_NOTE), z.sent(p5, SANTA_NOTE)], [0, 0]);
+    assert.deepEqual([z.pairs().get(p2.id), z.pairs().get(p5.id)], [adm.id, p3.id]);
+    assert.deepEqual(z.audit('draw.swap'), ['пар изменено: 2', 'пар изменено: 2']);
+  });
+
+  it('открыл прямо перед записью обмена — сообщение есть (решение по состоянию при записи)', async () => {
+    const c = await z.check(p3, adm);
+    z.w.beforeWrite('UPDATE events SET draw_token', () => open(p3));
+    const r = await z.swap(p3, adm, { version: c.version, agree: c.rules.map((x) => x.rule) });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual([z.sent(p3, SANTA_NOTE), z.sent(adm, SANTA_NOTE)], [1, 0]);
+  });
+});
+
 describe('обмен вопреки правилам (US2) и невозможный обмен (US3)', () => {
   let z;
   before(async () => { z = await world(); });
@@ -300,7 +335,7 @@ test('swapRules: чистая функция на малых примерах', 
   }), ['exclusion', 'family', 'ring', 'fixed', 'history']);
 });
 
-test('приложение: секция только владельцу после жеребьёвки, шторка зовёт оба действия и «Подробнее»', () => {
+test('приложение: секция только владельцу после жеребьёвки, шторка зовёт оба действия и «Подробнее», метка «не открыл» (049)', () => {
   const lines = (name) => PARTS.find((p) => p.name === name).text.split('\n');
   const admin = lines('05-admin.js.txt');
   const section = topBlock(admin, 'adminSwap');
@@ -320,4 +355,13 @@ test('приложение: секция только владельцу пос�
   }
   assert.ok(!/\.ward\b|\.santa\b/.test(text), 'шторка не знает пар');
   assert.match(APP, /'draw\.swap': '🔀 Подопечные поменялись'/);
+  // 049: метка «не открыл подопечного» — та же, что в «Участниках»; после обмена — у обоих; тексты не обещают сообщения обоим
+  assert.ok(text.includes("u.ward_seen === false ? [h('div', { class: 'ds-chips' }, unseenChip())]"), 'метка по ward_seen');
+  assert.match(text, /x\.ward_seen = false;\s*mark\(x\);/, 'после обмена — метка обоим');
+  assert.equal((text.match(/await success\(u, t\)/g) || []).length, 2, 'оба пути обмена обновляют метки');
+  assert.ok(!text.includes('напишет обоим'), 'тексты: сообщение — только открывшим');
+  assert.equal((text.match(/тем, кто уже открыл подопечного, бот напишет/gi) || []).length, 2, 'окно и плашка');
+  const members = topBlock(admin, 'adminMembers');
+  assert.ok(admin.slice(members[0], members[1] + 1).join('\n').includes('if (u.ward_seen === false) chips.push(unseenChip());'));
+  assert.ok(admin.join('\n').includes("const unseenChip = () => ui.chip('👀 не открыл подопечного', 'warning');"));
 });

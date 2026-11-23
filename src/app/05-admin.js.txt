@@ -55,6 +55,8 @@
 
   // Заголовок строки списка: имя и @username (заявки, удалённые, участники)
   const personTitle = (u) => h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null);
+  // Санта не открыл подопечного — «Участники» и шторка обмена (049)
+  const unseenChip = () => ui.chip('👀 не открыл подопечного', 'warning');
 
   // --- приглашение (только для идущего эвента)
   function adminInvite(p) {
@@ -327,7 +329,7 @@
         if (s.draw_done) {
           if (u.in_draw) chips.push(u.gift_ready ? ui.chip('🎁 готов', 'success') : ui.chip('🎁 не готов'));
           else chips.push(ui.chip('не в жеребьёвке', 'warning'));
-          if (u.ward_seen === false) chips.push(ui.chip('👀 не открыл подопечного', 'warning'));
+          if (u.ward_seen === false) chips.push(unseenChip());
           if (u.gift_sent) chips.push(ui.chip('📦 отправлен', 'success'));
           if (u.gift_received) chips.push(ui.chip('📦 получил', 'success'));
         }

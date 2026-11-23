@@ -1291,11 +1291,13 @@ addEventListener('message', (e) => {
     for (const p of ppl) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     await w.api(admin, 'admin.participate', { event: E, on: true });
     await w.api(admin, 'admin.draw', { event: E });
-    // Круг: владелец → Арина → Борис → Вера → Дина → Ефим → владелец
+    // Круг: владелец → Арина → Борис → Вера → Дина → Ефим → владелец; подопечных открыли Арина и Ефим (049)
     const cycle = [admin, ...ppl].map((u) => u.id);
+    const opened = [arina, efim];
     const setCycle = () => {
       w.sql(`DELETE FROM pairs WHERE event_id = ${Number(E)}`);
       cycle.forEach((id, i) => w.sql(`INSERT INTO pairs (event_id, santa, ward) VALUES (${Number(E)}, ${id}, ${cycle[(i + 1) % cycle.length]})`));
+      w.sql(`UPDATE pairs SET seen_text = '' WHERE event_id = ${Number(E)} AND santa IN (${opened.map((u) => u.id).join(', ')})`);
     };
     setCycle();
     const wardOf = (u) => w.query(`SELECT ward FROM pairs WHERE event_id = ${Number(E)} AND santa = ${u.id}`)[0].ward;
@@ -1309,15 +1311,22 @@ addEventListener('message', (e) => {
     const go = (page) => sheet(page).locator('.ds-btn', { hasText: 'Поменять подопечных' }).first();
     const pick = async (page, ...us) => { for (const u of us) await box(page, u).check(); };
     const unpick = async (page, ...us) => { for (const u of us) await box(page, u).uncheck(); };
+    // Есть ли у строки метка «не открыл подопечного» (049)
+    const marked = async (page, u) => (await sheet(page).locator('label.ds-list-item', { hasText: u.name }).locator('.ds-chip', { hasText: '👀 не открыл подопечного' }).count()) === 1;
+    const expectMarks = async (page, what, want) => {
+      for (const u of [admin, ...ppl]) if ((await marked(page, u)) !== want.includes(u)) problems.push(`${what}: метка «не открыл» у ${u.name} — ${!want.includes(u)}`);
+    };
+    const notes = (u) => w.texts(u).filter((t) => t.includes('Владелец изменил жеребьёвку')).length;
 
     await onPage(problems, 'шторка обмена', admin, E, async (page) => {
       await openSwap(page);
       const s = sheet(page);
-      const rows = await s.locator('label.ds-list-item').allTextContents();
+      const rows = await s.locator('label.ds-list-item .ds-grow > div:first-child').allTextContents();
       if (rows.join('|') !== 'Арина|Борис|Вера|Дина|Ефим|Дмитрий (ты)'.split('|').sort((x, y) => x.localeCompare(y, 'ru')).join('|')) problems.push(`список: ${rows.join(', ')}`);
       if (!(await s.locator('.ds-notice', { hasText: 'Ты участник этого события' }).count())) problems.push('нет плашки владельцу-участнику');
       if ((await s.textContent()).includes('→')) problems.push('в шторке видно пару');
       if (!(await go(page).isDisabled())) problems.push('кнопка доступна без выбора');
+      await expectMarks(page, 'при открытии', [admin, boris, vera, dina]);
 
       // Нарушение: Арина и Вера — при кольцевой появится взаимная пара
       await pick(page, arina, vera);
@@ -1354,9 +1363,12 @@ addEventListener('message', (e) => {
       page.once('dialog', (d) => { asked = d.message(); d.accept(); });
       await go(page).click();
       await page.locator('#toast', { hasText: 'Подопечные поменялись' }).waitFor({ timeout: 5000 });
-      if (!asked.startsWith('Поменять подопечных у «Арина» и «Дина»?')) problems.push(`окно подтверждения: «${asked}»`);
+      if (!asked.startsWith('Поменять подопечных у «Арина» и «Дина»? Тем, кто уже открыл подопечного, бот напишет')) problems.push(`окно подтверждения: «${asked}»`);
       if (wardOf(arina) !== efim.id || wardOf(dina) !== boris.id) problems.push('пары на сервере не поменялись');
       if (await box(page, arina).isChecked()) problems.push('отметки не сброшены после обмена');
+      // Арина открывала подопечного, Дина — нет: сообщение только Арине, метка — у обеих
+      if (notes(arina) !== 1 || notes(dina) !== 0) problems.push(`сообщения о смене: Арина ${notes(arina)}, Дина ${notes(dina)}`);
+      await expectMarks(page, 'после обмена', [admin, arina, boris, vera, dina]);
     });
     setCycle(); // снимок — с нарушением: Арина и Вера в прежнем круге
     const openWarning = async (page) => {
@@ -1378,8 +1390,8 @@ addEventListener('message', (e) => {
     });
     await w.api(admin, 'admin.role.revoke', { id: boris.id });
 
-    if (problems.length) colorProblems.push(...problems.map((x) => 'управление жеребьёвкой (048): ' + x));
-    else console.log('✔ управление жеребьёвкой (048): секция только владельцу, шторка без пар с плашкой участнику; нарушение — плашка, «Подробнее» свёрнуто, обмен только с галочкой; невозможный — без кнопки; обмен — окно с именами, пары поменялись, отметки сброшены');
+    if (problems.length) colorProblems.push(...problems.map((x) => 'управление жеребьёвкой (048, 049): ' + x));
+    else console.log('✔ управление жеребьёвкой (048, 049): секция только владельцу, шторка без пар с плашкой участнику и метками «не открыл подопечного»; нарушение — плашка, «Подробнее» свёрнуто, обмен только с галочкой; невозможный — без кнопки; обмен — окно с именами, пары поменялись, сообщение только открывшей, метка у обоих');
   }
 
   async function checkKeyboard() {

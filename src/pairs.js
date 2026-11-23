@@ -162,8 +162,8 @@ function pairsVersion(db, ev, cond = '', ...condArgs) {
 }
 
 // Применяем изменённое распределение эвента: переписываем только изменившиеся пары (все операторы — в построитель a,
-// при его условии — версии пар). text(ev) — своё сообщение Сантам со сменившимся подопечным (обмен, 048).
-async function applyPairsChange(ctx, ev, a, oldRows, newMap, changed, members, text = null) {
+// при его условии — версии пар).
+async function applyPairsChange(ctx, ev, a, oldRows, newMap, changed, members) {
   const settings = await ctx.settings();
   const oldMap = pairsToMap(oldRows);
   const byId = Object.fromEntries(members.map((u) => [u.user_id, u]));
@@ -186,7 +186,7 @@ async function applyPairsChange(ctx, ev, a, oldRows, newMap, changed, members, t
   for (const santa of changed) {
     const isNew = !oldMap.has(santa);
     a.enqueue(santa, msg(
-      text ? text(ev) : isNew
+      isNew
         ? `🎄 <b>Ты в игре!</b> Жеребьёвка события ${q(ev)} для тебя проведена — загляни во вкладку «Подопечный» 🤫`
         : `🔄 Состав события ${q(ev)} изменился, и у тебя теперь <b>новый подопечный</b>. Загляни во вкладку «Подопечный».`,
       appKeyboard(settings, '🎁 Посмотреть', { event: ev.id })
@@ -376,8 +376,14 @@ export async function swapWards(ctx, ev, { a, b, version, agree }, actor) {
   const { a: change, version: claim } = pairsVersion(ctx.db, ev,
     `revealed = 0 AND status = 'active' AND families_on = ? AND avoid_previous = ? AND ${same.sql}`,
     ev.families_on ? 1 : 0, ev.avoid_previous ? 1 : 0, ...same.args);
+  // 049: о смене пишем только Санте, открывшему прежнего подопечного, — по строке пары в момент записи, до её удаления
+  const settings = await ctx.settings();
+  for (const santa of [a, b]) {
+    change.and('EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND santa = ? AND ward = ? AND seen_text IS NOT NULL)',
+      ev.id, santa, d.pairs.get(santa)).enqueue(santa, msg(SWAP_TEXT(ev), appKeyboard(settings, '🎁 Посмотреть', { event: ev.id })));
+  }
   const next = new Map(d.pairs).set(a, d.pairs.get(b)).set(b, d.pairs.get(a));
-  await applyPairsChange(ctx, ev, change, d.rows, next, [a, b], d.members, SWAP_TEXT);
+  await applyPairsChange(ctx, ev, change, d.rows, next, [], d.members);
   change.audit(ev.id, actor, 'draw.swap', 'пар изменено: 2');
   change.claim(claim);
   if (!(await change.run()).won) {

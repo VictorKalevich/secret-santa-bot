@@ -679,6 +679,8 @@ describe('атомарность: обмен подопечных (048)', () => 
   it('admin.draw.swap ×2 в одну миллисекунду — один обмен: пары не вернулись, одна запись, по сообщению двум Сантам', async () => {
     const z = await world({ draw: true });
     const { a, b, before, body } = await swapBody(z);
+    // 049: о смене пишем только открывшим подопечного — оба открыли
+    z.w.sql(`UPDATE pairs SET seen_text = '' WHERE event_id = ${z.ev.id} AND santa IN (${a}, ${b})`);
     const rs = await z.twice(boss, 'admin.draw.swap', body, { sameMoment: true });
     assert.deepEqual(sorted(rs), [200, 400]);
     const now = pairs(z);
