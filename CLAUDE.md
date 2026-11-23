@@ -135,7 +135,12 @@ npm run bench:draw   # замер жеребьёвки 50–200 человек (
 npm run screenshots  # визуальная проверка UI → test-results/
 npm run dev          # локальный Worker
 npm run deploy       # выкат в Cloudflare
+npm run deploy:second  # выкат второго бота (окружение `second`, свой аккаунт Cloudflare — README, «Второй бот»)
 ```
+
+Окружения Wrangler: верхний уровень `wrangler.toml` — первый бот, `[env.second]` — второй (свои `account_id`, база
+`secret-santa-db-2`, секреты; `vars` и `d1_databases` не наследуются — дублируются). Все команды Wrangler для второго
+бота — с `--env second`.
 
 ## Структура
 
