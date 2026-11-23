@@ -37,12 +37,12 @@ enabled = true
 # сверху; базу и vars Wrangler не наследует — они здесь, vars держите такими же, как наверху.
 [env.second]
 name = "secret-santa-bot-2"
-account_id = "ВПИШИТЕ_ACCOUNT_ID_ВТОРОГО_АККАУНТА"
+account_id = "0c9f6b89b9448089366771867271036f"
 
 [[env.second.d1_databases]]
 binding = "DB"
 database_name = "secret-santa-db-2"
-database_id = "ВПИШИТЕ_DATABASE_ID_ИЗ_D1_CREATE"
+database_id = "e50af65d-afbf-4a62-b041-8caf5e2c6a03"
 migrations_dir = "migrations"
 
 [env.second.vars]
