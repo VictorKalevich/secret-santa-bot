@@ -1,12 +1,12 @@
 // 030: панель организатора по секциям — правила по склейке мини-приложения, по образцу app-ui (026). Панель — часть
-// src/app/05-admin.js.txt: renderAdmin собирает объект панели p, секции adminXxx(p) — функции верхнего уровня.
+// src/app/06-admin.js.txt: renderAdmin собирает объект панели p, секции adminXxx(p) — функции верхнего уровня.
 // Контракт — specs/030-admin-panel-parts/contracts/admin-panel.md. Переключатель регистрации в браузере проверяет
 // checkRegistration в tests/screenshots.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { APP, where, partLines, indent, code, blockAt, ownerOf } from './support/app-source.mjs';
 
-const PANEL = partLines('05-admin.js.txt');
+const PANEL = partLines('06-admin.js.txt');
 const PANEL_MAX = 100;
 
 // ---------- 1. Функции панели не длиннее предела ----------

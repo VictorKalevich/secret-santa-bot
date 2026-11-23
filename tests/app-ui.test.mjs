@@ -25,8 +25,8 @@ export function saveRebuilds(text) {
 }
 
 // ---------- 2. Панель берёт событие только из своего ответа ----------
-// Панель — вся часть 05-admin (030: renderAdmin и секции adminXxx(p) — функции верхнего уровня); range — строки с 0
-const PANEL = partLines('05-admin.js.txt');
+// Панель — вся часть 06-admin (030: renderAdmin и секции adminXxx(p) — функции верхнего уровня); range — строки с 0
+const PANEL = partLines('06-admin.js.txt');
 const PANEL_FORBIDDEN = [
   [/\bstate\.ev\b/, 'state.ev — прежние данные события; в панели — её ответ (s, done)'],
   [/\bstate\.can\b/, 'state.can — данные экрана события; в панели — её ответ'],
@@ -114,9 +114,10 @@ export function stateDeclared(text) {
 
 // ---------- 6. Тексты подтверждений помещаются в окно ----------
 // Наибольшая длина подставляемых значений: имя человека и название семьи — до 40 символов (бот, admin.rename,
-// admin.family.save), название события — до 80 (создание и параметры события), числа участников — до трёх цифр
+// admin.family.save), название события — до 80 (создание и параметры события), числа участников — до трёх цифр;
+// имя владельца компании (051) — имя человека
 const NAME = 40, FAMILY = 40, TITLE = 80, COUNT = 3;
-const LIMITS = { 'u.name': NAME, 't.name': NAME, 'f.name': FAMILY, 's.title': TITLE, 'c.count': COUNT, k: COUNT };
+const LIMITS = { 'u.name': NAME, 't.name': NAME, 'f.name': FAMILY, 's.title': TITLE, 'c.count': COUNT, k: COUNT, 'c.owner_name': NAME };
 
 function skipString(s, i) {
   for (const q = s[i++]; i < s.length; i++) {

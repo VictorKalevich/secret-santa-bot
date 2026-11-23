@@ -230,6 +230,14 @@ describe('051: владелец компании (US2)', () => {
     assert.equal(old.data.error, 'Назначать и снимать администраторов может только владелец бота.');
     assert.equal((await z.api(y, 'admin.participate', { event: evC, on: true })).data.error,
       'После жеребьёвки так нельзя. Попроси владельца вписать тебя.');
+    // Причина отказа жеребьёвки видна и администраторам: убрать закреплённые пары может владелец компании
+    const ev2 = (await z.ok(x, 'admin.events.create', { company: C, title: 'Второе событие клуба' })).event.id;
+    await z.join(ev2, [y, q, s]);
+    await z.ok(x, 'admin.ring', { event: ev2, on: false });
+    await z.ok(x, 'admin.fixed.add', { event: ev2, giver: y.id, receiver: q.id, mutual: true });
+    await z.ok(x, 'admin.ring', { event: ev2, on: true });
+    assert.ok((await z.ok(y, 'admin.draw.check', { event: ev2 })).problems.includes(
+      'Мешают закреплённые пары: с ними распределить всех по правилам не получается. Владелец может убрать часть закреплённых пар.'));
   });
 
   it('передача владельцем компании: новый — владелец, прежний — администратор; сообщения и отказы', async () => {
@@ -365,5 +373,77 @@ describe('051: владелец компании (US2)', () => {
     await z.ok(boss, 'admin.rename', { company: 1, id: x.id, name: 'Ксю' });
     assert.equal(z.w.query('SELECT name FROM users WHERE tg_id = ?', x.id)[0].name, 'Ксю');
     await z.ok(z.adm, 'admin.rename', { company: 1, id: z.mem.id, name: 'Анна' });
+  });
+});
+
+describe('051: видимость и названия (US3)', () => {
+  let z;
+  let C;
+  let evC;
+  const [a, b, c, d] = [person(3001, 'Арина'), person(3002, 'Борис'), person(3003, 'Вика'), person(3004, 'Гоша')];
+  const LABEL = 'Секретный-Ярлык';
+  const ids = (me) => me.companies.map((x) => [x.id, x.title, x.named]);
+  before(async () => {
+    z = await bossWorld();
+    await z.join(z.E1, [a, d]);
+    C = await newCompany(z.w, boss, 'Клуб-тайна');
+    evC = await z.event(C, 'Событие клуба', [a, b, c]);
+    await z.ok(boss, 'admin.role.grant', { company: C, id: c.id });
+  });
+
+  it('видимость: участник события, администратор; названия по умолчанию — «Компания N» по времени вступления', async () => {
+    const meA = await z.ok(a, 'me');
+    assert.deepEqual(ids(meA), [[1, 'Компания 1', false], [C, 'Компания 2', false]]);
+    assert.deepEqual(meA.companies.map((x) => [x.role, x.bot_run, x.owner_name]), [['member', true, 'Владелец'], ['member', true, 'Владелец']]);
+    assert.deepEqual(meA.events.map((e) => [e.id, e.company]).sort((x, y) => x[0] - y[0]), [[z.E1, 1], [evC, C]]);
+    assert.equal((await z.ok(a, 'event.get', { event: evC })).event.company, C);
+    assert.deepEqual(ids(await z.ok(b, 'me')), [[C, 'Компания 1', false]], 'одна компания — её номер 1');
+    assert.deepEqual(ids(await z.ok(d, 'me')), [[1, 'Компания 1', false]]);
+    // Администратор без событий компании её видит; участник после выхода из единственного события — нет
+    await z.ok(c, 'event.leave', { event: evC, confirm: 'ВЫЙТИ' });
+    assert.deepEqual((await z.ok(c, 'me')).companies.map((x) => [x.id, x.role]), [[C, 'admin']]);
+    await z.ok(b, 'event.leave', { event: evC, confirm: 'ВЫЙТИ' });
+    assert.deepEqual((await z.ok(b, 'me')).companies, []);
+    // Владелец бота видит все компании под своими названиями
+    assert.deepEqual(ids(await z.ok(boss, 'me')), [[1, 'Основная', true], [C, 'Клуб-тайна', true]]);
+  });
+
+  it('своё название: видно только себе, пустое — снова по умолчанию, длиннее 40 — отказ, чужая компания — 404', async () => {
+    assert.deepEqual(await z.ok(a, 'company.label.set', { company: C, label: `  ${LABEL}  ` }), { ok: true, title: LABEL });
+    assert.deepEqual(ids(await z.ok(a, 'me')), [[1, 'Компания 1', false], [C, LABEL, true]]);
+    assert.equal(z.row(C, a.id).label, LABEL);
+    assert.equal(z.company(C).name, 'Клуб-тайна', 'название владельца бота не меняется');
+    const long = await z.api(a, 'company.label.set', { company: C, label: 'я'.repeat(41) });
+    assert.deepEqual([long.status, long.data.error], [400, 'Название — до 40 символов.']);
+    const alien = await z.api(d, 'company.label.set', { company: C, label: 'Чужая' });
+    assert.deepEqual([alien.status, alien.data.error], [404, 'Компания не найдена.']);
+    assert.deepEqual(await z.ok(a, 'company.label.set', { company: 1, label: 'Дом' }), { ok: true, title: 'Дом' });
+    assert.deepEqual(await z.ok(a, 'company.label.set', { company: 1, label: '' }), { ok: true, title: 'Компания 1' });
+    // Владелец бота переименовывает саму компанию — пустое нельзя
+    const empty = await z.w.api(boss, 'company.label.set', { company: C, label: ' ' }, true);
+    assert.equal(empty.status, 400);
+    assert.deepEqual(await z.w.api(boss, 'company.label.set', { company: C, label: 'Клуб' }), { ok: true, title: 'Клуб' });
+    assert.equal(z.company(C).name, 'Клуб');
+    assert.deepEqual(ids(await z.ok(a, 'me')).at(-1), [C, LABEL, true], 'своё название не зависит от названия владельца бота');
+  });
+
+  it('меню бота: при нескольких компаниях — название рядом с событием, при одной — как раньше', async () => {
+    await z.w.say(a, '/start');
+    const menuA = z.w.lastText(a);
+    assert.match(menuA, /«Основное событие» \(Компания 1\)/);
+    assert.ok(menuA.includes(`«Событие клуба» (${LABEL})`), menuA);
+    await z.w.say(d, '/start');
+    assert.doesNotMatch(z.w.lastText(d), /Компания|\(/);
+  });
+
+  it('чужое своё название и название владельца бота — ни в одном ответе и сообщении другим людям', async () => {
+    for (const u of [b, c, d]) await z.ok(u, 'me');
+    await z.ok(c, 'admin.users', { company: C });
+    await z.ok(c, 'admin.state', { event: evC });
+    await z.ok(c, 'admin.audit', { company: C });
+    const notA = z.others().filter((t) => !t.startsWith(a.name + ' ') && !t.startsWith(`→${a.id}:`));
+    assert.deepEqual(notA.filter((t) => t.includes(LABEL) || t.includes('Клуб')), []);
+    assert.ok(!JSON.stringify(await z.w.api(boss, 'me')).includes(LABEL), 'и владельцу бота чужое название не приходит');
+    assert.deepEqual(invariants(z.w), []);
   });
 });

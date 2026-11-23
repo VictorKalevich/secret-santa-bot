@@ -23,6 +23,12 @@
         if (parcel && state.evId === target.id && state.tab === 'my') document.getElementById('myShipment')?.scrollIntoView({ block: 'center' });
         return;
       }
+      // 051: несколько компаний — корневой экран «Компании»; одна — её главный экран, как раньше
+      if (state.companies.length >= 2) {
+        state.view = 'companies';
+        return render();
+      }
+      enterCompany(state.companies.length ? state.companies[0].id : null);
       const mine = state.events.filter((e) => e.member);
       if (!state.me.is_admin && state.events.length === 1 && mine.length === 1) return openEvent(mine[0].id);
       state.view = 'home';

@@ -37,7 +37,7 @@ function previousPairs(results, ids) {
 
 // ---------- жеребьёвка ----------
 
-function describeProblem(p, byId) {
+function describeProblem(p, byId, w) {
   const name = (id) => byId[id]?.name || 'кто-то';
   switch (p.type) {
     case 'too_few': return 'Нужно хотя бы 2 участника.';
@@ -48,7 +48,7 @@ function describeProblem(p, byId) {
     case 'no_givers': return `${name(p.id)} не может достаться никому — проверь исключения.`;
     case 'search_exhausted': return 'Не удалось быстро подобрать распределение — попробуй ещё раз. Если не выйдет, убери часть исключений или выключи кольцевую жеребьёвку.';
     // 014: без имён — причину видят и админы (и рассылка о неудаче автожеребьёвки), а закреплённые пары знает только владелец
-    case 'fixed_block': return 'Мешают закреплённые пары: с ними распределить всех по правилам не получается. Владелец бота может убрать часть закреплённых пар.';
+    case 'fixed_block': return `Мешают закреплённые пары: с ними распределить всех по правилам не получается. ${w.nom[0].toUpperCase() + w.nom.slice(1)} может убрать часть закреплённых пар.`;
     default: return 'Слишком много исключений: распределить всех так, чтобы их соблюсти, не получается. Убери часть исключений.';
   }
 }
@@ -90,7 +90,7 @@ export async function checkDraw(ctx, ev) {
     emptyWishlists: people.filter((u) => u.wishlist_blank).map((u) => u.name),
     problems: res.ok ? [] : [
       ...(familiesBlock ? ['Мешают семьи: члены одной семьи не дарят друг другу, и распределить всех так не получается. Выключи «Учитывать семьи» или кольцевую жеребьёвку.'] : []),
-      ...res.problems.map((p) => describeProblem(p, byId)),
+      ...res.problems.map((p) => describeProblem(p, byId, ctx.ownerWord())),
     ],
   };
 }
