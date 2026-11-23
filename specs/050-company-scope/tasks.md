@@ -2,7 +2,7 @@
 
 Вход: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md),
 [contracts/company-scope.md](contracts/company-scope.md), [quickstart.md](quickstart.md). Общий замысел —
-`docs/companies-roadmap.md`. Тесты входят в задачи: правило проекта — новое поведение сразу в `npm test`.
+`specs/051-companies/research.md`, «Решения владельца». Тесты входят в задачи: правило проекта — новое поведение сразу в `npm test`.
 
 **Главное правило шага.** С одной компанией ничего не меняется. Поэтому **нельзя править**:
 `tests/fixtures/api-refusals.json`, `tests/fixtures/draw-golden.json`, таблицу `BASELINE` в `tests/queries.test.mjs`,
