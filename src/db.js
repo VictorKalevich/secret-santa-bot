@@ -1,13 +1,13 @@
-// Работа с базой D1 (SQLite). Схема 16: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
-// «участники могут писать друг другу» 037, значок у имени и открытка письма 038, маска Санты 040, черновики писем 041, отправка 042
-// (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
+// Работа с базой D1 (SQLite). Схема 17: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
+// «участники могут писать друг другу» 037, значок у имени и открытка письма 038, маска Санты 040, черновики писем 041, отправка 042,
+// компании 050 (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
 import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 16;
+export const REQUIRED_SCHEMA = 17;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -339,7 +339,8 @@ export const NOT_PERSON = 'not-person'; // имя похоже на челове
 // новая таблица или колонка с событием или человеком здесь не описана). Внешних ключей в схеме нет: удаление события,
 // сброс, удаление участника, выход админа из участия и перенос участия строятся только из этого списка (построители
 // ниже). Порядок ключей — порядок операторов: дочерняя таблица (via) раньше родителя; якорь действия — последним.
-//   event — колонка события; via — строки принадлежат событию или человеку через родителя (по его id);
+//   event — колонка события; company — колонка компании (050); via — строки принадлежат событию или человеку через
+//   родителя (по его id);
 //   people — колонки человека и их роли; anchor — строка-опора действия ('event', 'member', 'person');
 //   onEventDelete — удаление события и сброс: 'delete' | 'keep';
 //   onLeave — уход участника из события: 'delete' | 'keep' | 'rebuild' (пары перестраивает applyPairsChange);
@@ -358,7 +359,20 @@ export const REGISTRY = {
       args: (from, to) => [from, to],
     }],
   },
-  events: { event: 'id', people: { created_by: ACTOR }, anchor: 'event', onTransfer: 'update' },
+  // 050: компании и их люди — не данные события: удаление события, сброс и уход участника их не трогают
+  companies: { company: 'id', people: { owner_id: ACTOR, created_by: ACTOR }, onTransfer: 'update' },
+  // Если у нового аккаунта уже есть строка в компании — остаётся она (с его названием), права — большие из двух
+  company_members: {
+    company: 'company_id',
+    people: { user_id: MEMBER },
+    onTransfer: 'dedupe',
+    transferBefore: [{
+      sql: `UPDATE company_members SET is_admin = MAX(is_admin, COALESCE((SELECT c.is_admin FROM company_members c
+             WHERE c.company_id = company_members.company_id AND c.user_id = ?), 0)) WHERE user_id = ?`,
+      args: (from, to) => [from, to],
+    }],
+  },
+  events: { event: 'id', company: 'company_id', people: { created_by: ACTOR }, anchor: 'event', onTransfer: 'update' },
   members: {
     event: 'event_id',
     people: { user_id: MEMBER },
@@ -379,7 +393,7 @@ export const REGISTRY = {
   messages: { event: 'event_id', people: { santa: MEMBER, ward: MEMBER, sender: NOT_PERSON }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'update' },
   announcements: { event: 'event_id', people: { author: ACTOR }, onEventDelete: 'delete', onTransfer: 'update' },
   // Журнал события остаётся и после удаления события (007); event_id = 0 — общий журнал
-  audit: { event: 'event_id', people: { actor: ACTOR }, onEventDelete: 'keep', onTransfer: 'update' },
+  audit: { event: 'event_id', company: 'company_id', people: { actor: ACTOR }, onEventDelete: 'keep', onTransfer: 'update' },
   // Заявки — история: остаются, когда участник уходит (008)
   join_requests: { event: 'event_id', people: { user_id: MEMBER, decided_by: ACTOR }, onEventDelete: 'delete', onLeave: 'keep', onTransfer: 'dedupe' },
   removed_members: {
@@ -413,9 +427,9 @@ export const REGISTRY = {
     // Сам себе не отвечает: такое обращение снова ничьё
     transferAfter: [{ sql: 'UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = user_id', args: () => [] }],
   },
-  families: { people: { created_by: ACTOR }, onTransfer: 'update' },
-  // 008: семьи — общие для бота; если новый аккаунт уже в семье — остаётся его семья
-  family_members: { via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onTransfer: 'dedupe' },
+  families: { company: 'company_id', people: { created_by: ACTOR }, onTransfer: 'update' },
+  // 008: семьи — общие для компании (050); если новый аккаунт уже в семье этой компании — остаётся его семья
+  family_members: { company: 'company_id', via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onTransfer: 'dedupe' },
   outbox: { people: { chat_id: RECIPIENT } },
 };
 

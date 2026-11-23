@@ -19,8 +19,8 @@ function schemaOf(sqlite) {
   return new Map(tables.map(({ name }) => [name, sqlite.prepare(`PRAGMA table_info(${name})`).all().map((c) => c.name)]));
 }
 
-// Колонки, которые описаны в списке: событие, родитель (via), колонки человека любой роли
-const described = (spec) => [spec.event, spec.via?.column, ...Object.keys(spec.people || {})].filter(Boolean);
+// Колонки, которые описаны в списке: событие, компания (050), родитель (via), колонки человека любой роли
+const described = (spec) => [spec.event, spec.company, spec.via?.column, ...Object.keys(spec.people || {})].filter(Boolean);
 
 // Расхождения списка со схемой (пустой массив — всё описано)
 function registryGaps(sqlite, registry = REGISTRY) {
@@ -61,11 +61,24 @@ function registryGaps(sqlite, registry = REGISTRY) {
 }
 
 describe('список данных события и человека (тест схемы)', () => {
-  it('схема из миграций полностью описана: 17 таблиц, ни одного расхождения', () => {
+  it('схема из миграций полностью описана: 19 таблиц, ни одного расхождения', () => {
     const db = createMigratedD1();
     assert.deepEqual(registryGaps(db.sqlite), []);
-    assert.equal(schemaOf(db.sqlite).size, 17);
-    assert.equal(Object.keys(REGISTRY).length, 17);
+    assert.equal(schemaOf(db.sqlite).size, 19);
+    assert.equal(Object.keys(REGISTRY).length, 19);
+    // 050: колонка компании описана у каждой таблицы, где она есть
+    const withCompany = [...schemaOf(db.sqlite)].filter(([, cols]) => cols.includes('company_id')).map(([t]) => t).sort();
+    assert.deepEqual(withCompany, ['audit', 'company_members', 'events', 'families', 'family_members']);
+    for (const t of withCompany) assert.equal(REGISTRY[t].company, 'company_id', t);
+    assert.equal(REGISTRY.companies.company, 'id');
+  });
+
+  it('от противного: новая колонка company_id не описана', () => {
+    const db = createMigratedD1();
+    db.sqlite.exec('ALTER TABLE announcements ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1');
+    assert.deepEqual(registryGaps(db.sqlite), ['announcements.company_id не описана в списке']);
+    const copy = { ...REGISTRY, families: { ...REGISTRY.families, company: undefined } };
+    assert.deepEqual(registryGaps(createMigratedD1().sqlite, copy), ['families.company_id не описана в списке']);
   });
 
   it('от противного: новая колонка event_id в существующей таблице', () => {
@@ -204,6 +217,28 @@ test('построители работают на настоящей схеме
   assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM events').get().n, 0);
 });
 
+test('050: перенос строк компаний — права большие из двух в каждой компании, строка нового остаётся', async () => {
+  const db = createMigratedD1();
+  db.sqlite.exec("INSERT INTO companies (id, name) VALUES (2, 'Б'), (3, 'В')");
+  db.sqlite.exec("INSERT INTO users (tg_id, name, registered) VALUES (100, 'Старый', 1), (200, 'Новый', 1)");
+  // Компания 1: старый — админ, новый — нет; 2: старый — нет, новый — админ со своим названием; 3: только старый
+  db.sqlite.exec(`INSERT INTO company_members (company_id, user_id, is_admin, label, joined_at) VALUES
+    (1, 100, 1, 'старое', 1), (1, 200, 0, 'моя', 2), (2, 100, 0, '', 3), (2, 200, 1, 'вторая', 4), (3, 100, 0, 'третья', 5)`);
+  // Семьи: в компании 1 — у обоих (остаётся семья нового), в компании 2 — только у старого (переходит)
+  db.sqlite.exec("INSERT INTO families (id, name, created_at, company_id) VALUES (1, 'С1', 0, 1), (2, 'С2', 0, 1), (3, 'С3', 0, 2)");
+  db.sqlite.exec('INSERT INTO family_members (company_id, user_id, family_id) VALUES (1, 100, 1), (1, 200, 2), (2, 100, 3)');
+  await db.batch(personTransferStmts(db, 100, 200));
+  assert.deepEqual(db.sqlite.prepare('SELECT company_id, user_id, is_admin, label, joined_at FROM company_members ORDER BY company_id').all().map((r) => ({ ...r })), [
+    { company_id: 1, user_id: 200, is_admin: 1, label: 'моя', joined_at: 2 },
+    { company_id: 2, user_id: 200, is_admin: 1, label: 'вторая', joined_at: 4 },
+    { company_id: 3, user_id: 200, is_admin: 0, label: 'третья', joined_at: 5 },
+  ]);
+  assert.deepEqual(db.sqlite.prepare('SELECT company_id, user_id, family_id FROM family_members ORDER BY company_id').all().map((r) => ({ ...r })), [
+    { company_id: 1, user_id: 200, family_id: 2 },
+    { company_id: 2, user_id: 200, family_id: 3 },
+  ]);
+});
+
 // ---------- после действия не остаётся строк (US3) ----------
 // «Богатый мир»: событие A (адрес нужен, владелец участвует, жеребьёвка проведена), событие B (с одобрением заявок),
 // событие C (p1 удалён организатором). Поиск строк идёт по REGISTRY — все колонки события и человека (полноту списка
@@ -219,7 +254,7 @@ const [p1, p2, p3, p4, p5, p6] = P;
 const STAYS = ['outbox.chat_id'];
 // Ссылки «кто сделал» — с 025 переносятся вместе с человеком
 const ACTOR_COLUMNS = [
-  'announcements.author', 'audit.actor', 'events.created_by', 'families.created_by', 'join_requests.decided_by',
+  'announcements.author', 'audit.actor', 'companies.created_by', 'companies.owner_id', 'events.created_by', 'families.created_by', 'join_requests.decided_by',
   'removed_members.removed_by', 'support_messages.sender', 'support_threads.assignee', 'support_threads.closed_by',
 ];
 

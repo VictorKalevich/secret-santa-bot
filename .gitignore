@@ -21,3 +21,4 @@ Thumbs.db
 # Схема — только миграции, они в git остаются.
 *.sql
 !migrations/*.sql
+!tools/*.sql
