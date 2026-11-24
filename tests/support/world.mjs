@@ -154,7 +154,7 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, open = fal
       });
       return res.status;
     },
-    from: (u) => ({ id: u.id, is_bot: false, first_name: u.name, username: u.username }),
+    from: (u) => ({ id: u.id, is_bot: false, first_name: u.name, username: u.username, ...(u.language_code ? { language_code: u.language_code } : {}) }),
     say: (u, text) => world.update({ message: { message_id: updateId, date: 1, from: world.from(u), chat: { id: u.id, type: 'private' }, text } }),
     press: (u, data) => world.update({ callback_query: { id: 'cq' + updateId, from: world.from(u), data, chat_instance: 'x' } }),
     cron: () => invoke(() => worker.scheduled({ cron: '* * * * *', scheduledTime: Date.now() }, env)),
