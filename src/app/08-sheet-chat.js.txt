@@ -297,8 +297,8 @@
     let sig = '';
     const load = async () => {
       const d = await api('support.get', { event: evId });
-      const open = d.threads.find((t) => t.status === 'open');
-      const key = JSON.stringify(d.threads.map((t) => [t.id, t.status, t.assignee_name, t.messages.length]));
+      const open = d.threads.find((th) => th.status === 'open');
+      const key = JSON.stringify(d.threads.map((th) => [th.id, th.status, th.assignee_name, th.messages.length]));
       c.show(d.writable && (d.available || !!open));
       closedNote.hidden = d.writable;
       resolve.hidden = !open || !d.writable;
@@ -308,9 +308,9 @@
       if (key === sig) return false;
       sig = key;
       const nodes = [];
-      for (const t of d.threads) {
+      for (const th of d.threads) {
         nodes.push(...t.messages.map(supportBubble));
-        if (t.status !== 'open') nodes.push(h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто · ' + fmtTime(t.closed_at)));
+        if (th.status !== 'open') nodes.push(h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто · ' + fmtTime(th.closed_at)));
       }
       list.replaceChildren(...(nodes.length ? nodes : [h('div', { class: 'ds-chat__empty' }, d.available
         ? 'Здесь пока пусто. Расскажи, что случилось.'
@@ -362,19 +362,19 @@
         list.replaceChildren(h('div', { class: 'ds-chat__empty' }, e.message));
         return;
       }
-      const t = d.thread;
-      const key = JSON.stringify([t.status, t.assignee, t.writable, d.messages.map((m) => m.id)]);
+      const th = d.thread;
+      const key = JSON.stringify([th.status, th.assignee, th.writable, d.messages.map((m) => m.id)]);
       if (key === sig) return false;
       sig = key;
-      titleText.data = 'Обращение: ' + t.name;
-      const open = t.status === 'open';
-      const lead = t.assignee === me.id || me.is_owner;
+      titleText.data = 'Обращение: ' + th.name;
+      const open = th.status === 'open';
+      const lead = th.assignee === me.id || me.is_owner;
       const parts = [ui.hint(!open
-        ? `Обращение закрыто ${fmtTime(t.closed_at)}${t.closed_by_name ? ' — ' + t.closed_by_name : ''}.`
-        : !t.assignee ? (t.user_id === me.id ? 'Это твоё обращение — его может взять кто-то другой.' : 'Обращение ждёт ответа. Возьми его — или просто ответь, и оно станет твоим.')
-        : t.assignee === me.id ? 'Обращение ведёшь ты.' : `Обращение ведёт ${t.assignee_name}.`)];
+        ? `Обращение закрыто ${fmtTime(th.closed_at)}${th.closed_by_name ? ' — ' + th.closed_by_name : ''}.`
+        : !th.assignee ? (th.user_id === me.id ? 'Это твоё обращение — его может взять кто-то другой.' : 'Обращение ждёт ответа. Возьми его — или просто ответь, и оно станет твоим.')
+        : th.assignee === me.id ? 'Обращение ведёшь ты.' : `Обращение ведёт ${th.assignee_name}.`)];
       const row = h('div', { class: 'ds-row ds-row--wrap' });
-      if (open && !t.assignee && t.user_id !== me.id) {
+      if (open && !th.assignee && th.user_id !== me.id) {
         const takeBtn = ui.btn('🙋 Взять', 'secondary', 'ds-btn--sm');
         takeBtn.addEventListener('click', () => act(takeBtn, () => api('admin.support.take', { event: evId, thread: id }), '🙋 Обращение твоё'));
         row.append(takeBtn);
@@ -382,7 +382,7 @@
       if (open && lead) {
         const closeBtn = ui.btn('✅ Закрыть обращение', 'secondary', 'ds-btn--sm');
         closeBtn.addEventListener('click', async () => {
-          if (!(await confirmBox(`Закрыть обращение «${t.name}»? Участник получит уведомление и сможет написать снова.`))) return;
+          if (!(await confirmBox(`Закрыть обращение «${th.name}»? Участник получит уведомление и сможет написать снова.`))) return;
           act(closeBtn, () => api('admin.support.close', { event: evId, thread: id }), '✅ Обращение закрыто');
         });
         row.append(closeBtn);
@@ -399,8 +399,8 @@
         parts.push(h('div', { class: 'ds-row' }, h('div', { class: 'ds-grow' }, sel), passBtn));
       }
       head.replaceChildren(...parts);
-      c.show(t.writable);
-      if (!t.writable) c.counter.hidden = true;
+      c.show(th.writable);
+      if (!th.writable) c.counter.hidden = true;
       list.replaceChildren(...(d.messages.length ? d.messages.map(supportBubble) : [h('div', { class: 'ds-chat__empty' }, 'Сообщений нет.')]),
         ...(open ? [] : [h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто')]));
       list.scrollTop = list.scrollHeight;

@@ -199,19 +199,19 @@
   function adminSupport(p) {
     const { d, me, evId, again } = p;
     const sup = d.support || { threads: [] };
-    const openCount = sup.threads.filter((t) => t.status === 'open').length;
+    const openCount = sup.threads.filter((th) => th.status === 'open').length;
     const list = h('div', { class: 'ds-card ds-card--flush' });
     if (!sup.threads.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Обращений пока нет.'));
-    for (const t of sup.threads) {
-      const chip = t.status !== 'open' ? ui.chip('✅ закрыто')
-        : !t.assignee ? ui.chip('🆕 ждёт ответа', 'warning')
-        : t.assignee === me.id ? ui.chip('🙋 ведёшь ты', 'success') : ui.chip('🙋 ведёт ' + t.assignee_name);
-      list.append(h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openSupportThread(t.id, evId, again) },
+    for (const th of sup.threads) {
+      const chip = th.status !== 'open' ? ui.chip('✅ закрыто')
+        : !th.assignee ? ui.chip('🆕 ждёт ответа', 'warning')
+        : th.assignee === me.id ? ui.chip('🙋 ведёшь ты', 'success') : ui.chip('🙋 ведёт ' + th.assignee_name);
+      list.append(h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openSupportThread(th.id, evId, again) },
         h('div', { class: 'ds-grow' },
-          h('div', { class: 'ds-list-item__title' }, t.name || 'без имени'),
+          h('div', { class: 'ds-list-item__title' }, th.name || 'без имени'),
           h('div', { class: 'ds-chips' }, chip),
-          ui.hint(fmtTime(t.last_at))),
-        t.unread ? h('span', { class: 'ds-badge' }, String(t.unread)) : null,
+          ui.hint(fmtTime(th.last_at))),
+        th.unread ? h('span', { class: 'ds-badge' }, String(th.unread)) : null,
         h('span', { class: 'ds-list-item__chevron' }, '›')));
     }
     return [
@@ -308,10 +308,10 @@
       ...targets.map((x) => h('option', { value: x.id }, x.name + (x.username ? ' (@' + x.username + ')' : ''))));
     const go = ui.btn('🔁 Перенести', '', 'ds-btn--block');
     go.addEventListener('click', async () => {
-      const t = targets.find((x) => String(x.id) === sel.value);
-      if (!t) return toast('Выбери новый аккаунт');
-      if (!(await confirmBox(`Перенести участие «${u.name}» на «${t.name}»? Письма, подопечные, Санты и переписка во всех событиях перейдут на новый аккаунт, старая запись будет удалена.`))) return;
-      busy(go, async () => { await capi('admin.transfer', { from: u.id, to: t.id }); closeSheet(); toast('🔁 Участие перенесено'); await p.refresh(); });
+      const to = targets.find((x) => String(x.id) === sel.value);
+      if (!to) return toast('Выбери новый аккаунт');
+      if (!(await confirmBox(`Перенести участие «${u.name}» на «${to.name}»? Письма, подопечные, Санты и переписка во всех событиях перейдут на новый аккаунт, старая запись будет удалена.`))) return;
+      busy(go, async () => { await capi('admin.transfer', { from: u.id, to: to.id }); closeSheet(); toast('🔁 Участие перенесено'); await p.refresh(); });
     });
     openSheet('Перенести на новый аккаунт', [
       ui.hint(`Если «${u.name || 'участник'}» потерял доступ к Telegram и вступил в событие заново с нового аккаунта, выбери его новую запись. ` +

@@ -449,7 +449,8 @@ export const NOT_PERSON = 'not-person'; // имя похоже на челове
 //   transferBefore/transferAfter — свои правила таблицы до и после переноса колонок (sql оканчивается условием WHERE).
 // Спецификация — specs/018-data-registry/ (data-model.md, contracts/data-registry.md).
 export const REGISTRY = {
-  settings: { note: 'владелец — значение owner_id: его запись не переносится, на его аккаунт перенос запрещён' },
+  // владелец — значение owner_id: его запись не переносится, на его аккаунт перенос запрещён
+  settings: {},
   users: {
     people: { tg_id: SELF },
     anchor: 'person',

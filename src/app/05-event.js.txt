@@ -24,11 +24,11 @@
   }
 
   function tabsList() {
-    const t = [];
-    if (state.member) t.push(['my', '✉️', 'Письмо'], ['ward', '🎁', 'Подопечный']);
-    t.push(['info', 'ℹ️', 'Инфо']);
-    if (state.me.is_admin) t.push(['admin', '🛠', 'Управление']);
-    return t;
+    const tabs = [];
+    if (state.member) tabs.push(['my', '✉️', 'Письмо'], ['ward', '🎁', 'Подопечный']);
+    tabs.push(['info', 'ℹ️', 'Инфо']);
+    if (state.me.is_admin) tabs.push(['admin', '🛠', 'Управление']);
+    return tabs;
   }
 
   function renderTabs() {

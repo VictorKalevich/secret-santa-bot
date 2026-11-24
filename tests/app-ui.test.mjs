@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { APP, where, partLines, indent, code, blockAt, topBlock, ownerOf } from './support/app-source.mjs';
+import { appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
 // ---------- 1. «Сохранить» в «Параметрах» перестраивает панель ----------
 // Обработчик, в котором уходит admin.game со значениями формы, вызывает refresh() или again()
@@ -117,7 +118,44 @@ export function stateDeclared(text) {
 // admin.family.save), название события — до 80 (создание и параметры события), числа участников — до трёх цифр;
 // имя владельца компании (051) — имя человека
 const NAME = 40, FAMILY = 40, TITLE = 80, COUNT = 3;
-const LIMITS = { 'u.name': NAME, 't.name': NAME, 'f.name': FAMILY, 's.title': TITLE, 'c.count': COUNT, k: COUNT, 'c.owner_name': NAME };
+const LIMITS = {
+  'u.name': NAME, 'v.name': NAME, 'to.name': NAME, 'th.name': NAME, 'f.name': FAMILY, 's.title': TITLE, 'c.count': COUNT, k: COUNT, 'c.owner_name': NAME,
+};
+// 060: текст словаря приложения (русский) — t('ключ', { имя: выражение, … }): длиннейшая форма, подстановки — по худшему
+// случаю своих выражений; {owner.форма} — длиннейшая из форм ownerWord
+const APP_DICT = appTexts(DEFAULT_LANG).texts;
+const OWNER_MAX = Math.max(...Object.entries(APP_DICT).filter(([k]) => /^app\.core\.(?:bot)?[oO]wner\./.test(k)).map(([, v]) => v.length));
+function objectArgs(expr) {
+  const e = expr.trim();
+  if (!e.startsWith('{') || closing(e, 1) !== e.length - 1) throw new Error(`подстановки t() — не объект: ${e}`);
+  const inner = e.slice(1, -1);
+  const out = {};
+  for (let i = 0, at; i < inner.length; i = at + 1) {
+    at = scan(inner, i, (j) => inner[j] === ',');
+    if (at < 0) at = inner.length;
+    const part = inner.slice(i, at).trim();
+    if (!part) continue;
+    const colon = scan(part, 0, (j) => part[j] === ':');
+    if (colon < 0) out[part] = part;
+    else out[part.slice(0, colon).trim()] = part.slice(colon + 1);
+  }
+  return out;
+}
+function worstText(key, paramsExpr, ctx) {
+  const value = APP_DICT[key];
+  if (value === undefined) throw new Error(`нет ключа ${key}`);
+  const args = paramsExpr ? objectArgs(paramsExpr) : {};
+  const forms = typeof value === 'string' ? [value] : Object.values(value);
+  return Math.max(...forms.map((text) => {
+    let n = 0;
+    const rest = text.replace(/\{([A-Za-z0-9_]+)(?:\.([A-Za-z0-9_]+))?\}/g, (m, name, form) => {
+      if (!Object.hasOwn(args, name)) throw new Error(`${key}: нет подстановки ${name}`);
+      n += form !== undefined && /^ownerWord\(/.test(args[name].trim()) ? OWNER_MAX : worst(form ? `${args[name].trim()}.${form}` : args[name], ctx);
+      return '';
+    });
+    return n + rest.length;
+  }));
+}
 
 function skipString(s, i) {
   for (const q = s[i++]; i < s.length; i++) {
@@ -176,6 +214,8 @@ function worst(expr, ctx) {
     }
     return n + Function('return `' + raw + '`')().length;
   }
+  const tr = /^t\('([\w.]+)'(?:,\s*([\s\S]*))?\)$/.exec(e);
+  if (tr && closing(e, 2) === e.length - 1) return worstText(tr[1], tr[2], ctx);
   if (/^plural\(/.test(e)) { // plural(n, одна, несколько, много) — длиннейшая форма
     const args = [];
     const inner = e.slice(7, -1);
@@ -207,7 +247,10 @@ export function confirmProblems(text) {
     }
   }
   // Параметр title у typed(): длиннейший из переданных заголовков
-  const typedTitles = [...text.matchAll(/\btyped\('([^']*)'/g)].map((m) => m[1].length);
+  const typedTitles = [
+    ...[...text.matchAll(/\btyped\('([^']*)'/g)].map((m) => m[1].length),
+    ...[...text.matchAll(/\btyped\(t\('([\w.]+)'\)/g)].map((m) => String(APP_DICT[m[1]] ?? '').length),
+  ];
   const limits = { ...LIMITS, ...(typedTitles.length ? { title: Math.max(...typedTitles) } : {}) };
   for (const m of text.matchAll(/\bconfirmBox\(/g)) {
     if (/function\s+$/.test(text.slice(Math.max(0, m.index - 10), m.index))) continue;

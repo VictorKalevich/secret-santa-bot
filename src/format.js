@@ -36,8 +36,10 @@ export const cleanText = (s) => String(s ?? '').replace(/\r\n/g, '\n').trim();
 export const oneLine = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
 // Как показать человека в сообщениях и журнале
+// Имя человека; без имени и username — отложенный текст «Кто-то» (060): только как значение подстановки (tx, ctx.t) или поле
+// ответа и журнала, не в склейке строк
 export function displayName(u) {
-  return u?.name || (u?.username ? '@' + u.username : 'Кто-то');
+  return u?.name || (u?.username ? '@' + u.username : tx('common.someone'));
 }
 
 // Кто может действие владельца (051): в компании, которую ведёт владелец бота (botRun), — «владелец бота», в компании с

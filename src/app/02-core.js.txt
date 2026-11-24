@@ -429,7 +429,7 @@
       for (let j = m - 1; j >= 0; j--)
         dp[i * W + j] = A[i] === B[j] ? dp[(i + 1) * W + j + 1] + 1 : Math.max(dp[(i + 1) * W + j], dp[i * W + j + 1]);
     const ops = [];
-    const push = (t, s) => { const last = ops[ops.length - 1]; if (last && last.t === t) last.s += s; else ops.push({ t, s }); };
+    const push = (kind, s) => { const last = ops[ops.length - 1]; if (last && last.t === kind) last.s += s; else ops.push({ t: kind, s }); };
     if (start) push('=', a.slice(0, start).join(''));
     let i = 0, j = 0;
     while (i < n && j < m) {

@@ -115,10 +115,10 @@
     const details = (rules) => h('details', { class: 'ds-details' }, h('summary', { class: 'ds-details__summary' }, 'Подробнее'),
       h('ul', { class: 'ds-bullets' }, rules.map((r) => h('li', {}, r.text))));
     // Новые пары — с чистого листа (048): новых подопечных оба ещё не открывали
-    const success = async (u, t) => {
+    const success = async (u, v) => {
       haptic('success');
       toast('🔀 Подопечные поменялись');
-      for (const x of [u, t]) {
+      for (const x of [u, v]) {
         x.ward_seen = false;
         mark(x);
       }
@@ -128,7 +128,7 @@
       await p.again({ quiet: true });
     };
     // Нарушения — абстрактный текст, правила в «Подробнее», обмен — только с галочкой; отказ сервера убирает плашку
-    const warning = (u, t, c) => {
+    const warning = (u, v, c) => {
       const agree = h('input', { type: 'checkbox' });
       const btn = ui.btn('🔀 Поменять подопечных', 'danger', 'ds-btn--block');
       btn.disabled = true;
@@ -136,9 +136,9 @@
       btn.addEventListener('click', async () => {
         let ok = false;
         await busy([btn, go], async () => {
-          await xapi('admin.draw.swap', { a: u.id, b: t.id, version: c.version, agree: c.rules.map((r) => r.rule) });
+          await xapi('admin.draw.swap', { a: u.id, b: v.id, version: c.version, agree: c.rules.map((r) => r.rule) });
           ok = true;
-          await success(u, t);
+          await success(u, v);
         });
         if (!ok) result.replaceChildren();
         syncBoxes();
@@ -152,18 +152,18 @@
     };
     go.addEventListener('click', async () => {
       await busy(go, async () => {
-        const [u, t] = picked;
-        const c = await xapi('admin.draw.swap.check', { a: u.id, b: t.id });
+        const [u, v] = picked;
+        const c = await xapi('admin.draw.swap.check', { a: u.id, b: v.id });
         if (!c.possible) {
           haptic('error');
           show(h('div', { class: 'ds-notice ds-notice--error ds-stack ds-stack--sm' },
             h('b', {}, 'Этих двоих поменять нельзя — выбери другую пару.'), details(c.rules)));
           return;
         }
-        if (c.rules.length) return show(warning(u, t, c));
-        if (!(await confirmBox(`Поменять подопечных у «${u.name}» и «${t.name}»? Тем, кто уже открыл подопечного, бот напишет, что он сменился. Отметки подарка, маски и переписка этих двух пар начнутся заново.`))) return;
-        await xapi('admin.draw.swap', { a: u.id, b: t.id, version: c.version });
-        await success(u, t);
+        if (c.rules.length) return show(warning(u, v, c));
+        if (!(await confirmBox(`Поменять подопечных у «${u.name}» и «${v.name}»? Тем, кто уже открыл подопечного, бот напишет, что он сменился. Отметки подарка, маски и переписка этих двух пар начнутся заново.`))) return;
+        await xapi('admin.draw.swap', { a: u.id, b: v.id, version: c.version });
+        await success(u, v);
       });
       syncBoxes(); // busy вернул кнопке доступность — после обмена отметок нет
     });

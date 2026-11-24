@@ -358,7 +358,7 @@ test('приложение: секция только владельцу пос�
   // 049: метка «не открыл подопечного» — та же, что в «Участниках»; после обмена — у обоих; тексты не обещают сообщения обоим
   assert.ok(text.includes("u.ward_seen === false ? [h('div', { class: 'ds-chips' }, unseenChip())]"), 'метка по ward_seen');
   assert.match(text, /x\.ward_seen = false;\s*mark\(x\);/, 'после обмена — метка обоим');
-  assert.equal((text.match(/await success\(u, t\)/g) || []).length, 2, 'оба пути обмена обновляют метки');
+  assert.equal((text.match(/await success\(u, v\)/g) || []).length, 2, 'оба пути обмена обновляют метки');
   assert.ok(!text.includes('напишет обоим'), 'тексты: сообщение — только открывшим');
   assert.equal((text.match(/тем, кто уже открыл подопечного, бот напишет/gi) || []).length, 2, 'окно и плашка');
   const members = topBlock(admin, 'adminMembers');
