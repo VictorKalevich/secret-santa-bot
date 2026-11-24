@@ -66,7 +66,7 @@
   `state.dirty` (03-home), черновик (`draftDelay`, `letterQueue`, `saveLetterNow`, 05-event), `poll` → `{ now, stop }`
   (08-sheet-chat); тест `poll-drafts`; «Отложено» — пункты 2 и 4 сделаны
 - [X] T011 [P] `docs/todo.md`: пункты 2 и 4 «Важного» — сделаны в 058 (убрать), остался пункт 5
-- [ ] T012 `npm run test:all` зелёный; задачи отмечены; спецификация — статус «Реализовано»
+- [X] T012 `npm run test:all` зелёный; задачи отмечены; спецификация — статус «Реализовано»
 
 ## Dependencies & Execution Order
 
