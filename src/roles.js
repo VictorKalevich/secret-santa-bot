@@ -7,6 +7,7 @@ import {
   mergeMembership, personTransferStmts, BOT_LOG,
 } from './db.js';
 import { msg, escapeHtml, appKeyboard, displayName, adminRecipients } from './format.js';
+import { tx } from './i18n/index.js';
 import { derivedSecret } from './telegram.js';
 import { returnThreadsStmts } from './support.js';
 import { atomic } from './claim.js';
@@ -100,31 +101,25 @@ export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabe
   ).bind(newOwnerId, Date.now(), ...a.args));
   const who = newOwnerLabel || displayName(target);
   for (const sphere of [...spheres.map((c) => ({ company: c.id })), BOT_LOG]) {
-    if (transfer) a.audit(sphere, prevOwnerId, 'owner.transfer', `→ ${who}`);
+    if (transfer) a.audit(sphere, prevOwnerId, 'owner.transfer', tx('roles.audit.newOwner', { name: who }));
     else a.audit(sphere, newOwnerId, 'owner.link', who);
   }
   if (prevOwnerId && prevOwnerId !== newOwnerId) {
     if (via === 'link') {
-      a.enqueue(prevOwnerId, msg(
-        `⚠️ Права владельца бота перешли к <b>${label}</b> по ссылке со страницы настройки. Ты остаёшься администратором.\n\n` +
-        'Если это не ты и не по договорённости — смени ADMIN_SECRET (см. README), открой страницу настройки и перейди по новой ссылке владельца.'
-      ));
+      a.enqueue(prevOwnerId, msg(tx('roles.botOwner.byLink', { name: label })));
     }
     if (via === 'transfer') {
-      a.enqueue(newOwnerId, msg(
-        '👑 <b>Тебе переданы права владельца бота.</b> Теперь ты назначаешь и снимаешь администраторов — раздел «Владелец и администраторы» на главном экране приложения.',
-        appKeyboard(settings, '🛠 Открыть')
-      ));
+      a.enqueue(newOwnerId, msg(tx('roles.botOwner.transferred'), appKeyboard(settings, tx('roles.openButton'))));
     }
-    for (const u of adminRecipients(admins, [newOwnerId, prevOwnerId])) a.enqueue(u.tg_id, adminNotice(`ℹ️ <b>${label}</b> теперь владелец бота.`));
+    for (const u of adminRecipients(admins, [newOwnerId, prevOwnerId])) a.enqueue(u.tg_id, adminNotice(tx('roles.botOwner.notice', { name: label })));
   }
   if (transfer) a.claim(db.prepare("UPDATE settings SET value = ? WHERE key = 'owner_id' AND value = ?").bind(String(newOwnerId), String(prevOwnerId)));
   else a.add(setSettingStmt(db, 'owner_id', String(newOwnerId)));
   return { won: (await a.run()).won !== false };
 }
 
-const ALREADY_ADMIN = 'Он(а) уже администратор.';
-const NOT_ADMIN = 'Он(а) не администратор.';
+const ALREADY_ADMIN = tx('roles.alreadyAdmin');
+const NOT_ADMIN = tx('roles.notAdmin');
 
 // Права в компании вызова (050): условие и захват — строка company_members; общий признак — после захвата (I4)
 export async function grantAdmin(ctx, id, actor = 0) {
@@ -132,15 +127,12 @@ export async function grantAdmin(ctx, id, actor = 0) {
   const cid = ctx.company.id;
   const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id && !x.guest);
-  if (!u || !u.registered) return no('Назначить можно только зарегистрированного человека.');
+  if (!u || !u.registered) return no(tx('roles.grantUnregistered'));
   if (u.is_admin) return no(ALREADY_ADMIN);
   // По прежнему состоянию (024): сообщения и журнал — пока он не админ, назначение — последним (захват)
   const a = atomic(db, 'EXISTS (SELECT 1 FROM company_members WHERE company_id = ? AND user_id = ? AND is_admin = 0)', cid, id);
-  a.enqueue(id, msg(
-    '🛠 <b>Владелец назначил тебя администратором.</b>\n\nТеперь ты можешь создавать события и вести их: приглашения, исключения, жеребьёвка, напоминания. Пары может открыть только владелец в служебном просмотре.',
-    appKeyboard(settings, '🛠 Открыть')
-  ));
-  for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(`ℹ️ <b>${escapeHtml(displayName(u))}</b> теперь администратор.`));
+  a.enqueue(id, msg(tx('roles.granted'), appKeyboard(settings, tx('roles.openButton'))));
+  for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(tx('roles.grantedNotice', { name: escapeHtml(displayName(u)) })));
   a.audit({ company: cid }, actor || ownerId, 'role.grant', displayName(u));
   a.claim(db.prepare('UPDATE company_members SET is_admin = 1 WHERE company_id = ? AND user_id = ? AND is_admin = 0').bind(cid, id));
   a.add(adminFlagStmt(db, id));
@@ -154,13 +146,13 @@ export async function revokeAdmin(ctx, id, actor = 0) {
   const [settings, users, ownerId] = await Promise.all([ctx.settings(), ctx.users(), ctx.ownerId()]);
   const u = users.find((x) => x.tg_id === id && !x.guest);
   if (!u || !u.is_admin) return no(NOT_ADMIN);
-  if (id === ownerId) return no('Нельзя снять права владельца. Сначала передай права владельца.');
+  if (id === ownerId) return no(tx('roles.revokeOwner'));
   // По прежнему состоянию (024): всё — пока он админ в этой компании, снятие прав — последним (захват)
   const a = atomic(db, 'EXISTS (SELECT 1 FROM company_members WHERE company_id = ? AND user_id = ? AND is_admin = 1)', cid, id);
   // 012: обращения событий этой компании, которые он вёл, снова ничьи — остальные админы получают их с кнопкой «Взять»
   a.add(...(await returnThreadsStmts(db, settings, users, id, cid, a.guard)));
-  a.enqueue(id, msg('Владелец снял с тебя права администратора. Как участник событий ты продолжаешь играть как обычно.'));
-  for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(`ℹ️ <b>${escapeHtml(displayName(u))}</b> больше не администратор.`));
+  a.enqueue(id, msg(tx('roles.revoked')));
+  for (const r of adminRecipients(users, [id, ownerId])) a.enqueue(r.tg_id, adminNotice(tx('roles.revokedNotice', { name: escapeHtml(displayName(u)) })));
   a.audit({ company: cid }, actor || ownerId, 'role.revoke', displayName(u));
   a.claim(db.prepare('UPDATE company_members SET is_admin = 0 WHERE company_id = ? AND user_id = ? AND is_admin = 1').bind(cid, id));
   a.add(adminFlagStmt(db, id));
@@ -177,9 +169,9 @@ const botRunPersonQuery = (db, id) => db.prepare(
 
 export async function transferBotOwnership(ctx, fromId, toId) {
   const { u } = await ctx.read({ u: botRunPersonQuery(ctx.db, toId || 0) });
-  if (!u.length) return no('Передать права владельца можно только зарегистрированному человеку.');
-  if (toId === fromId) return no('Ты и так владелец.');
-  if (!(await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId })).won) return no('Права владельца уже переданы.');
+  if (!u.length) return no(tx('roles.transferTarget'));
+  if (toId === fromId) return no(tx('roles.alreadyOwnerSelf'));
+  if (!(await setOwner(ctx, toId, { via: 'transfer', prevOwnerId: fromId })).won) return no(tx('roles.alreadyTransferred'));
   return { ok: true };
 }
 
@@ -194,12 +186,15 @@ const staffOfQuery = (db, userId) => db.prepare(
        OR u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')`
 ).bind(userId);
 
+const TWO_RECORDS = tx('roles.transfer.twoRecords');
+const NO_OLD_RECORD = tx('roles.transfer.noOld');
+
 // Перенос человека целиком (050): участия во всех компаниях. Цель — не владелец бота, не администратор где-нибудь
 // (users.is_admin), не владелец компании; сообщения и запись transfer — организаторам и в журнал каждой компании
 // старой записи. Все чтения — одним пакетом; порядок отказов прежний (цель → две записи → старая → регистрация)
 export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   const db = ctx.db;
-  if (!toId) return no('Выбери две разные записи.');
+  if (!toId) return no(TWO_RECORDS);
   const r = await ctx.read({
     from: userQuery(db, fromId || 0),
     to: userQuery(db, toId),
@@ -214,17 +209,17 @@ export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   const botOwnerId = await ctx.botOwnerId();
   const companyOwner = [...(await ctx.companies()).values()].some((c) => c.owner_id === toId);
   // Иначе админ получил бы чужие пары и переписку (Конституция, принцип I; 006, FR-601)
-  if (to?.is_admin || toId === botOwnerId || companyOwner) return no('Переносить участие на аккаунт владельца или администратора нельзя.');
-  if (!fromId || fromId === toId) return no('Выбери две разные записи.');
-  if (!from) return no('Старая запись не найдена.');
-  if (!to || !to.registered) return no('Новый аккаунт должен завершить регистрацию (написать боту имя).');
+  if (to?.is_admin || toId === botOwnerId || companyOwner) return no(tx('roles.transfer.staffTarget'));
+  if (!fromId || fromId === toId) return no(TWO_RECORDS);
+  if (!from) return no(NO_OLD_RECORD);
+  if (!to || !to.registered) return no(tx('roles.transfer.unregistered'));
   const { fromMembers, toMembers, settings } = r;
   const toByEvent = new Map(toMembers.map((m) => [m.event_id, m]));
   const toInDraw = new Set(r.toPairs.map((p) => p.event_id));
   for (const m of fromMembers) {
     if (toByEvent.has(m.event_id) && toInDraw.has(m.event_id)) {
       const ev = await getEvent(db, m.event_id);
-      return no(`Новый аккаунт уже участвует в жеребьёвке события «${ev?.title || ''}» — выбери другую запись.`);
+      return no(tx('roles.transfer.inDraw', { title: ev?.title || '' }));
     }
   }
   const actor = ctx.me?.tg_id === actorId ? ctx.me : r.staff.find((u) => u.tg_id === actorId);
@@ -235,22 +230,17 @@ export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   // Атомарно (018): всё — только пока старая запись существует, она удаляется последней. Второй из двух одновременных
   // переносов ничего не меняет и не рассылает (иначе он удалил бы участие, только что перенесённое первым).
   const fromExists = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ?)', fromId);
-  fromExists.enqueue(toId, msg(
-    '🔁 Владелец перенёс на этот аккаунт твоё участие в «Тайном Санте»: письма, подопечные, переписка и история событий сохранены.',
-    appKeyboard(settings, '🎁 Открыть')
-  ));
+  fromExists.enqueue(toId, msg(tx('roles.transfer.toNew'), appKeyboard(settings, tx('roles.transfer.openButton'))));
   // Перенос не должен быть незаметным (006, FR-602): прежний аккаунт и остальные админы узнают о нём
-  fromExists.enqueue(fromId, msg(
-    `🔁 Твоё участие в «Тайном Санте» перенесено на аккаунт <b>${escapeHtml(displayName(to))}</b>. Если ты не просил о переносе, свяжись с владельцем.`
-  ));
-  const notice = adminNotice(
-    `🔁 <b>${escapeHtml(displayName(actor))}</b> перенёс участие <b>${escapeHtml(displayName(from))}</b> на аккаунт <b>${escapeHtml(displayName(to))}</b>.`
-  );
+  fromExists.enqueue(fromId, msg(tx('roles.transfer.toOld', { to: escapeHtml(displayName(to)) })));
+  const notice = adminNotice(tx('roles.transfer.notice', {
+    actor: escapeHtml(displayName(actor)), from: escapeHtml(displayName(from)), to: escapeHtml(displayName(to)),
+  }));
   for (const u of adminRecipients(r.staff, [actorId, toId, fromId])) fromExists.enqueue(u.tg_id, notice);
-  for (const id of companies) fromExists.audit({ company: id }, actorId, 'transfer', `${displayName(from)} → ${displayName(to)}`);
+  for (const id of companies) fromExists.audit({ company: id }, actorId, 'transfer', tx('roles.audit.accountMoved', { from: displayName(from), to: displayName(to) }));
   // Участия, письма, пары, переписка, исключения, семья, заявки, отметки «удалён», обращения — по списку REGISTRY
   // (018); ссылки «кто сделал» переходят тоже (025); запись старого аккаунта удаляется последней: она и есть захват
   fromExists.claim(fromExists.add(...personTransferStmts(db, fromId, toId, { merge }, ...fromExists.guard)));
-  if (!(await fromExists.run()).won) return no('Старая запись не найдена.');
+  if (!(await fromExists.run()).won) return no(NO_OLD_RECORD);
   return { ok: true, events: fromMembers.length };
 }
