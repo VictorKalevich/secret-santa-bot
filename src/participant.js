@@ -2,7 +2,7 @@
 // «подарок готов» / «подарок получен» (007). Права (участник ли, завершено ли событие) проверены в api.js.
 
 import {
-  eventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, peopleQuery, giftTotalsQuery, announcementsQuery, getUser,
+  eventsQuery, myEventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, peopleQuery, giftTotalsQuery, announcementsQuery, getUser,
   getMember, getEvent,
 } from './db.js';
 import { atomic } from './claim.js';
@@ -51,8 +51,8 @@ export async function homeView(ctx) {
     mine: db.prepare('SELECT event_id FROM members WHERE user_id = ?').bind(me.tg_id),
     unread: unreadByEventQuery(db, me.tg_id),
     supUnread: supportUnreadQuery(db, me),
-    events: eventsQuery(db),
-    owners: companyOwnersQuery(db, botOwnerId),
+    events: botOwner ? eventsQuery(db) : myEventsQuery(db, me.tg_id), // 055: остальным — только свои
+    owners: companyOwnersQuery(db, botOwnerId, botOwner ? 0 : me.tg_id),
     people: botOwner && companyPeopleQuery(db),
   });
   const [companies, mine] = await Promise.all([ctx.companies(), ctx.mine()]);

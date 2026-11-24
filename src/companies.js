@@ -60,9 +60,15 @@ export async function menuCompanyTitles(ctx, meId, memberOf) {
   return list.length >= 2 ? new Map(list.map((c) => [c.id, c.title])) : null;
 }
 
-// Чтения для me (в пакете homeView): имена владельцев компаний; владельцу бота — число людей в компаниях
-export const companyOwnersQuery = (db, botOwnerId) =>
-  db.prepare('SELECT tg_id, name FROM users WHERE tg_id IN (SELECT owner_id FROM companies) OR tg_id = ?').bind(botOwnerId || 0);
+// Чтения для me (в пакете homeView): имена владельцев компаний — его компаний (055; meId — 0: владельцу бота — всех);
+// владельцу бота — число людей в компаниях
+export const companyOwnersQuery = (db, botOwnerId, meId = 0) => (meId
+  ? db.prepare(
+    `SELECT tg_id, name FROM users
+      WHERE tg_id IN (SELECT c.owner_id FROM company_members cm JOIN companies c ON c.id = cm.company_id WHERE cm.user_id = ?)
+         OR tg_id = ?`
+  ).bind(meId, botOwnerId || 0)
+  : db.prepare('SELECT tg_id, name FROM users WHERE tg_id IN (SELECT owner_id FROM companies) OR tg_id = ?').bind(botOwnerId || 0));
 export const companyPeopleQuery = (db) => db.prepare('SELECT company_id, COUNT(*) AS n FROM company_members GROUP BY company_id');
 
 // me.companies (контракт 051, раздел 2): роль, признаки прав, владелец по имени, события, видимые человеку, и непрочитанное.
@@ -113,7 +119,7 @@ export async function createCompany(ctx, raw) {
   const a = atomic(db, RECENT_CREATE, me.tg_id, details, now - REPEAT_MS);
   a.add(db.prepare(`INSERT INTO companies (name, created_by, created_at) SELECT ?, ?, ? WHERE ${a.sql} RETURNING id`)
     .bind(name, me.tg_id, now, ...a.args));
-  a.select('INSERT INTO company_members (company_id, user_id, is_admin, joined_at) SELECT (SELECT MAX(id) FROM companies WHERE created_by = ? AND created_at = ?), ?, 1, ?',
+  a.select('INSERT INTO company_members (company_id, user_id, is_admin, joined_at) SELECT (SELECT MAX(id) FROM companies WHERE owner_id = 0 AND created_by = ? AND created_at = ?), ?, 1, ?',
     me.tg_id, now, me.tg_id, now);
   a.claim(a.audit(BOT_LOG, me.tg_id, 'company.create', details));
   const r = await a.run();
@@ -136,12 +142,12 @@ export async function createOwnCompany(ctx, raw) {
     `INSERT INTO companies (name, owner_id, shared, created_by, created_at) SELECT ?, ?, 1, ?, ?
       WHERE ${a.sql} AND (SELECT COUNT(*) FROM companies WHERE owner_id = ?) < ? RETURNING id`
   ).bind(name, me.tg_id, me.tg_id, now, ...a.args, me.tg_id, OWN_MAX));
-  const made = a.and('EXISTS (SELECT 1 FROM companies WHERE created_by = ? AND created_at = ? AND name = ? AND owner_id = ?)',
-    me.tg_id, now, name, me.tg_id);
+  const made = a.and('EXISTS (SELECT 1 FROM companies WHERE owner_id = ? AND created_by = ? AND created_at = ? AND name = ?)',
+    me.tg_id, me.tg_id, now, name);
   made.select(
     `INSERT INTO company_members (company_id, user_id, is_admin, joined_at)
-     SELECT (SELECT MAX(id) FROM companies WHERE created_by = ? AND created_at = ? AND name = ?), ?, 1, ?`,
-    me.tg_id, now, name, me.tg_id, now,
+     SELECT (SELECT MAX(id) FROM companies WHERE owner_id = ? AND created_by = ? AND created_at = ? AND name = ?), ?, 1, ?`,
+    me.tg_id, me.tg_id, now, name, me.tg_id, now,
   );
   made.add(adminFlagStmt(db, me.tg_id));
   made.claim(made.audit(BOT_LOG, me.tg_id, 'company.create', details));
@@ -327,7 +333,8 @@ export async function ownerLink(ctx, companyId, on) {
 // Компания по коду ссылки владельца (бот: /start own_<код>, ввод имени после неё)
 export async function companyByOwnerCode(db, code) {
   if (!code) return null;
-  return (await readMany(db, { c: db.prepare('SELECT id, name, owner_id FROM companies WHERE owner_code = ?').bind(code) })).c[0] ?? null;
+  // owner_code != '' — по частичному индексу companies_owner_code (055)
+  return (await readMany(db, { c: db.prepare("SELECT id, name, owner_id FROM companies WHERE owner_code = ? AND owner_code != ''").bind(code) })).c[0] ?? null;
 }
 
 // Переход по ссылке владельца компании (контракт 051, раздел 4). ctx — общий контекст человека, user — его запись (с

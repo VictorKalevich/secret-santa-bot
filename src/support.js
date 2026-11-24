@@ -446,8 +446,9 @@ export function supportUnreadQuery(db, me) {
           AND event_id IN (SELECT e.id FROM events e JOIN company_members cm ON cm.company_id = e.company_id
                             WHERE cm.user_id = ?1 AND cm.is_admin = 1)
         GROUP BY event_id`,
+      // t.assignee != 0 — по частичному индексу взятых открытых обращений support_threads_taken (055)
       `SELECT t.event_id, COUNT(*) AS n FROM support_messages m JOIN support_threads t ON t.id = m.thread_id
-        WHERE t.status = 'open' AND t.assignee = ?1 AND m.from_admin = 0 AND m.read_at = 0 GROUP BY t.event_id`,
+        WHERE t.status = 'open' AND t.assignee = ?1 AND t.assignee != 0 AND m.from_admin = 0 AND m.read_at = 0 GROUP BY t.event_id`,
     );
   }
   return db.prepare(parts.join(' UNION ALL ')).bind(me.tg_id);

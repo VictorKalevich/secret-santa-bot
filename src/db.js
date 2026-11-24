@@ -100,20 +100,33 @@ export async function createUser(db, id, username, fields = {}) {
 
 // Компании: название и признак «ссылка владельца действует» (051) — в ответы уходят только владельцу бота; самого кода
 // ссылки здесь нет. shared (052) — название общее: его видят и люди компании
-export const companiesQuery = (db) => db.prepare("SELECT id, owner_id, name, owner_code != '' AS link, shared FROM companies");
+const COMPANY_COLS = (t) => `${t}.id, ${t}.owner_id, ${t}.name, ${t}.owner_code != '' AS link, ${t}.shared`;
+// Компании, которые знает вызывающий (055): свои — по его строкам компаний; все — только владельцу бота по настройке.
+// Условие второй ветки не зависит от строк компаний: SQLite проверяет его до чтения, остальным она не читает ни строки
+export const companiesQuery = (db, userId) => db.prepare(
+  `SELECT ${COMPANY_COLS('c')} FROM company_members cm JOIN companies c ON c.id = cm.company_id WHERE cm.user_id = ?1
+   UNION
+   SELECT ${COMPANY_COLS('a')} FROM companies a WHERE ?1 != 0 AND ?1 = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')`
+).bind(userId || 0);
+// Одна компания по номеру (055: компания не из прочитанных — ctx.company)
+export const companyQuery = (db, id) => db.prepare(`SELECT ${COMPANY_COLS('c')} FROM companies c WHERE c.id = ?`).bind(id);
 // Компании человека: права, своё название и время вступления (номер «Компания N», 051)
 export const myCompaniesQuery = (db, userId) =>
   db.prepare('SELECT company_id, is_admin, label, joined_at FROM company_members WHERE user_id = ?').bind(userId);
 // Запись владельца бота по настройке owner_id (действительна, если is_admin = 1 — resolveOwner)
 export const botOwnerQuery = (db) => db.prepare("SELECT * FROM users WHERE tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')");
 // Люди компании: строки users, is_admin — права в этой компании (company_admin), порядок — время регистрации. Владелец
-// бота без строки в компании — гость (guest = 1) с правами 0: его действия подписываются именем, но он не человек компании
+// бота без строки в компании — гость (guest = 1) с правами 0: его действия подписываются именем, но он не человек компании.
+// 055: от строк компании, а не проходом по всем людям бота
 export const companyUsersQuery = (db, companyId) => db.prepare(
-  `SELECT u.*, COALESCE(cm.is_admin, 0) AS company_admin, cm.user_id IS NULL AS guest
-     FROM users u LEFT JOIN company_members cm ON cm.company_id = ? AND cm.user_id = u.tg_id
-    WHERE cm.user_id IS NOT NULL
-       OR u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')
-    ORDER BY u.created_at, u.tg_id`
+  `SELECT u.*, cm.is_admin AS company_admin, 0 AS guest
+     FROM company_members cm JOIN users u ON u.tg_id = cm.user_id
+    WHERE cm.company_id = ?1
+   UNION ALL
+   SELECT u.*, 0, 1 FROM users u
+    WHERE u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')
+      AND NOT EXISTS (SELECT 1 FROM company_members WHERE company_id = ?1 AND user_id = u.tg_id)
+   ORDER BY created_at, tg_id`
 ).bind(companyId);
 
 export function companyUsersFrom(rows) {
@@ -160,7 +173,15 @@ export async function updateUser(db, id, fields) {
 // ---------- events ----------
 
 export const eventQuery = (db, id) => db.prepare('SELECT * FROM events WHERE id = ?').bind(Number(id) || 0);
+// Все события — только владельцу бота (главный экран); остальным — myEventsQuery
 export const eventsQuery = (db) => db.prepare('SELECT * FROM events ORDER BY created_at DESC');
+// События человека на главном экране (055): где он участник и компаний, где он администратор
+export const myEventsQuery = (db, userId) => db.prepare(
+  `SELECT e.* FROM members m JOIN events e ON e.id = m.event_id WHERE m.user_id = ?1
+   UNION
+   SELECT e.* FROM company_members cm JOIN events e ON e.company_id = cm.company_id WHERE cm.user_id = ?1 AND cm.is_admin = 1
+   ORDER BY created_at DESC, id`
+).bind(userId);
 // События компании (050): «Из какого события…» в панели
 export const companyEventsQuery = (db, companyId) => db.prepare('SELECT * FROM events WHERE company_id = ? ORDER BY created_at DESC').bind(companyId);
 

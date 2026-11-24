@@ -4,7 +4,7 @@
 
 import {
   getUser, createUser, createUserStmt, updateUser, updateUserStmt, pairOfSanta, pairOfWard, getEvent, getEventByInvite, getMember,
-  addMemberStmt, clearRemovedStmt, joinCompanyStmt,
+  memberQuery, addMemberStmt, clearRemovedStmt, joinCompanyStmt,
 } from './db.js';
 import { tgApi } from './telegram.js';
 import {
@@ -280,6 +280,11 @@ async function onCompanyOwnerLink(c, code) {
   return c.askName(NEW_COMPANY_OWNER + '\n\n', false);
 }
 
+// Запись участника и компания события одним пакетом (055): новичок ещё не человек компании — ctx.in не читает её отдельно
+async function memberWithCompany(ctx, ev, userId) {
+  return (await ctx.read({ member: memberQuery(ctx.db, ev.id, userId), inCompany: ev.company_id })).member[0] ?? null;
+}
+
 async function onInvite(c, code) {
   const { db, ctx, from, user } = c;
   const ev = await getEventByInvite(db, code);
@@ -287,7 +292,7 @@ async function onInvite(c, code) {
     await c.reply(STALE_INVITE);
     return c.menuIfRegistered();
   }
-  const member = user ? await getMember(db, ev.id, from.id) : null;
+  const member = user ? await memberWithCompany(ctx, ev, from.id) : null;
   if (user?.registered) {
     // Участник открыл ссылку снова — даже после жеребьёвки и закрытия регистрации (009, FR-921)
     if (member) {
@@ -335,7 +340,7 @@ async function signUp(c, name, saved = async () => {}) {
   if (own) return signUpOwner(c, name, own[1], saved);
   const [, eid, code] = c.user.pending.split(':');
   const ev = Number(eid) ? await getEvent(db, eid) : null;
-  const member = ev ? await getMember(db, ev.id, from.id) : null;
+  const member = ev ? await memberWithCompany(c.ctx, ev, from.id) : null;
   const username = from.username || '';
   const ctx = (ev && (await c.ctx.in(ev.company_id))) || c.ctx;
   // Уже участник (вступил до имени) — организаторам «присоединяется» в том же пакете, что и имя

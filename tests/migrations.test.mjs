@@ -339,6 +339,35 @@ test('база с данными «до 0017»: применение и повт
   assert.equal(w.query("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'index' AND name = 'events_active'")[0].n, 1);
 });
 
+// 055: миграция 0018 — только индексы для чтений API (tests/api-reads.test.mjs)
+const SQL18 = readFileSync(new URL('0018_read_indexes.sql', MIGRATIONS_DIR), 'utf8');
+const INDEXES18 = [
+  'CREATE INDEX IF NOT EXISTS companies_owner ON companies (owner_id)',
+  'CREATE INDEX IF NOT EXISTS support_threads_user ON support_threads (user_id)',
+  "CREATE INDEX IF NOT EXISTS support_threads_taken ON support_threads (assignee) WHERE status = 'open' AND assignee != 0",
+  'CREATE INDEX IF NOT EXISTS join_requests_event ON join_requests (event_id, user_id)',
+  'CREATE INDEX IF NOT EXISTS families_company ON families (company_id)',
+];
+const NAMES18 = INDEXES18.map((s) => /EXISTS (\w+)/.exec(s)[1]);
+
+test('0018: только пять CREATE INDEX IF NOT EXISTS — без данных и версии схемы', () => {
+  const statements18 = SQL18.replace(/--[^\n]*/g, '').split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  assert.deepEqual(statements18, INDEXES18);
+  assert.doesNotMatch(SQL18.replace(/--[^\n]*/g, ''), /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TABLE|settings)\b/i);
+});
+
+test('база с данными «до 0018»: применение и повтор не меняют ни одной строки', async () => {
+  const { w } = await filledWorld();
+  for (const name of NAMES18) w.sql(`DROP INDEX ${name}`);
+  const before = snapshot(w);
+  w.sql(SQL18);
+  assert.deepEqual(snapshot(w), before);
+  w.sql(SQL18);
+  assert.deepEqual(snapshot(w), before, 'повтор');
+  const made = w.query(`SELECT name FROM sqlite_master WHERE type = 'index' AND name IN (${NAMES18.map(() => '?').join(',')})`, ...NAMES18);
+  assert.equal(made.length, NAMES18.length);
+});
+
 // ---------- сверка компаний (050, tools/companies-reconcile.sql) ----------
 
 const RECONCILE = readFileSync(new URL('../tools/companies-reconcile.sql', import.meta.url), 'utf8');

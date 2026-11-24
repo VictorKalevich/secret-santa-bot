@@ -4,52 +4,18 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
+import { fullScans as scansOf, statementsDuring } from './support/plans.mjs';
 
 after(restoreFetch);
 
 // Целиком можно просматривать только служебные таблицы (настройки — десяток строк, очередь — неотправленные сообщения)
 // и частичный индекс идущих событий
-const SERVICE = new Set(['settings', 'outbox']);
+const SERVICE = ['settings', 'outbox'];
 const ACTIVE_INDEX = 'events_active';
 
-// Псевдоним → таблица: FROM/JOIN/UPDATE/INTO <таблица> [AS] <псевдоним>
-const KEYWORD = /^(ON|WHERE|JOIN|CROSS|LEFT|INNER|SET|ORDER|GROUP|LIMIT|USING|VALUES|SELECT|AND|RETURNING)$/i;
-function tablesOf(sql) {
-  const names = new Map();
-  for (const m of sql.matchAll(/\b(?:FROM|JOIN|UPDATE|INTO)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi)) {
-    names.set(m[1], m[1]);
-    if (m[2] && !KEYWORD.test(m[2])) names.set(m[2], m[1]);
-  }
-  return names;
-}
-
-// Полные просмотры оператора, кроме разрешённых: ['таблица: строка плана']
-function fullScans(sqlite, sql) {
-  const names = tablesOf(sql);
-  return sqlite.prepare('EXPLAIN QUERY PLAN ' + sql).all().map((r) => r.detail).flatMap((d) => {
-    const m = /^SCAN (\w+)(?: USING (?:COVERING )?INDEX (\w+))?/.exec(d);
-    if (!m || m[1] === 'CONSTANT') return [];
-    const table = names.get(m[1]) ?? m[1];
-    return SERVICE.has(table) || m[2] === ACTIVE_INDEX ? [] : [`${table}: ${d}`];
-  });
-}
-
-// Тексты всех операторов вызова cron (пакеты D1 выполняются оператор за оператором через тот же prepare)
-async function cronStatements(w) {
-  const seen = new Set();
-  const { sqlite } = w.DB;
-  const own = sqlite.prepare;
-  sqlite.prepare = (sql) => {
-    if (!/^\s*(BEGIN|COMMIT|ROLLBACK|SELECT total_changes\(\))/i.test(sql)) seen.add(sql.replace(/\s+/g, ' ').trim());
-    return own.call(sqlite, sql);
-  };
-  try {
-    await w.cron();
-  } finally {
-    sqlite.prepare = own;
-  }
-  return [...seen];
-}
+// Полные просмотры, кроме служебных таблиц и индекса идущих событий
+const fullScans = (sqlite, sql) => scansOf(sqlite, sql, { tables: SERVICE, indexes: [ACTIVE_INDEX] });
+const cronStatements = (w) => statementsDuring(w, () => w.cron());
 
 const NOTIFY = /MAX\(w\.wishlist_updated_at, w\.delivery_updated_at\) AS upd/;
 const COMPANIES = /\bFROM companies\b/;

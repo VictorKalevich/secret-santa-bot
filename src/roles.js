@@ -43,15 +43,17 @@ export async function claimOwnerLink(env) {
 
 // Владелец бота: settings.owner_id; если не задан или недействителен — самый ранний админ (FR-109). 050: запись по
 // настройке действительна, если она есть и users.is_admin = 1 (owner — эта запись или null); иначе — самый ранний по
-// времени регистрации администратор компаний, которые ведёт владелец бота.
+// времени регистрации администратор компаний, которые ведёт владелец бота (055: от этих компаний, а не проходом по всем
+// людям — пока запись недействительна, поиск идёт на каждом вызове).
 export async function resolveOwner(db, settings, owner) {
   const current = Number(settings.owner_id || 0);
   if (owner && owner.tg_id === current && owner.is_admin) return current;
   const fallback = await db
     .prepare(
-      `SELECT u.tg_id FROM users u
-        WHERE EXISTS (SELECT 1 FROM company_members cm JOIN companies c ON c.id = cm.company_id
-                       WHERE cm.user_id = u.tg_id AND cm.is_admin = 1 AND c.owner_id = 0)
+      `SELECT u.tg_id FROM companies c
+         JOIN company_members cm ON cm.company_id = c.id AND cm.is_admin = 1
+         JOIN users u ON u.tg_id = cm.user_id
+        WHERE c.owner_id = 0
         ORDER BY u.created_at, u.tg_id LIMIT 1`
     )
     .first();
@@ -66,16 +68,22 @@ export async function resolveOwner(db, settings, owner) {
 // из одновременных вызовов ничего не меняет — { won: false }. Ссылка (via: 'link') — без условия: её захват — claimOwnerLink.
 // Администраторы компаний, которые ведёт владелец бота: им — сообщение о новом владельце бота
 const botAdminsQuery = (db) => db.prepare(
-  `SELECT u.* FROM users u
-    WHERE EXISTS (SELECT 1 FROM company_members cm JOIN companies c ON c.id = cm.company_id
-                   WHERE cm.user_id = u.tg_id AND cm.is_admin = 1 AND c.owner_id = 0)
+  `SELECT DISTINCT u.* FROM companies c
+     JOIN company_members cm ON cm.company_id = c.id AND cm.is_admin = 1
+     JOIN users u ON u.tg_id = cm.user_id
+    WHERE c.owner_id = 0
     ORDER BY u.created_at, u.tg_id`
 );
 
 export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabel } = {}) {
   const db = ctx.db;
-  const { settings, companies, target: [target], admins } = await ctx.read({
-    settings: true, companies: true, target: userQuery(db, newOwnerId), admins: botAdminsQuery(db),
+  // Журнал — в каждую компанию, которую ведёт владелец бота или вёл новый владелец (055: точным запросом — у нового
+  // владельца по ссылке в контексте только свои компании)
+  const { settings, spheres, target: [target], admins } = await ctx.read({
+    settings: true,
+    spheres: db.prepare('SELECT id FROM companies WHERE owner_id = 0 OR owner_id = ? ORDER BY id').bind(newOwnerId),
+    target: userQuery(db, newOwnerId),
+    admins: botAdminsQuery(db),
   });
   const label = escapeHtml(newOwnerLabel || displayName(target));
   const transfer = via === 'transfer';
@@ -91,7 +99,7 @@ export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabe
      ON CONFLICT(company_id, user_id) DO UPDATE SET is_admin = 1`
   ).bind(newOwnerId, Date.now(), ...a.args));
   const who = newOwnerLabel || displayName(target);
-  for (const sphere of [...[...companies.values()].filter((c) => !c.owner_id || c.owner_id === newOwnerId).map((c) => ({ company: c.id })), BOT_LOG]) {
+  for (const sphere of [...spheres.map((c) => ({ company: c.id })), BOT_LOG]) {
     if (transfer) a.audit(sphere, prevOwnerId, 'owner.transfer', `→ ${who}`);
     else a.audit(sphere, newOwnerId, 'owner.link', who);
   }

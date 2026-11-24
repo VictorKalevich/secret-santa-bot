@@ -1,17 +1,17 @@
 // Контекст вызова (019): один объект на вызов API, сообщение боту и запуск расписания. Функции модулей получают его
 // первым параметром. Настройки, список пользователей и владелец читаются не больше одного раза на вызов и лениво
-// (кроме начала вызова API и сообщения боту: пользователь, настройки, его компании, компании и владелец бота — одним
-// пакетом). Кэш живёт, пока живёт вызов; упавшее чтение кэш сбрасывает (шаги расписания изолированы: ошибка одного не
+// (кроме начала вызова API и сообщения боту: пользователь, настройки, его строки компаний, его компании и владелец бота —
+// одним пакетом). Кэш живёт, пока живёт вызов; упавшее чтение кэш сбрасывает (шаги расписания изолированы: ошибка одного не
 // отравляет следующий).
 //
-// Компании (050, specs/050-company-scope/contracts/company-scope.md): общий контекст знает компании, свои строки
-// вызывающего и владельца бота; ctx.in(companyId) — контекст, привязанный к компании: users(), ownerId(), isOwner(),
+// Компании (050, specs/050-company-scope/contracts/company-scope.md): общий контекст знает компании вызывающего (055:
+// свои; владельцу бота — все; любую другую — company(id) по номеру), свои строки вызывающего и владельца бота; ctx.in(companyId) — контекст, привязанный к компании: users(), ownerId(), isOwner(),
 // me.is_admin и read({ users: true }) в нём значат «в этой компании». Модули работают только с привязанным контекстом:
 // у общего users(), ownerId(), isOwner() и read({ users: true }) бросают ошибку «контекст без компании».
 
 import {
   readMany, userQuery, settingsQuery, settingsFrom, getSettings,
-  companiesQuery, myCompaniesQuery, botOwnerQuery, companyUsersQuery, companyUsersFrom,
+  companiesQuery, companyQuery, myCompaniesQuery, botOwnerQuery, companyUsersQuery, companyUsersFrom,
 } from './db.js';
 import { resolveOwner } from './roles.js';
 import { ownerWord } from './format.js';
@@ -25,7 +25,7 @@ function remember(promise, forget) {
 // Служебные имена кэшируемых чтений в пакете ctx.read (не пересекаются с именами вызывающего)
 const USERS = '\u0000users';
 const SETTINGS = '\u0000settings';
-const COMPANIES = '\u0000companies';
+const COMPANY = '\u0000company';
 
 // name и link (051) — только для ответов владельцу бота; name при shared (052) — и людям компании
 const companiesFrom = (rows) => new Map(rows.map((c) => [c.id, { id: c.id, owner_id: c.owner_id, name: c.name, link: !!c.link, shared: !!c.shared }]));
@@ -40,32 +40,37 @@ const mineFrom = (rows) => new Map(rows.map((r) => [r.company_id, { is_admin: r.
 export function makeContext(env, { me = null, settings = null, first = null } = {}) {
   const db = env.DB;
   let settingsP = settings ? Promise.resolve(settings) : null;
-  let companiesP = first ? Promise.resolve(companiesFrom(first.companies)) : null;
+  // 055: компании первого пакета — свои; all — все (вызывающий — владелец бота по настройке, как условие companiesQuery)
+  let firstCompanies = first
+    ? { map: companiesFrom(first.companies), all: !!me && Number(settings?.owner_id || 0) === me.tg_id }
+    : null;
+  let companiesP = null;
+  const one = new Map(); // компании по номеру (company): id → обещание строки или null
   let mineP = first ? Promise.resolve(mineFrom(first.mine)) : null;
   let ownerRowP = first ? Promise.resolve(first.owner[0] ?? null) : null;
   let botOwnerP = null;
   const bound = new Map();
   const live = new Set(); // готовые привязанные контексты (forgetUsers сбрасывает и их людей)
 
-  // Пакет именованных чтений с кэшируемыми: users — заданным запросом людей (общий или компании)
-  async function readWith(cache, { users = false, settings: wantSettings = false, companies: wantCompanies = false, ...named }) {
+  // Пакет именованных чтений с кэшируемыми: users — заданным запросом людей (общий или компании); inCompany — строка
+  // компании для ctx.in тем же пакетом (055: человек ещё не в компании — вступление по ссылке)
+  async function readWith(cache, { users = false, settings: wantSettings = false, inCompany = 0, ...named }) {
     const q = { ...named };
     const withUsers = users && !cache.get();
     const withSettings = wantSettings && !settingsP;
-    const withCompanies = wantCompanies && !companiesP;
+    const withCompany = inCompany && !one.has(inCompany) && !firstCompanies?.map.has(inCompany);
     if (withUsers) q[USERS] = cache.query();
     if (withSettings) q[SETTINGS] = settingsQuery(db);
-    if (withCompanies) q[COMPANIES] = companiesQuery(db);
+    if (withCompany) q[COMPANY] = companyQuery(db, inCompany);
     const r = await readMany(db, q);
     if (withUsers) cache.set(Promise.resolve(cache.from(r[USERS])));
     if (withSettings) settingsP = Promise.resolve(settingsFrom(r[SETTINGS]));
-    if (withCompanies) companiesP = Promise.resolve(companiesFrom(r[COMPANIES]));
+    if (withCompany) one.set(inCompany, Promise.resolve(companiesFrom(r[COMPANY]).get(inCompany) ?? null));
     delete r[USERS];
     delete r[SETTINGS];
-    delete r[COMPANIES];
+    delete r[COMPANY];
     if (users) r.users = await cache.users();
     if (wantSettings) r.settings = await ctx.settings();
-    if (wantCompanies) r.companies = await ctx.companies();
     return r;
   }
 
@@ -74,7 +79,24 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
     db,
     me,
     settings: () => (settingsP ||= remember(getSettings(db), () => { settingsP = null; })),
-    companies: () => (companiesP ||= remember(readMany(db, { c: companiesQuery(db) }).then((r) => companiesFrom(r.c)), () => { companiesP = null; })),
+    // Компании, которые знает вызывающий (055): свои — по его строкам компаний; владельцу бота — все. Владелец бота,
+    // найденный запасным поиском (resolveOwner записал его в настройки), дочитывает все; без вызывающего — ни одной
+    companies: () => (companiesP ||= remember((async () => {
+      if (!me) return new Map();
+      if (firstCompanies && (firstCompanies.all || !(await ctx.isBotOwner()))) return firstCompanies.map;
+      return companiesFrom((await readMany(db, { c: companiesQuery(db, me.tg_id) })).c);
+    })(), () => { companiesP = null; })),
+    // Одна компания по номеру или null (055): из прочитанных — без запроса, иначе — одна строка; не больше раза за вызов
+    company(id) {
+      if (!one.has(id)) {
+        one.set(id, remember((async () => {
+          const known = firstCompanies?.map.get(id) ?? (companiesP && (await companiesP).get(id));
+          if (known) return known;
+          return companiesFrom((await readMany(db, { c: companyQuery(db, id) })).c).get(id) ?? null;
+        })(), () => one.delete(id)));
+      }
+      return one.get(id);
+    },
     mine: () => (mineP ||= remember(
       me ? readMany(db, { m: myCompaniesQuery(db, me.tg_id) }).then((r) => mineFrom(r.m)) : Promise.resolve(new Map()),
       () => { mineP = null; },
@@ -115,7 +137,9 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
     forgetUsers() {
       ownerRowP = null;
       botOwnerP = null;
-      companiesP = null; // 051: владелец компании мог смениться
+      firstCompanies = null; // 051: владелец компании мог смениться
+      companiesP = null;
+      one.clear();
       mineP = null; // права в компаниях могли измениться: следующий ctx.in считает их заново
       bound.clear();
       for (const c of live) c.forgetUsers();
@@ -124,7 +148,7 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
 
   // Привязанный контекст: наследует общий, переопределяет людей, владельца и права вызывающего
   async function bindCompany(base, id) {
-    const company = (await base.companies()).get(id);
+    const company = await base.company(id);
     if (!company) return null;
     let me = base.me;
     if (me) {
@@ -165,15 +189,15 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
   return ctx;
 }
 
-// Начало вызова API, сообщения боту и нажатия кнопки: пользователь, настройки, его компании, компании и запись
-// владельца бота — одним пакетом
+// Начало вызова API, сообщения боту и нажатия кнопки: пользователь, настройки, его строки компаний, его компании (055:
+// владельцу бота — все) и запись владельца бота — одним пакетом
 export async function openContext(env, userId) {
   const db = env.DB;
   const r = await readMany(db, {
     me: userQuery(db, userId),
     settings: settingsQuery(db),
     mine: myCompaniesQuery(db, userId),
-    companies: companiesQuery(db),
+    companies: companiesQuery(db, userId),
     owner: botOwnerQuery(db),
   });
   return makeContext(env, { me: r.me[0] ?? null, settings: settingsFrom(r.settings), first: r });
