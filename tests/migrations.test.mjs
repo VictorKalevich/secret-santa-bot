@@ -368,6 +368,35 @@ test('база с данными «до 0018»: применение и повт
   assert.equal(made.length, NAMES18.length);
 });
 
+// 056: миграция 0019 — отметка предупреждения об автозавершении (events.finish_warned), у всех пусто; версия схемы 19
+const SQL19 = readFileSync(new URL('0019_finish_warned.sql', MIGRATIONS_DIR), 'utf8');
+const statements19 = SQL19.replace(/--[^\n]*/g, '').split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+
+test('0019: только колонка events.finish_warned с умолчанием пусто и версия схемы 19', () => {
+  assert.deepEqual(statements19, [
+    "ALTER TABLE events ADD COLUMN finish_warned TEXT NOT NULL DEFAULT ''",
+    "INSERT INTO settings (key, value) VALUES ('schema', '19') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ]);
+});
+
+test('база с данными «до 0019»: у всех событий finish_warned пусто, остальные строки прежние, версия 19', async () => {
+  const { w } = await filledWorld();
+  w.sql("ALTER TABLE events DROP COLUMN finish_warned; UPDATE settings SET value = '18' WHERE key = 'schema'");
+  const before = snapshot(w);
+  w.sql(SQL19);
+  const after = snapshot(w);
+  const events = w.query('SELECT finish_warned FROM events');
+  assert.ok(events.length > 0 && events.every((e) => e.finish_warned === ''), 'отметка у всех пуста');
+  const without = (rows) => rows.map((r) => { const { finish_warned: _, ...rest } = JSON.parse(r); return JSON.stringify(rest); }).sort();
+  assert.deepEqual(without(after.events), before.events, 'события — те же значения');
+  const schema = (snap) => snap.settings.map((r) => JSON.parse(r)).find((r) => r.key === 'schema').value;
+  assert.equal(schema(before), '18');
+  assert.equal(schema(after), '19');
+  for (const t of Object.keys(before).filter((t) => !['events', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
+  // от противного: колонка уже есть — повтор миграции падает (Wrangler применяет её один раз)
+  assert.throws(() => w.sql(SQL19), /duplicate column name: finish_warned/);
+});
+
 // ---------- сверка компаний (050, tools/companies-reconcile.sql) ----------
 
 const RECONCILE = readFileSync(new URL('../tools/companies-reconcile.sql', import.meta.url), 'utf8');

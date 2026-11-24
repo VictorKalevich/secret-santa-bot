@@ -7,6 +7,8 @@ import { isFinished } from './status.js';
 import { remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
 import { runDraw } from './pairs.js';
 import { makeContext } from './context.js';
+import { openBot } from './companies.js';
+import { dailyEventsQuery, staleStep, warnStale } from './stale.js';
 
 // Шаги запуска независимы (009, FR-910): ошибка в одном не мешает остальным, а очередь сообщений отправляется
 // всегда — в пределах оставшегося бюджета запросов вызова (outbox.js).
@@ -80,33 +82,45 @@ function dailyReminder(env, ev) {
 // завершение) и ежедневные напоминания. Каждое такое действие стоит ~10 запросов, поэтому за запуск выполняется
 // только одно (009, FR-911); остальные — в следующие минуты. Кандидат выбирается по минуте суток: если один эвент
 // раз за разом падает, он не задерживает остальные. Эвенты, которым сегодня ничего не нужно, отмечаются одним запросом.
+// 056: в открытом боте — ещё правила автозавершения брошенных событий (src/stale.js): завершение важнее напоминания,
+// предупреждение — нет; снятие отметки — вместе с «сегодня сделано».
 async function dailyStep(ctx) {
   const { db, env } = ctx;
   const now = localDate(env);
   if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
   // Все идущие эвенты (индекс events_active, 054): автодействие, заданное уже после сегодняшнего прохода, выполняется
   // сразу. Компании читает ctx.in только для действия — в обычную минуту их не читаем (054)
-  const { events: results } = await ctx.read({ events: db.prepare("SELECT * FROM events WHERE status = 'active'") });
+  const open = openBot(env);
+  const { events: results } = await ctx.read({ events: dailyEventsQuery(db, { open, today: now.iso }) });
   const inCompany = (ev) => ctx.in(ev.company_id);
   const autos = [];
   const reminders = [];
   const quiet = [];
+  const cleared = [];
   for (const ev of results) {
     const due = dueAutoAction(ev, now.iso);
     if (due) autos.push(async () => runAutoAction(await inCompany(ev), ev, due));
     else if (ev.last_daily !== now.iso) {
+      const stale = open ? staleStep(env, ev, now.iso) : null;
       const remind = dailyReminder(env, ev);
       // Отметка «сегодня сделано» — в одном batch с напоминанием: либо оба, либо ничего
-      if (remind) reminders.push(async () => remind(await inCompany(ev), ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso })]));
-      else quiet.push(ev.id);
+      if (stale?.act === 'finish') reminders.push(async () => finishEvent(await inCompany(ev), ev, 0));
+      else if (remind) reminders.push(async () => remind(await inCompany(ev), ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso })]));
+      else if (stale?.act === 'warn') reminders.push(async () => warnStale(await inCompany(ev), ev, stale, now.iso));
+      else (stale?.act === 'clear' ? cleared : quiet).push(ev.id);
     }
   }
-  for (let i = 0; i < quiet.length; i += 90) {
-    const ids = quiet.slice(i, i + 90); // не больше 100 параметров в запросе
-    await db.prepare(`UPDATE events SET last_daily = ? WHERE id IN (${ids.map(() => '?').join(',')})`).bind(now.iso, ...ids).run();
-  }
+  await markDaily(db, 'last_daily = ?', quiet, now.iso);
+  await markDaily(db, "last_daily = ?, finish_warned = ''", cleared, now.iso);
   const candidates = [...autos, ...reminders];
   if (candidates.length) await candidates[now.minute % candidates.length]();
+}
+
+async function markDaily(db, set, ids, today) {
+  for (let i = 0; i < ids.length; i += 90) {
+    const part = ids.slice(i, i + 90); // не больше 100 параметров в запросе
+    await db.prepare(`UPDATE events SET ${set} WHERE id IN (${part.map(() => '?').join(',')})`).bind(today, ...part).run();
+  }
 }
 
 // ---------- автодействия по расписанию (007, FR-703) ----------

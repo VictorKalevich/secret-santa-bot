@@ -33,16 +33,18 @@
 ## R4. «Участники, кроме организаторов» без лишних запросов
 
 - **Decision**: колонка `outsiders` в том же запросе событий ежедневного шага:
-  `CASE WHEN ?open AND e.last_daily != ?today AND e.event_date = '' AND e.draw_done = 0 AND e.created_at <= ?since
-  THEN (SELECT COUNT(*) FROM members m WHERE m.event_id = e.id AND m.user_id != <владелец компании> AND m.user_id !=
-  <владелец бота> AND NOT EXISTS (<строка company_members с is_admin = 1>)) ELSE -1 END`.
+  `CASE WHEN ?open AND last_daily != ?today AND event_date = '' AND draw_done = 0 AND created_at <= ?since
+  THEN (SELECT COUNT(*) FROM members m WHERE m.event_id = events.id AND m.user_id != <владелец бота> AND NOT EXISTS
+  (<строка company_members компании события с is_admin = 1>)) ELSE -1 END`.
   `since` — сейчас минус 22 дня (точная проверка 23 дней — по датам в JS).
 - **Rationale**: обычная минута остаётся на 3 запросах (`queries`: `cron (обычная минута)` — `[3, 0]`); CASE в SQLite
   вычисляет подзапрос только при истинном условии — читаются участники лишь событий-кандидатов, ещё не проверенных
   сегодня (после проверки `last_daily = сегодня`); поиск — по ключам `members (event_id, user_id)`, `company_members
-  (company_id, user_id)`, `companies (id)`, `settings (key)` (тест планов — без полных просмотров, кроме разрешённых).
-  Владелец компании всегда имеет строку с `is_admin = 1` (051, `ownerChange`), но проверка `owner_id` оставлена как
-  страховка; владелец бота — организатор в любой компании (Конституция VII).
+  (company_id, user_id)`, `settings (key)` (тест планов — без полных просмотров, кроме разрешённых). Владелец компании
+  всегда имеет строку с `is_admin = 1` (инвариант I3, 050/051: `createOwnCompany`, `ownerChange`), поэтому отдельной
+  проверки `companies.owner_id` нет — и таблица компаний в обычную минуту не упоминается (`cron-reads`: «компании не
+  читаются»); владелец бота — организатор в любой компании (Конституция VII), даже где он гость без строки. Запрос —
+  без псевдонима (`FROM events WHERE status = 'active'`, как в 054: тест `cron-reads` находит его по этому тексту).
 - **Alternatives**: отдельный запрос участников кандидатов — +1 запрос в минуты с кандидатами; признак в JS по
   `ctx.in(...).users()` — по запросу на компанию.
 

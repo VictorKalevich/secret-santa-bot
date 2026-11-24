@@ -1227,7 +1227,8 @@
 | `draw.cancel.force` | события | `admin.draw.cancel.force` | «пар удалено: <n>» |
 | `draw.swap` | события | `admin.draw.swap` | «пар изменено: 2» (без имён) |
 | `reveal` | события | `admin.reveal`, cron (`reveal_auto` — на следующий день после `event_date`) | «пар: <n>» |
-| `finish` | события | `admin.event.finish`, cron (`finish_auto` — через 3 дня после `event_date`) | пусто |
+| `finish` | события | `admin.event.finish`, cron (`finish_auto` — через 3 дня после `event_date`; 056 — автозавершение брошенного события в открытом боте, через 7 дней после `finish.warn`) | пусто |
+| `finish.warn` | события | cron, только открытый бот (056) — предупреждение администраторам компании об автозавершении брошенного события | «дата вручения прошла» \| «никто не вступил, кроме владельца и администраторов» \| «нет даты вручения» + «; завершится <дата>» |
 | `reset` | события | `admin.reset.full` | «удалено участников: <n>» |
 | `event.delete` | общий | `admin.event.delete` | ««<название>», участников: <n>» |
 | `wishlist.view` | события | `admin.wishlist` | имя |

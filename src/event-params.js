@@ -31,9 +31,11 @@ export const EVENT_PARAMS = {
 };
 
 // Служебные колонки. Состояние события — со значением после полного сброса; код приглашения сброс задаёт новым;
-// остальное сброс не трогает (название меняется сохранением, со своей проверкой).
+// остальное сброс не трогает (название меняется сохранением, со своей проверкой). finish_warned — отметка предупреждения
+// об автозавершении (056, src/stale.js).
 export const EVENT_STATE_RESET = {
   status: 'active', finished_at: 0, registration_open: 1, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, last_daily: '',
+  finish_warned: '',
 };
 export const EVENT_SERVICE = ['id', 'company_id', 'title', 'created_at', 'created_by', 'invite_code', ...Object.keys(EVENT_STATE_RESET)];
 
