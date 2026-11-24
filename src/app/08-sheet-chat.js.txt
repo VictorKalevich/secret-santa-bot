@@ -69,13 +69,64 @@
     handle.addEventListener('pointerup', release);
     handle.addEventListener('pointercancel', release);
   }
-  // Опрос шторки own раз в 6 секунд; закрыта или заменена другой — опрос останавливается сам
+  // Опрос шторки own (026, 058). load() — запрос и отрисовка, истина — пришло новое. Промежуток — pollDelay: в открытом
+  // боте без нового растёт (POLL_STEPS, секунды), после POLL_IDLE секунд тишины опрос спит; в закрытом — 6 секунд.
+  // Пока приложение не на экране, запросов нет. now() — запрос сразу и расписание с начала (первая загрузка, своя отправка,
+  // возвращение в приложение, касание спящей шторки); отказ load из now() — вызывающему, при опросе — проглатывается.
+  // Ответ запроса, начатого до now(), расписание не трогает (gen). Шторка закрыта или заменена другой — опрос
+  // останавливается сам; stop() — раньше
+  const POLL_STEPS = [6, 10, 20, 30, 60];
+  const POLL_IDLE = 300;
+  function pollDelay(empty, quiet, open) {
+    if (!open) return POLL_STEPS[0];
+    return quiet >= POLL_IDLE ? null : POLL_STEPS[Math.min(empty, POLL_STEPS.length - 1)];
+  }
   function poll(own, load) {
-    const timer = setInterval(() => {
-      if (sheetEl !== own) return clearInterval(timer);
-      load().catch(() => {});
-    }, 6000);
-    return timer;
+    let timer = null, empty = 0, quiet = 0, asleep = false, stopped = false, gen = 0;
+    const alive = () => !stopped && sheetEl === own;
+    const plan = () => {
+      clearTimeout(timer);
+      timer = null;
+      asleep = false;
+      if (!alive()) return stop();
+      if (!appVisible()) return;
+      const s = pollDelay(empty, quiet, state.open);
+      const g = gen;
+      if (s === null) asleep = true;
+      else timer = setTimeout(() => tick(s, g), s * 1000);
+    };
+    const tick = async (s, g) => {
+      timer = null;
+      if (!alive()) return stop();
+      let fresh = false;
+      try { fresh = !!(await load()); } catch (e) {}
+      if (g !== gen) return;
+      if (fresh) { empty = 0; quiet = 0; } else { empty += 1; quiet += s; }
+      plan();
+    };
+    const now = async () => {
+      gen += 1;
+      clearTimeout(timer);
+      timer = null;
+      asleep = false;
+      empty = 0;
+      quiet = 0;
+      const g = gen;
+      try { return await load(); } finally { if (g === gen) plan(); }
+    };
+    const unwatch = onVisibility((shown) => {
+      if (!alive()) return stop();
+      if (shown) now().catch(() => {});
+      else { clearTimeout(timer); timer = null; }
+    });
+    own.addEventListener('pointerdown', () => { if (asleep && alive()) now().catch(() => {}); });
+    function stop() {
+      stopped = true;
+      clearTimeout(timer);
+      timer = null;
+      unwatch();
+    }
+    return { now, stop };
   }
   async function mayCloseSheet() {
     return !sheetBeforeClose || !!(await sheetBeforeClose());
@@ -161,7 +212,7 @@
     // lastId — только из ответа chat.get (009): своё отправленное сообщение его не двигает, иначе ответ собеседника,
     // пришедший в те же секунды (с меньшим id), не загрузился бы никогда
     let lastId = 0;
-    let timer = null;
+    let live = null;
     const shown = new Set();
     // 040: маска пары — подопечному в заголовке, Санте в подсказке; сначала из экрана события, затем из каждого ответа
     const title = h('span', {}, withWhom === 'ward' ? 'Переписка с подопечным' : 'Твой Тайный Санта');
@@ -178,10 +229,10 @@
       el.dataset.id = m.id;
       return el;
     };
-    // Вставка по порядку id: сообщение собеседника может прийти после уже показанного своего
+    // Вставка по порядку id: сообщение собеседника может прийти после уже показанного своего; истина — что-то добавлено
     const add = (msgs) => {
       const fresh = msgs.filter((m) => !shown.has(m.id));
-      if (!fresh.length) return;
+      if (!fresh.length) return false;
       if (!shown.size) list.replaceChildren();
       for (const m of fresh) {
         shown.add(m.id);
@@ -189,6 +240,7 @@
         list.insertBefore(bubble(m), next || null);
       }
       list.scrollTop = list.scrollHeight;
+      return true;
     };
     const setWritable = (w) => { c.show(w); closedNote.hidden = w; if (!w) c.counter.hidden = true; };
     const load = async () => {
@@ -202,7 +254,7 @@
           ? 'Здесь пока пусто. Напиши подопечному — он увидит сообщение от «Тайного Санты» и сможет ответить.'
           : 'Здесь пока пусто. Напиши своему Санте — он ответит здесь же.'));
       }
-      add(d.messages);
+      return add(d.messages);
     };
     c.send.addEventListener('click', () => busy(c.send, async () => {
       const text = c.ta.value;
@@ -210,7 +262,7 @@
       c.clear(text);
       add([r.message]);
       haptic('success');
-      await load().catch(() => {});
+      await live.now().catch(() => {});
     }).then(c.update));
     setWritable(state.can.chat_write);
 
@@ -219,12 +271,12 @@
         full: true,
         beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть переписку?')),
         onClose: async () => {
-          clearInterval(timer);
+          live.stop();
           await backToEvent(evId);
         },
       });
-    load().catch((e) => toast('⚠️ ' + e.message));
-    timer = poll(own, load);
+    live = poll(own, load);
+    live.now().catch((e) => toast('⚠️ ' + e.message));
   }
 
   // ---------- обращения к организатору (012) ----------
@@ -241,7 +293,7 @@
     // Под полем ввода: в шторке на весь экран нет ds-stack — отступ сверху даёт ds-sheet__action (027)
     const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block ds-sheet__action');
     resolve.hidden = true;
-    let timer = null;
+    let live = null;
     let sig = '';
     const load = async () => {
       const d = await api('support.get', { event: evId });
@@ -253,7 +305,7 @@
       status.textContent = open
         ? (open.assignee_name ? `Обращение ведёт ${open.assignee_name}.` : 'Обращение отправлено и ждёт ответа.')
         : 'Новое обращение получат владелец и администраторы. Ответит тот, кто возьмёт его. Сохраняй имя подопечного в тайне.';
-      if (key === sig) return;
+      if (key === sig) return false;
       sig = key;
       const nodes = [];
       for (const t of d.threads) {
@@ -264,28 +316,29 @@
         ? 'Здесь пока пусто. Расскажи, что случилось.'
         : 'Сейчас некому ответить на обращение.')]));
       list.scrollTop = list.scrollHeight;
+      return true;
     };
     c.send.addEventListener('click', () => busy(c.send, async () => {
       const text = c.ta.value;
       await api('support.send', { event: evId, text });
       c.clear(text);
       haptic('success');
-      await load().catch(() => {});
+      await live.now().catch(() => {});
     }).then(c.update));
     resolve.addEventListener('click', async () => {
       if (!(await confirmBox('Закрыть обращение? Если вопрос появится снова — просто напиши.'))) return;
-      busy(resolve, async () => { await api('support.close', { event: evId }); toast('✅ Обращение закрыто'); await load(); });
+      busy(resolve, async () => { await api('support.close', { event: evId }); toast('✅ Обращение закрыто'); await live.now(); });
     });
     const own = openSheet('Обращения', [status, list, c.composer, c.counter, closedNote, resolve], {
       full: true,
       beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Сообщение не отправлено. Закрыть?')),
       onClose: async () => {
-        clearInterval(timer);
+        live.stop();
         await backToEvent(evId);
       },
     });
-    load().catch((e) => toast('⚠️ ' + e.message));
-    timer = poll(own, load);
+    live = poll(own, load);
+    live.now().catch((e) => toast('⚠️ ' + e.message));
   }
 
   // Админ: одно обращение. Переписка — если её можно видеть (ничьё, своё, владелец); действия — взять, передать, закрыть
@@ -297,21 +350,21 @@
     const titleText = document.createTextNode('Обращение');
     const head = h('div', { class: 'ds-stack' });
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
-    let timer = null;
+    let live = null;
     let sig = '';
-    const act = (btn, fn, done) => busy(btn, async () => { await fn(); if (done) toast(done); sig = ''; await load(); });
+    const act = (btn, fn, done) => busy(btn, async () => { await fn(); if (done) toast(done); sig = ''; await live.now(); });
     const load = async () => {
       let d;
       try { d = await api('admin.support.get', { event: evId, thread: id }); }
       catch (e) {
-        clearInterval(timer);
+        live.stop();
         head.replaceChildren();
         list.replaceChildren(h('div', { class: 'ds-chat__empty' }, e.message));
         return;
       }
       const t = d.thread;
       const key = JSON.stringify([t.status, t.assignee, t.writable, d.messages.map((m) => m.id)]);
-      if (key === sig) return;
+      if (key === sig) return false;
       sig = key;
       titleText.data = 'Обращение: ' + t.name;
       const open = t.status === 'open';
@@ -351,6 +404,7 @@
       list.replaceChildren(...(d.messages.length ? d.messages.map(supportBubble) : [h('div', { class: 'ds-chat__empty' }, 'Сообщений нет.')]),
         ...(open ? [] : [h('div', { class: 'ds-chat__note' }, '✅ Обращение закрыто')]));
       list.scrollTop = list.scrollHeight;
+      return true;
     };
     c.send.addEventListener('click', () => busy(c.send, async () => {
       const text = c.ta.value;
@@ -358,19 +412,19 @@
       c.clear(text);
       haptic('success');
       sig = '';
-      await load();
+      await live.now();
     }).then(c.update));
     const own = openSheet(titleText, [head, list, c.composer, c.counter], {
       full: true,
       beforeClose: async () => !c.ta.value.trim() || !!(await confirmBox('Ответ не отправлен. Закрыть?')),
       onClose: async () => {
-        clearInterval(timer);
+        live.stop();
         await reloadEvent(evId).catch(() => {});
         if (state.evId !== evId) return;
         renderTabs();
         if (after) await after();
       },
     });
-    load().catch((e) => toast('⚠️ ' + e.message));
-    timer = poll(own, load);
+    live = poll(own, load);
+    live.now().catch((e) => toast('⚠️ ' + e.message));
   }

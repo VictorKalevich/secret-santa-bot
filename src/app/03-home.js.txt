@@ -6,6 +6,8 @@
   // create — можно ли создать компанию (052: { bot } владельцу бота, { left } человеку открытого бота).
   // nav — номер экрана (009): растёт при каждом переходе; ответ сервера для прежнего экрана не рисуется.
   // drafts[evId] — несохранённые объявление и параметры эвента (переживают перерисовку панели).
+  // dirty — несохранённое на «Письме» (вопрос Telegram при закрытии, точка на вкладке): true — адрес или письмо без
+  // черновиков, перед уходом спросить; 'draft' — только черновик письма, при уходе он сохранится сам (058).
   // wardCache — последний ответ ward.get: после закрытия переписки «Подопечный» перерисовывается без нового запроса,
   // иначе подсветка изменений письма пропала бы (сервер считает письмо просмотренным).
   const state = {
@@ -22,9 +24,15 @@
   const heroSub = document.getElementById('heroSub');
   const heroBack = document.getElementById('heroBack');
   const UNSAVED = 'Письмо или адрес не сохранены. Уйти без сохранения?';
+  // Уход с события или вкладки (058): черновик письма — сохранить сразу, спросить — только о том, что само не сохранится
+  async function mayLeave() {
+    if (saveLetterNow) saveLetterNow();
+    if (state.dirty === true && !(await confirmBox(UNSAVED))) return false;
+    if (state.dirty) setDirty(false);
+    return true;
+  }
   async function leaveEvent() {
-    if (state.dirty && !(await confirmBox(UNSAVED))) return;
-    setDirty(false);
+    if (!(await mayLeave())) return;
     await goHome();
   }
   // «‹» и системная «Назад» (051): из события — на главный экран его компании, оттуда — к «Компаниям», если список есть

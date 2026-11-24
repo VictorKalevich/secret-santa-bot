@@ -112,6 +112,29 @@
   }
   blurOnTap();
 
+  // ---------- приложение на экране (058) ----------
+  // Страница видна и Telegram не свернул мини-приложение: iOS сворачивает его в плашку без visibilitychange, для этого —
+  // activated/deactivated и isActive (Bot API 8.0; в старых клиентах их нет — остаётся видимость страницы).
+  // onVisibility(fn) — fn(на экране) при каждой смене, возвращает отписку: опрос шторок встаёт на паузу, черновик письма
+  // сохраняется сразу
+  const appVisible = () => !document.hidden && !(tg && tg.isActive === false);
+  const visibilityWatchers = new Set();
+  function onVisibility(fn) {
+    visibilityWatchers.add(fn);
+    return () => visibilityWatchers.delete(fn);
+  }
+  function watchVisibility() {
+    let shown = appVisible();
+    const changed = () => {
+      if (appVisible() === shown) return;
+      shown = !shown;
+      for (const fn of [...visibilityWatchers]) fn(shown);
+    };
+    document.addEventListener('visibilitychange', changed);
+    try { if (tg) { tg.onEvent('activated', changed); tg.onEvent('deactivated', changed); } } catch (e) {}
+  }
+  watchVisibility();
+
   // ---------- свой календарь (027) ----------
   // Системный календарь сам выделяет сегодняшний день и по «Готово» подставляет его (iOS) — там, где дата сама включает
   // действие (автожеребьёвка), календарь свой: без даты ничего не выделено, «Готово» — только после выбора дня.

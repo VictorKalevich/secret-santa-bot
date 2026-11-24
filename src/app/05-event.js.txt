@@ -39,8 +39,7 @@
         class: 'ds-tab' + (state.tab === id ? ' ds-tab--active' : ''),
         onclick: async () => {
           if (state.tab === id) return;
-          if (state.dirty && !(await confirmBox(UNSAVED))) return;
-          if (state.dirty) setDirty(false);
+          if (!(await mayLeave())) return;
           if (id === 'my' && state.ev.delivery_on) return openEvent(state.evId, 'my');
           state.tab = id;
           render();
@@ -77,11 +76,14 @@
     const m = state.member;
     const max = state.limits.chars;
     const nodes = [finishedNotice(), ui.section('Письмо Тайному Санте')];
-    // «Несохранённое» — письмо или адрес (009)
-    let letterChanged = false, addrChanged = false;
-    const recompute = () => { const v = letterChanged || addrChanged; if (v !== state.dirty) setDirty(v); };
+    // «Несохранённое» — письмо или адрес (009); черновик письма сохранится сам — 'draft' (058)
+    let letterChanged = false, addrChanged = false, draftPending = false;
+    const recompute = () => {
+      const v = letterChanged || addrChanged || (draftPending && 'draft');
+      if (v !== state.dirty) setDirty(v);
+    };
     if (state.ev.letter_drafts) {
-      nodes.push(letterDraftEditor(m, (changed) => { letterChanged = changed; recompute(); }));
+      nodes.push(letterDraftEditor(m, (pending) => { draftPending = pending; recompute(); }));
     } else if (!state.can.edit_letter) {
       nodes.push(ui.card(
         m.wishlist.trim() ? postcard(m.card, h('div', { class: 'ds-letter' }, m.wishlist)) : h('div', { class: 'ds-text-muted' }, 'Письмо осталось пустым.'),
@@ -172,6 +174,19 @@
     main.replaceChildren(...nodes.filter(Boolean));
   }
 
+  // Черновик письма (041; 058 — реже и сразу при уходе): пока пишут — сохранение не чаще раза в DRAFT_GAP, первое после
+  // паузы — через DRAFT_PAUSE (draftDelay, мс); при уходе приложения с экрана и уходе с вкладки — сразу (saveLetterNow,
+  // mayLeave). Сохранения всех редакторов — по одному (letterQueue): редактор, открытый заново, пока дописывается
+  // прежний, ждёт его и берёт версию из его ответа (letterRevisions — по ключу копии) — иначе вторая запись с той же
+  // версией получила бы отказ «письмо изменилось»
+  const DRAFT_PAUSE = 450;
+  const DRAFT_GAP = 5000;
+  const draftDelay = (now, last) => Math.max(DRAFT_PAUSE, last + DRAFT_GAP - now);
+  let letterQueue = Promise.resolve();
+  const letterRevisions = new Map();
+  let saveLetterNow = null;
+  onVisibility((shown) => { if (!shown && saveLetterNow) saveLetterNow(); });
+
   // Локальная копия страхует ввод до ответа сервера, включая мгновенное закрытие Telegram.
   function letterDraftEditor(m, markDirty) {
     const event = state.evId, draft = m.draft, editable = state.can.edit_letter;
@@ -182,7 +197,7 @@
     if (typeof backup?.text !== 'string' || backup.text.length > state.limits.chars) backup = null;
     const resume = editable && backup?.revision === draft.revision;
     let recovery = backup && !resume && backup.text !== savedText() ? backup.text : null;
-    let pending = false, timer, failure = '', saving = false;
+    let pending = false, timer = null, failure = '', saving = false, urgent = false, last = 0;
     const field = ui.textarea({ class: 'ds-input ds-input--letter', 'aria-label': 'Текст письма',
       placeholder: 'Дорогой Санта! В этом году я мечтаю о…', value: resume ? backup.text : savedText(),
       maxlength: state.limits.chars, readonly: !editable });
@@ -226,38 +241,58 @@
         if (cached?.text === text && cached.revision === revision) localStorage.removeItem(storageKey);
       } catch {}
     }
+    // Сохранение по расписанию: уже запланированное новая правка не откладывает
+    function schedule() {
+      if (timer || saving || !pending || failure) return;
+      timer = setTimeout(() => { timer = null; write(false); }, urgent ? 0 : draftDelay(Date.now(), last));
+    }
     function edited() {
       pending = true;
       failure = '';
       remember(field.value);
-      clearTimeout(timer);
-      timer = setTimeout(() => write(false), 450);
+      schedule();
       paint();
     }
-    // Один запрос за раз. Текст, набранный во время записи, уходит со следующей версией.
+    // Сразу: приложение ушло с экрана, уход с вкладки; идёт сохранение — сразу после него
+    function saveNow() {
+      if (!pending || failure) return;
+      urgent = true;
+      clearTimeout(timer);
+      timer = null;
+      if (!saving) write(false);
+    }
+    // Один запрос за раз во всём приложении. Текст, набранный во время записи, уходит со следующей версией.
     async function write(publishing) {
       if (saving || (!pending && !publishing)) return;
       clearTimeout(timer);
-      const text = field.value, revision = draft.revision;
+      timer = null;
+      urgent = false;
       saving = true;
       paint();
-      try {
-        const result = await api(publishing ? 'wishlist.publish' : 'wishlist.draft',
-          { event, text, revision, joined_at: draft.joined_at });
-        draft.revision = result.revision;
-        draft.stale = false;
-        if (publishing) { m.wishlist = text; m.wishlist_updated_at = result.updated_at; }
-        draft.text = text === m.wishlist ? null : text;
-        pending = field.value !== text;
-        if (pending) remember(field.value); else forget(text, revision);
-        failure = '';
-      } catch (e) {
-        failure = (publishing ? 'Публикация не удалась. ' : 'Черновик не сохранён. ') + e.message;
-      } finally {
-        saving = false;
-        paint();
-      }
-      if (pending && !failure) timer = setTimeout(() => write(false), 0);
+      const turn = letterQueue.then(async () => {
+        draft.revision = Math.max(draft.revision, letterRevisions.get(storageKey) || 0);
+        const text = field.value, revision = draft.revision;
+        last = Date.now();
+        try {
+          const result = await api(publishing ? 'wishlist.publish' : 'wishlist.draft',
+            { event, text, revision, joined_at: draft.joined_at });
+          draft.revision = result.revision;
+          letterRevisions.set(storageKey, result.revision);
+          draft.stale = false;
+          if (publishing) { m.wishlist = text; m.wishlist_updated_at = result.updated_at; }
+          draft.text = text === m.wishlist ? null : text;
+          pending = field.value !== text;
+          if (pending) remember(field.value); else forget(text, revision);
+          failure = '';
+        } catch (e) {
+          failure = (publishing ? 'Публикация не удалась. ' : 'Черновик не сохранён. ') + e.message;
+        }
+      });
+      letterQueue = turn;
+      await turn;
+      saving = false;
+      paint();
+      schedule();
     }
     restore.onclick = () => {
       const previous = recovery ?? draft.text;
@@ -269,6 +304,7 @@
     retry.onclick = () => write(false);
     publish.onclick = () => write(true);
     field.addEventListener('input', edited);
+    saveLetterNow = saveNow;
     if (resume && field.value !== savedText()) edited(); else paint();
     return h('div', { class: 'ds-card ds-stack ds-card--draft' }, status, preview, restore, paper, counter, retry, card, publish);
   }

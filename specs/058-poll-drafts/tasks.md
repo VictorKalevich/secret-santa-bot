@@ -12,7 +12,7 @@
 
 ## Phase 1: Foundational
 
-- [ ] T001 `src/app/02-core.js.txt`: после `blurOnTap()` — блок «приложение на экране» (058): `appVisible()` =
+- [X] T001 `src/app/02-core.js.txt`: после `blurOnTap()` — блок «приложение на экране» (058): `appVisible()` =
   `!document.hidden && !(tg && tg.isActive === false)`, `onVisibility(fn)` → отписка, одна подписка на `visibilitychange` и
   `tg.onEvent('activated' | 'deactivated')`, вызов подписчиков только при смене (контракт, «Видимость»)
 
@@ -23,13 +23,13 @@
 **Independent Test**: по склейке — `poll` на поддельных таймерах: тишина в открытом боте — 9 запросов за 5 минут, потом 0;
 скрыто — 0; закрытый бот — 10 в минуту.
 
-- [ ] T002 [US1] `src/app/08-sheet-chat.js.txt`: `POLL_STEPS`, `POLL_IDLE`, `pollDelay(empty, quiet, open)`; `poll(own,
+- [X] T002 [US1] `src/app/08-sheet-chat.js.txt`: `POLL_STEPS`, `POLL_IDLE`, `pollDelay(empty, quiet, open)`; `poll(own,
   load)` на `setTimeout` → `{ now, stop }` (контракт, «Опрос шторки»): пауза по `onVisibility`, возвращение — `now()`,
   касание спящей шторки — `now()`, остановка при смене шторки; комментарий над функцией — по-новому
-- [ ] T003 [US1] Там же: `openChat`, `openSupport`, `openSupportThread` — `let live = null` вместо `timer`; `load()`
+- [X] T003 [US1] Там же: `openChat`, `openSupport`, `openSupportThread` — `let live = null` вместо `timer`; `load()`
   возвращает «новое» (`add` → добавлено ли; обращения — смена `sig`); первая загрузка — `live.now()`, после отправки и
   действий — `live.now()` вместо `load()`; `onClose` и отказ обращения — `live.stop()`
-- [ ] T004 [US1] `tests/poll-drafts.test.mjs` (новый, в скрипт `test` в `package.json`): `pollDelay` из склейки — открытый
+- [X] T004 [US1] `tests/poll-drafts.test.mjs` (новый, в скрипт `test` в `package.json`): `pollDelay` из склейки — открытый
   бот 6, 10, 20, 30, 60, 60, 60, 60 и сон, закрытый — 6; `poll` из склейки на поддельных таймерах, видимости и шторке —
   тишина (9 запросов за 5 минут, затем 0), новое сбрасывает расписание, касание спящей — запрос, касание неспящей — нет,
   скрыто — 0 и запрос при возвращении, `now()` — сразу и с начала, смена шторки и `stop()` — конец и отписка, закрытый бот
@@ -42,22 +42,22 @@
 
 **Independent Test**: по склейке — `draftDelay`; в Chrome — набор, сворачивание, уход на «Инфо», быстрое возвращение.
 
-- [ ] T005 [US2] `src/app/05-event.js.txt`: перед `letterDraftEditor` — `DRAFT_PAUSE`, `DRAFT_GAP`, `draftDelay`,
+- [X] T005 [US2] `src/app/05-event.js.txt`: перед `letterDraftEditor` — `DRAFT_PAUSE`, `DRAFT_GAP`, `draftDelay`,
   `letterQueue`, `letterRevisions`, `saveLetterNow` и подписка `onVisibility` (скрыто → `saveLetterNow()`); в редакторе —
   `schedule()` (не откладывает запланированное), `saveNow()` (`urgent`), `write` по очереди `letterQueue` с версией
   `max(draft.revision, letterRevisions)`, после сохранения — `schedule()`; `saveLetterNow = saveNow`
-- [ ] T006 [US2] `src/app/03-home.js.txt`: комментарий и значение `state.dirty` (`true` | `'draft'` | `false`); `mayLeave()`
+- [X] T006 [US2] `src/app/03-home.js.txt`: комментарий и значение `state.dirty` (`true` | `'draft'` | `false`); `mayLeave()`
   (`saveLetterNow()`, вопрос `UNSAVED` только при `true`, `setDirty(false)`); `leaveEvent` — через `mayLeave`;
   `src/app/05-event.js.txt`: переключение вкладок — через `mayLeave`; `renderMy` — черновик даёт `'draft'`, адрес и письмо
   без черновиков — `true`
-- [ ] T007 [US2] В `tests/poll-drafts.test.mjs`: `draftDelay` из склейки (450 после паузы, до 5000 от начала прошлого);
+- [X] T007 [US2] В `tests/poll-drafts.test.mjs`: `draftDelay` из склейки (450 после паузы, до 5000 от начала прошлого);
   правила кода — в `letterDraftEditor` нет таймера `write` на 450 мс мимо `draftDelay`, сохранение — только через
   `letterQueue`, `confirmBox(UNSAVED)` — только в `mayLeave`, `leaveEvent` и вкладки зовут `mayLeave`, подписка
   `onVisibility` зовёт `saveLetterNow`; «от противного»
 
 ## Phase 4: Polish & Cross-Cutting Concerns
 
-- [ ] T008 `tests/poll-drafts.ui.mjs` (новый, Chrome; как `letter-drafts.ui.mjs`, Playwright clock, заглушка SDK с
+- [X] T008 `tests/poll-drafts.ui.mjs` (новый, Chrome; как `letter-drafts.ui.mjs`, Playwright clock, заглушка SDK с
   `onEvent`/`isActive`): опрос в открытом и закрытом боте, сворачивание и возвращение, касание спящей; черновик — набор,
   сворачивание, уход на «Инфо» без вопроса, быстрое возвращение без отказа; прогнать и `letter-drafts.ui.mjs`
 - [ ] T009 [P] `README.md`: черновики (сохраняются сами: при наборе не чаще раза в 5 с, при сворачивании и уходе — сразу)
