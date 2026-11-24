@@ -42,26 +42,31 @@
         ui.hint(about)),
       link && c.unread ? h('span', { class: 'ds-badge' }, String(c.unread)) : null,
       h('div', { class: 'ds-row ds-row--tight' },
-        h('button', { class: 'ds-icon-btn', title: 'Название для себя', onclick: own(() => openLabelSheet(c)) }, '✏️'),
-        state.botOwner ? h('button', { class: 'ds-icon-btn', title: 'Компания', onclick: own(() => openCompanySheet(c)) }, '⚙️') : null),
+        h('button', { class: 'ds-icon-btn', title: c.rename ? 'Название компании' : 'Название для себя', onclick: own(() => openLabelSheet(c)) }, '✏️'),
+        state.botOwner || c.deletable
+          ? h('button', { class: 'ds-icon-btn', title: 'Компания', onclick: own(() => (state.botOwner ? openCompanySheet(c) : openOwnCompanySheet(c))) }, '⚙️')
+          : null),
       link ? h('span', { class: 'ds-list-item__chevron' }, '›') : null);
   }
 
-  // «Название для себя»: владельцу бота — название компании (видит только он), остальным — своё (пустое — по умолчанию)
+  // «Название для себя»: владельцу бота — название компании (видит только он; общее — 052 — видят её люди), владельцу
+  // компании с общим названием (c.rename, 052) — оно же, остальным — своё (пустое — по умолчанию)
   function openLabelSheet(c) {
-    const input = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: c.named ? c.title : '', placeholder: c.title, autocomplete: 'off' });
+    const common = state.botOwner || c.rename;
+    const input = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: c.named || c.rename ? c.title : '', placeholder: c.title, autocomplete: 'off' });
     const save = ui.btn('Сохранить', '', 'ds-btn--block');
     save.addEventListener('click', () => busy(save, async () => {
-      if (state.botOwner && !input.value.trim()) return toast('Напиши название');
+      if (common && !input.value.trim()) return toast('Напиши название');
       const r = await api('company.label.set', { company: c.id, label: input.value });
       c.title = r.title;
-      c.named = state.botOwner || !!input.value.trim();
+      c.named = state.botOwner || (!c.rename && !!input.value.trim());
       closeSheet();
       toast('Название сохранено');
       if (state.view !== 'event') render();
     }));
-    openSheet('Название для себя', [
-      ui.hint(state.botOwner ? 'Название компании видишь только ты — владелец бота.' : 'Это название видишь только ты.'),
+    openSheet(c.rename ? 'Название компании' : 'Название для себя', [
+      ui.hint(c.shared && common ? 'Это название видят все люди компании.'
+        : state.botOwner ? 'Название компании видишь только ты — владелец бота.' : 'Это название видишь только ты.'),
       clearable(input, 'Название'), save]);
   }
 
@@ -124,22 +129,30 @@
       items.push(ui.card(h('div', { class: 'ds-text-strong' }, c.owner_name), ui.hint('Владелец компании: администраторы, сброс и удаление событий, служебный просмотр пар.'), self));
     }
     items.push(ui.section('🔗 Ссылка владельца компании'), companyLinkCard(c));
-    items.push(ui.section('Удаление'));
-    if (c.events) items.push(ui.hint('В компании есть события — сначала удали их.', 'ds-hint--inset'));
-    else {
-      const del = ui.btn('🗑 Удалить компанию', 'danger', 'ds-btn--block');
-      del.addEventListener('click', () => typedSheet('Удалить компанию', {
-        lines: ['её люди, администраторы и семьи;', 'общий журнал компании.'],
-        keep: 'Событий в компании нет. Её владелец и администраторы получат сообщение.',
-        word: 'УДАЛИТЬ',
-        label: '🗑 Удалить компанию',
-        sure: true,
-        run: (word) => api('bot.company.delete', { company: c.id, confirm: word }),
-        after: async () => { toast('Компания удалена'); await reloadMe(); await goRoot(); },
-      }));
-      items.push(ui.card(del));
-    }
+    items.push(...companyDeletion(c, 'bot.company.delete', 'Событий в компании нет. Её владелец и администраторы получат сообщение.'));
     openSheet(c.title, items);
+  }
+
+  // Шторка своей компании человека открытого бота (052): только удаление пустой
+  function openOwnCompanySheet(c) {
+    openSheet(c.title, companyDeletion(c, 'company.delete', 'Событий в компании нет. Её администраторы получат сообщение.'));
+  }
+
+  // Раздел «Удаление»: есть события — почему нельзя; иначе шторка со словом УДАЛИТЬ (action — действие API), после —
+  // корневой экран
+  function companyDeletion(c, action, keep) {
+    if (c.events) return [ui.section('Удаление'), ui.hint('В компании есть события — сначала удали их.', 'ds-hint--inset')];
+    const del = ui.btn('🗑 Удалить компанию', 'danger', 'ds-btn--block');
+    del.addEventListener('click', () => typedSheet('Удалить компанию', {
+      lines: ['её люди, администраторы и семьи;', 'общий журнал компании.'],
+      keep,
+      word: 'УДАЛИТЬ',
+      label: '🗑 Удалить компанию',
+      sure: true,
+      run: (word) => api(action, { company: c.id, confirm: word }),
+      after: async () => { toast('Компания удалена'); await reloadMe(); await goRoot(); },
+    }));
+    return [ui.section('Удаление'), ui.card(del)];
   }
 
   // Ссылка владельца: только что созданная — с «Скопировать» и «Отправить в чат»; действующая повторно не показывается

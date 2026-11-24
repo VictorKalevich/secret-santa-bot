@@ -13,7 +13,7 @@ import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unread
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
 import { no } from './result.js';
 import { POSTCARDS, MASKS, validCard, validMask } from './looks.js';
-import { companiesView, companyOwnersQuery, companyPeopleQuery } from './companies.js';
+import { companiesView, companyOwnersQuery, companyPeopleQuery, createView, openBot } from './companies.js';
 
 const DELIVERY_MAX = 500;
 
@@ -33,12 +33,16 @@ export async function menuEvents(db, userId) {
   return results;
 }
 
-// me: незарегистрированному — только registered: false. Общий контекст (050): события — где человек участник, плюс
+// me: незарегистрированному — только registered: false (052: в открытом боте и open). Общий контекст (050): события — где человек участник, плюс
 // все события компаний, где он администратор; владельцу бота — все. is_admin — «админ где-нибудь», is_owner — владелец бота.
-// 051: компании, видимые человеку (companiesView), у события — его компания
+// 051: компании, видимые человеку (companiesView), у события — его компания. 052: open, create — контракт
+// specs/052-open-bot/contracts/open-bot.md, раздел 2
 export async function homeView(ctx) {
   const { db, me } = ctx;
-  if (!me || !me.registered) return { registered: false };
+  // 052: open — открытый бот (и незарегистрированному: в нём регистрируются без ссылки)
+  const open = openBot(ctx.env);
+  const flag = open ? { open: true } : {};
+  if (!me || !me.registered) return { registered: false, ...flag };
   // Владелец бота — из первого пакета вызова (без запроса, если запись владельца действительна)
   const botOwnerId = await ctx.botOwnerId();
   const botOwner = !!me.is_admin && botOwnerId === me.tg_id;
@@ -64,6 +68,7 @@ export async function homeView(ctx) {
       company: e.company_id,
     }));
   const memberCompanies = new Set(r.events.filter((e) => memberOf.has(e.id)).map((e) => e.company_id));
+  const create = createView({ companies, botOwner, open, meId: me.tg_id });
   return {
     registered: true,
     me: {
@@ -71,8 +76,10 @@ export async function homeView(ctx) {
       notify_mode: me.notify_mode,
     },
     companies: companiesView({
-      companies, mine, memberOf: memberCompanies, botOwner, botOwnerId, meId: me.tg_id, events, owners: r.owners, people: r.people,
+      companies, mine, memberOf: memberCompanies, botOwner, botOwnerId, meId: me.tg_id, events, owners: r.owners, people: r.people, open,
     }),
+    ...flag,
+    ...(create ? { create } : {}),
     events,
     limits: { chars: MAX_CHARS },
     looks: { postcards: POSTCARDS, masks: MASKS }, // 038, 040: наборы открыток и масок — на сервере

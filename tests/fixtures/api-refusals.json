@@ -5796,6 +5796,226 @@
   "051 extra rename-many-companies": {
    "status": 400,
    "error": "Имя этого человека меняет он сам: «Профиль» → «✏️ Изменить имя»."
+  },
+  "052 stranger company.create": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "052 stranger company.delete": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "052 outsider company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 outsider company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 member company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 member company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 admin company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 admin company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 owner company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 owner company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 missing-owner company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 missing-owner company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 missing-admin company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 missing-admin company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 missing-member company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 missing-member company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 none-owner company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 none-owner company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 none-admin company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 none-admin company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 none-member company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 none-member company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 finished-owner company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 finished-owner company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 finished-admin company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 finished-admin company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 finished-member company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 finished-member company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 finished-delivery-member company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 finished-delivery-member company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 finished-old-owner company.create": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 finished-old-owner company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 finished-old-admin company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 finished-old-admin company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 finished-old-member company.create": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 finished-old-member company.delete": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 extra create-closed": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "052 extra create-bot-owner-blank": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 extra delete-closed": {
+   "status": 403,
+   "error": "Удалить компанию может только владелец бота."
+  },
+  "052 extra delete-word": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 extra delete-has-events": {
+   "status": 400,
+   "error": "В компании есть события — сначала удали их."
+  },
+  "052 open create-blank": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 open create-long": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 open create-first": {
+   "status": 200,
+   "error": null
+  },
+  "052 open create-repeat": {
+   "status": 400,
+   "error": "Компания с таким названием только что создана."
+  },
+  "052 open create-second": {
+   "status": 200,
+   "error": null
+  },
+  "052 open create-limit": {
+   "status": 400,
+   "error": "Вести можно не больше двух своих компаний — передай или удали одну из них."
+  },
+  "052 open label-blank": {
+   "status": 400,
+   "error": "Название компании — от 1 до 40 символов."
+  },
+  "052 open delete-word": {
+   "status": 400,
+   "error": "Для удаления введи слово УДАЛИТЬ."
+  },
+  "052 open delete-missing": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "052 open delete-not-visible": {
+   "status": 404,
+   "error": "Компания не найдена."
+  },
+  "052 open delete-not-owner": {
+   "status": 403,
+   "error": "Удалить компанию может только её владелец."
+  },
+  "052 open delete-has-events": {
+   "status": 400,
+   "error": "В компании есть события — сначала удали их."
+  },
+  "052 open delete-own": {
+   "status": 200,
+   "error": null
+  },
+  "052 open create-after-delete": {
+   "status": 200,
+   "error": null
   }
  }
 }

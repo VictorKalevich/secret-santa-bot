@@ -22,11 +22,16 @@
 //   051 (specs/051-companies/plan.md, «Точечные изменения»): действия company.label.set и bot.* — прежние ответы те же
 //   (admin.owner.transfer и admin.transfer с прежними телами отвечают прежними текстами), новые ключи «051 <ситуация>
 //   <действие>» и «051 extra …» (названия, повтор создания, слово, «есть события», владелец, имя человека двух компаний).
+//   052 (specs/052-open-bot/contracts/open-bot.md, раздел 2): действия company.create и company.delete — прежние ответы те
+//   же (в сценарии события создаются в компании 1 явно — та же, что раньше), новые ключи «052 <ситуация> <действие>»,
+//   «052 extra …» (закрытый бот: не владелец бота, слово, «есть события») и «052 open …» (открытый бот: название, повтор,
+//   лимит двух, общее название, удаление — слово, чужая, не владелец, есть события, своя).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   runRefusals, NEW_ACTIONS, NEW_ACTIONS_038, NEW_ACTIONS_040, NEW_ACTIONS_041, NEW_ACTIONS_042, NEW_ACTIONS_048, NEW_ACTIONS_051,
+  NEW_ACTIONS_052,
 } from './support/refusals-scenario.mjs';
 import { restoreFetch } from './support/world.mjs';
 import { ACTIONS } from '../src/api.js';
@@ -41,9 +46,10 @@ test('отказы API: каждый код и текст — как в этал
   const names = Object.keys(ACTIONS);
   const later = [
     ...NEW_ACTIONS, ...NEW_ACTIONS_038, ...NEW_ACTIONS_040, ...NEW_ACTIONS_041, ...NEW_ACTIONS_042, ...NEW_ACTIONS_048, ...NEW_ACTIONS_051,
+    ...NEW_ACTIONS_052,
   ];
   assert.deepEqual(names.filter((a) => !later.includes(a)), golden.actions, 'таблица действий — прежние 59 действий в прежнем порядке');
-  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038, 040, 041, 042, 048, 051) — в таблице');
+  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038, 040, 041, 042, 048, 051, 052) — в таблице');
   const diff = [];
   for (const key of new Set([...Object.keys(golden.cases), ...Object.keys(now.cases)])) {
     const a = JSON.stringify(golden.cases[key]);

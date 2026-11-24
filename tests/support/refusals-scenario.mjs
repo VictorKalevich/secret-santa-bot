@@ -7,9 +7,10 @@
 // слов подтверждения, людей и текстов) — опасные действия получают отказ по данным, а не по правам. Админ и владелец
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
 //
-// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 040: NEW_ACTIONS_040, 041, 042, 048, 051),
-// проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются; их
-// ответы — новые ключи эталона «035 …», «038 …», «040 …», «041 …», «042 …», «048 …» и «051 …».
+// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 040: NEW_ACTIONS_040, 041, 042, 048, 051,
+// 052), проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются;
+// их ответы — новые ключи эталона «035 …», «038 …», «040 …», «041 …», «042 …», «048 …», «051 …» и «052 …» (052 — ещё и
+// второй мир, открытый бот: «052 open …»).
 import { startWorld } from './world.mjs';
 
 // 59 действий в порядке прежних `case` в src/api.js: 13 участника, 11 общих админа, 35 — в пределах события
@@ -40,6 +41,8 @@ export const NEW_ACTIONS_041 = ['wishlist.draft', 'wishlist.publish'];
 export const NEW_ACTIONS_048 = ['admin.draw.swap.check', 'admin.draw.swap'];
 // 051: компании — своё название и действия владельца бота
 export const NEW_ACTIONS_051 = ['company.label.set', 'bot.company.create', 'bot.company.link', 'bot.company.delete', 'bot.owner.transfer', 'bot.audit'];
+// 052: открытый бот — своя компания
+export const NEW_ACTIONS_052 = ['company.create', 'company.delete'];
 
 const MISSING = 999999;
 const WEEK = 7 * 24 * 3600 * 1000;
@@ -65,7 +68,8 @@ export async function runRefusals() {
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
   let n = 0;
-  const create = async (title) => (await w.api(boss, 'admin.events.create', { title })).event.id;
+  // Компания 1 — явно: после 051 у владельца бота их две
+  const create = async (title) => (await w.api(boss, 'admin.events.create', { title, company: 1 })).event.id;
   const fresh = () => create('Свежее ' + ++n);
   const join = async (ev, users) => {
     const link = (await w.api(boss, 'admin.state', { event: ev })).settings.invite_link;
@@ -256,5 +260,53 @@ export async function runRefusals() {
     ['rename-many-companies', adm, 'admin.rename', { id: member.id, name: 'Иное' }],
   ];
   for (const [name, user, action, b] of extra051) await record(`051 extra ${name}`, user, action, b);
+
+  // ---------- 052: своя компания — те же ситуации в закрытом боте, затем открытый бот ----------
+  for (const [name, user, ev] of situations) {
+    for (const a of NEW_ACTIONS_052) await record(`052 ${name} ${a}`, user, a, body(await ev()));
+  }
+  const extra052 = [
+    ['create-closed', member, 'company.create', { name: 'Своя' }],
+    ['create-bot-owner-blank', boss, 'company.create', { name: '   ' }],
+    ['delete-closed', member, 'company.delete', { company: second, confirm: 'УДАЛИТЬ' }],
+    ['delete-word', boss, 'company.delete', { company: second, confirm: 'СБРОС' }],
+    ['delete-has-events', boss, 'company.delete', { company: 1, confirm: 'УДАЛИТЬ' }],
+  ];
+  for (const [name, user, action, b] of extra052) await record(`052 extra ${name}`, user, action, b);
+  await openRefusals(cases);
   return { actions: ACTION_LIST, cases };
+}
+
+// 052: открытый бот — люди без ссылки, свои компании: название, повтор, лимит, удаление (слово, чужая, не владелец, есть
+// события), общее название
+async function openRefusals(cases) {
+  const o = await startWorld({ open: true });
+  const record = async (key, user, action, b) => {
+    const r = await o.api(user, action, b, true);
+    cases[`052 open ${key}`] = { status: r.status, error: r.data.ok ? null : r.data.error };
+    return r.data;
+  };
+  await o.setup();
+  const anya = { id: 9201, name: 'Аня', username: 'anya' };
+  const borya = { id: 9202, name: 'Боря', username: 'borya' };
+  for (const u of [anya, borya]) {
+    await o.say(u, '/start');
+    await o.say(u, u.name);
+  }
+  await record('create-blank', anya, 'company.create', { name: '   ' });
+  await record('create-long', anya, 'company.create', { name: 'я'.repeat(41) });
+  const X = (await record('create-first', anya, 'company.create', { name: 'Своя' })).company;
+  await record('create-repeat', anya, 'company.create', { name: 'Своя' });
+  const Y = (await record('create-second', anya, 'company.create', { name: 'Вторая' })).company;
+  await record('create-limit', anya, 'company.create', { name: 'Третья' });
+  await record('label-blank', anya, 'company.label.set', { company: X, label: '  ' });
+  await record('delete-word', anya, 'company.delete', { company: Y, confirm: 'СБРОС' });
+  await record('delete-missing', anya, 'company.delete', { company: MISSING, confirm: 'УДАЛИТЬ' });
+  await record('delete-not-visible', borya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
+  o.sql(`INSERT INTO company_members (company_id, user_id, is_admin, joined_at) VALUES (${X}, ${borya.id}, 1, 1)`);
+  await record('delete-not-owner', borya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
+  await o.api(anya, 'admin.events.create', { company: X, title: 'Ёлка' });
+  await record('delete-has-events', anya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
+  await record('delete-own', anya, 'company.delete', { company: Y, confirm: 'УДАЛИТЬ' });
+  await record('create-after-delete', anya, 'company.create', { name: 'Третья' });
 }

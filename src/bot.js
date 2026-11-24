@@ -21,7 +21,7 @@ import {
 } from './support.js';
 import { menuEvents } from './participant.js';
 import { maskLabel } from './looks.js';
-import { claimCompanyOwner, companyByOwnerCode, menuCompanyTitles, NEW_COMPANY_OWNER, OWNER_LINK_GONE } from './companies.js';
+import { claimCompanyOwner, companyByOwnerCode, menuCompanyTitles, openBot, NEW_COMPANY_OWNER, OWNER_LINK_GONE } from './companies.js';
 
 const NAME_PROMPT =
   'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта, владелец и администраторы.';
@@ -95,7 +95,9 @@ async function buildMenu(ctx, user, settings) {
   if (!items.length) {
     lines.push(user.is_admin
       ? 'Идущих событий у тебя нет. Создай событие в приложении — там появится пригласительная ссылка.'
-      : 'Сейчас ты не участвуешь ни в одном идущем событии. Попроси пригласительную ссылку на событие.');
+      : openBot(ctx.env)
+        ? 'Сейчас ты не участвуешь ни в одном идущем событии. Создай свою компанию в приложении или попроси пригласительную ссылку на событие.'
+        : 'Сейчас ты не участвуешь ни в одном идущем событии. Попроси пригласительную ссылку на событие.');
   } else {
     lines.push('Твои события:');
     for (const ev of items) {
@@ -171,10 +173,10 @@ export async function handleUpdate(update, env) {
   }
 
   if (text.startsWith('/start')) return onStart(c);
-  if (!c.user) return c.reply(CLOSED_BOT);
+  if (!c.user) return onStranger(c);
   if (text === '/cancel') return onCancel(c);
   if (c.user.pending.startsWith('name')) return onName(c);
-  if (!c.user.registered) return c.askName();
+  if (!c.user.registered) return openBot(c.env) ? onStranger(c) : c.askName();
 
   const mode = parsePending(c.user.pending);
   if (mode?.kind === 'reply') return onChatReply(c, mode);
@@ -217,7 +219,15 @@ async function onStart(c) {
   if (payload.startsWith('own_')) return onCompanyOwnerLink(c, payload.slice(4));
   if (c.user?.registered) return c.sendMenu();
   if (c.user && c.user.pending.startsWith('name')) return c.askName();
-  return c.reply(CLOSED_BOT);
+  return onStranger(c);
+}
+
+// Человек без ссылки и без имени (052): в закрытом боте — прежний ответ; в открытом — ожидание имени и просьба имени
+// (047), после имени — меню, своя компания — в приложении
+async function onStranger(c) {
+  if (!openBot(c.env)) return c.reply(CLOSED_BOT);
+  await (c.user ? c.setPending('name') : createUser(c.db, c.from.id, c.from.username, { pending: 'name' }));
+  return c.askName('🎄 Привет! Это бот для игры в Тайного Санту.\n\n', false);
 }
 
 async function onOwnerLink(c) {

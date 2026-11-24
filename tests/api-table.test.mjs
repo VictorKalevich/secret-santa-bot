@@ -35,9 +35,9 @@ function rowProblems(name, row) {
   return p;
 }
 
-test('таблица действий: 74 строки (21 действие участника, 48 admin.*, 5 bot.*), каждая — по правилам', () => {
+test('таблица действий: 76 строк (23 действия участника, 48 admin.*, 5 bot.*), каждая — по правилам', () => {
   const names = Object.keys(ACTIONS);
-  assert.equal(names.length, 74);
+  assert.equal(names.length, 76);
   assert.equal(names.filter((a) => a.startsWith('admin.')).length, 48);
   assert.deepEqual(names.filter((a) => a.startsWith('bot.')).sort(), ['bot.audit', 'bot.company.create', 'bot.company.delete', 'bot.company.link', 'bot.owner.transfer']);
   assert.deepEqual(names.flatMap((n) => rowProblems(n, ACTIONS[n])), []);
@@ -50,10 +50,11 @@ test('таблица действий: действия владельца и с
     'admin.reset.full', 'admin.role.grant', 'admin.role.revoke', 'admin.transfer', 'admin.vault.pairs', 'admin.vault.person',
   ]);
   const words = Object.fromEntries(Object.entries(ACTIONS).filter(([, r]) => r.confirm).map(([a, r]) => [a, r.confirm[0]]));
-  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер; 035: выход из события — ВЫЙТИ; 051: удаление компании
+  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер; 035: выход из события — ВЫЙТИ; 051, 052: удаление компании
   assert.deepEqual(words, {
     'event.leave': 'ВЫЙТИ', 'admin.draw.cancel.force': 'ОТМЕНА', 'admin.event.delete': 'УДАЛИТЬ', 'admin.vault.person': 'ОТКРЫТЬ',
     'admin.vault.pairs': 'ОТКРЫТЬ', 'admin.reset.full': 'СБРОС', 'bot.company.delete': 'УДАЛИТЬ',
+    'company.delete': 'УДАЛИТЬ',
   });
 });
 

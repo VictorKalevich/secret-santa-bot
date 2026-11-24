@@ -17,7 +17,7 @@ import {
 import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw, checkSwap, swapWards } from './pairs.js';
 import { sendChatMessage, chatHistory } from './chat.js';
 import { grantAdmin, revokeAdmin, transferBotOwnership, transferAccount } from './roles.js';
-import { createCompany, setLabel, setCompanyOwner, ownerLink, deleteCompany, botAudit } from './companies.js';
+import { createCompany, createOwnCompany, setLabel, setCompanyOwner, ownerLink, deleteCompany, botAudit, openBot } from './companies.js';
 import {
   saveFamily, deleteFamily, decideRequest, familiesList, participate, allowRemoved, leaveEvent, LEAVE_FINISHED,
 } from './membership.js';
@@ -118,6 +118,25 @@ export const ACTIONS = {
   },
   // 051: «как я называю эту компанию» — владельцу бота название компании, остальным своё; без журнала и сообщений
   'company.label.set': { role: USER, run: async (ctx, body) => out(await setLabel(ctx, body.company, body.label)) },
+  // 052: своя компания — в открытом боте каждый (не больше двух во владении), в закрытом — только владелец бота (как
+  // bot.company.create); удаление пустой — её владелец в открытом боте, владелец бота — любой
+  'company.create': {
+    role: USER,
+    async run(ctx, body) {
+      if (await ctx.isBotOwner()) return out(await createCompany(ctx, body.name));
+      if (!openBot(ctx.env)) return refuse(BOT_ONLY, 403);
+      return out(await createOwnCompany(ctx, body.name));
+    },
+  },
+  'company.delete': {
+    role: USER,
+    confirm: ['УДАЛИТЬ', 'Для удаления введи слово УДАЛИТЬ.'],
+    async run(ctx, body) {
+      const bot = await ctx.isBotOwner();
+      if (!bot && !openBot(ctx.env)) return refuse(onlyBotOwner('Удалить компанию'), 403);
+      return out(await deleteCompany(ctx, body.company, !bot), none);
+    },
+  },
   // 038: открытка письма — из набора src/looks.js, без журнала и сообщений
   'card.set': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev) => out(await setCard(ctx, ev, body.card)) },
   'event.get': { role: VIEWER, event: true, finished: true, run: (ctx, body, ev, member) => eventView(ctx, ev, member) },

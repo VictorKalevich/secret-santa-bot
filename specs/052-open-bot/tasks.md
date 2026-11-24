@@ -51,23 +51,23 @@
 Цель: незнакомец называет себя и создаёт компанию; человек из чужой компании через «‹» создаёт свою.
 Независимая проверка: `tests/open-bot.test.mjs` — «регистрация» и «создание»; Chrome `checkOpenBot`.
 
-- [ ] T010 [US2] `src/companies.js`: `createOwnCompany(ctx, raw)` по research R3 — `atomic` с `RECENT_CREATE`; вставка
+- [X] T010 [US2] `src/companies.js`: `createOwnCompany(ctx, raw)` по research R3 — `atomic` с `RECENT_CREATE`; вставка
   `companies (name, owner_id, shared = 1, created_by, created_at)` с условием `(SELECT COUNT(*) FROM companies WHERE
   owner_id = ?) < 2` (`OWN_MAX = 2`); подпакет `and('EXISTS …')` по созданной компании: строка `company_members`
   (`is_admin = 1`, `joined_at`), `adminFlagStmt`, захват — `audit(BOT_LOG, …, 'company.create', '«<название>»')`; при
   проигрыше — отказ по свежему состоянию (лимит или «только что создана»). Название — «1–40 символов, одна строка».
-- [ ] T011 [US2] `src/api.js`: `company.create { name }` (роль `USER`): владелец бота → `createCompany`; закрытый бот → 403
+- [X] T011 [US2] `src/api.js`: `company.create { name }` (роль `USER`): владелец бота → `createCompany`; закрытый бот → 403
   `Только для владельца бота.`; открытый → `createOwnCompany`. Ответ `{ company }`. `tests/api-table.test.mjs` — 75
   действий (дальше 76 в T020).
-- [ ] T012 [US2] `src/companies.js` `visibleCompanies`/`companiesView`: название по data-model («своё || общее ||
+- [X] T012 [US2] `src/companies.js` `visibleCompanies`/`companiesView`: название по data-model («своё || общее ||
   Компания N»), поля `shared`, `rename`, `deletable` — только когда верны (контракт, раздел 2); `src/participant.js`
   `homeView`: `open: true` (открытый бот, и в ответе `{ registered: false }`), `create` (`{ bot: true }` владельцу бота,
   `{ left }` человеку открытого бота — по `ctx.companies()`, без новых запросов).
-- [ ] T013 [US2] `src/bot.js`: незнакомец (`/start` без ссылки, любой текст без записи, запись без имени без ожидания) —
+- [X] T013 [US2] `src/bot.js`: незнакомец (`/start` без ссылки, любой текст без записи, запись без имени без ожидания) —
   `onStranger`: закрытый бот — `CLOSED_BOT`; открытый — запись/ожидание `name` и `askName('🎄 Привет! Это бот для игры в
   Тайного Санту.\n\n', false)`; меню без идущих событий у не-организатора открытого бота — текст контракта (раздел 3).
   Функции ≤ 60 строк, без SQL (`server-shape`).
-- [ ] T014 [US2] `src/app/04-companies.js.txt` `renderCompanies`: пустой список — подсказка (контракт, раздел 4);
+- [X] T014 [US2] `src/app/04-companies.js.txt` `renderCompanies`: пустой список — подсказка (контракт, раздел 4);
   человеку открытого бота — `🏢 Создать компанию` (`company.create`), при `create.left === 0` кнопка недоступна и под ней
   текст лимита; `openCreateCompany` — действие и подсказка по роли. `src/app/09-start.html`: незарегистрированному в
   открытом боте — «👋 Сначала назови себя».
@@ -122,11 +122,11 @@
 
 ## Этап 8. Отказы, документы, завершение
 
-- [ ] T022 `tests/support/refusals-scenario.mjs`: `NEW_ACTIONS_052 = ['company.create', 'company.delete']` — те же ситуации в
+- [X] T022 `tests/support/refusals-scenario.mjs`: `NEW_ACTIONS_052 = ['company.create', 'company.delete']` — те же ситуации в
   закрытом мире (ключи «052 <ситуация> <действие>») и «052 extra …» в открытом мире (`startWorld({ open: true })`: название,
   лимит, повтор, слово, не владелец, есть события, нет компании); `tests/api-refusals.test.mjs` — заголовок и список новых
   действий; `tests/fixtures/api-refusals.json` — только новые ключи.
-- [ ] T023 `docs/api.md`: 76 действий — `company.create`, `company.delete`, изменение `company.label.set`, поля `me`,
+- [X] T023 `docs/api.md`: 76 действий — `company.create`, `company.delete`, изменение `company.label.set`, поля `me`,
   бот (незнакомец в открытом боте, текст меню), журнал (`company.create`/`company.delete` пишут и действия людей);
   `npm test` → `api-doc` зелёный.
 - [ ] T024 `README.md`: открытый и закрытый бот (`OPEN_BOT` у второго бота, как сделать бот открытым/закрытым), кто

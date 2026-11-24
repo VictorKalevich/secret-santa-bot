@@ -9,9 +9,14 @@ import { atomic } from './claim.js';
 import { no } from './result.js';
 
 const NAME_MAX = 40;
+// Своих компаний во владении у человека открытого бота (052)
+const OWN_MAX = 2;
+const OWN_LIMIT = 'Вести можно не больше двух своих компаний — передай или удали одну из них.';
+const RECENT = 'Компания с таким названием только что создана.';
 const NAME_RULE = 'Название компании — от 1 до 40 символов.';
 const LABEL_RULE = 'Название — до 40 символов.';
 const HAS_EVENTS = 'В компании есть события — сначала удали их.';
+const OWN_DELETE = 'Удалить компанию может только её владелец.';
 const SETUP_FIRST = 'Сначала открой страницу настройки /setup (см. README).';
 // Двойное нажатие «Создать» (опора — запись журнала бота, как у рассылок 024)
 const REPEAT_MS = 60 * 1000;
@@ -34,7 +39,7 @@ const quoted = (name) => `«${escapeHtml(name)}»`;
 // Видимые компании и их названия (data-model 051, «Видимость компании», «Название»). companies — ctx.companies(), mine —
 // ctx.mine() (свои строки со временем вступления), memberOf — компании событий, где он участник. Порядок: владельцу бота —
 // по id, остальным — по времени вступления; номер «Компания N» — среди всех его строк и не меняется, когда другая компания
-// пропадает из видимых
+// пропадает из видимых. Общее название (052, shared) люди компании видят вместо «Компания N»; своё важнее
 export function visibleCompanies({ companies, mine, memberOf, botOwner, meId }) {
   const order = [...mine].sort(([ia, a], [ib, b]) => a.joined_at - b.joined_at || ia - ib).map(([id]) => id);
   const number = new Map(order.map((id, i) => [id, i + 1]));
@@ -42,8 +47,9 @@ export function visibleCompanies({ companies, mine, memberOf, botOwner, meId }) 
     ? [...companies.keys()].sort((a, b) => a - b)
     : order.filter((id) => companies.has(id) && (mine.get(id).is_admin || companies.get(id).owner_id === meId || memberOf.has(id)));
   return ids.map((id) => {
+    const c = companies.get(id);
     const label = mine.get(id)?.label || '';
-    return { id, title: botOwner ? companies.get(id).name : label || NUMBERED(number.get(id)), named: botOwner || !!label };
+    return { id, title: botOwner ? c.name : label || (c.shared ? c.name : NUMBERED(number.get(id))), named: botOwner || !!label };
   });
 }
 
@@ -60,8 +66,10 @@ export const companyOwnersQuery = (db, botOwnerId) =>
 export const companyPeopleQuery = (db) => db.prepare('SELECT company_id, COUNT(*) AS n FROM company_members GROUP BY company_id');
 
 // me.companies (контракт 051, раздел 2): роль, признаки прав, владелец по имени, события, видимые человеку, и непрочитанное.
-// events — события, видимые человеку (с company и unread), owners — строки companyOwnersQuery, people — companyPeopleQuery
-export function companiesView({ companies, mine, memberOf, botOwner, botOwnerId, meId, events, owners, people }) {
+// events — события, видимые человеку (с company и unread), owners — строки companyOwnersQuery, people — companyPeopleQuery.
+// 052 (контракт specs/052-open-bot/contracts/open-bot.md, раздел 2): shared — название общее, rename — он меняет общее
+// название, deletable — он удаляет свою компанию (открытый бот, open); поля — только когда верны
+export function companiesView({ companies, mine, memberOf, botOwner, botOwnerId, meId, events, owners, people, open = false }) {
   const names = new Map(owners.map((u) => [u.tg_id, u.name]));
   const count = new Map(people.map((r) => [r.company_id, r.n]));
   return visibleCompanies({ companies, mine, memberOf, botOwner, meId }).map(({ id, title, named }) => {
@@ -80,6 +88,9 @@ export function companiesView({ companies, mine, memberOf, botOwner, botOwnerId,
       active: own.filter((e) => e.status === 'active').length,
       unread: own.reduce((n, e) => n + e.unread, 0),
       ...(botOwner ? { people: count.get(id) || 0, owner_id: c.owner_id, link: c.link } : {}),
+      ...(c.shared ? { shared: true } : {}),
+      ...(c.shared && !botOwner && c.owner_id === meId ? { rename: true } : {}),
+      ...(open && !botOwner && c.owner_id === meId ? { deletable: true } : {}),
     };
   });
 }
@@ -106,8 +117,47 @@ export async function createCompany(ctx, raw) {
     me.tg_id, now, me.tg_id, now);
   a.claim(a.audit(BOT_LOG, me.tg_id, 'company.create', details));
   const r = await a.run();
-  if (!r.won) return no('Компания с таким названием только что создана.');
+  if (!r.won) return no(RECENT);
   return { ok: true, company: r.results[0].results[0].id };
+}
+
+// company.create человеком открытого бота (052, research R3): компания с владельцем-создателем и общим названием. Лимит
+// OWN_MAX — условие только самой вставки (она сама меняет счёт); строка человека компании (администратор — I3), общий
+// признак (I4) и запись журнала бота (захват) — пока «эта вставка состоялась» и за минуту не было такой же записи.
+// Проигравшему — отказ по свежему состоянию в порядке контракта: лимит, затем повтор
+export async function createOwnCompany(ctx, raw) {
+  const { db, me } = ctx;
+  const name = companyName(raw);
+  if (!name) return no(NAME_RULE);
+  const now = Date.now();
+  const details = `«${name}»`;
+  const a = atomic(db, RECENT_CREATE, me.tg_id, details, now - REPEAT_MS);
+  a.add(db.prepare(
+    `INSERT INTO companies (name, owner_id, shared, created_by, created_at) SELECT ?, ?, 1, ?, ?
+      WHERE ${a.sql} AND (SELECT COUNT(*) FROM companies WHERE owner_id = ?) < ? RETURNING id`
+  ).bind(name, me.tg_id, me.tg_id, now, ...a.args, me.tg_id, OWN_MAX));
+  const made = a.and('EXISTS (SELECT 1 FROM companies WHERE created_by = ? AND created_at = ? AND name = ? AND owner_id = ?)',
+    me.tg_id, now, name, me.tg_id);
+  made.select(
+    `INSERT INTO company_members (company_id, user_id, is_admin, joined_at)
+     SELECT (SELECT MAX(id) FROM companies WHERE created_by = ? AND created_at = ? AND name = ?), ?, 1, ?`,
+    me.tg_id, now, name, me.tg_id, now,
+  );
+  made.add(adminFlagStmt(db, me.tg_id));
+  made.claim(made.audit(BOT_LOG, me.tg_id, 'company.create', details));
+  const r = await made.run();
+  if (r.won) return { ok: true, company: r.results[0].results[0].id };
+  const { owned } = await readMany(db, { owned: db.prepare('SELECT COUNT(*) AS n FROM companies WHERE owner_id = ?').bind(me.tg_id) });
+  return no(owned[0].n >= OWN_MAX ? OWN_LIMIT : RECENT);
+}
+
+// me.create (052): владельцу бота — { bot: true }; человеку открытого бота — сколько ещё своих компаний он может создать;
+// иначе null
+export function createView({ companies, botOwner, open, meId }) {
+  if (botOwner) return { bot: true };
+  if (!open) return null;
+  const owned = [...companies.values()].filter((c) => c.owner_id === meId).length;
+  return { left: Math.max(0, OWN_MAX - owned) };
 }
 
 // Человек участвует хотя бы в одном событии компании
@@ -115,8 +165,16 @@ const memberInQuery = (db, companyId, userId) => db.prepare(
   'SELECT 1 AS yes FROM members m JOIN events e ON e.id = m.event_id WHERE e.company_id = ? AND m.user_id = ? LIMIT 1'
 ).bind(companyId, userId);
 
+// Компания видна человеку (не владельцу бота) — правило visibleCompanies для одной компании
+async function seenBy(ctx, companies, mine, id) {
+  const row = mine.get(id);
+  return !!row && (!!row.is_admin || companies.get(id).owner_id === ctx.me.tg_id
+    || (await readMany(ctx.db, { m: memberInQuery(ctx.db, id, ctx.me.tg_id) })).m.length > 0);
+}
+
 // company.label.set: владельцу бота — название компании (1–40), остальным — своё название (до 40, пустое — сброс), только
-// видимой компании. Без журнала и сообщений. → { title } — как её теперь покажет me
+// видимой компании. 052: владелец компании с общим названием меняет общее (1–40), своё название в том же пакете стирается.
+// Без журнала и сообщений. → { title } — как её теперь покажет me
 export async function setLabel(ctx, companyId, raw) {
   const { db, me } = ctx;
   const id = Number(companyId) || 0;
@@ -129,10 +187,16 @@ export async function setLabel(ctx, companyId, raw) {
     a.claim(a.where('UPDATE companies SET name = ? WHERE id = ?', text, id));
     return (await a.run()).won ? { ok: true, title: text } : no(COMPANY_NOT_FOUND, 404);
   }
+  const c = companies.get(id);
+  if (c.shared && c.owner_id === me.tg_id) {
+    if (!text || text.length > NAME_MAX) return no(NAME_RULE);
+    const a = atomic(db, 'EXISTS (SELECT 1 FROM companies WHERE id = ? AND owner_id = ? AND shared = 1)', id, me.tg_id);
+    a.where("UPDATE company_members SET label = '' WHERE company_id = ? AND user_id = ?", id, me.tg_id);
+    a.claim(a.where('UPDATE companies SET name = ? WHERE id = ?', text, id));
+    return (await a.run()).won ? { ok: true, title: text } : no(COMPANY_NOT_FOUND, 404);
+  }
   const row = mine.get(id);
-  const visible = row && (row.is_admin || companies.get(id).owner_id === me.tg_id
-    || (await readMany(db, { m: memberInQuery(db, id, me.tg_id) })).m.length);
-  if (!visible) return no(COMPANY_NOT_FOUND, 404);
+  if (!(await seenBy(ctx, companies, mine, id))) return no(COMPANY_NOT_FOUND, 404);
   if (text.length > NAME_MAX) return no(LABEL_RULE);
   const a = atomic(db, 'EXISTS (SELECT 1 FROM company_members WHERE company_id = ? AND user_id = ?)', id, me.tg_id);
   a.claim(a.where('UPDATE company_members SET label = ? WHERE company_id = ? AND user_id = ?', text, id, me.tg_id));
@@ -283,10 +347,16 @@ export async function claimCompanyOwner(ctx, code, user) {
 
 // bot.company.delete: только компания без событий (условие пакета; R11). Сообщения её владельцу и администраторам,
 // запись журнала бота, пересчёт общего признака users.is_admin её администраторам (без этой компании), данные — по списку
-// REGISTRY, строка компании — последней (захват). Проигравшему одновременный вызов — отказ по свежему состоянию
-export async function deleteCompany(ctx, companyId) {
+// REGISTRY, строка компании — последней (захват). Проигравшему одновременный вызов — отказ по свежему состоянию.
+// own (052, company.delete владельца компании в открытом боте): компания видна ему (иначе 404), в условии пакета — ещё
+// «владелец — он»
+export async function deleteCompany(ctx, companyId, own = false) {
   const { db, me } = ctx;
   const id = Number(companyId) || 0;
+  if (own) {
+    const [companies, mine] = await Promise.all([ctx.companies(), ctx.mine()]);
+    if (!companies.has(id) || !(await seenBy(ctx, companies, mine, id))) return no(COMPANY_NOT_FOUND, 404);
+  }
   const state = () => ({
     company: db.prepare('SELECT id, name, owner_id FROM companies WHERE id = ?').bind(id),
     events: db.prepare('SELECT COUNT(*) AS n FROM events WHERE company_id = ?').bind(id),
@@ -297,14 +367,18 @@ export async function deleteCompany(ctx, companyId) {
       'SELECT u.tg_id, u.registered, cm.is_admin FROM company_members cm JOIN users u ON u.tg_id = cm.user_id WHERE cm.company_id = ?'
     ).bind(id),
   });
-  const refusal = (s) => (!s.company.length ? no(COMPANY_NOT_FOUND, 404) : s.events[0].n ? no(HAS_EVENTS) : null);
+  const refusal = (s) => (!s.company.length ? no(COMPANY_NOT_FOUND, 404)
+    : own && s.company[0].owner_id !== me.tg_id ? no(OWN_DELETE, 403)
+    : s.events[0].n ? no(HAS_EVENTS) : null);
   const early = refusal(r);
   if (early) return early;
   const [c] = r.company;
-  const a = atomic(db, 'EXISTS (SELECT 1 FROM companies WHERE id = ?) AND NOT EXISTS (SELECT 1 FROM events WHERE company_id = ?)', id, id);
+  const a = own
+    ? atomic(db, 'EXISTS (SELECT 1 FROM companies WHERE id = ? AND owner_id = ?) AND NOT EXISTS (SELECT 1 FROM events WHERE company_id = ?)', id, me.tg_id, id)
+    : atomic(db, 'EXISTS (SELECT 1 FROM companies WHERE id = ?) AND NOT EXISTS (SELECT 1 FROM events WHERE company_id = ?)', id, id);
   for (const u of adminRecipients(r.people, [me.tg_id])) {
-    a.enqueue(u.tg_id, msg(u.tg_id === c.owner_id
-      ? 'Владелец бота удалил компанию, которую ты вёл: событий в ней не было.'
+    a.enqueue(u.tg_id, msg(own ? 'Владелец удалил компанию, в которой ты был администратором: событий в ней не было.'
+      : u.tg_id === c.owner_id ? 'Владелец бота удалил компанию, которую ты вёл: событий в ней не было.'
       : 'Владелец бота удалил компанию, в которой ты был администратором: событий в ней не было.'));
   }
   a.audit(BOT_LOG, me.tg_id, 'company.delete', `«${c.name}», людей: ${r.people.length}`);
