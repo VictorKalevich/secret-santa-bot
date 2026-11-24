@@ -29,17 +29,20 @@ async function step(name, fn) {
 
 // Санта получает уведомление, когда подопечный перестал править письмо
 // (через NOTIFY_DELAY_MINUTES после последней правки), чтобы не было спама.
+// 054: CROSS JOIN закрепляет порядок «идущие события (индекс events_active) → их пары → подопечный» — пары завершённых
+// событий и участники без пар не читаются (лимит чтений D1 бесплатного тарифа)
 async function notifyWishlistChanges(ctx) {
   const { db, env } = ctx;
   const delayMs = Number(env.NOTIFY_DELAY_MINUTES ?? 10) * 60 * 1000;
   const { results } = await db
     .prepare(
       `SELECT p.event_id, p.santa, MAX(w.wishlist_updated_at, w.delivery_updated_at) AS upd, s.notify_mode, e.title, e.delivery_on
-         FROM pairs p
-         JOIN events e ON e.id = p.event_id AND e.status = 'active'
-         JOIN members w ON w.event_id = p.event_id AND w.user_id = p.ward
+         FROM events e
+        CROSS JOIN pairs p ON p.event_id = e.id
+        CROSS JOIN members w ON w.event_id = p.event_id AND w.user_id = p.ward
          JOIN users s ON s.tg_id = p.santa
-        WHERE MAX(w.wishlist_updated_at, w.delivery_updated_at) > p.notified_at
+        WHERE e.status = 'active'
+          AND MAX(w.wishlist_updated_at, w.delivery_updated_at) > p.notified_at
           AND MAX(w.wishlist_updated_at, w.delivery_updated_at) <= ?`
     )
     .bind(Date.now() - delayMs)
@@ -81,9 +84,9 @@ async function dailyStep(ctx) {
   const { db, env } = ctx;
   const now = localDate(env);
   if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
-  // Все идущие эвенты (их немного): автодействие, заданное уже после сегодняшнего прохода, выполняется сразу.
-  // Компании — в том же пакете (050): контекст компании события без отдельного запроса
-  const { events: results } = await ctx.read({ events: db.prepare("SELECT * FROM events WHERE status = 'active'"), companies: true });
+  // Все идущие эвенты (индекс events_active, 054): автодействие, заданное уже после сегодняшнего прохода, выполняется
+  // сразу. Компании читает ctx.in только для действия — в обычную минуту их не читаем (054)
+  const { events: results } = await ctx.read({ events: db.prepare("SELECT * FROM events WHERE status = 'active'") });
   const inCompany = (ev) => ctx.in(ev.company_id);
   const autos = [];
   const reminders = [];

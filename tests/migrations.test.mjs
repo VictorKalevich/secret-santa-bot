@@ -319,6 +319,26 @@ test('база с данными «до 0016»: у всех компаний sha
   assert.throws(() => w.sql(SQL16), /duplicate column name: shared/);
 });
 
+// 054: миграция 0017 — только частичный индекс идущих событий для минутной проверки (tests/cron-reads.test.mjs)
+const SQL17 = readFileSync(new URL('0017_active_events_index.sql', MIGRATIONS_DIR), 'utf8');
+
+test('0017: только CREATE INDEX IF NOT EXISTS events_active по идущим событиям — без данных и версии схемы', () => {
+  const statements17 = SQL17.replace(/--[^\n]*/g, '').split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  assert.deepEqual(statements17, ["CREATE INDEX IF NOT EXISTS events_active ON events (id) WHERE status = 'active'"]);
+  assert.doesNotMatch(SQL17.replace(/--[^\n]*/g, ''), /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TABLE|settings)\b/i);
+});
+
+test('база с данными «до 0017»: применение и повтор не меняют ни одной строки', async () => {
+  const { w } = await filledWorld();
+  w.sql('DROP INDEX events_active');
+  const before = snapshot(w);
+  w.sql(SQL17);
+  assert.deepEqual(snapshot(w), before);
+  w.sql(SQL17);
+  assert.deepEqual(snapshot(w), before, 'повтор');
+  assert.equal(w.query("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'index' AND name = 'events_active'")[0].n, 1);
+});
+
 // ---------- сверка компаний (050, tools/companies-reconcile.sql) ----------
 
 const RECONCILE = readFileSync(new URL('../tools/companies-reconcile.sql', import.meta.url), 'utf8');
