@@ -11,30 +11,34 @@ import { msg, q, escapeHtml, shortTitle, displayName, adminRecipients, openAppBu
 import { chatWritable } from './status.js';
 import { MAX_CHARS, tooLong } from './chat.js';
 import { no } from './result.js';
+import { tx, tjoin } from './i18n/index.js';
 
-export const NO_SUPPORT_RECIPIENTS = 'Сейчас некому ответить на обращение.';
-export const CLOSED = 'Обращение уже закрыто.';
-export const NOT_FOUND = 'Обращение не найдено.';
-export const OWN_THREAD = 'Это твоё обращение — его может взять кто-то другой.';
+export const NO_SUPPORT_RECIPIENTS = tx('support.noRecipients');
+export const CLOSED = tx('support.closed');
+export const NOT_FOUND = tx('support.notFound');
+export const OWN_THREAD = tx('support.ownThread');
+const SEND_FAILED = tx('support.sendFailed');
+const NO_OPEN = tx('support.noOpen');
 
 const title = (ev) => q({ title: shortTitle(ev.title) });
-const bold = (u) => `<b>${escapeHtml(displayName(u))}</b>`;
+// Имя человека для сообщения бота (HTML); в тексте словаря — <b>{name}</b>
+const named = (u) => escapeHtml(displayName(u));
 
 function checkText(raw) {
   const text = cleanText(raw);
-  if (!text) return { error: 'Пустое сообщение.' };
+  if (!text) return { error: tx('support.empty') };
   if (text.length > MAX_CHARS) return { error: tooLong(text.length) };
   return { text };
 }
 
 // Кнопки уведомлений: участнику — ответ «в эвент», админу — взять или ответить в обращение
 const userKeyboard = (settings, ev) => ({ inline_keyboard: [[
-  { text: '↩️ Ответить', callback_data: `sup:u:${ev.id}` },
-  openAppButton(settings, '💬 Открыть', { event: ev.id, support: 'my' }),
+  { text: tx('support.replyButton'), callback_data: `sup:u:${ev.id}` },
+  openAppButton(settings, tx('support.openButton'), { event: ev.id, support: 'my' }),
 ]] });
 const adminKeyboard = (settings, ev, id, take) => ({ inline_keyboard: [[
-  take ? { text: '🙋 Взять', callback_data: `sup:take:${id}` } : { text: '↩️ Ответить', callback_data: `sup:a:${id}` },
-  openAppButton(settings, '💬 Открыть', { event: ev.id, support: id }),
+  take ? { text: tx('support.takeButton'), callback_data: `sup:take:${id}` } : { text: tx('support.replyButton'), callback_data: `sup:a:${id}` },
+  openAppButton(settings, tx('support.openButton'), { event: ev.id, support: id }),
 ]] });
 
 export const supportAvailable = (users, userId) => adminRecipients(users, [userId]).length > 0;
@@ -122,13 +126,13 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
     created = !!thread;
     // Одновременно открыли из другого окна — пишем в него
     if (!thread) thread = await db.prepare(MY_OPEN).bind(ev.id, me.tg_id).first();
-    if (!thread) return no('Не получилось отправить — попробуй ещё раз.');
+    if (!thread) return no(SEND_FAILED);
   }
   const now = Date.now();
-  const body = '\n\n' + escapeHtml(t.text);
+  const body = { name: named(me), title: title(ev), text: escapeHtml(t.text) };
   const unassigned = created
-    ? { text: `🆘 ${bold(me)} просит помощи в событии ${title(ev)}:${body}`, quiet: false }
-    : { text: `💬 ${bold(me)} дополняет обращение (${title(ev)}):${body}`, quiet: true };
+    ? { text: tx('support.notice.opened', body), quiet: false }
+    : { text: tx('support.notice.added', body), quiet: true };
   // Всё — пока обращение открыто, то есть ровно тогда, когда запишется и само сообщение (оно — последним, 020)
   const open = atomic(db, OPEN, thread.id);
   // Отвечая, участник видел ответы организатора — помечаем их прочитанными
@@ -140,7 +144,7 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
     }));
   }
   for (const a of admins) {
-    open.and(LED_BY, thread.id, a.tg_id).enqueue(a.tg_id, msg(`💬 ${bold(me)} пишет в обращении (${title(ev)}):${body}`, {
+    open.and(LED_BY, thread.id, a.tg_id).enqueue(a.tg_id, msg(tx('support.notice.writes', body), {
       reply_markup: adminKeyboard(settings, ev, thread.id, false),
     }));
   }
@@ -151,7 +155,7 @@ export async function sendFromUser(ctx, ev, rawText, retry = true) {
   const row = claim.results[0];
   if (!row) {
     // Обращение закрыли между чтением и записью — следующее сообщение открывает новое
-    return retry ? sendFromUser(ctx, ev, rawText, false) : no('Не получилось отправить — попробуй ещё раз.');
+    return retry ? sendFromUser(ctx, ev, rawText, false) : no(SEND_FAILED);
   }
   return { ok: true, thread: thread.id, created, message: { id: row.id, mine: true, author: '', text: t.text, created_at: row.created_at } };
 }
@@ -160,17 +164,19 @@ export async function closeByUser(ctx, ev) {
   const { db, me } = ctx;
   if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const thread = await db.prepare("SELECT * FROM support_threads WHERE event_id = ? AND user_id = ? AND status = 'open'").bind(ev.id, me.tg_id).first();
-  if (!thread) return no('Открытого обращения нет.');
+  if (!thread) return no(NO_OPEN);
   const users = await ctx.users();
   // Уведомления и журнал — пока обращение открыто, закрытие — последним (020)
   const open = atomic(db, OPEN, thread.id);
   // Ответственному (или всем админам, если обращение ничьё) — без звука
   for (const a of adminRecipients(users, [me.tg_id])) {
-    open.and(LED_BY_OR_FREE, thread.id, a.tg_id).enqueue(a.tg_id, msg(`✅ ${bold(me)} закрыл(а) обращение (${title(ev)}).`, { disable_notification: true }));
+    open.and(LED_BY_OR_FREE, thread.id, a.tg_id).enqueue(a.tg_id, msg(tx('support.notice.closedByUser', { name: named(me), title: title(ev) }), {
+      disable_notification: true,
+    }));
   }
   open.audit(ev.id, me.tg_id, 'support.close', displayName(me));
   open.claim(db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'").bind(Date.now(), me.tg_id, thread.id));
-  if (!(await open.run()).won) return no('Открытого обращения нет.');
+  if (!(await open.run()).won) return no(NO_OPEN);
   return { ok: true };
 }
 
@@ -228,7 +234,7 @@ export async function adminThread(ctx, ev, id) {
   const { users } = r;
   const byId = new Map(users.map((u) => [u.tg_id, u]));
   if (!canRead(t, me, await ctx.isOwner())) {
-    return no(`Обращение ведёт ${displayName(byId.get(t.assignee))} — переписку видят он(а) и владелец.`, 403);
+    return no(tx('support.hidden', { name: displayName(byId.get(t.assignee)) }), 403);
   }
   const results = r.messages;
   if (t.assignee === me.tg_id && results.some((m) => !m.from_admin && !m.read_at)) {
@@ -264,10 +270,12 @@ export async function adminThread(ctx, ev, id) {
 function takeInto(free, db, users, ev, t, me, { participant = true } = {}) {
   const author = users.find((u) => u.tg_id === t.user_id);
   for (const a of adminRecipients(users, [me.tg_id, t.user_id])) {
-    free.enqueue(a.tg_id, msg(`🙋 ${bold(me)} взял(а) обращение ${bold(author)} (${title(ev)}).`, { disable_notification: true }));
+    free.enqueue(a.tg_id, msg(tx('support.notice.taken', { name: named(me), author: named(author), title: title(ev) }), {
+      disable_notification: true,
+    }));
   }
   free.audit(ev.id, me.tg_id, 'support.take', displayName(author));
-  if (participant) free.enqueue(t.user_id, msg(`🙋 Твоё обращение в событии ${title(ev)} взял(а) ${bold(me)} — ответ придёт сюда.`));
+  if (participant) free.enqueue(t.user_id, msg(tx('support.user.taken', { title: title(ev), name: named(me) })));
   return db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = 0")
     .bind(me.tg_id, Date.now(), t.id);
 }
@@ -279,7 +287,7 @@ async function taken(db, t) {
   const cur = await threadById(db, t.id);
   if (!cur || cur.status !== 'open') return no(CLOSED);
   const who = await getUser(db, cur.assignee);
-  return no(`Обращение уже взял(а) ${displayName(who)}.`);
+  return no(tx('support.alreadyTaken', { name: displayName(who) }));
 }
 
 export async function take(ctx, ev, id) {
@@ -287,7 +295,7 @@ export async function take(ctx, ev, id) {
   const t = await threadOf(db, ev.id, id);
   if (!t) return no(NOT_FOUND, 404);
   if (t.status !== 'open') return no(CLOSED);
-  if (t.user_id === me.tg_id) return no('Своё обращение взять нельзя.');
+  if (t.user_id === me.tg_id) return no(tx('support.takeOwn'));
   if (t.assignee === me.tg_id) return { ok: true, thread: t };
   if (t.assignee) return taken(db, t);
   if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
@@ -301,8 +309,8 @@ export async function take(ctx, ev, id) {
 // Ответ организатора: ничьё обращение берётся этим ответом; чужое — отказ (владелец сначала передаёт себе)
 export async function sendFromAdmin(ctx, ev, id, rawText) {
   const { db, me } = ctx;
-  const tx = checkText(rawText);
-  if (tx.error) return no(tx.error);
+  const checked = checkText(rawText);
+  if (checked.error) return no(checked.error);
   const t = await threadOf(db, ev.id, id);
   if (!t) return no(NOT_FOUND, 404);
   const blocks = replyBlocks(t, me, ev);
@@ -310,7 +318,7 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   if (blocks.own) return no(OWN_THREAD);
   if (blocks.readOnly) return no(SUPPORT_READ_ONLY);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
-  if (blocks.other) return no(`Обращение ведёт ${displayName(users.find((u) => u.tg_id === t.assignee))}.`);
+  if (blocks.other) return no(tx('support.ledBy', { name: displayName(users.find((u) => u.tg_id === t.assignee)) }));
   const now = Date.now();
   // Ничьё берётся этим ответом: уведомления о взятии — пока обращение ничьё, затем взятие (020)
   const open = atomic(db, OPEN, t.id);
@@ -321,8 +329,8 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   // Ответ, уведомление участнику и «прочитано» — пока обращение открыто и его ведёт отвечающий: то же условие, что у
   // записи ответа, которая идёт последней
   const mine = open.and(LED_BY, t.id, me.tg_id);
-  const role = (await ctx.isOwner()) ? 'Владелец' : 'Администратор';
-  mine.enqueue(t.user_id, msg(`💬 ${role} ${bold(me)} отвечает (${title(ev)}):\n\n${escapeHtml(tx.text)}`, {
+  const role = tx((await ctx.isOwner()) ? 'support.role.owner' : 'support.role.admin');
+  mine.enqueue(t.user_id, msg(tx('support.user.reply', { role, name: named(me), title: title(ev), text: escapeHtml(checked.text) }), {
     reply_markup: userKeyboard(settings, ev),
   }));
   // Отвечая, организатор видел сообщения участника — помечаем их прочитанными (как в переписке Сант)
@@ -330,46 +338,46 @@ export async function sendFromAdmin(ctx, ev, id, rawText) {
   // Каждый ответ — запись журнала без текста (031); условие то же, что у записи ответа, поэтому они есть только вместе
   mine.audit(ev.id, me.tg_id, 'support.reply', displayName(users.find((u) => u.tg_id === t.user_id)));
   mine.claim(db.prepare(`INSERT INTO support_messages (thread_id, sender, from_admin, text, created_at) SELECT ?, ?, 1, ?, ? WHERE ${mine.sql} RETURNING id, created_at`)
-    .bind(t.id, me.tg_id, tx.text, now, ...mine.args));
+    .bind(t.id, me.tg_id, checked.text, now, ...mine.args));
   const { claim } = await open.run();
   const row = claim.results[0];
   if (!row) return t.assignee ? no(CLOSED) : taken(db, t);
-  return { ok: true, message: { id: row.id, mine: true, from_admin: true, author: displayName(me), text: tx.text, created_at: row.created_at } };
+  return { ok: true, message: { id: row.id, mine: true, from_admin: true, author: displayName(me), text: checked.text, created_at: row.created_at } };
 }
 
 export async function pass(ctx, ev, id, toId) {
   const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
   if (!t) return no(NOT_FOUND, 404);
-  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return no('Передать обращение может тот, кто его ведёт, или владелец.', 403);
+  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return no(tx('support.passRights'), 403);
   if (t.status !== 'open') return no(CLOSED);
   if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const to = users.find((u) => u.tg_id === Number(toId));
   // Администратору компании (050: гостю — нельзя) или себе — владельцу
   const allowed = to && to.registered && ((to.is_admin && !to.guest) || (to.tg_id === me.tg_id && (await ctx.isOwner())));
-  if (!allowed || to.tg_id === t.user_id) return no('Передать можно владельцу или другому администратору.');
-  if (to.tg_id === t.assignee) return no(`Обращение и так ведёт ${displayName(to)}.`);
+  if (!allowed || to.tg_id === t.user_id) return no(tx('support.passTarget'));
+  if (to.tg_id === t.assignee) return no(tx('support.alreadyLed', { name: displayName(to) }));
   const author = users.find((u) => u.tg_id === t.user_id);
   const prev = users.find((u) => u.tg_id === t.assignee);
   // Уведомления и журнал — пока обращение открыто и его ведёт прежний ответственный; передача — последней (020)
   const before = ledBy(db, t, t.assignee);
-  before.enqueue(t.user_id, msg(`↪️ Твоё обращение в событии ${title(ev)} теперь ведёт ${bold(to)}.`));
-  before.audit(ev.id, me.tg_id, 'support.pass', `${displayName(author)} → ${displayName(to)}`);
+  before.enqueue(t.user_id, msg(tx('support.user.passed', { title: title(ev), name: named(to) })));
+  before.audit(ev.id, me.tg_id, 'support.pass', tjoin(' → ', [displayName(author), displayName(to)]));
   if (to.tg_id !== me.tg_id) {
-    before.enqueue(to.tg_id, msg(`↪️ ${bold(me)} передал(а) тебе обращение ${bold(author)} (${title(ev)}).`, {
+    before.enqueue(to.tg_id, msg(tx('support.notice.passedToYou', { name: named(me), author: named(author), title: title(ev) }), {
       reply_markup: adminKeyboard(settings, ev, t.id, false),
     }));
   }
   // Владелец забрал или передал чужое обращение — прежний ответственный узнаёт об этом
   if (prev && prev.tg_id !== me.tg_id) {
     before.enqueue(prev.tg_id, msg(
-      `↪️ ${bold(me)} передал(а) обращение ${bold(author)} (${title(ev)}) — теперь его ведёт ${bold(to)}.`, { disable_notification: true }
+      tx('support.notice.passed', { name: named(me), author: named(author), title: title(ev), to: named(to) }), { disable_notification: true }
     ));
   }
   before.claim(db.prepare("UPDATE support_threads SET assignee = ?, taken_at = ? WHERE id = ? AND status = 'open' AND assignee = ?")
     .bind(to.tg_id, Date.now(), t.id, t.assignee));
-  if (!(await before.run()).won) return no('Обращение изменилось одновременно с этим действием — обнови экран и попробуй ещё раз.');
+  if (!(await before.run()).won) return no(tx('support.passRace'));
   return { ok: true };
 }
 
@@ -377,20 +385,20 @@ export async function closeByAdmin(ctx, ev, id) {
   const { db, me } = ctx;
   const t = await threadOf(db, ev.id, id);
   if (!t) return no(NOT_FOUND, 404);
-  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return no('Закрыть обращение может тот, кто его ведёт, или владелец.', 403);
+  if (t.assignee !== me.tg_id && !(await ctx.isOwner())) return no(tx('support.closeRights'), 403);
   if (t.status !== 'open') return no(CLOSED);
   if (!chatWritable(ev)) return no(SUPPORT_READ_ONLY);
   const users = await ctx.users();
   const author = users.find((u) => u.tg_id === t.user_id);
   // Уведомления и журнал — пока обращение открыто, закрытие — последним (020)
   const open = atomic(db, OPEN, t.id);
-  const role = (await ctx.isOwner()) ? 'Владелец' : 'Администратор';
-  open.enqueue(t.user_id, msg(
-    `✅ ${role} ${bold(me)} закрыл(а) твоё обращение в событии ${title(ev)}. Если вопрос остался — просто напиши снова.`
-  ));
+  const role = tx((await ctx.isOwner()) ? 'support.role.owner' : 'support.role.admin');
+  open.enqueue(t.user_id, msg(tx('support.user.closed', { role, name: named(me), title: title(ev) })));
   open.audit(ev.id, me.tg_id, 'support.close', displayName(author));
   if (t.assignee && t.assignee !== me.tg_id) {
-    open.enqueue(t.assignee, msg(`✅ ${bold(me)} закрыл(а) обращение ${bold(author)} (${title(ev)}).`, { disable_notification: true }));
+    open.enqueue(t.assignee, msg(tx('support.notice.closed', { name: named(me), author: named(author), title: title(ev) }), {
+      disable_notification: true,
+    }));
   }
   open.claim(db.prepare("UPDATE support_threads SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ? AND status = 'open'")
     .bind(Date.now(), me.tg_id, t.id));
@@ -425,7 +433,7 @@ export function supportCountsView(rows, { member, admin }) {
     out.support = {
       available: r.admins > 0,
       open: r.assignee !== null && r.assignee !== undefined,
-      assignee_name: r.assignee ? r.assignee_name || 'ответственный' : '',
+      assignee_name: r.assignee ? r.assignee_name || tx('support.assigneeFallback') : '',
       unread: r.answers,
     };
   }
@@ -482,12 +490,12 @@ export async function returnThreadsStmts(db, settings, users, adminId, companyId
     const ev = { id: t.event_id, title: t.title };
     const author = users.find((u) => u.tg_id === t.user_id);
     for (const a of adminRecipients(users, [adminId, t.user_id])) {
-      stmts.push(enqueueIfStmt(db, a.tg_id, msg(`🔄 Обращение ${bold(author)} (${title(ev)}) снова ничьё.`, {
+      stmts.push(enqueueIfStmt(db, a.tg_id, msg(tx('support.notice.returned', { author: named(author), title: title(ev) }), {
         reply_markup: adminKeyboard(settings, ev, t.id, true),
       }), guard, ...args));
     }
     stmts.push(
-      enqueueIfStmt(db, t.user_id, msg(`🔄 Твоё обращение в событии ${title(ev)} снова ждёт ответа.`), guard, ...args),
+      enqueueIfStmt(db, t.user_id, msg(tx('support.user.returned', { title: title(ev) })), guard, ...args),
       auditIfStmt(db, t.event_id, 0, 'support.return', displayName(author), guard, ...args),
     );
   }

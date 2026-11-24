@@ -11,6 +11,7 @@ import { publicEvent } from './status.js';
 import { cancelableQuery } from './pairs.js';
 import { adminListQuery, adminListView } from './support.js';
 import { no } from './result.js';
+import { tx, tjoin } from './i18n/index.js';
 
 export async function adminState(ctx, ev) {
   const { db, me } = ctx;
@@ -102,7 +103,7 @@ export async function memberLetter(ctx, ev, rawId) {
   const { db, me } = ctx;
   const id = Number(rawId);
   const [u, m] = await Promise.all([getUser(db, id), getMember(db, ev.id, id)]);
-  if (!u || !m) return no('Участник не найден');
+  if (!u || !m) return no(tx('api.memberNotFound'));
   await auditStmt(db, ev.id, me.tg_id, 'wishlist.view', u.name).run();
   return { ok: true, name: u.name, wishlist: m.wishlist, card: m.card, updated_at: m.wishlist_updated_at };
 }
@@ -128,7 +129,7 @@ export async function usersList(ctx) {
 export async function renameUser(ctx, target, name, actor, companies) {
   if (target.name === name) return;
   const a = atomic(ctx.db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND name IS NOT ?)', target.tg_id, name);
-  for (const id of companies) a.audit({ company: id }, actor, 'rename', `${displayName(target)} → ${name}`);
+  for (const id of companies) a.audit({ company: id }, actor, 'rename', tjoin(' → ', [displayName(target), name]));
   a.claim(a.where('UPDATE users SET name = ? WHERE tg_id = ?', name, target.tg_id));
   await a.run();
 }

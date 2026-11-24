@@ -9,7 +9,7 @@ import {
 import {
   msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine, NOT_MEMBER, ADMIN_ONLY,
 } from './format.js';
-import { tx } from './i18n/index.js';
+import { tx, tjoin } from './i18n/index.js';
 import { isFinished } from './status.js';
 import { atomic } from './claim.js';
 import { no } from './result.js';
@@ -17,6 +17,7 @@ import { no } from './result.js';
 // ---------- семьи ----------
 
 const FAMILY_MAX = 20;
+const FAMILY_NOT_FOUND = tx('membership.familyNotFound');
 
 // Состав семьи меняет исключения во всех идущих эвентах компании, где есть двое её членов. После жеребьёвки это
 // позволило бы вычислить пары по заменам (009, FR-902), поэтому членство людей такого эвента заморожено до его завершения.
@@ -36,9 +37,7 @@ async function frozenFamilyEvent(db, companyId, changed, family) {
     .first();
 }
 
-const familyFrozen = (ev) =>
-  `Состав семьи нельзя менять, пока идёт событие «${ev.title}» с проведённой жеребьёвкой: иначе по заменам участников ` +
-  'можно было бы вычислить пары. Изменения — после его завершения.';
+const familyFrozen = (ev) => tx('membership.familyFrozen', { title: ev.title });
 
 async function familyMembers(db, familyId) {
   const { results } = await db.prepare('SELECT user_id FROM family_members WHERE family_id = ?').bind(familyId).all();
@@ -57,16 +56,16 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
   const db = ctx.db;
   const cid = ctx.company.id;
   const clean = oneLine(name);
-  if (!clean || clean.length > 40) return no('Название семьи — от 1 до 40 символов.');
+  if (!clean || clean.length > 40) return no(tx('membership.familyNameRule'));
   const ids = [...new Set((Array.isArray(members) ? members : []).map(Number).filter(Boolean))];
-  if (ids.length < 2 || ids.length > FAMILY_MAX) return no(`В семье должно быть от 2 до ${FAMILY_MAX} человек.`);
+  if (ids.length < 2 || ids.length > FAMILY_MAX) return no(tx('membership.familySize', { max: FAMILY_MAX }));
   id = Number(id) || 0;
   const old = id ? await db.prepare('SELECT id, name FROM families WHERE id = ? AND company_id = ?').bind(id, cid).first() : null;
-  if (id && !old) return no('Семья не найдена.');
+  if (id && !old) return no(FAMILY_NOT_FOUND);
   // Члены семьи — люди компании (гость — не человек компании)
   const users = (await ctx.users()).filter((u) => !u.guest);
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
-  for (const uid of ids) if (!byId[uid]?.registered) return no('Участник не найден.');
+  for (const uid of ids) if (!byId[uid]?.registered) return no(tx('membership.memberNotFound'));
   // Один человек — одна семья в компании (FR-805)
   const alreadyIn = async () => {
     const { results: taken } = await db
@@ -74,7 +73,7 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
                  WHERE fm.company_id = ? AND fm.family_id != ? AND fm.user_id IN (${ids.map(() => '?').join(',')})`)
       .bind(cid, id, ...ids)
       .all();
-    return taken.length ? no(`${displayName(byId[taken[0].user_id])} уже в семье «${taken[0].name}».`) : null;
+    return taken.length ? no(tx('membership.alreadyInFamily', { name: displayName(byId[taken[0].user_id]), family: taken[0].name })) : null;
   };
   const taken = await alreadyIn();
   if (taken) return taken;
@@ -95,7 +94,7 @@ export async function saveFamily(ctx, actor, { id = 0, name, members }) {
   for (const uid of ids) {
     stmts.push(db.prepare(`INSERT INTO family_members (company_id, user_id, family_id) VALUES (?, ?, ${famId})`).bind(cid, uid, ...famArgs));
   }
-  const details = `«${clean}»: ${ids.map((x) => displayName(byId[x])).join(', ')}`;
+  const details = tx('membership.audit.familySave', { name: clean, people: tjoin(', ', ids.map((x) => displayName(byId[x]))) });
   try {
     if (id) {
       // Запись журнала — по прежнему состоянию, перед изменением (034): из одинаковых одновременных сохранений (даже в
@@ -120,14 +119,14 @@ export async function deleteFamily(ctx, actor, id) {
   const db = ctx.db;
   const cid = ctx.company.id;
   const fam = await db.prepare('SELECT * FROM families WHERE id = ? AND company_id = ?').bind(Number(id) || 0, cid).first();
-  if (!fam) return no('Семья не найдена.');
+  if (!fam) return no(FAMILY_NOT_FOUND);
   const all = await familyMembers(db, fam.id);
   const frozen = (await ctx.isOwner()) ? null : await frozenFamilyEvent(db, cid, all, all);
   if (frozen) return no(familyFrozen(frozen));
   await db.batch([
     db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(fam.id),
     db.prepare('DELETE FROM families WHERE id = ?').bind(fam.id),
-    auditStmt(db, { company: cid }, actor, 'family.delete', `«${fam.name}»`),
+    auditStmt(db, { company: cid }, actor, 'family.delete', tx('membership.audit.familyDelete', { name: fam.name })),
   ]);
   return { ok: true };
 }
@@ -161,7 +160,7 @@ export async function participate(ctx, ev, on, actor) {
   if (on) {
     await db.batch([
       joinCompanyStmt(db, ev.company_id, actor), addMemberStmt(db, ev, actor), clearRemovedStmt(db, ev.id, actor),
-      auditStmt(db, ev.id, actor, 'participate', 'участвует'),
+      auditStmt(db, ev.id, actor, 'participate', tx('membership.audit.isParticipant')),
     ]);
     return { ok: true };
   }
@@ -169,14 +168,16 @@ export async function participate(ctx, ev, on, actor) {
   // оставила бы в парах человека вне события. Данные участия (исключения, закреплённые пары, обращения) — по
   // списку REGISTRY; исход — по записи журнала под тем же условием (не участник тоже получает успешный ответ).
   const beforeDraw = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0)', ev.id);
-  beforeDraw.claim(beforeDraw.audit(ev.id, actor, 'participate', 'не участвует'));
+  beforeDraw.claim(beforeDraw.audit(ev.id, actor, 'participate', tx('membership.audit.notParticipant')));
   beforeDraw.add(...memberDataDeleteStmts(db, ev.id, actor, ...beforeDraw.guard));
   return (await beforeDraw.run()).won ? { ok: true } : no(AFTER_DRAW(ctx.ownerWord()));
 }
 
-const LEAVE_AFTER_DRAW = 'Жеребьёвка уже прошла. Чтобы выйти, обратись к владельцу или администраторам.';
+const LEAVE_AFTER_DRAW = tx('membership.leaveAfterDraw');
 // Ключ словаря: отказ «завершено» у event.leave (поле finished таблицы действий) и проигравшему выходу
 export const LEAVE_FINISHED = 'membership.leaveFinished';
+
+const OPEN_EVENT = tx('membership.openEventButton');
 
 // Выход участника из эвента (035): только до жеребьёвки и пока эвент идёт — проверено в момент записи, как выход админа
 // (018). По прежнему состоянию (020): сообщения организаторам и журнал — перед захватом, пока человек ещё участник;
@@ -189,8 +190,8 @@ export async function leaveEvent(ctx, ev) {
   const going = atomic(db, "EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_done = 0 AND status = 'active')", ev.id)
     .and('EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)', ev.id, me.tg_id);
   for (const a of adminRecipients(users, [me.tg_id])) {
-    going.enqueue(a.tg_id, msg(`🚪 <b>${escapeHtml(displayName(me))}</b> выходит из события ${q(ev)}.`,
-      appKeyboard(settings, '🛠 Открыть событие', { event: ev.id })));
+    going.enqueue(a.tg_id, msg(tx('membership.leaveNotice', { name: escapeHtml(displayName(me)), title: q(ev) }),
+      appKeyboard(settings, OPEN_EVENT, { event: ev.id })));
   }
   going.audit(ev.id, me.tg_id, 'member.leave', displayName(me));
   going.claim(going.add(...memberDataDeleteStmts(db, ev.id, me.tg_id, ...going.guard)));
@@ -206,7 +207,7 @@ export async function allowRemoved(ctx, ev, rawId, actor) {
   const db = ctx.db;
   const id = Number(rawId) || 0;
   const row = await db.prepare('SELECT 1 FROM removed_members WHERE event_id = ? AND user_id = ?').bind(ev.id, id).first();
-  if (!row) return no('Этого человека нет среди удалённых.');
+  if (!row) return no(tx('membership.notRemoved'));
   const users = await ctx.users();
   await db.batch([clearRemovedStmt(db, ev.id, id), auditStmt(db, ev.id, actor, 'member.allow', displayName(users.find((u) => u.tg_id === id)))]);
   return { ok: true };
@@ -225,11 +226,11 @@ export async function rejoinBlocked(db, ev, userId) {
 // Вступление зарегистрированного человека, который ещё не участник эвента (009, FR-920) — единая логика для ссылки и
 // для ввода имени после неё.
 // Отказ по заявке (008): ответ боту и сообщение участнику — один текст (019)
-export const requestRejected = (ev) => `Заявку на участие в событии ${q(ev)} отклонили. Если это ошибка, свяжись с владельцем или администратором.`;
+export const requestRejected = (ev) => tx('membership.requestRejected', { title: q(ev) });
 
 // Админам (кроме самого человека) — «… присоединяется к событию»: вступление по ссылке и регистрация в боте (019, 047)
 const joinedNotice = (user, ev) =>
-  msg(`👋 <b>${escapeHtml(displayName(user))}</b> присоединяется к событию ${q(ev)}`, { disable_notification: true });
+  msg(tx('membership.joinedNotice', { name: escapeHtml(displayName(user)), title: q(ev) }), { disable_notification: true });
 
 function joinedNoticeStmts(db, users, user, ev) {
   return adminRecipients(users, [user.tg_id]).map((a) => enqueueStmt(db, a.tg_id, joinedNotice(user, ev)));
@@ -288,16 +289,22 @@ async function requestJoin(ctx, ev, user) {
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const admins = adminRecipients(users, [user.tg_id]);
   if (admins.length) {
+    const name = escapeHtml(displayName(user));
+    const text = user.username
+      ? tx('membership.requestWithUsername', { name, username: escapeHtml(user.username), title: q(ev) })
+      : tx('membership.request', { name, title: q(ev) });
     await db.batch(admins.map((a) => enqueueStmt(db, a.tg_id, msg(
-      `🙋 <b>${escapeHtml(displayName(user))}</b>${user.username ? ' (@' + escapeHtml(user.username) + ')' : ''} хочет участвовать в событии ${q(ev)}.`,
+      text,
       { reply_markup: { inline_keyboard: [
-        [{ text: '✅ Принять', callback_data: `req:${row.id}:a` }, { text: '❌ Отклонить', callback_data: `req:${row.id}:r` }],
-        [openAppButton(settings, '🛠 Открыть событие', { event: ev.id })],
+        [{ text: tx('membership.acceptButton'), callback_data: `req:${row.id}:a` }, { text: tx('membership.rejectButton'), callback_data: `req:${row.id}:r` }],
+        [openAppButton(settings, OPEN_EVENT, { event: ev.id })],
       ] } }
     ))));
   }
   return 'request_sent';
 }
+
+const DECIDED = tx('membership.requestDecided');
 
 // Решение по заявке — один раз (research R4): повторное нажатие или второй админ ничего не меняют
 // inEvent — решение из панели события: заявка должна быть заявкой этого события. Решает организатор компании события
@@ -308,17 +315,17 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
     .prepare('SELECT r.*, e.company_id FROM join_requests r LEFT JOIN events e ON e.id = r.event_id WHERE r.id = ?')
     .bind(Number(id) || 0)
     .first();
-  if (!req || (inEvent && req.event_id !== inEvent.id)) return no('Заявка не найдена.');
+  if (!req || (inEvent && req.event_id !== inEvent.id)) return no(tx('membership.requestNotFound'));
   if (req.company_id !== null) {
     ctx = await ctx.in(req.company_id);
     if (!ctx?.me?.is_admin) return no(ADMIN_ONLY);
   }
-  if (req.status !== 'pending') return no('Заявка уже рассмотрена.');
+  if (req.status !== 'pending') return no(DECIDED);
   const ev = await getEvent(db, req.event_id);
-  if (!ev) return no('Событие не найдено.');
-  if (approve && isFinished(ev)) return no('Событие завершено — принять в него уже нельзя.');
+  if (!ev) return no(tx('api.noEvent'));
+  if (approve && isFinished(ev)) return no(tx('membership.approveFinished'));
   // Закрытая регистрация — значит никто (010, FR-1016): заявка ждёт открытия, отклонить можно
-  const closed = `Регистрация на событие «${ev.title}» закрыта — открой её, чтобы принять заявку.`;
+  const closed = tx('membership.approveClosed', { title: ev.title });
   if (approve && !ev.registration_open) return no(closed);
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const person = users.find((u) => u.tg_id === req.user_id);
@@ -338,11 +345,13 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
       ev.draw_done
         ? tx('membership.approvedAfterDraw', { title: q(ev), owner: ctx.ownerWord() })
         : tx('membership.approved', { title: q(ev) }),
-      appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }))
+      appKeyboard(settings, tx('membership.writeLetterButton'), { event: ev.id }))
     : msg(requestRejected(ev)));
   for (const a of adminRecipients(users, [actor, req.user_id])) {
     p.enqueue(a.tg_id, msg(
-      `${approve ? '✅' : '❌'} <b>${escapeHtml(displayName(by))}</b> ${approve ? 'принял(а)' : 'отклонил(а)'} заявку <b>${escapeHtml(displayName(person))}</b> на участие в событии ${q(ev)}.`,
+      tx(approve ? 'membership.approvedBy' : 'membership.rejectedBy', {
+        by: escapeHtml(displayName(by)), name: escapeHtml(displayName(person)), title: q(ev),
+      }),
       { disable_notification: true }
     ));
   }
@@ -350,7 +359,7 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
   p.claim(p.where('UPDATE join_requests SET status = ?, decided_by = ?, decided_at = ? WHERE id = ?', status, actor, Date.now(), req.id));
   if (!(await p.run()).won) {
     const cur = approve ? await getEvent(db, ev.id) : null;
-    return no(cur && !cur.registration_open ? closed : 'Заявка уже рассмотрена.');
+    return no(cur && !cur.registration_open ? closed : DECIDED);
   }
   return { ok: true, ev, name: displayName(person) };
 }

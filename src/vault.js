@@ -5,6 +5,7 @@
 import { memberQuery, pairLinksQuery, drawMembersQuery, pairOfSantaQuery, pairOfWardQuery, auditStmt } from './db.js';
 import { displayName } from './format.js';
 import { no } from './result.js';
+import { tx, render } from './i18n/index.js';
 
 const CHAT_LIMIT = 200;
 
@@ -28,7 +29,7 @@ export async function vaultPerson(ctx, ev, id, actor) {
   const byId = new Map(first.users.map((u) => [u.tg_id, u]));
   const user = byId.get(id);
   const member = first.member[0];
-  if (!user || !member) return no('Участник не найден');
+  if (!user || !member) return no(tx('api.memberNotFound'));
   // Сначала журнал: если запись не удалась, данные не отдаются
   await auditStmt(db, ev.id, actor, 'vault.person', displayName(user)).run();
   const r = await ctx.read({
@@ -62,10 +63,12 @@ export async function vaultPerson(ctx, ev, id, actor) {
 export async function vaultPairs(ctx, ev, actor) {
   const db = ctx.db;
   const { rows, members } = await ctx.read({ rows: pairLinksQuery(db, ev.id), members: drawMembersQuery(db, ev.id) });
-  await auditStmt(db, ev.id, actor, 'vault.pairs', `пар: ${rows.length}`).run();
+  await auditStmt(db, ev.id, actor, 'vault.pairs', tx('vault.pairsAudit', { n: rows.length })).run();
   const byId = Object.fromEntries(members.map((m) => [m.user_id, m]));
+  // Человек без имени и username — отложенный текст (060): порядок — по имени на языке ответа
+  const santaName = (p) => String(render(p.santa.name, ctx.lang));
   const pairs = rows
     .map((p) => ({ santa: who(byId[p.santa], p.santa), ward: who(byId[p.ward], p.ward) }))
-    .sort((a, b) => a.santa.name.localeCompare(b.santa.name, 'ru'));
+    .sort((a, b) => santaName(a).localeCompare(santaName(b), 'ru'));
   return { ok: true, pairs };
 }
