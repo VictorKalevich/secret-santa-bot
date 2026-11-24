@@ -60,10 +60,10 @@ async function notifyWishlistChanges(ctx) {
     if (r.notify_mode === 'off') continue;
     // Без имени подопечного и без текста — превью видно на экране блокировки.
     // 008: изменение адреса доставки — тем же уведомлением, без текста адреса
-    const what = r.delivery_on ? 'обновил письмо или адрес доставки' : 'обновил письмо Санте';
-    stmts.push(enqueueStmt(db, r.santa, msg(`📝 Твой подопечный в событии ${q(r)} ${what}.`, {
+    const what = r.delivery_on ? 'cron.wishlistOrDeliveryChanged' : 'cron.wishlistChanged';
+    stmts.push(enqueueStmt(db, r.santa, msg(tx(what, { title: q(r) }), {
       disable_notification: r.notify_mode === 'silent',
-      ...appKeyboard(settings, '👀 Посмотреть', { event: r.event_id }),
+      ...appKeyboard(settings, tx('cron.lookButton'), { event: r.event_id }),
     })));
   }
   await db.batch(stmts);

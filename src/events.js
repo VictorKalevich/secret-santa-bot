@@ -5,10 +5,10 @@ import {
   updateEventStmt, updateEventIfStmt, auditStmt, eventDataDeleteStmts,
 } from './db.js';
 import {
-  msg, q, escapeHtml, formatDate, formatMs, appKeyboard, inviteLink, randomCode, oneLine, cleanText, NO_DRAW, PAIRS_RACE, COMPANY_NOT_FOUND,
+  msg, q, escapeHtml, appKeyboard, inviteLink, randomCode, oneLine, cleanText, NO_DRAW, PAIRS_RACE, COMPANY_NOT_FOUND,
 } from './format.js';
 import { EVENT_PARAMS, EVENT_STATE_RESET, eventDefaults, templateValues, paramValue } from './event-params.js';
-
+import { t, tx, tdate, DEFAULT_LANG } from './i18n/index.js';
 import { CHAT_GRACE_MS, isFinished } from './status.js';
 import { atomic } from './claim.js';
 import { no } from './result.js';
@@ -20,14 +20,16 @@ import { maskLabel } from './looks.js';
 const REPEAT_MS = 60 * 1000;
 const RECENT_AUDIT = 'NOT EXISTS (SELECT 1 FROM audit WHERE event_id = ? AND action = ? AND created_at > ?)';
 const notRepeated = (db, ev, action) => atomic(db, RECENT_AUDIT, ev.id, action, Date.now() - REPEAT_MS);
-const REMIND_AGAIN = 'Напоминание уже отправлено — повторить можно через минуту.';
+const REMIND_AGAIN = tx('events.remindAgain');
+// Подробность журнала «вкл»/«выкл»
+const onOff = (on) => tx(on ? 'events.audit.on' : 'events.audit.off');
 
 // from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
 // invite — разослать участникам образца приглашение в новый эвент. Эвент — в компании вызова (050).
 export async function createEvent(ctx, title, createdBy, { from = null, invite = false } = {}) {
   const db = ctx.db;
   const clean = oneLine(title);
-  if (!clean || clean.length > 80) return no('Название события — от 1 до 80 символов.');
+  if (!clean || clean.length > 80) return no(tx('events.titleRule'));
   const code = randomCode();
   const cid = ctx.company.id;
   // Параметры — по списку EVENT_PARAMS (029): копируемые — из образца, остальные задаёт схема
@@ -48,7 +50,7 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
   }
   stmts.push(db.prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) SELECT id, ?, ?, 'event.create', ?, ?
                           FROM events WHERE invite_code = ?`)
-    .bind(cid, createdBy, from ? `по образцу «${from.title}»` : '', Date.now(), code));
+    .bind(cid, createdBy, from ? t(DEFAULT_LANG, 'events.audit.fromTemplate', { title: from.title }) : '', Date.now(), code));
   const [ins] = await db.batch(stmts);
   const row = ins.results[0];
   if (!row) return no(COMPANY_NOT_FOUND, 404);
@@ -64,10 +66,10 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
 
 export async function finishEvent(ctx, ev, actor = 0) {
   const db = ctx.db;
-  if (isFinished(ev)) return no('Событие уже завершено.');
+  if (isFinished(ev)) return no(tx('events.alreadyFinished'));
   const { settings, members } = await ctx.read({ members: participantIdsQuery(db, ev.id), settings: true });
   const now = Date.now();
-  const until = formatMs(now + CHAT_GRACE_MS, Number(ctx.env.TIMEZONE_OFFSET_HOURS ?? 3));
+  const until = tdate(now + CHAT_GRACE_MS, Number(ctx.env.TIMEZONE_OFFSET_HOURS ?? 3));
   // Атомарно (009, FR-920): завершает только первый из одновременных вызовов (админ и cron) — остальные ничего не рассылают
   // Часы Workers у одновременных запросов могут совпасть до миллисекунды, поэтому «наш» захват узнаём ещё и по
   // отсутствию записи журнала 'finish': завершение необратимо, такая запись у эвента одна и пишется последней.
@@ -77,12 +79,12 @@ export async function finishEvent(ctx, ev, actor = 0) {
   finished.claim(db.prepare("UPDATE events SET status = 'finished', finished_at = ?, registration_open = 0 WHERE id = ? AND status = 'active'").bind(now, ev.id));
   for (const m of members) {
     finished.enqueue(m.user_id, msg(
-      `🏁 <b>Событие ${q(ev)} завершено.</b> Спасибо за игру!\n\nПисьмо Санте теперь только для чтения. Переписка открыта ещё 7 дней (до ${until}), потом останется для чтения. История события сохранится в приложении.`,
-      appKeyboard(settings, '📚 Открыть', { event: ev.id })
+      tx('events.finished', { title: q(ev), until }),
+      appKeyboard(settings, tx('events.finishedButton'), { event: ev.id })
     ));
   }
   finished.audit(ev.id, actor, 'finish');
-  if (!(await finished.run()).won) return no('Событие уже завершено.');
+  if (!(await finished.run()).won) return no(tx('events.alreadyFinished'));
   return { ok: true };
 }
 
@@ -93,12 +95,12 @@ export async function deleteEvent(ctx, ev, actor = 0) {
   const db = ctx.db;
   const members = await rowsOf(memberIdsQuery(db, ev.id));
   const exists = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ?)', ev.id);
-  for (const m of members) exists.enqueue(m.user_id, msg(`🗑 Событие ${q(ev)} удалено владельцем вместе с письмами и перепиской.`));
+  for (const m of members) exists.enqueue(m.user_id, msg(tx('events.deleted', { title: q(ev) })));
   // Журнал эвента остаётся; само удаление — в общем журнале компании (007, 050)
-  exists.audit({ company: ev.company_id }, actor, 'event.delete', `«${ev.title}», участников: ${members.length}`);
+  exists.audit({ company: ev.company_id }, actor, 'event.delete', tx('events.audit.deleted', { title: ev.title, n: members.length }));
   // Данные эвента — по списку REGISTRY (018), строка эвента — последней: она и есть захват
   exists.claim(exists.add(...eventDataDeleteStmts(db, ev.id, {}, ...exists.guard)));
-  if (!(await exists.run()).won) return no('Событие уже удалено.');
+  if (!(await exists.run()).won) return no(tx('events.alreadyDeleted'));
   return { ok: true, count: members.length };
 }
 
@@ -115,14 +117,12 @@ export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
   mine.claim(mine.add(updateEventIfStmt(db, ev.id, { ...EVENT_STATE_RESET, invite_code: inviteCode, ...eventDefaults() },
     'invite_code = ?', ev.invite_code)));
   for (const m of removed) {
-    mine.enqueue(m.user_id, msg(
-      `🎄 Владелец начал событие ${q(ev)} заново. Прежние данные удалены. Чтобы участвовать, попроси новую пригласительную ссылку.`
-    ));
+    mine.enqueue(m.user_id, msg(tx('events.reset', { title: q(ev) })));
   }
   // Данные эвента — по списку REGISTRY (018): участие владельца остаётся, его письмо и адрес стираются
   mine.add(...eventDataDeleteStmts(db, ev.id, { keepMember: ownerId, keepEvent: true }, ...mine.guard));
-  mine.audit(ev.id, actor, 'reset', `удалено участников: ${removed.length}`);
-  if (!(await mine.run()).won) return no('Событие уже сброшено или изменилось одновременно со сбросом — обнови экран.');
+  mine.audit(ev.id, actor, 'reset', tx('events.audit.reset', { n: removed.length }));
+  if (!(await mine.run()).won) return no(tx('events.resetRace'));
   return { ok: true, removed: removed.length, inviteCode };
 }
 
@@ -130,10 +130,10 @@ export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
 // Закрытая регистрация — значит никто (010, FR-1017); удалённым организатором при запрете возврата — не приглашаем.
 export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
   const db = ctx.db;
-  if (!ev.registration_open) return no('Регистрация закрыта — открой её, чтобы приглашать.');
+  if (!ev.registration_open) return no(tx('events.registrationClosed'));
   const settings = await ctx.settings();
   const link = inviteLink(settings, ev);
-  if (!link) return no('Сначала открой страницу настройки /setup (см. README).');
+  if (!link) return no(tx('events.setupFirst'));
   // Участники обоих событий и отметки «удалён» — одним пакетом чтений (019)
   const r = await ctx.read({
     members: memberIdsQuery(db, ev.id),
@@ -146,12 +146,12 @@ export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
   const fresh = notRepeated(db, ev, 'invite.from');
   for (const m of people) {
     fresh.enqueue(m.user_id, msg(
-      `📨 <b>Приглашение на событие ${q(ev)}</b> — Тайный Санта.\nНажми кнопку, чтобы участвовать.`,
-      { reply_markup: { inline_keyboard: [[{ text: '🎄 Участвовать', url: link }]] } }
+      tx('events.invite', { title: q(ev) }),
+      { reply_markup: { inline_keyboard: [[{ text: tx('events.inviteButton'), url: link }]] } }
     ));
   }
-  fresh.claim(fresh.audit(ev.id, actor, 'invite.from', `из «${fromEv.title}», приглашено: ${people.length}`));
-  if (!(await fresh.run()).won) return no('Приглашения уже отправлены — повторить можно через минуту.');
+  fresh.claim(fresh.audit(ev.id, actor, 'invite.from', tx('events.audit.invited', { title: fromEv.title, n: people.length })));
+  if (!(await fresh.run()).won) return no(tx('events.inviteAgain'));
   return { ok: true, count: people.length };
 }
 
@@ -161,7 +161,7 @@ export async function revealAll(ctx, ev, actor = 0) {
   const db = ctx.db;
   const cur = await getEvent(db, ev.id);
   if (!cur?.draw_done) return no(NO_DRAW);
-  if (cur.revealed) return no('Тайна уже раскрыта.');
+  if (cur.revealed) return no(tx('events.alreadyRevealed'));
   const { rows, users } = await ctx.read({ rows: pairLinksQuery(db, ev.id), users: true });
   const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
   // revealed хранит уникальную отметку этого раскрытия (для условий ниже); везде читается как «да/нет».
@@ -172,14 +172,15 @@ export async function revealAll(ctx, ev, actor = 0) {
     .bind(mark, ev.id, cur.draw_token));
   for (const p of rows) {
     const mask = maskLabel(p.mask); // 040: «твой Тайный Санта «🐉 Дракон» — Боря»
+    const name = escapeHtml(byId[p.santa]?.name || '?');
     shown.enqueue(p.ward, msg(
-      `🎅 <b>Тайна раскрыта!</b>\n\nВ событии ${q(ev)} твой Тайный Санта${mask ? ` «${mask}»` : ''} — <b>${escapeHtml(byId[p.santa]?.name || '?')}</b>. С праздником! 🎄`
+      mask ? tx('events.revealedMask', { title: q(ev), mask, name }) : tx('events.revealed', { title: q(ev), name })
     ));
   }
-  shown.audit(ev.id, actor, 'reveal', `пар: ${rows.length}`);
+  shown.audit(ev.id, actor, 'reveal', tx('events.audit.pairs', { n: rows.length }));
   if (!(await shown.run()).won) {
     const now = await getEvent(db, ev.id);
-    return no(now?.revealed ? 'Тайна уже раскрыта.' : PAIRS_RACE);
+    return no(now?.revealed ? tx('events.alreadyRevealed') : PAIRS_RACE);
   }
   return { ok: true, count: rows.length };
 }
@@ -191,14 +192,14 @@ async function sendReminder(ctx, ev, { actor, action, letters, extra }) {
   const db = ctx.db;
   if (!actor) {
     const stmts = letters.map(([to, payload]) => enqueueStmt(db, to, payload));
-    if (letters.length) stmts.push(auditStmt(db, ev.id, 0, action, `получили: ${letters.length}`));
+    if (letters.length) stmts.push(auditStmt(db, ev.id, 0, action, tx('events.audit.received', { n: letters.length })));
     stmts.push(...extra);
     if (stmts.length) await db.batch(stmts);
     return { ok: true, count: letters.length };
   }
   const fresh = notRepeated(db, ev, action);
   for (const [to, payload] of letters) fresh.enqueue(to, payload);
-  fresh.claim(fresh.audit(ev.id, actor, action, `получили: ${letters.length}`));
+  fresh.claim(fresh.audit(ev.id, actor, action, tx('events.audit.received', { n: letters.length })));
   fresh.add(...extra);
   if (!(await fresh.run()).won) return no(REMIND_AGAIN);
   return { ok: true, count: letters.length };
@@ -209,10 +210,12 @@ export async function remindUnfilled(ctx, ev, actor = 0, extra = []) {
   const db = ctx.db;
   // Пустые письма отбираются в базе — тексты не читаются (019)
   const { settings, people } = await ctx.read({ people: unfilledIdsQuery(db, ev.id), settings: true });
-  const deadline = ev.deadline ? ` до <b>${formatDate(ev.deadline)}</b>` : '';
+  const text = ev.deadline
+    ? tx('events.remindUnfilledBy', { title: q(ev), date: tdate(ev.deadline) })
+    : tx('events.remindUnfilled', { title: q(ev) });
   const letters = people.map((u) => [u.user_id, msg(
-    `⏰ Напоминание: твоё письмо Санте в событии ${q(ev)} пока пустое. Заполни его${deadline}, чтобы Санте было проще выбрать подарок.`,
-    appKeyboard(settings, '✏️ Написать письмо', { event: ev.id })
+    text,
+    appKeyboard(settings, tx('events.remindUnfilledButton'), { event: ev.id })
   )]);
   return sendReminder(ctx, ev, { actor, action: 'remind.unfilled', letters, extra });
 }
@@ -222,10 +225,12 @@ export async function remindSantas(ctx, ev, actor = 0, extra = []) {
   const r = await ctx.read({ rows: pairsQuery(db, ev.id), settings: true });
   const { settings } = r;
   const rows = r.rows.filter((p) => !p.gift_ready);
-  const when = ev.event_date ? ` Вручение — <b>${formatDate(ev.event_date)}</b>.` : '';
+  const text = ev.event_date
+    ? tx('events.remindSantasDated', { title: q(ev), date: tdate(ev.event_date) })
+    : tx('events.remindSantas', { title: q(ev) });
   const letters = rows.map((p) => [p.santa, msg(
-    `🎁 Напоминание для Санты (${q(ev)}): подарок для подопечного уже готов?${when}\nКогда будет готов — отметь это во вкладке «Подопечный».`,
-    appKeyboard(settings, '🎁 Открыть', { event: ev.id })
+    text,
+    appKeyboard(settings, tx('events.openButton'), { event: ev.id })
   )]);
   return sendReminder(ctx, ev, { actor, action: 'remind.santas', letters, extra });
 }
@@ -237,10 +242,10 @@ const ANNOUNCE_MAX = 2000;
 // Объявление всем зарегистрированным участникам эвента (FR-701): хранится и рассылается через outbox
 export async function announce(ctx, ev, actor, rawText) {
   const db = ctx.db;
-  if (isFinished(ev)) return no('Событие завершено — объявления в нём уже не отправить.');
+  if (isFinished(ev)) return no(tx('events.announceFinished'));
   const text = cleanText(rawText);
-  if (!text) return no('Напиши текст объявления.');
-  if (text.length > ANNOUNCE_MAX) return no(`Слишком длинно: ${text.length} символов, максимум ${ANNOUNCE_MAX}.`);
+  if (!text) return no(tx('events.announceEmpty'));
+  if (text.length > ANNOUNCE_MAX) return no(tx('events.announceTooLong', { n: text.length, max: ANNOUNCE_MAX }));
   const { settings, people } = await ctx.read({ people: participantIdsQuery(db, ev.id), settings: true });
   const now = Date.now();
   // Повтор (024): то же объявление в событии за минуту не рассылается; другой текст — уходит. Опора — само объявление,
@@ -248,13 +253,13 @@ export async function announce(ctx, ev, actor, rawText) {
   const fresh = atomic(db, 'NOT EXISTS (SELECT 1 FROM announcements WHERE event_id = ? AND text = ? AND created_at > ?)', ev.id, text, now - REPEAT_MS);
   for (const u of people) {
     fresh.enqueue(u.user_id, msg(
-      `📣 <b>Объявление · ${q(ev)}</b>\n\n${escapeHtml(text)}`,
-      appKeyboard(settings, '📌 Открыть событие', { event: ev.id })
+      tx('events.announcement', { title: q(ev), text: escapeHtml(text) }),
+      appKeyboard(settings, tx('events.announcementButton'), { event: ev.id })
     ));
   }
-  fresh.audit(ev.id, actor, 'announce', `получили: ${people.length}`);
+  fresh.audit(ev.id, actor, 'announce', tx('events.audit.received', { n: people.length }));
   fresh.claim(fresh.select('INSERT INTO announcements (event_id, author, text, created_at) SELECT ?, ?, ?, ?', ev.id, actor, text, now));
-  if (!(await fresh.run()).won) return no('Это объявление уже отправлено.');
+  if (!(await fresh.run()).won) return no(tx('events.announceAgain'));
   return { ok: true, count: people.length };
 }
 
@@ -264,7 +269,7 @@ export async function announce(ctx, ev, actor, rawText) {
 export async function saveEventSettings(ctx, ev, body, actor) {
   const db = ctx.db;
   const title = oneLine(body.title ?? ev.title);
-  if (!title || title.length > 80) return no('Название события — от 1 до 80 символов.');
+  if (!title || title.length > 80) return no(tx('events.titleRule'));
   const fields = { title };
   // Виды, пределы и «только до жеребьёвки» — по списку EVENT_PARAMS (029); параметры со своим действием пропускаются
   for (const [k, p] of Object.entries(EVENT_PARAMS)) {
@@ -272,22 +277,22 @@ export async function saveEventSettings(ctx, ev, body, actor) {
     const value = paramValue(p, body[k]);
     if (p.beforeDraw) {
       if (value === ev[k]) continue;
-      if (ev.draw_done) return no(p.beforeDraw);
+      if (ev.draw_done) return no(tx(p.beforeDraw));
     }
     fields[k] = value;
   }
   // 057: после сохранения ежедневный шаг проверит событие снова — заданное автодействие выполнится в ближайшую минуту
   fields.checked_on = '';
-  await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, actor, 'event.settings', 'параметры')]);
+  await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, actor, 'event.settings', tx('events.audit.settings'))]);
   return { ok: true };
 }
 
 export async function setRing(ctx, ev, on, actor) {
-  if (ev.draw_done) return no('После жеребьёвки кольцевую жеребьёвку менять нельзя.');
+  if (ev.draw_done) return no(tx('events.ringAfterDraw'));
   const db = ctx.db;
   await db.batch([
     updateEventStmt(db, ev.id, { ring: on ? 1 : 0 }),
-    auditStmt(db, ev.id, actor, 'event.settings', `кольцевая жеребьёвка: ${on ? 'вкл' : 'выкл'}`),
+    auditStmt(db, ev.id, actor, 'event.settings', tx('events.audit.ring', { state: onOff(on) })),
   ]);
   return { ok: true };
 }
@@ -296,7 +301,7 @@ export async function setRegistration(ctx, ev, open, actor) {
   const db = ctx.db;
   await db.batch([
     updateEventStmt(db, ev.id, { registration_open: open ? 1 : 0 }),
-    auditStmt(db, ev.id, actor, 'registration', open ? 'открыта' : 'закрыта'),
+    auditStmt(db, ev.id, actor, 'registration', tx(open ? 'events.audit.registrationOpen' : 'events.audit.registrationClosed')),
   ]);
   return { ok: true };
 }
@@ -311,7 +316,7 @@ export async function setAvoidPrevious(ctx, ev, on, actor) {
   const db = ctx.db;
   await db.batch([
     updateEventStmt(db, ev.id, { avoid_previous: on ? 1 : 0 }),
-    auditStmt(db, ev.id, actor, 'event.settings', `не повторять прошлые пары: ${on ? 'вкл' : 'выкл'}`),
+    auditStmt(db, ev.id, actor, 'event.settings', tx('events.audit.avoidPrevious', { state: onOff(on) })),
   ]);
   return { ok: true };
 }

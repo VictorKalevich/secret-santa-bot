@@ -39,18 +39,18 @@ function previousPairs(results, ids) {
 // ---------- жеребьёвка ----------
 
 function describeProblem(p, byId, w) {
-  const name = (id) => byId[id]?.name || 'кто-то';
+  const name = (id) => byId[id]?.name || tx('pairs.someone');
   switch (p.type) {
-    case 'too_few': return 'Нужно хотя бы 2 участника.';
-    case 'ring_too_few': return 'Для кольцевой жеребьёвки нужно минимум 3 участника — или выключи кольцевую в параметрах.';
+    case 'too_few': return tx('pairs.reason.too_few');
+    case 'ring_too_few': return tx('pairs.reason.ring_too_few');
     // Это вывод по ограниченному поиску, а не доказательство (009, FR-924) — отсюда «похоже» и «попробуй ещё раз»
-    case 'ring_impossible': return 'Похоже, без взаимных пар с такими исключениями не обойтись. Попробуй ещё раз; если не выйдет — убери часть исключений или выключи кольцевую жеребьёвку.';
-    case 'no_receivers': return `${name(p.id)} не может дарить никому — проверь исключения.`;
-    case 'no_givers': return `${name(p.id)} не может достаться никому — проверь исключения.`;
-    case 'search_exhausted': return 'Не удалось быстро подобрать распределение — попробуй ещё раз. Если не выйдет, убери часть исключений или выключи кольцевую жеребьёвку.';
+    case 'ring_impossible': return tx('pairs.reason.ring_impossible');
+    case 'no_receivers': return tx('pairs.reason.no_receivers', { name: name(p.id) });
+    case 'no_givers': return tx('pairs.reason.no_givers', { name: name(p.id) });
+    case 'search_exhausted': return tx('pairs.reason.search_exhausted');
     // 014: без имён — причину видят и админы (и рассылка о неудаче автожеребьёвки), а закреплённые пары знает только владелец
     case 'fixed_block': return tx('pairs.reason.fixed_block', { owner: w });
-    default: return 'Слишком много исключений: распределить всех так, чтобы их соблюсти, не получается. Убери часть исключений.';
+    default: return tx('pairs.reason.too_strict');
   }
 }
 
@@ -90,7 +90,7 @@ export async function checkDraw(ctx, ev) {
     // Учтены ли прошлые пары, наружу не сообщается: по этому признаку можно вычислить пары прошлого (009, FR-904)
     emptyWishlists: people.filter((u) => u.wishlist_blank).map((u) => u.name),
     problems: res.ok ? [] : [
-      ...(familiesBlock ? ['Мешают семьи: члены одной семьи не дарят друг другу, и распределить всех так не получается. Выключи «Учитывать семьи» или кольцевую жеребьёвку.'] : []),
+      ...(familiesBlock ? [tx('pairs.familiesBlock')] : []),
       ...res.problems.map((p) => describeProblem(p, byId, ctx.ownerWord())),
     ],
   };
@@ -99,7 +99,7 @@ export async function checkDraw(ctx, ev) {
 // actor — кто проводит (0 — бот), action — код для журнала: 'draw' или 'draw.auto' (007)
 export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
   const db = ctx.db;
-  if (ev.draw_done) return no('Жеребьёвка уже проведена.');
+  if (ev.draw_done) return no(tx('api.drawDone'));
   const settings = await ctx.settings();
   const check = await checkDraw(ctx, ev);
   if (!check.res.ok) return no(tjoin('\n', check.problems));
@@ -121,16 +121,16 @@ export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
   }
   for (const u of check.people) {
     mine.enqueue(u.user_id, msg(
-      `🎄 <b>Жеребьёвка в событии ${q(ev)} проведена!</b>\n\nОткрой приложение и загляни во вкладку «Подопечный», чтобы узнать, кому ты даришь подарок. Никому не рассказывай 🤫`,
-      appKeyboard(settings, '🎁 Узнать подопечного', { event: ev.id })
+      tx('pairs.drawn', { title: q(ev) }),
+      appKeyboard(settings, tx('pairs.drawnButton'), { event: ev.id })
     ));
   }
-  mine.audit(ev.id, actor, action, `участников: ${check.people.length}`);
+  mine.audit(ev.id, actor, action, tx('pairs.audit.members', { n: check.people.length }));
   if (!(await mine.run()).won) {
     const cur = await getEvent(db, ev.id);
-    if (cur?.draw_done) return no('Жеребьёвка уже проведена.');
-    if (isFinished(cur || ev)) return no('Событие завершено.');
-    return no('Участники, исключения или семьи изменились во время жеребьёвки — попробуй ещё раз.');
+    if (cur?.draw_done) return no(tx('api.drawDone'));
+    if (isFinished(cur || ev)) return no(tx('pairs.drawFinished'));
+    return no(tx('pairs.drawRace'));
   }
   return { ok: true, count: check.people.length, singleCycle: check.res.singleCycle };
 }
@@ -189,10 +189,8 @@ async function applyPairsChange(ctx, ev, a, oldRows, newMap, changed, members) {
   for (const santa of changed) {
     const isNew = !oldMap.has(santa);
     a.enqueue(santa, msg(
-      isNew
-        ? `🎄 <b>Ты в игре!</b> Жеребьёвка события ${q(ev)} для тебя проведена — загляни во вкладку «Подопечный» 🤫`
-        : `🔄 Состав события ${q(ev)} изменился, и у тебя теперь <b>новый подопечный</b>. Загляни во вкладку «Подопечный».`,
-      appKeyboard(settings, '🎁 Посмотреть', { event: ev.id })
+      tx(isNew ? 'pairs.inserted' : 'pairs.newWard', { title: q(ev) }),
+      appKeyboard(settings, tx('pairs.lookButton'), { event: ev.id })
     ));
   }
 }
@@ -212,7 +210,7 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
   });
   const { members } = read;
   const target = members.find((m) => m.user_id === userId);
-  if (!target) return no('Человек не участвует в этом событии.');
+  if (!target) return no(tx('pairs.notMember'));
   const { a } = pairsVersion(db, ev);
   if (ev.draw_done) {
     const rows = read.pairs;
@@ -222,7 +220,7 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
       const isAllowed = pairRules([...read.exclusions, ...familyExclusions(ev, members.map((m) => m.user_id), read.families)], fixed);
       const r = removeFromAssignment(pairsToMap(rows), userId, isAllowed, Math.random, { ring: !!ev.ring });
       if (!r) {
-        return no('Не получается убрать участника, не нарушив исключения или кольцевую жеребьёвку. Ослабь исключения.');
+        return no(tx('pairs.removeBlocked'));
       }
       await applyPairsChange(ctx, ev, a, rows, r.pairs, r.changed, members);
     }
@@ -230,7 +228,7 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
   // Остальное — только пока человек ещё участник (018): до жеребьёвки версии пар нет, и без этого второй из двух
   // одновременных вызовов повторил бы уведомление, запись журнала и отметку. Строка участника удаляется последней.
   const g = a.and('EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)', ev.id, userId);
-  if (notify) g.enqueue(userId, msg(`Тебя удалили из события ${q(ev)}. Если это ошибка, свяжись с владельцем или администратором.`));
+  if (notify) g.enqueue(userId, msg(tx('pairs.removed', { title: q(ev) })));
   g.audit(ev.id, actor, 'member.remove', displayName(target));
   if (mark) g.add(markRemovedStmt(db, ev.id, userId, actor, ...g.guard));
   // Исключения, закреплённые пары, переписка и обращения участника — по списку REGISTRY (018); строка участника —
@@ -238,15 +236,13 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
   g.claim(g.add(...memberDataDeleteStmts(db, ev.id, userId, ...g.guard)));
   if (!(await g.run()).won) {
     const still = await db.prepare('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?').bind(ev.id, userId).first();
-    return no(still ? PAIRS_RACE : 'Человек не участвует в этом событии.');
+    return no(still ? PAIRS_RACE : tx('pairs.notMember'));
   }
   return { ok: true };
 }
 
 // Отказ вписывания — одна общая фраза (012, FR-1202): какая группа пуста и что именно помешало, наружу не сообщается
-export const INSERT_BLOCKED =
-  'Не получается вписать участника, не нарушив правила: подарки уже готовы у всех, кому мог бы смениться подопечный, ' +
-  'или мешают исключения. Можно отменить жеребьёвку в опасной зоне и провести заново.';
+export const INSERT_BLOCKED = tx('pairs.insertBlocked');
 
 // Группа Санты пары p при вписывании (012, FR-1202): 0 — не открыл подопечного и не переписывался с ним;
 // 1 — подарок не готов и не получен; null — не трогать (подарок готов или уже получен).
@@ -270,9 +266,9 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
   });
   const { members, rows, ownEx, chats, fixed } = read;
   const u = members.find((x) => x.user_id === userId);
-  if (!u || !u.registered) return no('Участник не найден.');
+  if (!u || !u.registered) return no(tx('pairs.memberNotFound'));
   const famEx = familyExclusions(ev, members.map((m) => m.user_id), read.families);
-  if (rows.some((p) => p.santa === userId)) return no('Участник уже в жеребьёвке.');
+  if (rows.some((p) => p.santa === userId)) return no(tx('pairs.alreadyInDraw'));
   const talked = new Set(chats.map((m) => `${m.santa}:${m.ward}`));
   const bySanta = new Map(rows.map((p) => [p.santa, p]));
   const rank = (a) => {
@@ -297,18 +293,16 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
 // ---------- обмен подопечных (048): только владелец — проверка прав в api.js ----------
 
 // Тексты без имён (контракт specs/048-owner-ward-swap/contracts/draw-swap.md): видит только владелец, но людей они не
-// называют — владелец, который сам играет, не хочет знать пары
+// называют — владелец, который сам играет, не хочет знать пары. Правило → ключ словаря (060)
 export const SWAP_RULES = {
-  self: 'Один из двоих дарит другому: после обмена кто-то дарил бы сам себе.',
-  exclusion: 'Исключения: кто-то из двоих будет дарить тому, кому по исключениям дарить не должен.',
-  family: 'Семьи: кто-то из двоих будет дарить члену своей семьи.',
-  ring: 'Кольцевая жеребьёвка: появится взаимная пара — двое будут дарить друг другу.',
-  fixed: 'Закреплённые пары: обмен разорвёт пару, которую ты закрепил.',
-  history: 'Прошлые пары: кто-то из двоих будет дарить тому же, кому дарил в прошлом событии.',
+  self: 'pairs.swapRule.self',
+  exclusion: 'pairs.swapRule.exclusion',
+  family: 'pairs.swapRule.family',
+  ring: 'pairs.swapRule.ring',
+  fixed: 'pairs.swapRule.fixed',
+  history: 'pairs.swapRule.history',
 };
-const SWAP_REVEALED = 'Тайна уже раскрыта — менять подопечных нельзя.';
-const SWAP_TEXT = (ev) => `🔄 Владелец изменил жеребьёвку события ${q(ev)}: у тебя теперь <b>новый подопечный</b>. ` +
-  'Прежняя пара больше не действует, переписка в ней удалена. Загляни во вкладку «Подопечный».';
+const SWAP_REVEALED = tx('pairs.swapRevealed');
 
 // Нарушения обмена подопечных a и b (pairs — Map Санта → подопечный): меняются только связки a → w(b) и b → w(a).
 // self — кто-то дарил бы сам себе: обмен невозможен, остальное не считается. families, history — пары { giver, receiver }.
@@ -333,7 +327,7 @@ export function swapRules(pairs, a, b, { exclusions = [], families = [], ring = 
 async function swapData(ctx, ev, a, b) {
   if (!ev.draw_done) return no(NO_DRAW);
   if (ev.revealed) return no(SWAP_REVEALED);
-  if (!Number.isInteger(a) || !Number.isInteger(b) || a <= 0 || b <= 0 || a === b) return no('Выбери двух разных участников.');
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a <= 0 || b <= 0 || a === b) return no(tx('pairs.swapTwo'));
   const db = ctx.db;
   const r = await ctx.read({
     members: drawMembersQuery(db, ev.id),
@@ -344,7 +338,7 @@ async function swapData(ctx, ev, a, b) {
     previous: ev.avoid_previous && previousPairsQuery(db, ev),
   });
   const pairs = pairsToMap(r.rows);
-  if (!pairs.has(a) || !pairs.has(b)) return no('Участник не в жеребьёвке.');
+  if (!pairs.has(a) || !pairs.has(b)) return no(tx('pairs.notInDraw'));
   const ids = r.members.filter((m) => m.registered).map((m) => m.user_id);
   const history = ev.avoid_previous ? previousPairs(r.previous, ids).map((p) => ({ giver: p.santa, receiver: p.ward })) : [];
   const rules = swapRules(pairs, a, b, {
@@ -361,7 +355,7 @@ export async function checkSwap(ctx, ev, a, b) {
   return {
     ok: true,
     possible: !d.rules.includes('self'),
-    rules: d.rules.map((rule) => ({ rule, text: SWAP_RULES[rule] })),
+    rules: d.rules.map((rule) => ({ rule, text: tx(SWAP_RULES[rule]) })),
     // Версия пар: обмен с другой не пройдёт — повтор после успеха не вернёт пары обратно
     version: ev.draw_token,
   };
@@ -371,10 +365,10 @@ export async function checkSwap(ctx, ev, a, b) {
 export async function swapWards(ctx, ev, { a, b, version, agree }, actor) {
   const d = await swapData(ctx, ev, a, b);
   if (!d.ok) return d;
-  if (String(version ?? '') !== ev.draw_token) return no('Пары уже изменились — открой обмен заново.');
-  if (d.rules.includes('self')) return no('Этих двоих поменять нельзя — выбери другую пару.');
+  if (String(version ?? '') !== ev.draw_token) return no(tx('pairs.swapStale'));
+  if (d.rules.includes('self')) return no(tx('pairs.swapSelf'));
   const agreed = Array.isArray(agree) ? agree : [];
-  if (d.rules.some((rule) => !agreed.includes(rule))) return no('Правила жеребьёвки для этого обмена изменились — проверь ещё раз.');
+  if (d.rules.some((rule) => !agreed.includes(rule))) return no(tx('pairs.swapRulesChanged'));
   const same = snapshotGuard(ev.id, d.snapshot);
   const { a: change, version: claim } = pairsVersion(ctx.db, ev,
     `revealed = 0 AND status = 'active' AND families_on = ? AND avoid_previous = ? AND ${same.sql}`,
@@ -383,11 +377,11 @@ export async function swapWards(ctx, ev, { a, b, version, agree }, actor) {
   const settings = await ctx.settings();
   for (const santa of [a, b]) {
     change.and('EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND santa = ? AND ward = ? AND seen_text IS NOT NULL)',
-      ev.id, santa, d.pairs.get(santa)).enqueue(santa, msg(SWAP_TEXT(ev), appKeyboard(settings, '🎁 Посмотреть', { event: ev.id })));
+      ev.id, santa, d.pairs.get(santa)).enqueue(santa, msg(tx('pairs.swapNotice', { title: q(ev) }), appKeyboard(settings, tx('pairs.lookButton'), { event: ev.id })));
   }
   const next = new Map(d.pairs).set(a, d.pairs.get(b)).set(b, d.pairs.get(a));
   await applyPairsChange(ctx, ev, change, d.rows, next, [], d.members);
-  change.audit(ev.id, actor, 'draw.swap', 'пар изменено: 2');
+  change.audit(ev.id, actor, 'draw.swap', tx('pairs.audit.changed', { n: 2 }));
   change.claim(claim);
   if (!(await change.run()).won) {
     const cur = await getEvent(ctx.db, ev.id);
@@ -408,14 +402,17 @@ export function cancelableQuery(db, ev) {
   return db.prepare(`SELECT ${CANCEL_COND} AS ok`).bind(ev.id, ev.id);
 }
 
+const NOT_DRAWN = tx('pairs.notDrawn');
+const CANCEL_REVEALED = tx('pairs.cancelRevealed');
+
 // Обе отмены (020, research R5): захват — по версии пар (draw_token) и «не раскрыта, идёт» + cond; пары удаляются,
 // при chats — и переписка Сант эвента; письма остаются, регистрация открывается. Одновременное вписывание, удаление
 // или другая отмена не дадут второго результата. lost() — текст отказа, если захват не состоялся.
 async function undoDraw(ctx, ev, actor, { tag, cond = '', condArgs = [], chats = false, text, action, lost }) {
   const db = ctx.db;
-  if (isFinished(ev)) return no('Событие завершено — отменить жеребьёвку нельзя.');
-  if (!ev.draw_done) return no('Жеребьёвка не проведена.');
-  if (ev.revealed) return no('Тайна уже раскрыта — отменить жеребьёвку нельзя.');
+  if (isFinished(ev)) return no(tx('pairs.cancelFinished'));
+  if (!ev.draw_done) return no(NOT_DRAWN);
+  if (ev.revealed) return no(CANCEL_REVEALED);
   const { settings, rows } = await ctx.read({ rows: pairLinksQuery(db, ev.id), settings: true });
   if (cond && !closedParens(cond)) throw new Error(`undoDraw: условие с незакрытой скобкой: ${cond}`);
   const token = tag + randomCode(12);
@@ -426,8 +423,8 @@ async function undoDraw(ctx, ev, actor, { tag, cond = '', condArgs = [], chats =
   ).bind(token, ev.id, ev.draw_token, ...condArgs));
   undone.where('DELETE FROM pairs WHERE event_id = ?', ev.id);
   if (chats) undone.where('DELETE FROM messages WHERE event_id = ?', ev.id);
-  for (const p of rows) undone.enqueue(p.santa, msg(text, appKeyboard(settings, '🎁 Открыть', { event: ev.id })));
-  undone.audit(ev.id, actor, action, `пар удалено: ${rows.length}`);
+  for (const p of rows) undone.enqueue(p.santa, msg(text, appKeyboard(settings, tx('events.openButton'), { event: ev.id })));
+  undone.audit(ev.id, actor, action, tx('pairs.audit.removed', { n: rows.length }));
   if (!(await undone.run()).won) return no(await lost());
   return { ok: true, count: rows.length };
 }
@@ -438,9 +435,9 @@ export async function cancelDraw(ctx, ev, actor) {
     tag: 'cancel:',
     cond: CANCEL_COND,
     condArgs: [ev.id, ev.id],
-    text: `↩️ <b>Жеребьёвка отменена</b> в событии ${q(ev)}. Твоё письмо Санте сохранено. Когда будет новая жеребьёвка, бот напишет.`,
+    text: tx('pairs.cancelled', { title: q(ev) }),
     action: 'draw.cancel',
-    lost: async () => 'Отменить нельзя: кто-то уже открыл подопечного или началась переписка.',
+    lost: async () => tx('pairs.cancelBlocked'),
   });
 }
 
@@ -450,13 +447,12 @@ export async function forceCancelDraw(ctx, ev, actor) {
   return undoDraw(ctx, ev, actor, {
     tag: 'force:',
     chats: true,
-    text: `↩️ Владелец <b>отменил жеребьёвку</b> в событии ${q(ev)}. Прежняя пара больше не действует, переписка с Сантой и ` +
-      'подопечным удалена. Твоё письмо сохранено. Когда будет новая жеребьёвка, бот напишет.',
+    text: tx('pairs.forceCancelled', { title: q(ev) }),
     action: 'draw.cancel.force',
     lost: async () => {
       const cur = await getEvent(ctx.db, ev.id);
-      if (!cur?.draw_done) return 'Жеребьёвка не проведена.';
-      if (cur.revealed) return 'Тайна уже раскрыта — отменить жеребьёвку нельзя.';
+      if (!cur?.draw_done) return NOT_DRAWN;
+      if (cur.revealed) return CANCEL_REVEALED;
       return PAIRS_RACE;
     },
   });

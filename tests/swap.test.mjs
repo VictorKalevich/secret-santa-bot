@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { APP, PARTS, topBlock, code } from './support/app-source.mjs';
 import { swapRules, SWAP_RULES } from '../src/pairs.js';
+import { t, DEFAULT_LANG } from '../src/i18n/index.js';
 
 after(restoreFetch);
 
@@ -28,6 +29,8 @@ const CHANGED = 'Правила жеребьёвки для этого обме�
 const OWNER_ONLY = 'Менять подопечных после жеребьёвки может только владелец бота.';
 const CLOSED = 'Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).';
 const SANTA_NOTE = 'Владелец изменил жеребьёвку';
+// 060: SWAP_RULES — ключи словаря; текст правила в ответе — на языке вызывающего
+const ruleText = (rule) => t(DEFAULT_LANG, SWAP_RULES[rule]);
 
 const inviteOf = (st) => /start=(inv_[a-z0-9]+)/.exec(st.settings.invite_link)[1];
 
@@ -185,7 +188,7 @@ describe('обмен вопреки правилам (US2) и невозможн
   it('невозможный обмен: Санта и его подопечный — possible: false, только self', async () => {
     const c = await z.check(p1, p2);
     assert.equal(c.possible, false);
-    assert.deepEqual(c.rules, [{ rule: 'self', text: SWAP_RULES.self }]);
+    assert.deepEqual(c.rules, [{ rule: 'self', text: ruleText('self') }]);
     const r = await z.swap(p1, p2, { version: c.version, agree: ['self', 'exclusion', 'family', 'ring', 'fixed', 'history'] });
     assert.equal(r.status, 400);
     assert.equal(r.data.error, SELF);
@@ -223,7 +226,7 @@ describe('обмен вопреки правилам (US2) и невозможн
     z.w.sql(`INSERT INTO fixed_pairs (event_id, giver, receiver) VALUES (${z.ev}, ${p4.id}, ${p5.id})`);
     const c = await z.check(p1, p4);
     assert.deepEqual(c.rules.map((r) => r.rule), ['exclusion', 'family', 'fixed', 'history']);
-    assert.deepEqual(c.rules.map((r) => r.text), ['exclusion', 'family', 'fixed', 'history'].map((r) => SWAP_RULES[r]));
+    assert.deepEqual(c.rules.map((r) => r.text), ['exclusion', 'family', 'fixed', 'history'].map(ruleText));
     for (const name of NAMES) assert.ok(!JSON.stringify(c).includes(name), 'без имён: ' + name);
   });
 
