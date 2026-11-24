@@ -22,7 +22,7 @@ const RECENT_AUDIT = 'NOT EXISTS (SELECT 1 FROM audit WHERE event_id = ? AND act
 const notRepeated = (db, ev, action) => atomic(db, RECENT_AUDIT, ev.id, action, Date.now() - REPEAT_MS);
 const REMIND_AGAIN = tx('events.remindAgain');
 // Подробность журнала «вкл»/«выкл»
-const onOff = (on) => tx(on ? 'events.audit.on' : 'events.audit.off');
+const onOff = (on) => tx(on ? 'events.auditText.on' : 'events.auditText.off');
 
 // from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
 // invite — разослать участникам образца приглашение в новый эвент. Эвент — в компании вызова (050).
@@ -50,7 +50,7 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
   }
   stmts.push(db.prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) SELECT id, ?, ?, 'event.create', ?, ?
                           FROM events WHERE invite_code = ?`)
-    .bind(cid, createdBy, from ? t(DEFAULT_LANG, 'events.audit.fromTemplate', { title: from.title }) : '', Date.now(), code));
+    .bind(cid, createdBy, from ? t(DEFAULT_LANG, 'events.auditText.fromTemplate', { title: from.title }) : '', Date.now(), code));
   const [ins] = await db.batch(stmts);
   const row = ins.results[0];
   if (!row) return no(COMPANY_NOT_FOUND, 404);
@@ -97,7 +97,7 @@ export async function deleteEvent(ctx, ev, actor = 0) {
   const exists = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ?)', ev.id);
   for (const m of members) exists.enqueue(m.user_id, msg(tx('events.deleted', { title: q(ev) })));
   // Журнал эвента остаётся; само удаление — в общем журнале компании (007, 050)
-  exists.audit({ company: ev.company_id }, actor, 'event.delete', tx('events.audit.deleted', { title: ev.title, n: members.length }));
+  exists.audit({ company: ev.company_id }, actor, 'event.delete', tx('events.auditText.deleted', { title: ev.title, n: members.length }));
   // Данные эвента — по списку REGISTRY (018), строка эвента — последней: она и есть захват
   exists.claim(exists.add(...eventDataDeleteStmts(db, ev.id, {}, ...exists.guard)));
   if (!(await exists.run()).won) return no(tx('events.alreadyDeleted'));
@@ -121,7 +121,7 @@ export async function resetEvent(ctx, ev, ownerId, actor = ownerId) {
   }
   // Данные эвента — по списку REGISTRY (018): участие владельца остаётся, его письмо и адрес стираются
   mine.add(...eventDataDeleteStmts(db, ev.id, { keepMember: ownerId, keepEvent: true }, ...mine.guard));
-  mine.audit(ev.id, actor, 'reset', tx('events.audit.reset', { n: removed.length }));
+  mine.audit(ev.id, actor, 'reset', tx('events.auditText.reset', { n: removed.length }));
   if (!(await mine.run()).won) return no(tx('events.resetRace'));
   return { ok: true, removed: removed.length, inviteCode };
 }
@@ -150,7 +150,7 @@ export async function inviteFromEvent(ctx, ev, fromEv, actor = 0) {
       { reply_markup: { inline_keyboard: [[{ text: tx('events.inviteButton'), url: link }]] } }
     ));
   }
-  fresh.claim(fresh.audit(ev.id, actor, 'invite.from', tx('events.audit.invited', { title: fromEv.title, n: people.length })));
+  fresh.claim(fresh.audit(ev.id, actor, 'invite.from', tx('events.auditText.invited', { title: fromEv.title, n: people.length })));
   if (!(await fresh.run()).won) return no(tx('events.inviteAgain'));
   return { ok: true, count: people.length };
 }
@@ -177,7 +177,7 @@ export async function revealAll(ctx, ev, actor = 0) {
       mask ? tx('events.revealedMask', { title: q(ev), mask, name }) : tx('events.revealed', { title: q(ev), name })
     ));
   }
-  shown.audit(ev.id, actor, 'reveal', tx('events.audit.pairs', { n: rows.length }));
+  shown.audit(ev.id, actor, 'reveal', tx('events.auditText.pairs', { n: rows.length }));
   if (!(await shown.run()).won) {
     const now = await getEvent(db, ev.id);
     return no(now?.revealed ? tx('events.alreadyRevealed') : PAIRS_RACE);
@@ -192,14 +192,14 @@ async function sendReminder(ctx, ev, { actor, action, letters, extra }) {
   const db = ctx.db;
   if (!actor) {
     const stmts = letters.map(([to, payload]) => enqueueStmt(db, to, payload));
-    if (letters.length) stmts.push(auditStmt(db, ev.id, 0, action, tx('events.audit.received', { n: letters.length })));
+    if (letters.length) stmts.push(auditStmt(db, ev.id, 0, action, tx('events.auditText.received', { n: letters.length })));
     stmts.push(...extra);
     if (stmts.length) await db.batch(stmts);
     return { ok: true, count: letters.length };
   }
   const fresh = notRepeated(db, ev, action);
   for (const [to, payload] of letters) fresh.enqueue(to, payload);
-  fresh.claim(fresh.audit(ev.id, actor, action, tx('events.audit.received', { n: letters.length })));
+  fresh.claim(fresh.audit(ev.id, actor, action, tx('events.auditText.received', { n: letters.length })));
   fresh.add(...extra);
   if (!(await fresh.run()).won) return no(REMIND_AGAIN);
   return { ok: true, count: letters.length };
@@ -257,7 +257,7 @@ export async function announce(ctx, ev, actor, rawText) {
       appKeyboard(settings, tx('events.announcementButton'), { event: ev.id })
     ));
   }
-  fresh.audit(ev.id, actor, 'announce', tx('events.audit.received', { n: people.length }));
+  fresh.audit(ev.id, actor, 'announce', tx('events.auditText.received', { n: people.length }));
   fresh.claim(fresh.select('INSERT INTO announcements (event_id, author, text, created_at) SELECT ?, ?, ?, ?', ev.id, actor, text, now));
   if (!(await fresh.run()).won) return no(tx('events.announceAgain'));
   return { ok: true, count: people.length };
@@ -283,7 +283,7 @@ export async function saveEventSettings(ctx, ev, body, actor) {
   }
   // 057: после сохранения ежедневный шаг проверит событие снова — заданное автодействие выполнится в ближайшую минуту
   fields.checked_on = '';
-  await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, actor, 'event.settings', tx('events.audit.settings'))]);
+  await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, actor, 'event.settings', tx('events.auditText.settings'))]);
   return { ok: true };
 }
 
@@ -292,7 +292,7 @@ export async function setRing(ctx, ev, on, actor) {
   const db = ctx.db;
   await db.batch([
     updateEventStmt(db, ev.id, { ring: on ? 1 : 0 }),
-    auditStmt(db, ev.id, actor, 'event.settings', tx('events.audit.ring', { state: onOff(on) })),
+    auditStmt(db, ev.id, actor, 'event.settings', tx('events.auditText.ring', { state: onOff(on) })),
   ]);
   return { ok: true };
 }
@@ -301,7 +301,7 @@ export async function setRegistration(ctx, ev, open, actor) {
   const db = ctx.db;
   await db.batch([
     updateEventStmt(db, ev.id, { registration_open: open ? 1 : 0 }),
-    auditStmt(db, ev.id, actor, 'registration', tx(open ? 'events.audit.registrationOpen' : 'events.audit.registrationClosed')),
+    auditStmt(db, ev.id, actor, 'registration', tx(open ? 'events.auditText.registrationOpen' : 'events.auditText.registrationClosed')),
   ]);
   return { ok: true };
 }
@@ -316,7 +316,7 @@ export async function setAvoidPrevious(ctx, ev, on, actor) {
   const db = ctx.db;
   await db.batch([
     updateEventStmt(db, ev.id, { avoid_previous: on ? 1 : 0 }),
-    auditStmt(db, ev.id, actor, 'event.settings', tx('events.audit.avoidPrevious', { state: onOff(on) })),
+    auditStmt(db, ev.id, actor, 'event.settings', tx('events.auditText.avoidPrevious', { state: onOff(on) })),
   ]);
   return { ok: true };
 }

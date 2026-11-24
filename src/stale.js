@@ -62,7 +62,7 @@ export async function warnStale(ctx, ev, { reason, until }, today) {
   const text = tx('stale.warning', { title: q(ev), when, why: WHY[reason](ev), keep: tx('stale.keep.' + reason) });
   const fresh = atomic(db, "EXISTS (SELECT 1 FROM events WHERE id = ? AND status = 'active' AND finish_warned = '')", ev.id);
   for (const u of adminRecipients(users)) fresh.enqueue(u.tg_id, msg(text, appKeyboard(settings, tx('stale.openButton'), { event: ev.id })));
-  fresh.audit(ev.id, 0, 'finish.warn', tx('stale.audit', { why: tx('stale.logged.' + reason), when }));
+  fresh.audit(ev.id, 0, 'finish.warn', tx('stale.auditText', { why: tx('stale.logged.' + reason), when }));
   fresh.claim(db.prepare("UPDATE events SET finish_warned = ?, last_daily = ?, checked_on = ? WHERE id = ? AND status = 'active' AND finish_warned = ''")
     .bind(today, today, today, ev.id));
   return fresh.run();
