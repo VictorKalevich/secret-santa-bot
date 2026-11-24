@@ -11,7 +11,9 @@ import {
   escapeHtml, msg, q, openAppButton, appKeyboard, oneLine, shortTitle, NOT_REGISTERED, ADMIN_ONLY, NOT_MEMBER, CHAT_READ_ONLY,
   SUPPORT_READ_ONLY,
 } from './format.js';
-import { tx, tjoin, isText } from './i18n/index.js';
+import { tx, tjoin, isText, telegramLanguage } from './i18n/index.js';
+import { LANGUAGE_NAMES } from './i18n/languages.js';
+import { syncLanguage, setLanguage, languagesView } from './language.js';
 import { isFinished, chatWritable } from './status.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
@@ -130,8 +132,11 @@ async function buildMenu(ctx, user, settings) {
 async function openChat(env, m) {
   const db = env.DB;
   const from = m.from;
-  const ctx = await openContext(env, from.id);
-  const call = tgApi(env, ctx.lang); // ответы — на языке человека (060)
+  // 061: язык Telegram сообщения запоминается при изменении; ответы — на языке человека (060), и после выбора языка в
+  // этом же вызове
+  const ctx = await openContext(env, from.id, { telegramLang: telegramLanguage(from.language_code) });
+  await syncLanguage(ctx);
+  const call = tgApi(env, () => ctx.lang);
   const settings = await ctx.settings();
   const c = {
     env, db, ctx, from, settings,
@@ -170,6 +175,7 @@ export async function handleUpdate(update, env) {
 
   if (text.startsWith('/start')) return onStart(c);
   if (!c.user) return onStranger(c);
+  if (text === '/language') return c.reply(languageMenu(c.ctx));
   if (text === '/cancel') return onCancel(c);
   if (c.user.pending.startsWith('name')) return onName(c);
   if (!c.user.registered) return openBot(c.env) ? onStranger(c) : c.askName();
@@ -222,7 +228,7 @@ async function onStart(c) {
 // (047), после имени — меню, своя компания — в приложении
 async function onStranger(c) {
   if (!openBot(c.env)) return c.reply(tx('bot.closedBot'));
-  await (c.user ? c.setPending('name') : createUser(c.db, c.from.id, c.from.username, { pending: 'name' }));
+  await (c.user ? c.setPending('name') : createUser(c.db, c.from.id, c.from.username, { pending: 'name', tg_lang: c.ctx.telegramLang }));
   return c.askName(tx('bot.hello'), false);
 }
 
@@ -233,7 +239,7 @@ async function onOwnerLink(c) {
     return c.menuIfRegistered();
   }
   const prevOwnerId = await ctx.botOwnerId();
-  if (!c.user) await createUser(db, from.id, from.username, { is_admin: true, pending: 'name' });
+  if (!c.user) await createUser(db, from.id, from.username, { is_admin: true, pending: 'name', tg_lang: ctx.telegramLang });
   ctx.forgetUsers(); // список пользователей изменился — setOwner читает его заново
   await setOwner(ctx, from.id, {
     via: 'link',
@@ -272,7 +278,7 @@ async function onCompanyOwnerLink(c, code) {
   const company = await companyByOwnerCode(db, code);
   if (!company) return c.reply(OWNER_LINK_GONE);
   const pending = `name_own:${company.id}:${code}`;
-  await (c.user ? c.setPending(pending) : createUser(db, from.id, from.username, { pending }));
+  await (c.user ? c.setPending(pending) : createUser(db, from.id, from.username, { pending, tg_lang: ctx.telegramLang }));
   return c.askName(NEW_COMPANY_OWNER, false);
 }
 
@@ -306,7 +312,7 @@ async function onInvite(c, code) {
   const pending = `name:${ev.id}:${code}`;
   // Человек компании события (050) — тем же пакетом, что запись или ожидание имени
   await db.batch([
-    user ? updateUserStmt(db, from.id, { pending }) : createUserStmt(db, from.id, from.username, { pending }),
+    user ? updateUserStmt(db, from.id, { pending }) : createUserStmt(db, from.id, from.username, { pending, tg_lang: ctx.telegramLang }),
     joinCompanyStmt(db, ev.company_id, from.id),
   ]);
   // Без одобрения человек сразу виден организатору в списке (ещё без имени)
@@ -433,10 +439,15 @@ const notifyLabel = (mode) => tx('bot.notify.mode.' + mode);
 async function handleCallback(cq, env) {
   // Кнопки регистрации (047) нажимает человек без имени — до проверки «зарегистрирован»
   if (SIGNUP_BUTTON.test(cq.data || '')) return onSignupButton(cq, env);
+  // Выбор языка (061) — тоже до регистрации
+  const lang = LANG_BUTTON.exec(cq.data || '');
+  if (lang) return onLanguageButton(cq, env, lang[1]);
   const db = env.DB;
   const from = cq.from;
-  // Пользователь, настройки, его компании и владелец бота — одним пакетом (050: вместо одного чтения пользователя)
-  const ctx = await openContext(env, from.id);
+  // Пользователь, настройки, его компании и владелец бота — одним пакетом (050: вместо одного чтения пользователя);
+  // 061: язык Telegram нажатия запоминается при изменении
+  const ctx = await openContext(env, from.id, { telegramLang: telegramLanguage(from.language_code) });
+  await syncLanguage(ctx);
   const call = tgApi(env, ctx.lang); // ответы — на языке человека (060)
   const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const user = ctx.me;
@@ -469,7 +480,7 @@ async function handleCallback(cq, env) {
 const SIGNUP_BUTTON = /^reg:(ok|edit)$/;
 async function onSignupButton(cq, env) {
   const c = await openChat(env, { from: cq.from });
-  const call = tgApi(env, c.ctx.lang);
+  const call = tgApi(env, () => c.ctx.lang);
   const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   if (!c.user) return answer(NOT_REGISTERED);
   if (c.user.registered) return answer(NAME_SAVED);
@@ -491,6 +502,32 @@ async function onSignupButton(cq, env) {
     }),
   ]);
   if (!(await signUp(c, name, saved))) return answer(NAME_SAVED);
+}
+
+// ---------- язык (061) ----------
+
+// /language: «Как в Telegram (…)» и языки по два в ряд, у выбранного — галочка
+function languageMenu(ctx) {
+  const v = languagesView(ctx);
+  const mark = (code, text) => (v.lang_choice === code ? tjoin('', ['✓ ', text]) : text);
+  const button = (code, text) => ({ text: mark(code, text), callback_data: 'lang:' + (code || 'auto') });
+  const kb = [[button('', tx('bot.lang.auto', { name: LANGUAGE_NAMES[v.lang_auto] }))]];
+  for (let i = 0; i < v.languages.length; i += 2) kb.push(v.languages.slice(i, i + 2).map((l) => button(l.code, l.name)));
+  return msg(tx('bot.lang.choose'), { reply_markup: { inline_keyboard: kb } });
+}
+
+// Нажатие языка: ответ на нажатие и всё дальше — уже на новом языке; зарегистрированному — меню, ждущему имени — просьба
+// имени
+const LANG_BUTTON = /^lang:(auto|[a-z]{2,3})$/;
+async function onLanguageButton(cq, env, code) {
+  const c = await openChat(env, { from: cq.from });
+  const answer = (text) => tgApi(env, () => c.ctx.lang)('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
+  if (!c.user) return answer(NOT_REGISTERED);
+  const r = await setLanguage(c.ctx, code === 'auto' ? '' : code);
+  if (!r.ok) return answer(r.error);
+  await answer(tx('bot.lang.saved', { name: LANGUAGE_NAMES[r.lang] }));
+  if (c.user.registered) return c.sendMenu();
+  if (c.user.pending.startsWith('name')) return c.askName();
 }
 
 // «💬 Подопечному / Санте» в меню и «↩️ Ответить» под сообщением переписки

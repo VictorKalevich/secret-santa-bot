@@ -61,7 +61,9 @@ describe('псевдоязык у одного человека (US3)', () => {
   // Ответ API человеку: у xx — без кириллицы и с ⟪ в тексте отказа; у остальных — без ⟪
   async function call(u, action, body = {}) {
     const r = await step(`${u.name} ${action}`, () => w.api(u, action, body, true));
-    const json = JSON.stringify(r.data);
+    // 061: список языков (me.languages) — названия на самих языках, «Русский» в нём и у человека другого языка
+    const { languages, ...data } = r.data;
+    const json = JSON.stringify(data);
     if (u === anna && CYRILLIC.test(json)) problems.push(`${action} → Anna: кириллица в ответе: ${json.slice(0, 200)}`);
     if (u === anna && r.data.ok === false && !r.data.error.includes('⟪')) problems.push(`${action} → Anna: отказ без ⟪`);
     if (u !== anna && json.includes('⟪')) problems.push(`${action} → ${u.name}: ⟪ в ответе`);

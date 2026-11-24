@@ -5,7 +5,7 @@
 // 04-companies — в APP_PARTS.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { APP, PARTS, where, code, topBlock, ownerOf } from './support/app-source.mjs';
 
 // Общие действия организатора (050, раздел 2): без события у них есть поле company
@@ -48,7 +48,8 @@ const DICT_PART = { 'app-boot.js': '01-shell.html', 'app-core.js': '02-core.js.t
   'app-vault.js': '07-vault-audit.js.txt', 'app-sheet.js': '08-sheet-chat.js.txt' };
 const I18N = new URL('../src/i18n/', import.meta.url);
 const DICTS = readdirSync(I18N, { withFileTypes: true }).filter((d) => d.isDirectory()).flatMap((d) =>
-  Object.entries(DICT_PART).map(([f, name]) => ({ name, file: `src/i18n/${d.name}/${f}`, text: readFileSync(new URL(`${d.name}/${f}`, I18N), 'utf8') })));
+  Object.entries(DICT_PART).filter(([f]) => existsSync(new URL(`${d.name}/${f}`, I18N)))
+    .map(([f, name]) => ({ name, file: `src/i18n/${d.name}/${f}`, text: readFileSync(new URL(`${d.name}/${f}`, I18N), 'utf8') })));
 function companyWords(parts, allowed = COMPANY_WORD) {
   const found = [];
   for (const p of parts) {

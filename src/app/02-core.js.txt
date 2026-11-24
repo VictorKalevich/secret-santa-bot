@@ -9,11 +9,25 @@
   }
 
   // ---------- словарь (060, контракт — specs/060-i18n-dictionary/contracts/i18n.md, разделы 2 и 6) ----------
-  // До ответа me — набор app.boot.* (сервер вставляет его в страницу); me приносит словарь приложения своего языка
-  // (setTexts). Тексты берутся при построении экрана, не при загрузке скрипта: до me есть только app.boot.*
-  const BOOT_TEXTS = /*@boot-texts*/null;
-  let TEXTS = BOOT_TEXTS || {};
-  let textsLang = 'ru';
+  // До ответа me — набор app.boot.* языка по Telegram (061: сервер вставляет в страницу наборы всех языков и правило
+  // языка); me приносит словарь приложения языка человека (setTexts). Тексты берутся при построении экрана, не при
+  // загрузке скрипта: до me есть только app.boot.*
+  const BOOT = /*@boot-texts*/null;
+  // Язык бота по коду языка Telegram (061): то же правило, что telegramLanguage на сервере, данные — BOOT.rule
+  function telegramLanguage(code) {
+    const rule = BOOT ? BOOT.rule : { languages: ['ru'], russian: [], fallback: 'ru' };
+    const base = String(code || '').toLowerCase().split(/[-_]/)[0];
+    if (!base) return '';
+    if (rule.languages.includes(base)) return base;
+    return rule.russian.includes(base) ? 'ru' : rule.fallback;
+  }
+  // Язык загрузки: из Telegram, вне Telegram — язык браузера
+  const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  const bootLang = telegramLanguage((tgUser && tgUser.language_code) || navigator.language) || 'ru';
+  const BOOT_TEXTS = BOOT ? BOOT.texts[bootLang] || BOOT.texts.ru : {};
+  let TEXTS = BOOT_TEXTS;
+  let textsLang = BOOT && BOOT.texts[bootLang] ? bootLang : 'ru';
+  document.documentElement.lang = textsLang;
   let pluralRules = null;
   const i18nError = (text) => console.error('i18n: ' + text);
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -71,6 +85,13 @@
     if (Array.isArray(value)) return value;
     i18nError(key + ' — не список');
     return [];
+  }
+  // Слово подтверждения без регистра, пробелов по краям и диакритики (061): то же правило — foldWord на сервере
+  function foldWord(s) {
+    const text = String(s || '').trim();
+    let up;
+    try { up = text.toLocaleUpperCase(textsLang); } catch (e) { up = text.toUpperCase(); }
+    return up.normalize('NFD').replace(/\p{M}/gu, '');
   }
   // Словарь из ответа me: язык, версия (повторный me без словаря, если версия та же) и тексты
   function setTexts(d) {

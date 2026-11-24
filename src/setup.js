@@ -5,6 +5,7 @@ import { tgApi, derivedSecret } from './telegram.js';
 import { escapeHtml } from './format.js';
 import { translator, DEFAULT_LANG } from './i18n/index.js';
 import { ownerLinkCode, ownerLinkUsed } from './roles.js';
+import { sendProfile } from './bot-profile.js';
 import TOKENS_CSS from '../design-system/tokens.css';
 import COMPONENTS_CSS from '../design-system/components.css';
 import CLEARABLE_INPUT from '../design-system/clearable-input.js.txt';
@@ -85,23 +86,16 @@ button{font:inherit;padding:10px 16px;border:0;border-radius:10px;background:#24
   });
   steps.push([t('setup.step.webhook'), wh.ok, wh.description || '']);
 
-  const cmds = await call('setMyCommands', {
-    commands: [
-      { command: 'start', description: t('setup.command.start') },
-      { command: 'cancel', description: t('setup.command.cancel') },
-    ],
-  });
-  steps.push([t('setup.step.commands'), cmds.ok, '']);
-
   const menu = await call('setChatMenuButton', {
     menu_button: { type: 'web_app', text: t('setup.menuButton'), web_app: { url: origin + '/app' } },
   });
-  steps.push([t('setup.step.menuButton'), menu.ok, menu.description || '']);
-
-  await call('setMyDescription', { description: t('setup.description') });
-  await call('setMyShortDescription', { short_description: t('setup.shortDescription') });
-
   await setSettings(env.DB, { base_url: origin, bot_username: me.result.username });
+
+  // 061: команды, описание и краткое описание на всех языках — сколько поместится в бюджет, остальное уйдёт с
+  // обращениями людей (src/bot-profile.js); первый вызов — команды по умолчанию
+  const profile = await sendProfile(env, 0);
+  steps.push([t('setup.step.commands'), profile.ok > 0, profile.done ? '' : t('setup.profileLater')]);
+  steps.push([t('setup.step.menuButton'), menu.ok, menu.description || '']);
 
   const adminLink = `https://t.me/${me.result.username}?start=${await ownerLinkCode(env)}`;
   const allOk = steps.every((x) => x[1]);

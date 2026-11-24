@@ -42,7 +42,7 @@ async function world(open) {
   };
   // Поля словаря приложения (060) — не о компаниях
   z.me = async (u) => {
-    const { lang, texts_version, texts, ...me } = await z.ok(u, 'me');
+    const { lang, texts_version, texts, lang_choice, lang_auto, languages, ...me } = await z.ok(u, 'me'); // 060, 061 — тест i18n
     return me;
   };
   // Незнакомец без ссылки: /start и имя текстом

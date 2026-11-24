@@ -8,7 +8,8 @@ import { updateUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
 import { saveShipment } from './shipment.js';
 import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
-import { t, tx, render, appTexts, DEFAULT_LANG } from './i18n/index.js';
+import { t, tx, render, appTexts, DEFAULT_LANG, telegramLanguage, foldWord } from './i18n/index.js';
+import { syncLanguage, setLanguage, languagesView } from './language.js';
 import { isFinished, publicEvent } from './status.js';
 import { openContext } from './context.js';
 import {
@@ -87,14 +88,17 @@ const refuse = (error, status) => new Refusal(error, status);
 // Результат модуля { ok, ...данные } / { ok: false, error, status? } → данные ответа или отказ
 const out = (r, pick = ({ ok, ...data }) => data) => (r.ok ? pick(r) : refuse(r.error, r.status));
 const none = () => ({});
-// Слово подтверждения — на языке вызывающего, как его показывает приложение
-const confirmed = (ctx, body, [word]) => String(body.confirm || '').trim().toUpperCase() === t(ctx.lang, word);
+// Слово подтверждения — на языке вызывающего, как его показывает приложение; без регистра и диакритики (061)
+const confirmed = (ctx, body, [word]) => foldWord(body.confirm, ctx.lang) === foldWord(t(ctx.lang, word), ctx.lang);
 const wordRefusal = ([word, refusal]) => tx(refusal, { word: tx(word) });
 
-// me (060): язык, версия словаря приложения и сам словарь — если у приложения его нет или он другой
+// me (060): язык, версия словаря приложения и сам словарь — если у приложения его нет или он другой; 061: выбор языка и
+// список языков
 async function withTexts(ctx, body, view) {
   const { version, texts } = appTexts(ctx.lang);
-  return { ...(await view), lang: ctx.lang, texts_version: version, ...(body.texts === version ? {} : { texts }) };
+  return {
+    ...(await view), lang: ctx.lang, ...languagesView(ctx), texts_version: version, ...(body.texts === version ? {} : { texts }),
+  };
 }
 
 // ---------- таблица действий ----------
@@ -114,6 +118,8 @@ export const ACTIONS = {
     },
   },
   // 035: своё имя — журнал только при настоящем изменении (renameUser), сообщений нет
+  // 061: язык бота и приложения — '' (как в Telegram) или код языка; ответ — уже на новом языке
+  'lang.set': { role: USER, run: async (ctx, body) => out(await setLanguage(ctx, body.lang)) },
   'name.set': {
     role: USER,
     async run(ctx, body) {
@@ -494,7 +500,9 @@ export async function handleApi(request, env, action) {
   const tgUser = await validateInitData(request.headers.get('x-init-data'), env.BOT_TOKEN);
   if (!tgUser) return fail(tx('api.badInitData'), 401);
   const body = await request.json().catch(() => ({}));
-  const ctx = await openContext(env, tgUser.id); // пользователь и настройки — одним пакетом
+  // Пользователь и настройки — одним пакетом; 061: язык Telegram — из подписанных данных, запоминается при изменении
+  const ctx = await openContext(env, tgUser.id, { telegramLang: telegramLanguage(tgUser.language_code) });
+  await syncLanguage(ctx);
   const { db, me } = ctx;
   // Ответ и отказ — на языке вызывающего (060)
   const no = (error, status) => fail(error, status, ctx.lang);

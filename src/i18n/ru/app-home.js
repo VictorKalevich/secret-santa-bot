@@ -33,6 +33,10 @@ export default {
   // «Профиль» и «Уведомления»
   'app.home.profile.title': 'Профиль',
   'app.home.profile.editName': '✏️ Изменить имя',
+  // 061: язык бота и приложения; name — название языка на самом языке
+  'app.home.lang.button': '🌐 Язык',
+  'app.home.lang.auto': 'Как в Telegram ({name})',
+  'app.home.lang.hint': 'Бот и приложение будут на этом языке. «Как в Telegram» — язык твоего Telegram.',
   'app.home.notify.title': 'Уведомления',
   'app.home.notify.hint': 'Когда подопечный меняет письмо (в любом событии), бот сообщит об этом — без имени и подробностей.',
   'app.home.notify.sound': '🔔 Звук',

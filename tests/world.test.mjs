@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { BLOCKED_CHAT, telegramReply } from './support/telegram-rules.mjs';
 import { APP } from './support/app-source.mjs';
-import { bootTexts, DEFAULT_LANG } from '../src/i18n/index.js';
+import { bootTexts, LANGUAGES, RUSSIAN_SPEAKING, FALLBACK_LANG } from '../src/i18n/index.js';
 
 after(restoreFetch);
 
@@ -30,15 +30,20 @@ test('/app: страница приложения со встроенной ди
   assert.equal(page.headers.get('cache-control'), 'no-store');
   assert.ok(APP.includes('/*@design-system*/'), 'в склейке частей есть метка');
   const css = read('design-system/tokens.css') + '\n' + read('design-system/components.css');
-  // 060: тексты до ответа сервера — набор app.boot.* языка по умолчанию
+  // 060: тексты до ответа сервера; 061 — наборы app.boot.* всех языков и правило языка Telegram
   assert.ok(APP.includes('/*@boot-texts*/null'), 'в склейке частей есть метка текстов');
-  const boot = JSON.stringify(bootTexts(DEFAULT_LANG)).replace(/</g, '\\u003c');
+  const boot = JSON.stringify(bootTexts()).replace(/</g, '\\u003c');
   assert.equal(page.text, APP.replace('/*@design-system*/', () => css)
     .replace('/*@clearable-input*/', () => read('design-system/clearable-input.js.txt'))
     .replace('/*@boot-texts*/null', () => boot));
   assert.ok(!page.text.includes('/*@design-system*/'), 'метки в ответе нет');
   assert.ok(!page.text.includes('/*@boot-texts*/'), 'метки текстов в ответе нет');
-  assert.ok(Object.keys(bootTexts(DEFAULT_LANG)).length > 0 && Object.keys(bootTexts(DEFAULT_LANG)).every((k) => k.startsWith('app.boot.')));
+  const { texts, rule } = bootTexts();
+  assert.deepEqual(Object.keys(texts), LANGUAGES, 'набор на каждый язык');
+  for (const lang of LANGUAGES) {
+    assert.ok(Object.keys(texts[lang]).length > 0 && Object.keys(texts[lang]).every((k) => k.startsWith('app.boot.')), lang);
+  }
+  assert.deepEqual(rule, { languages: LANGUAGES, russian: RUSSIAN_SPEAKING, fallback: FALLBACK_LANG });
 });
 
 test('/setup: поле ключа использует кнопку очистки дизайн-системы', async () => {

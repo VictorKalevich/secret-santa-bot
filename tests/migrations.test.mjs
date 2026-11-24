@@ -552,3 +552,34 @@ test('база с данными «до 0021»: у всех людей lang пу
   // от противного: колонка уже есть — повтор миграции падает (Wrangler применяет её один раз)
   assert.throws(() => w.sql(SQL21), /duplicate column name: lang/);
 });
+
+// ---------- 061: миграция 0022 — язык Telegram, кнопка меню, журнал на языке смотрящего (specs/061-i18n-languages/) ----------
+
+const SQL22 = readFileSync(new URL('0022_languages.sql', MIGRATIONS_DIR), 'utf8');
+
+test('0022: колонки users.tg_lang, users.menu_lang, audit.details_tx с умолчанием пусто и версия схемы 22', () => {
+  assert.deepEqual(statementsOf(SQL22), [
+    "ALTER TABLE users ADD COLUMN tg_lang TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN menu_lang TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE audit ADD COLUMN details_tx TEXT NOT NULL DEFAULT ''",
+    "INSERT INTO settings (key, value) VALUES ('schema', '22') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ]);
+});
+
+test('база с данными «до 0022»: новые колонки пусты, остальные строки прежние, версия 22', async () => {
+  const { w } = await filledWorld();
+  w.sql("ALTER TABLE users DROP COLUMN tg_lang; ALTER TABLE users DROP COLUMN menu_lang; ALTER TABLE audit DROP COLUMN details_tx; UPDATE settings SET value = '21' WHERE key = 'schema'");
+  const before = snapshot(w);
+  w.sql(SQL22);
+  const after = snapshot(w);
+  assert.ok(w.query('SELECT tg_lang, menu_lang FROM users').every((u) => u.tg_lang === '' && u.menu_lang === ''), 'у людей пусто');
+  assert.ok(w.query('SELECT details_tx FROM audit').every((a) => a.details_tx === ''), 'у записей журнала пусто');
+  const without = (rows, ...cols) => rows.map((r) => { const o = JSON.parse(r); for (const c of cols) delete o[c]; return JSON.stringify(o); }).sort();
+  assert.deepEqual(without(after.users, 'tg_lang', 'menu_lang'), before.users, 'люди — те же значения');
+  assert.deepEqual(without(after.audit, 'details_tx'), before.audit, 'журнал — те же значения');
+  const schema = (snap) => snap.settings.map((r) => JSON.parse(r)).find((r) => r.key === 'schema').value;
+  assert.equal(schema(before), '21');
+  assert.equal(schema(after), '22');
+  for (const t of Object.keys(before).filter((t) => !['users', 'audit', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
+  assert.throws(() => w.sql(SQL22), /duplicate column name: tg_lang/);
+});

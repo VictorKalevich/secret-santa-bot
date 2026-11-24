@@ -90,4 +90,8 @@ export default {
   'bot.notify.mode.sound': '🔔 Со звуком',
   'bot.notify.mode.silent': '🔕 Без звука',
   'bot.notify.mode.off': '🚫 Не присылать',
+  // 061: /language — выбор языка; name — название языка на самом языке
+  'bot.lang.choose': '🌐 Выбери язык бота и приложения:',
+  'bot.lang.auto': 'Как в Telegram ({name})',
+  'bot.lang.saved': 'Язык: {name}',
 };

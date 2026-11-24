@@ -4,7 +4,7 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  t, tl, tx, tdate, tjoin, render, langOf, appTexts, bootTexts, translator, slotsOf, formatDate, formatMs,
+  t, tl, tx, tdate, tjoin, render, langOf, appTexts, bootTexts, translator, slotsOf, formatDate, formatMs, telegramLanguage, foldWord,
   DEFAULT_LANG, DICTIONARIES, LANGUAGES,
 } from '../src/i18n/index.js';
 import { escapeHtml, ownerWord } from '../src/format.js';
@@ -168,8 +168,10 @@ describe('язык человека и словарь приложения', () 
     assert.ok(Object.keys(a.texts).every((k) => k.startsWith('app.')));
     assert.match(a.version, /^ru:[0-9a-f]{8}$/);
     assert.equal(appTexts(DEFAULT_LANG), a, 'один объект на экземпляр');
-    const boot = bootTexts(DEFAULT_LANG);
-    assert.ok(Object.keys(boot).length > 0 && Object.keys(boot).every((k) => k.startsWith('app.boot.')));
+    const boot = bootTexts().texts;
+    for (const lang of LANGUAGES) {
+      assert.ok(Object.keys(boot[lang]).length > 0 && Object.keys(boot[lang]).every((k) => k.startsWith('app.boot.')), lang);
+    }
   });
 
   it('от противного: другой словарь — другая версия; нет ключа у языка — русский текст', () => {
@@ -281,14 +283,19 @@ describe('подстановки, формы, файлы (T035)', () => {
 });
 
 // Ядро словаря приложения из склейки (02-core): t, tl, setTexts — для сверки с сервером
-function appDictionary() {
-  const from = APP.indexOf('  const BOOT_TEXTS');
+// 061: страница — с текстами до ответа, как её отдаёт сервер; languageCode — язык Telegram, browser — браузера
+function appDictionary({ languageCode, browser = '' } = {}) {
+  const from = APP.indexOf('  const BOOT = ');
   const to = APP.indexOf('  // ---------- утилиты', from);
   assert.ok(from > 0 && to > from, 'в склейке нет блока словаря');
   const errors = [];
-  const make = Function('state', 'document', 'console', 'shellTexts', APP.slice(from, to) + '\nreturn { t, tl, setTexts };');
-  const core = make({}, { documentElement: {} }, { error: (m) => errors.push(m) }, () => {});
-  return { ...core, errors };
+  const src = APP.slice(from, to).replace('/*@boot-texts*/null', () => JSON.stringify(bootTexts()));
+  const make = Function('state', 'document', 'console', 'shellTexts', 'tg', 'navigator',
+    src + '\nreturn { t, tl, setTexts, telegramLanguage, foldWord, bootLang, lang: () => textsLang };');
+  const doc = { documentElement: {} };
+  const tg = languageCode === undefined ? undefined : { initDataUnsafe: { user: { language_code: languageCode } } };
+  const core = make({}, doc, { error: (m) => errors.push(m) }, () => {}, tg, { language: browser });
+  return { ...core, errors, doc };
 }
 
 // Подстановки для сверки: обычная — строка, с формой ({owner.nom}) — набор форм, у набора форм числа — n
@@ -306,7 +313,7 @@ function sampleParams(value, n) {
 }
 
 describe('приложение собирает текст так же, как сервер (T035)', () => {
-  for (const lang of [DEFAULT_LANG, PSEUDO]) {
+  for (const lang of [...LANGUAGES, PSEUDO]) {
     it(`все ключи app.* (${lang}): t приложения = t сервера`, () => {
       const drop = lang === PSEUDO ? pseudoLanguage() : () => {};
       try {
@@ -339,6 +346,34 @@ describe('приложение собирает текст так же, как �
     const { texts } = appTexts(DEFAULT_LANG);
     app.setTexts({ lang: DEFAULT_LANG, texts: { ...texts, 'app.boot.loading': 'Иначе' } });
     assert.notEqual(app.t('app.boot.loading'), t(DEFAULT_LANG, 'app.boot.loading'));
+  });
+
+  // 061: язык до ответа me и слово подтверждения — то же правило, что на сервере
+  const CODES = ['', 'ru', 'RU', 'en', 'en-US', 'en_GB', 'pt-br', 'pt-PT', 'zh-hans', 'zh-hant', 'zh-TW', 'uk', 'be', 'kk', 'ky',
+    'tg', 'uz', 'hy', 'az', 'tk', 'ka', 'he', 'ar', 'ja', 'hi', 'es-419', 'fr', 'de', 'it', 'tr', 'id', 'pl', 'nl', 'xx-yy'];
+  it('правило языка Telegram: приложение = сервер на таблице кодов; язык загрузки — по Telegram, иначе браузера', () => {
+    const app = appDictionary();
+    assert.deepEqual(CODES.map(app.telegramLanguage), CODES.map(telegramLanguage));
+    for (const code of CODES) {
+      const page = appDictionary({ languageCode: code });
+      const want = telegramLanguage(code) || DEFAULT_LANG;
+      assert.equal(page.lang(), LANGUAGES.includes(want) ? want : DEFAULT_LANG, code);
+      assert.equal(page.doc.documentElement.lang, page.lang(), code);
+      assert.deepEqual(page.errors, []);
+    }
+    assert.equal(appDictionary({ browser: 'uk-UA' }).lang(), DEFAULT_LANG, 'вне Telegram — язык браузера');
+  });
+
+  it('слово подтверждения: приложение = сервер (регистр, пробелы, диакритика, турецкая İ)', () => {
+    const app = appDictionary();
+    const words = [' выйти ', 'ВЫЙТИ', 'Удалить', 'ёлка', 'Réinitialiser', 'löschen', 'ÇIKIŞ', 'çıkış', 'sil', 'İptal', '删除', 'Zażółć'];
+    for (const lang of ['ru', 'tr', 'fr', 'de', 'pl', 'zh']) {
+      app.setTexts({ lang });
+      assert.deepEqual(words.map((w) => app.foldWord(w)), words.map((w) => foldWord(w, lang)), lang);
+    }
+    assert.equal(foldWord(' réinitialiser ', 'fr'), 'REINITIALISER');
+    assert.equal(foldWord('çıkış', 'tr'), foldWord('ÇIKIŞ', 'tr'));
+    assert.notEqual(foldWord('ВЫЙТИ', 'ru'), foldWord('EXIT', 'ru'), 'от противного: другое слово');
   });
 });
 
