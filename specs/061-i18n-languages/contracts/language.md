@@ -27,9 +27,9 @@
 `lang.set` — роль `USER`, без события. Запрос: `lang` — `''` (как в Telegram) или код из `LANGUAGES`. Ответ: `lang` — язык
 человека после выбора. Отказ: 400 `api.lang.unknown` («Такого языка нет.»). Журнал — нет. Сообщений — нет.
 
-`me` (зарегистрированному) — добавляется:
-- `me.lang_choice` — `users.lang` (`''` — как в Telegram);
-- `me.lang_auto` — язык по Telegram (`telegramLang || tg_lang || 'ru'`) — для подписи «Как в Telegram (…)»;
+Ответ `me` — поля верхнего уровня (рядом с `lang`, `texts_version`, `texts`):
+- `lang_choice` — `users.lang` (`''` — как в Telegram);
+- `lang_auto` — язык по Telegram (`telegramLang || tg_lang || 'ru'`) — для подписи «Как в Telegram (…)»;
 - `languages` — `[{ code, name }]` в порядке `LANGUAGES`, `name` — на самом языке.
 
 Слово подтверждения: `confirmed` сравнивает `foldWord(body.confirm, lang) === foldWord(слово языка, lang)`;
