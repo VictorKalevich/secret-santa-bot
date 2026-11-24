@@ -66,7 +66,8 @@ function freePort() {
   });
 }
 
-export async function startWorld({ notifyDelay = 0, reminderHour = 0, migrate = true, sqlBefore = '' } = {}) {
+// vars (052) — ещё переменные Worker, например { OPEN_BOT: '1' }
+export async function startWorld({ notifyDelay = 0, reminderHour = 0, migrate = true, sqlBefore = '', vars = {} } = {}) {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
   const mock = await startMockTelegram();
@@ -83,6 +84,7 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, migrate = 
     '--var', `ADMIN_SECRET:${ADMIN_SECRET}`,
     '--var', `NOTIFY_DELAY_MINUTES:${notifyDelay}`,
     '--var', `REMINDER_HOUR:${reminderHour}`,
+    ...Object.entries(vars).flatMap(([name, value]) => ['--var', `${name}:${value}`]),
   ], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: localEnv(),

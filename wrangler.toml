@@ -34,7 +34,7 @@ enabled = true
 
 # Второй бот — тот же код на своём аккаунте Cloudflare (свои бесплатные лимиты, база, секреты).
 # Все команды для него — с `--env second` (README, «Второй бот»). Код, cron, rules и observability окружение берёт
-# сверху; базу и vars Wrangler не наследует — они здесь, vars держите такими же, как наверху.
+# сверху; базу и vars Wrangler не наследует — они здесь, vars держите такими же, как наверху, плюс OPEN_BOT.
 [env.second]
 name = "secret-santa-bot-2"
 account_id = "0c9f6b89b9448089366771867271036f"
@@ -50,3 +50,4 @@ migrations_dir = "migrations"
 TIMEZONE_OFFSET_HOURS = "3"
 REMINDER_HOUR = "10"
 NOTIFY_DELAY_MINUTES = "10"
+OPEN_BOT = "1"                # открытый бот: каждый может создать свою компанию (README, «Открытый бот»)

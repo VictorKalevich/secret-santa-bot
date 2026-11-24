@@ -21,6 +21,10 @@ export const OWNER_LINK_GONE = 'Эта ссылка владельца уже и
 export const NEW_COMPANY_OWNER = '👑 Ты — владелец своей компании в «Тайном Санте»: создаёшь события, приглашаешь людей, назначаешь администраторов.';
 const TRANSFER_TARGET = 'Передать права владельца можно только зарегистрированному человеку.';
 
+// Открытый бот (052): создавать компании может любой человек. Признак — настройка выката (vars окружения), читается
+// только здесь
+export const openBot = (env) => env.OPEN_BOT === '1';
+
 const NUMBERED = (n) => `Компания ${n}`;
 const linkOf = (settings, code) => `https://t.me/${settings.bot_username}?start=own_${code}`;
 const quoted = (name) => `«${escapeHtml(name)}»`;

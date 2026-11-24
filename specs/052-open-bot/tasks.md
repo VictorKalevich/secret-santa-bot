@@ -10,19 +10,19 @@
 
 ## Этап 1. Подготовка
 
-- [ ] T001 Точка отсчёта: `npm test` зелёный на `052-open-bot` до правок кода.
+- [X] T001 Точка отсчёта: `npm test` зелёный на `052-open-bot` до правок кода.
 
 ## Этап 2. Основа (до историй)
 
-- [ ] T002 `.specify/memory/constitution.md` → 3.1.0 (MINOR, research R10): принцип II — в открытом боте регистрация и без
+- [X] T002 `.specify/memory/constitution.md` → 3.1.0 (MINOR, research R10): принцип II — в открытом боте регистрация и без
   ссылки; принцип I — исключение «общее название компании, созданной человеком в открытом боте: видят её люди и владелец
   бота»; принцип VII — в открытом боте компанию создаёт любой (не больше двух во владении), владелец компании удаляет свою
   пустую; «Безопасность и данные» — признак `companies.shared`; Sync Impact Report.
-- [ ] T003 `migrations/0016_open_bot.sql`: `ALTER TABLE companies ADD COLUMN shared INTEGER NOT NULL DEFAULT 0;` и
+- [X] T003 `migrations/0016_open_bot.sql`: `ALTER TABLE companies ADD COLUMN shared INTEGER NOT NULL DEFAULT 0;` и
   `UPDATE settings SET value = '18' WHERE key = 'schema';` (data-model); `src/db.js`: `REQUIRED_SCHEMA = 18`,
   `companiesQuery` — ещё `shared`; `src/context.js`: `companiesFrom` — `shared: !!c.shared`. `tests/migrations.test.mjs`:
   0016 — колонка с умолчанием 0 и версия 18, строки прежние, «от противного».
-- [ ] T004 `src/companies.js`: `openBot(env)` — `env.OPEN_BOT === '1'` (единственное чтение переменной, R1);
+- [X] T004 `src/companies.js`: `openBot(env)` — `env.OPEN_BOT === '1'` (единственное чтение переменной, R1);
   `wrangler.toml`: `[env.second.vars]` — `OPEN_BOT = "1"`, комментарий над `[env.second]` (vars второго бота — как наверху
   плюс `OPEN_BOT`). `tests/support/world.mjs`: `startWorld({ open })` → `env.OPEN_BOT = '1'`; `tests/harness.mjs`:
   `startWorld({ vars })` → `--var ИМЯ:значение`.

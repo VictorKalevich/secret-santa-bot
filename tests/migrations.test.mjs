@@ -289,6 +289,36 @@ test('0015 на пустой базе: компания 1 без людей, в�
   assert.equal(rowsOf(db.sqlite, "SELECT value FROM settings WHERE key = 'schema'")[0].value, '17');
 });
 
+// 052: миграция 0016 — признак «название общее» у компаний (companies.shared), у прежних 0; версия схемы 18
+const SQL16 = readFileSync(new URL('0016_open_bot.sql', MIGRATIONS_DIR), 'utf8');
+const statements16 = SQL16.replace(/--[^\n]*/g, '').split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+
+test('0016: только колонка companies.shared с умолчанием 0 и версия схемы 18', () => {
+  assert.deepEqual(statements16, [
+    'ALTER TABLE companies ADD COLUMN shared INTEGER NOT NULL DEFAULT 0',
+    "INSERT INTO settings (key, value) VALUES ('schema', '18') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ]);
+});
+
+test('база с данными «до 0016»: у всех компаний shared = 0, остальные строки прежние, версия 18', async () => {
+  const { w } = await filledWorld();
+  addCompany(w, 'Вторая');
+  w.sql("ALTER TABLE companies DROP COLUMN shared; UPDATE settings SET value = '17' WHERE key = 'schema'");
+  const before = snapshot(w);
+  w.sql(SQL16);
+  const after = snapshot(w);
+  const companies = w.query('SELECT shared FROM companies');
+  assert.ok(companies.length === 2 && companies.every((c) => c.shared === 0), 'признак у всех — 0');
+  const without = (rows) => rows.map((r) => { const { shared: _, ...rest } = JSON.parse(r); return JSON.stringify(rest); }).sort();
+  assert.deepEqual(without(after.companies), before.companies, 'компании — те же значения');
+  const schema = (snap) => snap.settings.map((r) => JSON.parse(r)).find((r) => r.key === 'schema').value;
+  assert.equal(schema(before), '17');
+  assert.equal(schema(after), '18');
+  for (const t of Object.keys(before).filter((t) => !['companies', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
+  // от противного: колонка уже есть — повтор миграции падает (Wrangler применяет её один раз)
+  assert.throws(() => w.sql(SQL16), /duplicate column name: shared/);
+});
+
 // ---------- сверка компаний (050, tools/companies-reconcile.sql) ----------
 
 const RECONCILE = readFileSync(new URL('../tools/companies-reconcile.sql', import.meta.url), 'utf8');

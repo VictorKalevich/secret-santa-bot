@@ -7,7 +7,7 @@ import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 17;
+export const REQUIRED_SCHEMA = 18;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -98,9 +98,9 @@ export async function createUser(db, id, username, fields = {}) {
 
 // ---------- компании (050) ----------
 
-// Компании: название владельца бота и признак «ссылка владельца действует» (051) — в ответы уходят только владельцу бота;
-// самого кода ссылки здесь нет
-export const companiesQuery = (db) => db.prepare("SELECT id, owner_id, name, owner_code != '' AS link FROM companies");
+// Компании: название и признак «ссылка владельца действует» (051) — в ответы уходят только владельцу бота; самого кода
+// ссылки здесь нет. shared (052) — название общее: его видят и люди компании
+export const companiesQuery = (db) => db.prepare("SELECT id, owner_id, name, owner_code != '' AS link, shared FROM companies");
 // Компании человека: права, своё название и время вступления (номер «Компания N», 051)
 export const myCompaniesQuery = (db, userId) =>
   db.prepare('SELECT company_id, is_admin, label, joined_at FROM company_members WHERE user_id = ?').bind(userId);

@@ -44,7 +44,8 @@ const leave = () => {
 
 let worldNo = 0;
 
-export async function startWorld({ notifyDelay = 0, reminderHour = 0 } = {}) {
+// open (052) — открытый бот (OPEN_BOT = '1')
+export async function startWorld({ notifyDelay = 0, reminderHour = 0, open = false } = {}) {
   const DB = createMigratedD1();
   const host = `tg${++worldNo}.test`;
   const logStart = LOG.length;
@@ -65,6 +66,7 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0 } = {}) {
   const env = {
     DB, BOT_TOKEN: TOKEN, ADMIN_SECRET, TG_API: 'http://' + host,
     TIMEZONE_OFFSET_HOURS: '3', REMINDER_HOUR: String(reminderHour), NOTIFY_DELAY_MINUTES: String(notifyDelay),
+    ...(open ? { OPEN_BOT: '1' } : {}),
   };
 
   // Один вызов Worker: ждём и ответ, и всё, что ушло в waitUntil (отправка очереди). Без sleep.

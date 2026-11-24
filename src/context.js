@@ -27,8 +27,8 @@ const USERS = '\u0000users';
 const SETTINGS = '\u0000settings';
 const COMPANIES = '\u0000companies';
 
-// name и link (051) — только для ответов владельцу бота
-const companiesFrom = (rows) => new Map(rows.map((c) => [c.id, { id: c.id, owner_id: c.owner_id, name: c.name, link: !!c.link }]));
+// name и link (051) — только для ответов владельцу бота; name при shared (052) — и людям компании
+const companiesFrom = (rows) => new Map(rows.map((c) => [c.id, { id: c.id, owner_id: c.owner_id, name: c.name, link: !!c.link, shared: !!c.shared }]));
 
 // Люди, владелец и «я владелец» есть только у контекста компании (ctx.in): общий контекст их не знает
 const noCompany = () => {
