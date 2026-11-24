@@ -879,6 +879,32 @@ npm run deploy
 
 Проверка — `specs/056-auto-finish-stale/quickstart.md`.
 
+**Минутная проверка по отметкам (057).** Миграция `0020_cron_marks.sql` (схема 20) добавляет участнику отметку «правка
+письма или адреса ждёт уведомления Санте», событию — «на сегодня проверено» и индексы по ним: минутная проверка больше
+не перебирает каждую минуту все идущие события и пары, и расход чтений базы перестаёт расти с числом людей. Для людей
+ничего не меняется: уведомления, напоминания и автодействия — как раньше. Правки, которые уже ждут уведомления, миграция
+отмечает сама. Примените её **до** выката, в базу каждого бота своей командой (новый код без неё не работает, прежний с
+ней работает — откат кода безопасен), а **после** выката выполните сверку `tools/notify-reconcile.sql`: она отметит
+правки писем, принятые прежним кодом в минуты между миграцией и выкатом (повтор ничего не меняет, схему не трогает).
+
+```powershell
+# второй бот — сначала он, проверка, потом первый
+npx wrangler deployments list --env second                                   # Version ID — точка отката
+npx wrangler d1 export secret-santa-db-2 --env second --remote --output "backup-secret-santa-db-2-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
+npx wrangler d1 migrations apply secret-santa-db-2 --env second --remote     # 0020_cron_marks.sql, схема 20
+npm run deploy:second
+npx wrangler d1 execute secret-santa-db-2 --env second --remote --file tools/notify-reconcile.sql   # сверка
+# первый бот
+npx wrangler deployments list
+npx wrangler d1 export secret-santa-db --remote --output "backup-secret-santa-db-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
+npx wrangler d1 migrations apply secret-santa-db --remote                    # 0020_cron_marks.sql, схема 20
+npm run deploy
+npx wrangler d1 execute secret-santa-db --remote --file tools/notify-reconcile.sql                  # сверка
+```
+
+Если пришлось откатить код и потом выкатить 057 снова — снова выполните сверку. Проверка и замер расхода —
+`specs/057-cron-marks/quickstart.md`.
+
 После выката откройте приложение в Telegram (лучше на телефоне) и пройдитесь по главному экрану и своему событию. Если
 приложение открылось пустым, с вечной «Загрузка…» или без оформления, верните прежнюю версию:
 
@@ -1082,7 +1108,8 @@ src/             код Worker: бот, API, жеребьёвка, cron; app-pag
   app/           мини-приложение по частям (оболочка, главный экран, компании, событие, панель управления, шторка, запуск)
 design-system/   дизайн-система: токены, компоненты, витрина, правила
 docs/            api.md — описание API, бота и журнала (актуальное); todo.md — отложенные доработки
-tools/           служебные SQL для владельца: companies-reconcile.sql — сверка компаний после выката или отката
+tools/           служебные SQL для владельца: companies-reconcile.sql — сверка компаний после выката или отката;
+                 notify-reconcile.sql — сверка отметок уведомлений после выката 057
 tests/           быстрые тесты (*.test.mjs), e2e (e2e.test.mjs), скриншоты
   support/       «мир»: весь Worker в одном процессе, подмена D1 на node:sqlite, поддельный Telegram
   fixtures/      эталоны жеребьёвки и отказов API (не пересоздаются)
