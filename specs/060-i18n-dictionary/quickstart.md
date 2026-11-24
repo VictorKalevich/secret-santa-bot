@@ -4,7 +4,8 @@
 
 ```powershell
 npm test            # в т.ч. tests/i18n.test.mjs, эталон отказов, wording, migrations (0021), queries
-npm run screenshots # Chrome: прежние проверки + checkPseudo (человек с псевдоязыком — без кириллицы на экранах)
+npm run screenshots # Chrome: прежние проверки (тексты экранов прежние)
+node --test tests/i18n-pseudo.ui.mjs  # Chrome: человек с псевдоязыком — без кириллицы на экранах и в шторках
 npm run test:all    # перед слиянием: npm test и e2e
 ```
 

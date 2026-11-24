@@ -39,15 +39,28 @@ const areaOf = (file) => {
 const inFile = (place, file) => place.startsWith(file + ':') ||
   (!!areaOf(file) && new RegExp(`^src/i18n/[\\w-]+/${areaOf(file)}\\.js:`).test(place));
 
-test('в текстах для людей используются «событие», «владелец» и «администратор»', () => {
+function eventWords(list) {
   const obsoleteRole = /(?<!\p{L})(?:организатор\p{L}*|админ(?:а|у|ом|е|ы|ов|ам|ами|ах)?)(?!\p{L})/iu;
   const found = [];
-  for (const [text, at] of sources) {
+  for (const [text, at] of list) {
     stripComments(text).split('\n').forEach((line, i) => {
       if (/[Ээ]вент/.test(line) || obsoleteRole.test(line)) found.push(`${at(i + 1)}: ${line.trim().slice(0, 140)}`);
     });
   }
-  assert.deepEqual(found, [], 'используй названия из спецификаций 013 и 044');
+  return found;
+}
+
+test('в текстах для людей используются «событие», «владелец» и «администратор»', () => {
+  assert.deepEqual(eventWords(sources), [], 'используй названия из спецификаций 013 и 044');
+});
+
+test('от противного (060): нарушения в словаре — с местом в файле словаря', () => {
+  const dict = (line) => [[line, (n) => `src/i18n/ru/events.js:${n}`]];
+  assert.deepEqual(eventWords(dict("  'events.x': 'Эвент начался',")).map((x) => x.split(': ')[0]), ['src/i18n/ru/events.js:1']);
+  assert.equal(eventWords(dict("  'events.x': 'Напиши организатору',")).length, 1);
+  assert.equal(eventWords(dict("  // эвент — внутренний термин\n  'events.x': 'Событие началось',")).length, 0);
+  assert.equal(companyWords(dict("  'events.x': 'Компания создана',")).length, 1);
+  assert.equal(botOwnerProblems([...sources, ...dict("  'events.x': 'Попроси владельца бота',")]).length, 1);
 });
 
 // 059: в текстах для людей — «комната»; «компания» — внутренний термин кода и комментариев. Сообщения исключений
