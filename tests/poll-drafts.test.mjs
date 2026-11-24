@@ -252,20 +252,23 @@ export function draftRules(text) {
   return found;
 }
 
-// 4. Уход: вопрос UNSAVED — только в mayLeave, после saveLetterNow и только при state.dirty === true; уходят через mayLeave
+// 4. Уход: вопрос о несохранённом (060: текст словаря app.home.unsaved) — только в mayLeave, после saveLetterNow и только
+// при state.dirty === true; уходят через mayLeave
+const ASK = "confirmBox(t('app.home.unsaved'))";
+const ASK_RE = /confirmBox\(t\('app\.home\.unsaved'\)\)/;
 export function leaveRules(text) {
   const found = [];
   const all = text.split('\n');
   const may = block(text, 'mayLeave');
   all.forEach((l, i) => {
-    if (/confirmBox\(UNSAVED\)/.test(code(l)) && !(may && i + 1 >= may.line && i + 1 < may.line + may.text.split('\n').length)) {
-      found.push([i + 1, 'вопрос UNSAVED мимо mayLeave: черновик письма при уходе сохраняется сам']);
+    if (ASK_RE.test(code(l)) && !(may && i + 1 >= may.line && i + 1 < may.line + may.text.split('\n').length)) {
+      found.push([i + 1, 'вопрос о несохранённом мимо mayLeave: черновик письма при уходе сохраняется сам']);
     }
   });
   if (!may) return [...found, [1, 'нет mayLeave']];
-  const save = may.text.indexOf('saveLetterNow()'), ask = may.text.indexOf('confirmBox(UNSAVED)');
+  const save = may.text.indexOf('saveLetterNow()'), ask = may.text.indexOf(ASK);
   if (save < 0 || ask < 0 || save > ask) found.push([may.line, 'mayLeave: сначала saveLetterNow(), потом вопрос']);
-  if (!/state\.dirty === true && !\(await confirmBox\(UNSAVED\)\)/.test(may.text)) found.push([may.line, "mayLeave: спрашивать только при state.dirty === true ('draft' сохранится сам)"]);
+  if (!new RegExp(String.raw`state\.dirty === true && !\(await ${ASK_RE.source}\)`).test(may.text)) found.push([may.line, "mayLeave: спрашивать только при state.dirty === true ('draft' сохранится сам)"]);
   for (const name of ['leaveEvent', 'renderTabs']) {
     const b = block(text, name);
     if (!b || !/await mayLeave\(\)/.test(b.text)) found.push([b?.line || 1, `${name}: уход не через mayLeave`]);
@@ -335,11 +338,11 @@ test('от противного: черновик по 450 мс мимо оче�
   assert.deepEqual(at(draftRules(draft)), [2, 4, 1, 1]);
   const leave = lines(
     '  async function mayLeave() {',
-    '    if (state.dirty && !(await confirmBox(UNSAVED))) return false;',
+    "    if (state.dirty && !(await confirmBox(t('app.home.unsaved')))) return false;",
     '    return true;',
     '  }',
     '  async function leaveEvent() {',
-    '    if (state.dirty && !(await confirmBox(UNSAVED))) return;',
+    "    if (state.dirty && !(await confirmBox(t('app.home.unsaved')))) return;",
     '  }',
     '  function renderTabs() {',
     '    onclick: async () => { if (!(await mayLeave())) return; }',

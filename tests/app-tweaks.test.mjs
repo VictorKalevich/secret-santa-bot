@@ -5,7 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { APP, where } from './support/app-source.mjs';
+import { appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
+const APP_DICT = appTexts(DEFAULT_LANG).texts;
 const CSS = readFileSync(new URL('../design-system/components.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
 // Верхнеуровневая функция name (отступ 2) до её закрывающей строки «  }» → { start (номер строки с 0), text }; null — нет
@@ -77,21 +79,27 @@ export function doneGated(text) {
 }
 
 // ---------- 4. Подсказки без года числом; подсказка названия — следующий год ----------
-export function literalYears(text) {
+// 060: подсказка из словаря (placeholder: t('ключ', …)) — год числом ищется в тексте словаря dict
+export function literalYears(text, dict = APP_DICT) {
   const found = [];
   text.split('\n').forEach((l, i) => {
     for (const m of l.matchAll(/placeholder: (['"`])((?:\\.|(?!\1).)*)\1/g)) {
       if (/\b20\d\d\b/.test(m[2].replace(/\$\{[^}]*\}/g, ''))) found.push([i + 1, `год числом в подсказке: «${m[2]}» — через год она устареет`]);
     }
+    for (const m of l.matchAll(/placeholder: t\('([\w.]+)'/g)) {
+      const value = dict[m[1]];
+      if (typeof value === 'string' && /\b20\d\d\b/.test(value)) found.push([i + 1, `год числом в подсказке ${m[1]}: «${value}» — через год она устареет`]);
+    }
   });
   return found;
 }
-// Подсказка названия нового события, вычисленная из склейки на «телефоне» с годом year; null — не шаблон с годом
-export function titleHint(text, year) {
-  const m = /placeholder: (`Например: Новый год \$\{[^`]*\} — семья`)/.exec(text);
-  if (!m) return null;
+// Подсказка названия нового события, вычисленная из склейки на «телефоне» с годом year: текст — из словаря dict, {year} —
+// выражение из склейки; null — не шаблон с годом
+export function titleHint(text, year, dict = APP_DICT) {
+  const m = /placeholder: t\('(app\.home\.create\.placeholder)', \{ year: ([^}]*) \}\)/.exec(text);
+  if (!m || typeof dict[m[1]] !== 'string' || !dict[m[1]].includes('{year}')) return null;
   class PhoneDate extends Date { constructor(...a) { super(...(a.length ? a : [year, 5, 15])); } }
-  return Function('Date', `return ${m[1]};`)(PhoneDate);
+  return dict[m[1]].replace('{year}', Function('Date', `return ${m[2]};`)(PhoneDate));
 }
 
 // ---------- 5. Отступ над «Вопрос решён» — как в обычной шторке ----------
@@ -244,6 +252,12 @@ test('от противного 4: год числом в подсказке н�
   assert.equal(literalYears(bad).length, 1);
   assert.equal(titleHint(bad, 2026), null);
   assert.equal(literalYears('placeholder: `Например: Новый год ${new Date().getFullYear() + 1} — семья`').length, 0);
+  // 060: год числом в тексте словаря находится, подсказка словаря без {year} не вычисляется
+  const call = "placeholder: t('app.home.create.placeholder', { year: new Date().getFullYear() + 1 })";
+  const stale = { 'app.home.create.placeholder': 'Например: Новый год 2026 — семья' };
+  assert.equal(literalYears(call).length, 0);
+  assert.equal(literalYears(call, stale).length, 1);
+  assert.equal(titleHint(call, 2026, stale), null);
 });
 
 test('от противного 5: кнопка без отступа и отступ не как у ds-stack находятся', () => {

@@ -5,6 +5,7 @@
 // 04-companies — в APP_PARTS.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { APP, PARTS, where, code, topBlock, ownerOf } from './support/app-source.mjs';
 
 // Общие действия организатора (050, раздел 2): без события у них есть поле company
@@ -32,11 +33,10 @@ function roleWrites(text) {
   return found;
 }
 
-// Слово «комната» (059; до него — «компания») в текстах частей, кроме 04-companies и разрешённых мест: [часть, кусок
-// строки]. Прежнее слово «компани…» вне комментариев — нигде, и в 04-companies
+// Слово «комната» (059; до него — «компания») в текстах частей и их словарей (060), кроме 04-companies и разрешённых мест:
+// [часть, кусок строки части или её словаря]. Прежнее слово «компани…» вне комментариев — нигде, и в 04-companies
 const COMPANY_WORD = [
-  ['03-home.js.txt', 'Ты здесь как владелец бота: в списках комнаты'], // плашка гостя (владелец бота)
-  ['03-home.js.txt', 'Твои изменения записываются в журнал комнаты'],
+  ['03-home.js.txt', 'Ты здесь как владелец бота: в списках комнаты'], // плашка гостя (владелец бота), 060 — одной строкой
   ['03-home.js.txt', 'владельцем этой комнаты?'], // 👑 владельца бота
   ['07-vault-audit.js.txt', "'company.create': '🚪 Создана комната'"], // записи журнала бота
 ];
@@ -47,11 +47,18 @@ function companyWords(parts, allowed = COMPANY_WORD) {
       const c = code(line);
       const room = /комнат/iu.test(c) && p.name !== '04-companies.js.txt'
         && !allowed.some(([name, part]) => name === p.name && c.includes(part));
-      if (room || /компани/iu.test(c)) found.push(`src/app/${p.name}:${i + 1}`);
+      if (room || /компани/iu.test(c)) found.push(`${p.file || 'src/app/' + p.name}:${i + 1}`);
     });
   }
   return found;
 }
+// 060: тексты части — в словаре её области (русский); в сверке слов словарь стоит за своей частью
+const DICT_OF = { '01-shell.html': 'app-boot', '02-core.js.txt': 'app-core', '03-home.js.txt': 'app-home',
+  '04-companies.js.txt': 'app-companies', '05-event.js.txt': 'app-event', '06-admin.js.txt': 'app-admin',
+  '07-vault-audit.js.txt': 'app-vault', '08-sheet-chat.js.txt': 'app-sheet' };
+const DICTS = Object.entries(DICT_OF).map(([name, area]) => ({ name, file: `src/i18n/ru/${area}.js`,
+  text: readFileSync(new URL(`../src/i18n/ru/${area}.js`, import.meta.url), 'utf8') }));
+const TEXTS = [...PARTS, ...DICTS];
 
 // Выбор корневого экрана в start() и goRoot() (052): «Компании» — по listFirst (≥ 2 компаний или их нет, а список
 // доступен), иначе вход в единственную; listFirst и withList — по одному определению с прежним смыслом
@@ -123,12 +130,14 @@ test('«‹» главного экрана компании — по withList; 
 });
 
 test('слово «комната» — только в части 04-companies и в разрешённых местах; «компания» — нигде (059)', () => {
-  assert.deepEqual(companyWords(PARTS), []);
-  // от противного: подсказка в событии, устаревший список, прежнее слово в 04-companies
-  const bad = PARTS.map((p) => (p.name === '05-event.js.txt' ? { ...p, text: p.text + "    ui.hint('Событие комнаты');\n" } : p));
+  assert.deepEqual(companyWords(TEXTS), []);
+  // от противного: подсказка в событии (в части и в словаре), устаревший список, прежнее слово в 04-companies
+  const bad = TEXTS.map((p) => (p.name === '05-event.js.txt' && !p.file ? { ...p, text: p.text + "    ui.hint('Событие комнаты');\n" } : p));
   assert.equal(companyWords(bad).length, 1);
-  assert.equal(companyWords(PARTS, COMPANY_WORD.slice(1)).length, 1);
-  const old = PARTS.map((p) => (p.name === '04-companies.js.txt' ? { ...p, text: p.text + "    ui.hint('Новая компания');\n" } : p));
+  const badDict = TEXTS.map((p) => (p.file === 'src/i18n/ru/app-event.js' ? { ...p, text: p.text + "  'app.event.room': 'Событие комнаты',\n" } : p));
+  assert.deepEqual(companyWords(badDict).map((s) => s.split(':')[0]), ['src/i18n/ru/app-event.js']);
+  assert.equal(companyWords(TEXTS, COMPANY_WORD.slice(1)).length, 1);
+  const old = TEXTS.map((p) => (p.name === '04-companies.js.txt' && !p.file ? { ...p, text: p.text + "    ui.hint('Новая компания');\n" } : p));
   assert.equal(companyWords(old).length, 1);
 });
 
