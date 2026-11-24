@@ -162,7 +162,7 @@ quickstart.md
 
 - [X] T037 [US1] `git diff main -- tests/fixtures/` пуст; в диффе `tests/` нет правок ожидаемых текстов поведения
   (только проверки исходного кода из R11) — просмотреть и перечислить в отчёте
-- [ ] T038 [US1] `npm test`, `npm run test:e2e` (журнал без `i18n:` и `budget exceeded`), `npm run screenshots` —
+- [X] T038 [US1] `npm test`, `npm run test:e2e` (журнал без `i18n:` и `budget exceeded`), `npm run screenshots` —
   все прежние проверки Chrome зелёные; число запросов `queries` — прежнее
 
 ---
@@ -199,7 +199,7 @@ quickstart.md
   только в словаре» (как добавить текст, ключи таблиц и семейств, `ctx.t`/`tx`); миграции — `0021`, схема 21; тесты —
   `i18n`; README по пункту 8
 - [X] T045 [P] `README.md`: миграция `0021` в разделе обновления, язык в описании хранимых данных
-- [ ] T046 Прогон `quickstart.md` (локальная часть) и `npm run test:all`; коммит, `git push -u origin 060-i18n-dictionary`
+- [X] T046 Прогон `quickstart.md` (локальная часть) и `npm run test:all`; коммит, `git push -u origin 060-i18n-dictionary`
 
 ---
 
