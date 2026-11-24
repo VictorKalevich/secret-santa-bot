@@ -273,8 +273,8 @@ describe('подстановки, формы, файлы (T035)', () => {
     assert.equal(slotMismatch('Привет, {name}!', new Set(['name'])), null);
     assert.equal(slotMismatch('Привет, {name}!', new Set(['nmae'])), 'лишние: nmae; нет: name');
     assert.equal(slotMismatch({ one: '{n} день', few: '{n} дня', many: '{n} дней' }, new Set()), 'лишние: —; нет: n');
-    assert.deepEqual(callParams("t('a.b', { a, b: f(1, { c: 2 }), 'd': '}' }); t('a.c'); tx('a.d', p); t('a.e', { ...o })")
-      .map((c) => [c.key, c.names && [...c.names]]), [['a.b', ['a', 'b', 'd']], ['a.c', []], ['a.d', null], ['a.e', null]]);
+    assert.deepEqual(callParams("t('a.b', { a, b: f(1, { c: 2 }), 'd': '}', e: 'x' }); t('a.c'); tx('a.d', p); t('a.e', { ...o })")
+      .map((c) => [c.key, c.names && [...c.names]]), [['a.b', ['a', 'b', 'd', 'e']], ['a.c', []], ['a.d', null], ['a.e', null]]);
   });
 });
 

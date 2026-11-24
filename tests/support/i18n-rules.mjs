@@ -65,7 +65,8 @@ export function keysIn(text) {
   return { called, families, literals };
 }
 
-// Конец выражения от позиции i (открывающая скобка): с учётом вложенных скобок, строк и шаблонов → индекс после него
+// Конец выражения от позиции i (открывающая скобка или кавычка): с учётом вложенных скобок, строк и шаблонов → индекс
+// после него
 function closing(src, i) {
   const pairs = { '{': '}', '(': ')', '[': ']' };
   const stack = [];
@@ -73,6 +74,7 @@ function closing(src, i) {
     const c = src[j];
     if (c === "'" || c === '"' || c === '`') {
       for (j++; j < src.length && src[j] !== c; j++) if (src[j] === '\\') j++;
+      if (!stack.length) return j + 1;
       continue;
     }
     if (pairs[c]) stack.push(pairs[c]);
