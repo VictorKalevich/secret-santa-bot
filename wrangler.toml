@@ -38,6 +38,7 @@ enabled = true
 [env.second]
 name = "secret-santa-bot-2"
 account_id = "0c9f6b89b9448089366771867271036f"
+preview_urls = false   # версии без выката (`wrangler versions upload`) снаружи не открываются
 
 [[env.second.d1_databases]]
 binding = "DB"
