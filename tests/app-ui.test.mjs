@@ -290,13 +290,19 @@ export function confirmProblems(text) {
 }
 
 // ---------- 7. Без копий: одно поле ответа, один помощник правил пар, одна шторка со словом (035) ----------
+// 060: текст живёт в словаре — копия — второй вызов t('…') любого ключа с этим текстом
+function callsOf(value) {
+  const keys = Object.keys(APP_DICT).filter((k) => APP_DICT[k] === value);
+  if (!keys.length) throw new Error(`в словаре приложения нет текста «${value}»`);
+  return new RegExp(String.raw`\bt\('(?:${keys.map((k) => k.replace(/\./g, '\\.')).join('|')})'\)`, 'g');
+}
 const ONCE = [
   ['поле ответа (ds-composer__input) — только composerParts', /ds-composer__input/g],
   ['разбор взаимных пар правил — только rulePairs', /\.giver === \w+\.receiver && \w+\.receiver === \w+\.giver/g],
   ['флажок «и наоборот» — только ruleForm', /'и наоборот \(в обе стороны\)'/g],
   ['проверка «Выбери двух людей» — только ruleForm', /'Выбери двух людей'/g],
   ['проверка «Нужны два разных человека» — только ruleForm', /'Нужны два разных человека'/g],
-  ['шторка удаления со словом («Будет удалено без возможности восстановления») — только typedSheet', /'Будет удалено без возможности восстановления:'/g],
+  ['шторка удаления со словом («Будет удалено без возможности восстановления») — только typedSheet', callsOf('Будет удалено без возможности восстановления:')],
 ];
 export function copies(text) {
   const lineOf = (pos) => text.slice(0, pos).split('\n').length;
@@ -452,7 +458,7 @@ test('от противного 7: вторая копия поля ответа
     "  const m2 = rows.some((x) => x.giver === f.receiver && x.receiver === f.giver);",
     "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');",
     "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');",
-    "  h('input', { placeholder: `Введи слово ${word}` }); h('b', {}, 'Будет удалено без возможности восстановления:');",
-    "  h('input', { placeholder: `Введи слово ВЫЙТИ` }); h('b', {}, 'Будет удалено без возможности восстановления:');");
+    "  h('input', { placeholder: t('app.sheet.typed.placeholder', { word }) }); h('b', {}, t('app.sheet.typed.willDelete'));",
+    "  h('input', { placeholder: t('app.sheet.typed.placeholder', { word: 'ВЫЙТИ' }) }); h('b', {}, t('app.sheet.typed.willDelete'));");
   assert.deepEqual(at(copies(bad)), [2, 4, 6, 6, 6, 8]);
 });
