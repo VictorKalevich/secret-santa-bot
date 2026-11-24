@@ -8,6 +8,80 @@
     try { if (ver('6.1')) { tg.setHeaderColor('secondary_bg_color'); tg.setBackgroundColor('secondary_bg_color'); } } catch (e) {}
   }
 
+  // ---------- словарь (060, контракт — specs/060-i18n-dictionary/contracts/i18n.md, разделы 2 и 6) ----------
+  // До ответа me — набор app.boot.* (сервер вставляет его в страницу); me приносит словарь приложения своего языка
+  // (setTexts). Тексты берутся при построении экрана, не при загрузке скрипта: до me есть только app.boot.*
+  const BOOT_TEXTS = /*@boot-texts*/null;
+  let TEXTS = BOOT_TEXTS || {};
+  let textsLang = 'ru';
+  let pluralRules = null;
+  const i18nError = (text) => console.error('i18n: ' + text);
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const SLOT = /\{([A-Za-z0-9_]+)(?:\.([A-Za-z0-9_]+))?\}/g;
+  function slotNames(value) {
+    const names = new Set();
+    for (const text of typeof value === 'object' ? Object.values(value) : [value]) {
+      for (const m of String(text).matchAll(SLOT)) names.add(m[1]);
+    }
+    return names;
+  }
+  function pluralCategory(n) {
+    if (!pluralRules) {
+      try { pluralRules = new Intl.PluralRules(textsLang); } catch (e) { pluralRules = new Intl.PluralRules('ru'); }
+    }
+    return pluralRules.select(n);
+  }
+  // Текст по ключу: {имя} — подстановка, {имя.форма} — форма из набора (ownerWord); набор форм числа — по params.n.
+  // Нет ключа — сам ключ и console.error (тесты в Chrome собирают такие ошибки)
+  function t(key, params) {
+    const value = own(TEXTS, key) ? TEXTS[key] : undefined;
+    if (value === undefined) {
+      i18nError('нет ключа ' + key);
+      return key;
+    }
+    if (Array.isArray(value)) {
+      i18nError(key + ' — список, а не текст');
+      return value.join(', ');
+    }
+    let text = value;
+    if (typeof value === 'object') {
+      const n = params && params.n;
+      if (typeof n !== 'number') i18nError(key + ': у набора форм нет числа n');
+      text = value[typeof n === 'number' ? pluralCategory(n) : 'other'] ?? value.other ?? Object.values(value)[0];
+    }
+    if (params) {
+      const used = slotNames(value);
+      for (const name of Object.keys(params)) {
+        if (!used.has(name) && !(name === 'n' && typeof value === 'object')) i18nError(key + ': лишняя подстановка ' + name);
+      }
+    }
+    return text.replace(SLOT, (m, name, form) => {
+      let v = params && own(params, name) ? params[name] : undefined;
+      if (form !== undefined && v !== undefined) v = v && typeof v === 'object' && own(v, form) ? v[form] : undefined;
+      if (v !== undefined) return String(v);
+      i18nError(key + ': нет подстановки ' + (form ? name + '.' + form : name));
+      return m;
+    });
+  }
+  // Список по ключу (месяцы, дни недели)
+  function tl(key) {
+    const value = TEXTS[key];
+    if (Array.isArray(value)) return value;
+    i18nError(key + ' — не список');
+    return [];
+  }
+  // Словарь из ответа me: язык, версия (повторный me без словаря, если версия та же) и тексты
+  function setTexts(d) {
+    if (d.texts) TEXTS = { ...BOOT_TEXTS, ...d.texts };
+    if (d.lang && d.lang !== textsLang) {
+      textsLang = d.lang;
+      pluralRules = null;
+      document.documentElement.lang = d.lang;
+    }
+    if (d.texts_version) state.textsVersion = d.texts_version;
+    state.lang = textsLang;
+  }
+
   // ---------- утилиты ----------
   // Создание элементов: пользовательский текст всегда вставляется как текст, не как HTML.
   function h(tag, attrs, ...children) {
@@ -28,7 +102,7 @@
   }
   /*@clearable-input*/
   function clearable(input, label) {
-    return bindClearableInput(h('span', { class: 'ds-clearable' }, input), label);
+    return bindClearableInput(h('span', { class: 'ds-clearable' }, input), t('app.core.clearField', { label }));
   }
   let fieldId = 0;
   function field(label, el) {
@@ -154,7 +228,7 @@
     const show = (iso) => {
       const m = /^(\d{4})-\d{2}-\d{2}$/.exec(iso || '');
       el.value = m ? iso : '';
-      el.textContent = m ? `${fmtDate(iso)} ${m[1]}` : 'Не выбрана';
+      el.textContent = m ? t('app.core.dateYear', { date: fmtDate(iso), year: m[1] }) : t('app.core.dateNone');
       el.classList.toggle('ds-input--placeholder', !m);
     };
     const set = (iso) => { show(iso); el.dispatchEvent(new Event('change', { bubbles: true })); };
@@ -164,7 +238,7 @@
   }
   // Шторка календаря: месяц даты (без неё — текущий); дни раньше сегодня недоступны (кроме уже заданной даты); назад —
   // не раньше текущего месяца и месяца даты. «Готово» → onPick(день), «Сбросить» (только при дате) → onPick('')
-  function openCalendar(value, onPick, { title = 'Дата', hint } = {}) {
+  function openCalendar(value, onPick, { title = t('app.core.calendar.title'), hint } = {}) {
     const now = new Date();
     const today = isoDay(now.getFullYear(), now.getMonth() + 1, now.getDate());
     let picked = value;
@@ -172,15 +246,15 @@
     const min = start < today.slice(0, 7) ? start : today.slice(0, 7);
     let view = { y: +start.slice(0, 4), m: +start.slice(5, 7) };
     const label = h('div', { class: 'ds-calendar__title' });
-    const prev = h('button', { type: 'button', class: 'ds-icon-btn', title: 'Предыдущий месяц', 'aria-label': 'Предыдущий месяц' }, '‹');
-    const next = h('button', { type: 'button', class: 'ds-icon-btn', title: 'Следующий месяц', 'aria-label': 'Следующий месяц' }, '›');
+    const prev = h('button', { type: 'button', class: 'ds-icon-btn', title: t('app.core.calendar.prev'), 'aria-label': t('app.core.calendar.prev') }, '‹');
+    const next = h('button', { type: 'button', class: 'ds-icon-btn', title: t('app.core.calendar.next'), 'aria-label': t('app.core.calendar.next') }, '›');
     const grid = h('div', { class: 'ds-calendar__grid' });
-    const done = ui.btn('Готово', '', 'ds-btn--block');
+    const done = ui.btn(t('app.core.calendar.done'), '', 'ds-btn--block');
     done.disabled = !picked;
     const draw = () => {
-      label.textContent = `${MONTHS_NOM[view.m - 1]} ${view.y}`;
+      label.textContent = t('app.core.calendar.month', { month: tl('app.core.monthsNom')[view.m - 1], year: view.y });
       prev.disabled = isoDay(view.y, view.m, 1).slice(0, 7) <= min;
-      grid.replaceChildren(...WEEKDAYS.map((d) => h('div', { class: 'ds-calendar__weekday' }, d)),
+      grid.replaceChildren(...tl('app.core.weekdays').map((d) => h('div', { class: 'ds-calendar__weekday' }, d)),
         ...calendarCells(view.y, view.m).map((c) => (!c ? h('div', {}) : h('button', {
           type: 'button',
           class: c.iso === picked ? 'ds-calendar__day ds-calendar__day--selected' : 'ds-calendar__day',
@@ -198,7 +272,7 @@
     next.addEventListener('click', () => shift(1));
     done.addEventListener('click', () => { closeSheet(); onPick(picked); });
     // Вторая кнопка — всегда (028): при дате «Сбросить» (поле пустое), без неё «Закрыть» (поле прежнее)
-    const reset = ui.btn(value ? 'Сбросить' : 'Закрыть', 'secondary', 'ds-btn--block');
+    const reset = ui.btn(t(value ? 'app.core.calendar.reset' : 'app.core.calendar.close'), 'secondary', 'ds-btn--block');
     reset.addEventListener('click', () => { closeSheet(); if (value) onPick(''); });
     draw();
     openSheet(title, [hint ? ui.hint(hint) : null,
@@ -214,10 +288,10 @@
         body: JSON.stringify(body || {}),
       });
     } catch (e) {
-      throw new Error('Нет связи с сервером. Проверь интернет.');
+      throw new Error(t('app.boot.offline'));
     }
-    const data = await res.json().catch(() => ({ ok: false, error: 'Ошибка сервера' }));
-    if (!data.ok) throw new Error(data.error || 'Ошибка');
+    const data = await res.json().catch(() => ({ ok: false, error: t('app.boot.serverError') }));
+    if (!data.ok) throw new Error(data.error || t('app.boot.error'));
     return data;
   }
   // Общие действия организатора (050: admin.events.create, admin.families, admin.family.save, admin.family.delete,
@@ -227,24 +301,25 @@
   const capi = (action, body) => api(action, { company: state.companyId || undefined, ...(body || {}) });
 
   // Кто может действие владельца (051, как ownerWord сервера): в компании, которую ведёт владелец бота, — «владелец бота»,
-  // в компании с назначенным владельцем — «владелец»
+  // в компании с назначенным владельцем — «владелец». Формы: именительный, родительный, дательный, творительный,
+  // именительный с прописной; в тексте словаря — {owner.nom} и т. п.
   function ownerWord(botRun = !state.company || state.company.bot_run) {
-    const tail = botRun ? ' бота' : '';
-    return { nom: 'владелец' + tail, gen: 'владельца' + tail, dat: 'владельцу' + tail, ins: 'владельцем' + tail };
+    const k = botRun ? 'app.core.botOwner.' : 'app.core.owner.';
+    return { nom: t(k + 'nom'), gen: t(k + 'gen'), dat: t(k + 'dat'), ins: t(k + 'ins'), nomCap: t(k + 'nomCap') };
   }
   // Экран «Компании» доступен (052): компаний несколько, владелец бота или открытый бот — тогда у главного экрана
   // компании «‹» к списку
   const withList = () => state.companies.length >= 2 || state.botOwner || state.open;
   // Заголовок главного экрана: если есть список компаний — её название, иначе прежний
-  const companyTitle = () => (withList() && state.company ? state.company.title : 'Тайный Санта');
+  const companyTitle = () => (withList() && state.company ? state.company.title : t('app.boot.title'));
 
   let toastTimer;
   function toast(text) {
-    const t = document.getElementById('toast');
-    t.textContent = text;
-    t.classList.add('ds-toast--visible');
+    const el = document.getElementById('toast');
+    el.textContent = text;
+    el.classList.add('ds-toast--visible');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('ds-toast--visible'), 2600);
+    toastTimer = setTimeout(() => el.classList.remove('ds-toast--visible'), 2600);
   }
   function haptic(kind) {
     try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred(kind); } catch (e) {}
@@ -263,7 +338,7 @@
     openTgLink('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(text));
   }
   function shareInvite(link, title) {
-    shareLink(link, `🎄 Играем в Тайного Санту — «${title}»! Заходи по ссылке:`);
+    shareLink(link, t('app.core.shareInvite', { title }));
   }
   // Письмо на открытке (038): card — id из набора сервера (state.looks.postcards); без открытки — содержимое как есть
   function postcard(card, ...content) {
@@ -310,23 +385,21 @@
     });
     return input;
   }
-  const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-  // Заголовок календаря (027): месяц в именительном падеже; неделя с понедельника
-  const MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-  const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  // Даты (060): «25 ноября» — app.core.date с месяцем в родительном падеже; заголовок календаря (027) — месяц в
+  // именительном, неделя с понедельника (app.core.weekdays)
   function fmtDate(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
-    return m ? `${+m[3]} ${MONTHS[+m[2] - 1]}` : '';
+    return m ? t('app.core.date', { day: +m[3], month: tl('app.core.monthsGen')[+m[2] - 1] }) : '';
   }
   function fmtTime(ms) {
     if (!ms) return '';
     const d = new Date(ms);
     const now = new Date();
-    const hm = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    if (d.toDateString() === now.toDateString()) return 'сегодня в ' + hm;
+    const time = d.toLocaleTimeString(t('app.core.locale'), { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return t('app.core.todayAt', { time });
     const y = new Date(now); y.setDate(now.getDate() - 1);
-    if (d.toDateString() === y.toDateString()) return 'вчера в ' + hm;
-    return `${d.getDate()} ${MONTHS[d.getMonth()]} в ${hm}`;
+    if (d.toDateString() === y.toDateString()) return t('app.core.yesterdayAt', { time });
+    return t('app.core.dateAt', { date: t('app.core.date', { day: d.getDate(), month: tl('app.core.monthsGen')[d.getMonth()] }), time });
   }
   function autosize(el) {
     const fit = () => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; };

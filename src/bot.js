@@ -134,9 +134,9 @@ async function buildMenu(ctx, user, settings) {
 // одним пакетом (019); c.user обновляется вместе с ctx.me, когда запись перечитана (reload).
 async function openChat(env, m) {
   const db = env.DB;
-  const call = tgApi(env);
   const from = m.from;
   const ctx = await openContext(env, from.id);
+  const call = tgApi(env, ctx.lang); // ответы — на языке человека (060)
   const settings = await ctx.settings();
   const c = {
     env, db, ctx, from, settings,
@@ -442,11 +442,11 @@ async function handleCallback(cq, env) {
   // Кнопки регистрации (047) нажимает человек без имени — до проверки «зарегистрирован»
   if (SIGNUP_BUTTON.test(cq.data || '')) return onSignupButton(cq, env);
   const db = env.DB;
-  const call = tgApi(env);
   const from = cq.from;
-  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   // Пользователь, настройки, его компании и владелец бота — одним пакетом (050: вместо одного чтения пользователя)
   const ctx = await openContext(env, from.id);
+  const call = tgApi(env, ctx.lang); // ответы — на языке человека (060)
+  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const user = ctx.me;
   if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 }); // 006, FR-609
   if (!user || !user.registered) return answer(NOT_REGISTERED);
@@ -476,9 +476,9 @@ async function handleCallback(cq, env) {
 // ответ на нажатие — ровно один
 const SIGNUP_BUTTON = /^reg:(ok|edit)$/;
 async function onSignupButton(cq, env) {
-  const call = tgApi(env);
-  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const c = await openChat(env, { from: cq.from });
+  const call = tgApi(env, c.ctx.lang);
+  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   if (!c.user) return answer(NOT_REGISTERED);
   if (c.user.registered) return answer(NAME_SAVED);
   if (cq.data === 'reg:edit') {

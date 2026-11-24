@@ -7,7 +7,8 @@
 import { updateUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
 import { saveShipment } from './shipment.js';
-import { inviteLink, oneLine, ownerWord, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
+import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
+import { t, tx, render, appTexts, DEFAULT_LANG } from './i18n/index.js';
 import { isFinished, publicEvent } from './status.js';
 import { openContext } from './context.js';
 import {
@@ -42,39 +43,38 @@ export const ROLES = Object.freeze({
 });
 const { ANY, USER, VIEWER, MEMBER, ADMIN, OWNER, BOT } = ROLES;
 
+// 060: тексты таблицы — ключи словаря (src/i18n/<язык>/api.js), ответ собирается на языке вызывающего.
 // Завершённый эвент — только просмотр, раскрытие, удаление и приглашение его участников в новый. Сброс запрещён: он
 // вернул бы эвент в «идёт», а завершение необратимо (FR-506).
-const CLOSED = 'Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).';
-const VAULT_WORD = ['ОТКРЫТЬ', 'Для служебного просмотра введи слово ОТКРЫТЬ.'];
-// Отказ не владельцу (051): в таблице — текст компании, которую ведёт владелец бота (прежний, его сверяет docs/api.md);
-// в компании с назначенным владельцем конвейер строит тот же текст со словом «владелец» (ownerRefusal)
-const OWNER_TEXTS = new Map();
-const byOwner = (build) => {
-  const text = build(ownerWord(true));
-  OWNER_TEXTS.set(text, build);
-  return text;
-};
-const ownerRefusal = (text, c) => OWNER_TEXTS.get(text)?.(c.ownerWord()) ?? text;
-const onlyOwner = (what) => byOwner((w) => `${what} может только ${w.nom}.`);
-// Только владельцу бота — в любой компании одним текстом
-const onlyBotOwner = (what) => `${what} может только ${ownerWord(true).nom}.`;
-const BOT_ONLY = `Только для ${ownerWord(true).gen}.`;
-const ROLES_OWNER = onlyOwner('Назначать и снимать администраторов');
-const VAULT_OWNER = byOwner((w) => `Служебный просмотр доступен только ${w.dat}.`);
-const SWAP_OWNER = onlyOwner('Менять подопечных после жеребьёвки');
-const LETTER_CLOSED = 'Событие завершено: письмо теперь только для чтения.';
-const MARK_CLOSED = 'Событие завершено: отметка только для чтения.';
+const CLOSED = 'api.closed';
+// Слово подтверждения: [ключ слова (его вводит человек — словарь приложения), ключ отказа с подстановкой {word}]
+const VAULT_WORD = ['app.core.word.open', 'api.confirm.vault'];
+const DELETE_WORD = ['app.core.word.delete', 'api.confirm.delete'];
+// Отказ не владельцу (051): ключ api.owner.* — со словом «владелец» компании действия ({owner.…}, ownerWord), ключ
+// api.botOwner.* — всегда «владелец бота»; docs/api.md показывает текст компании, которую ведёт владелец бота
+const ownerRefusal = (key, c) => (key.startsWith('api.owner.') ? tx(key, { owner: c.ownerWord() }) : tx(key));
+const BOT_ONLY = tx('api.botOnly');
+const ROLES_OWNER = 'api.owner.roles';
+const VAULT_OWNER = 'api.owner.vault';
+const SWAP_OWNER = 'api.owner.swap';
+const LETTER_CLOSED = 'api.letterClosed';
+const MARK_CLOSED = 'api.markClosed';
 // Имя — одна строка до 40 символов, как при регистрации в боте: своё (035) и от организатора
-const NAME_RULE = 'Имя должно быть от 1 до 40 символов';
+const NAME_RULE = tx('api.nameRule');
 const validName = (raw) => {
   const name = oneLine(raw);
   return name && name.length <= 40 ? name : '';
 };
 
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+// Ответ: отложенные тексты (tx) собираются на языке вызывающего (060); словарь приложения (texts) — как есть
+const json = (data, status, lang) => {
+  const { texts, ...rest } = data;
+  const body = render(rest, lang);
+  if (texts) body.texts = texts;
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+};
 
-const fail = (error, status = 400) => json({ ok: false, error }, status);
+const fail = (error, status = 400, lang = DEFAULT_LANG) => json({ ok: false, error }, status, lang);
 
 // Отказ обработчика: тот же ответ, что fail
 class Refusal {
@@ -87,7 +87,15 @@ const refuse = (error, status) => new Refusal(error, status);
 // Результат модуля { ok, ...данные } / { ok: false, error, status? } → данные ответа или отказ
 const out = (r, pick = ({ ok, ...data }) => data) => (r.ok ? pick(r) : refuse(r.error, r.status));
 const none = () => ({});
-const confirmed = (body, word) => String(body.confirm || '').trim().toUpperCase() === word;
+// Слово подтверждения — на языке вызывающего, как его показывает приложение
+const confirmed = (ctx, body, [word]) => String(body.confirm || '').trim().toUpperCase() === t(ctx.lang, word);
+const wordRefusal = ([word, refusal]) => tx(refusal, { word: tx(word) });
+
+// me (060): язык, версия словаря приложения и сам словарь — если у приложения его нет или он другой
+async function withTexts(ctx, body, view) {
+  const { version, texts } = appTexts(ctx.lang);
+  return { ...(await view), lang: ctx.lang, texts_version: version, ...(body.texts === version ? {} : { texts }) };
+}
 
 // ---------- таблица действий ----------
 // Порядок строк — порядок прежних `case` (автотест e2e «владелец ⊇ админ» выполняет действия по очереди на одном
@@ -96,7 +104,7 @@ const confirmed = (body, word) => String(body.confirm || '').trim().toUpperCase(
 
 export const ACTIONS = {
   // ---------- участник ----------
-  me: { role: ANY, run: (ctx) => homeView(ctx) },
+  me: { role: ANY, run: (ctx, body) => withTexts(ctx, body, homeView(ctx)) },
   'notify.set': {
     role: USER,
     async run(ctx, body) {
@@ -130,10 +138,10 @@ export const ACTIONS = {
   },
   'company.delete': {
     role: USER,
-    confirm: ['УДАЛИТЬ', 'Для удаления введи слово УДАЛИТЬ.'],
+    confirm: DELETE_WORD,
     async run(ctx, body) {
       const bot = await ctx.isBotOwner();
-      if (!bot && !openBot(ctx.env)) return refuse(onlyBotOwner('Удалить комнату'), 403);
+      if (!bot && !openBot(ctx.env)) return refuse(tx('api.botOwner.companyDelete'), 403);
       return out(await deleteCompany(ctx, body.company, !bot), none);
     },
   },
@@ -150,7 +158,7 @@ export const ACTIONS = {
   'ward.shipment': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await saveShipment(ctx, ev, body)) },
   'ward.received': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReceived(ctx, ev, body.received)) },
   // 040: маска Санты в переписке — из набора src/looks.js, до раскрытия, без журнала и сообщений
-  'mask.set': { role: MEMBER, event: true, finished: 'Событие завершено: маску больше не сменить.', run: async (ctx, body, ev) => out(await setMask(ctx, ev, body.mask)) },
+  'mask.set': { role: MEMBER, event: true, finished: 'api.maskClosed', run: async (ctx, body, ev) => out(await setMask(ctx, ev, body.mask)) },
   // Переписка в завершённом — 7 суток (chat.js)
   'message.send': {
     role: MEMBER,
@@ -181,7 +189,7 @@ export const ACTIONS = {
     role: MEMBER,
     event: true,
     finished: LEAVE_FINISHED,
-    confirm: ['ВЫЙТИ', 'Чтобы выйти, введи слово ВЫЙТИ.'],
+    confirm: ['app.core.word.leave', 'api.confirm.leave'],
     run: async (ctx, body, ev) => out(await leaveEvent(ctx, ev), none),
   },
 
@@ -194,7 +202,7 @@ export const ACTIONS = {
       if (body.from) {
         from = await getEvent(ctx.db, body.from);
         // Образец — событие той же компании (050)
-        if (!from || from.company_id !== ctx.company.id) return refuse('Образец не найден.');
+        if (!from || from.company_id !== ctx.company.id) return refuse(tx('api.templateNotFound'));
       }
       const r = await createEvent(ctx, body.title, ctx.me.tg_id, { from, invite: !!body.invite });
       return out(r, () => ({ event: publicEvent(r.event), invited: r.invited, invite_error: r.inviteError }));
@@ -231,14 +239,14 @@ export const ACTIONS = {
       // Цель — человек компании (050; гость — не человек компании); в скольких компаниях он — тем же пакетом (051)
       const { users, count } = await ctx.read({ users: true, count: companyCountQuery(ctx.db, Number(body.id) || 0) });
       const target = users.find((u) => u.tg_id === Number(body.id) && !u.guest);
-      if (!target) return refuse('Участник не найден');
+      if (!target) return refuse(tx('api.memberNotFound'));
       // Администраторов и владельца переименовывает только владелец; себя — любой админ (006, FR-613)
       const ownerId = await ctx.ownerId();
       if ((target.is_admin || target.tg_id === ownerId) && target.tg_id !== ctx.me.tg_id && !(await ctx.isOwner())) {
-        return refuse(`Переименовать администратора может только ${ctx.ownerWord().nom}.`, 403);
+        return refuse(tx('api.renameAdmin', { owner: ctx.ownerWord() }), 403);
       }
       // 051, FR-5116: имя одно во всех компаниях — человека из нескольких компаний переименовывает он сам
-      if (count[0].n > 1 && !(await ctx.isBotOwner())) return refuse('Имя этого человека меняет он сам: «Профиль» → «✏️ Изменить имя».');
+      if (count[0].n > 1 && !(await ctx.isBotOwner())) return refuse(tx('api.renameSelfOnly'));
       await renameUser(ctx, target, name, ctx.me.tg_id, [ctx.company.id]); // журнал — только при настоящем изменении (025)
       return {};
     },
@@ -249,11 +257,11 @@ export const ACTIONS = {
     role: OWNER,
     company: true,
     bot: true,
-    owner: onlyBotOwner('Переносить участие на новый аккаунт'),
+    owner: 'api.botOwner.transfer',
     async run(ctx, body) {
       const from = Number(body.from);
       if (from === (await ctx.ownerId()) || from === (await ctx.botOwnerId())) {
-        return refuse('Запись владельца не переносится: владелец восстанавливает доступ по новой ссылке владельца (смена ADMIN_SECRET → страница /setup).');
+        return refuse(tx('api.ownerNotTransferred'));
       }
       // Цель — не владелец и не администратор (050: где-нибудь) — проверяет transferAccount, до остальных отказов
       return out(await transferAccount(ctx, from, Number(body.to), ctx.me.tg_id), (r) => ({ events: r.events }));
@@ -265,7 +273,7 @@ export const ACTIONS = {
   'admin.owner.transfer': {
     role: OWNER,
     company: true,
-    owner: onlyOwner('Передать права владельца'),
+    owner: 'api.owner.transfer',
     run: async (ctx, body) => out(await setCompanyOwner(ctx, body.id), none),
   },
 
@@ -285,11 +293,11 @@ export const ACTIONS = {
     async run(ctx, body, ev) {
       const { db, me } = ctx;
       const id = Number(body.id);
-      if (id === me.tg_id) return refuse('Нельзя удалить самого себя — выключи «Я участвую».');
-      if (id === (await ctx.ownerId())) return refuse('Владельца нельзя удалить из события. Сначала он должен передать права владельца.');
+      if (id === me.tg_id) return refuse(tx('api.removeSelf'));
+      if (id === (await ctx.ownerId())) return refuse(tx('api.removeOwner'));
       // Человек — из списка пользователей вызова (019); «не участвует» отвечает removeMember тем же текстом
       const target = (await ctx.users()).find((u) => u.tg_id === id);
-      if (target?.is_admin && !(await ctx.isOwner())) return refuse(`Удалить администратора может только ${ctx.ownerWord().nom}.`, 403);
+      if (target?.is_admin && !(await ctx.isOwner())) return refuse(tx('api.removeAdmin', { owner: ctx.ownerWord() }), 403);
       // Отметка «удалён организатором» (010): при запрете возврата человек не войдёт по ссылке снова
       return out(await removeMember(ctx, ev, id, { actor: me.tg_id, mark: true }), none);
     },
@@ -299,7 +307,7 @@ export const ACTIONS = {
   // сменился подопечный, — то есть кто дарит новичку. Владелец пары видит и так (010) и может вписать себя.
   'admin.insert': {
     role: OWNER,
-    owner: onlyOwner('Вписывать в жеребьёвку после неё'),
+    owner: 'api.owner.insert',
     event: true,
     finished: CLOSED,
     run: async (ctx, body, ev) => out(await insertMember(ctx, ev, Number(body.id), ctx.me.tg_id), none),
@@ -308,14 +316,14 @@ export const ACTIONS = {
   'admin.exclusion.add': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeExclusions(ctx, ev, { add: true, ...pair(body) }), none) },
   'admin.exclusion.del': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeExclusions(ctx, ev, { add: false, ...pair(body) }), none) },
   // 014: закреплённые пары — будущие пары жеребьёвки; видит и меняет только владелец (админ узнал бы пары)
-  'admin.fixed.add': { role: OWNER, owner: onlyOwner('Закреплять пары'), event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeFixed(ctx, ev, { add: true, ...pair(body) }), none) },
-  'admin.fixed.del': { role: OWNER, owner: onlyOwner('Закреплять пары'), event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeFixed(ctx, ev, { add: false, ...pair(body) }), none) },
+  'admin.fixed.add': { role: OWNER, owner: 'api.owner.fixed', event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeFixed(ctx, ev, { add: true, ...pair(body) }), none) },
+  'admin.fixed.del': { role: OWNER, owner: 'api.owner.fixed', event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await changeFixed(ctx, ev, { add: false, ...pair(body) }), none) },
   'admin.draw.check': {
     role: ADMIN,
     event: true,
     finished: CLOSED,
     async run(ctx, body, ev) {
-      if (ev.draw_done) return refuse('Жеребьёвка уже проведена.');
+      if (ev.draw_done) return refuse(tx('api.drawDone'));
       const c = await checkDraw(ctx, ev);
       // Без признаков учёта прошлых пар: по ним можно было бы вычислить чужие пары прошлого года (009, FR-904)
       return { possible: c.res.ok, count: c.people.length, ring: c.ring, problems: c.problems, empty_wishlists: c.emptyWishlists };
@@ -331,10 +339,10 @@ export const ACTIONS = {
   // 012, FR-1205: в любой момент до раскрытия — только владелец (участвующий админ переигрывал бы жеребьёвку)
   'admin.draw.cancel.force': {
     role: OWNER,
-    owner: onlyOwner('Принудительно отменить жеребьёвку'),
+    owner: 'api.owner.forceCancel',
     event: true,
     finished: CLOSED,
-    confirm: ['ОТМЕНА', 'Для отмены введи слово ОТМЕНА.'],
+    confirm: ['app.core.word.cancel', 'api.confirm.cancel'],
     run: async (ctx, body, ev) => out(await forceCancelDraw(ctx, ev, ctx.me.tg_id), count),
   },
   // 048: обмен подопечных у двух участников после жеребьёвки — только владелец (админ по смене статусов вычислил бы
@@ -388,7 +396,7 @@ export const ACTIONS = {
     event: true,
     finished: true,
     async run(ctx, body, ev) {
-      if (isFinished(ev) && body.approve) return refuse(CLOSED);
+      if (isFinished(ev) && body.approve) return refuse(tx(CLOSED));
       return out(await decideRequest(ctx, body.id, ctx.me.tg_id, !!body.approve, { inEvent: ev }), none);
     },
   },
@@ -412,17 +420,17 @@ export const ACTIONS = {
     finished: true,
     async run(ctx, body, ev) {
       const fromEv = await getEvent(ctx.db, body.from);
-      if (!fromEv || fromEv.id === ev.id || fromEv.company_id !== ev.company_id) return refuse('Выбери другое событие.');
-      if (isFinished(ev)) return refuse('Событие завершено — приглашать в него нельзя.');
+      if (!fromEv || fromEv.id === ev.id || fromEv.company_id !== ev.company_id) return refuse(tx('api.chooseOtherEvent'));
+      if (isFinished(ev)) return refuse(tx('api.inviteFinished'));
       return out(await inviteFromEvent(ctx, ev, fromEv, ctx.me.tg_id), count);
     },
   },
   'admin.event.delete': {
     role: OWNER,
-    owner: onlyOwner('Удалить событие'),
+    owner: 'api.owner.eventDelete',
     event: true,
     finished: true,
-    confirm: ['УДАЛИТЬ', 'Для удаления введи слово УДАЛИТЬ.'],
+    confirm: DELETE_WORD,
     run: async (ctx, body, ev) => out(await deleteEvent(ctx, ev, ctx.me.tg_id), (r) => ({ notified: r.count })),
   },
   // ---------- служебный просмотр владельца (010, FR-1009–FR-1013): только чтение ----------
@@ -438,10 +446,10 @@ export const ACTIONS = {
   'admin.vault.pairs': { role: OWNER, owner: VAULT_OWNER, event: true, finished: true, confirm: VAULT_WORD, run: async (ctx, body, ev) => out(await vaultPairs(ctx, ev, ctx.me.tg_id)) },
   'admin.reset.full': {
     role: OWNER,
-    owner: onlyOwner('Полный сброс'),
+    owner: 'api.owner.reset',
     event: true,
     finished: CLOSED,
-    confirm: ['СБРОС', 'Для полного сброса введи слово СБРОС.'],
+    confirm: ['app.core.word.reset', 'api.confirm.reset'],
     async run(ctx, body, ev) {
       const r = await resetEvent(ctx, ev, await ctx.ownerId(), ctx.me.tg_id);
       if (!r.ok) return refuse(r.error); // второй из одновременных сбросов (024)
@@ -454,7 +462,7 @@ export const ACTIONS = {
   'bot.company.link': { role: BOT, run: async (ctx, body) => out(await ownerLink(ctx, body.company, !!body.on)) },
   'bot.company.delete': {
     role: BOT,
-    confirm: ['УДАЛИТЬ', 'Для удаления введи слово УДАЛИТЬ.'],
+    confirm: DELETE_WORD,
     run: async (ctx, body) => out(await deleteCompany(ctx, body.company), none),
   },
   // Прежняя передача прав владельца бота (до 051 — admin.owner.transfer)
@@ -473,64 +481,65 @@ function count(r) {
 }
 
 // Неизвестное действие идёт тем же путём, что известное: админа — до события и «завершено», участника — до участия
-const unknown = () => refuse('Неизвестное действие', 404);
+const unknown = () => refuse(tx('api.unknownAction'), 404);
 const UNKNOWN_ADMIN = { role: ADMIN, event: true, finished: CLOSED, run: unknown };
 const UNKNOWN = { role: MEMBER, event: true, finished: true, run: unknown };
 
-const respond = (data) => (data instanceof Refusal ? fail(data.error, data.status) : json({ ok: true, ...data }));
-
-const NO_EVENT = 'Событие не найдено.';
+const NO_EVENT = tx('api.noEvent');
 
 // ---------- конвейер проверок ----------
 
 export async function handleApi(request, env, action) {
   if (request.method !== 'POST') return fail('method', 405);
   const tgUser = await validateInitData(request.headers.get('x-init-data'), env.BOT_TOKEN);
-  if (!tgUser) return fail('Не удалось проверить вход. Открой приложение заново из чата с ботом.', 401);
+  if (!tgUser) return fail(tx('api.badInitData'), 401);
   const body = await request.json().catch(() => ({}));
   const ctx = await openContext(env, tgUser.id); // пользователь и настройки — одним пакетом
   const { db, me } = ctx;
+  // Ответ и отказ — на языке вызывающего (060)
+  const no = (error, status) => fail(error, status, ctx.lang);
+  const respond = (data) => (data instanceof Refusal ? no(data.error, data.status) : json({ ok: true, ...data }, 200, ctx.lang));
   // Человек открыл приложение — значит, бот у него не заблокирован (006, FR-609)
   if (me?.blocked_at) await updateUser(db, me.tg_id, { blocked_at: 0 });
 
   const admin = action.startsWith('admin.');
   const row = Object.hasOwn(ACTIONS, action) ? ACTIONS[action] : admin ? UNKNOWN_ADMIN : UNKNOWN;
-  if (row.role !== ANY && (!me || !me.registered)) return fail(NOT_REGISTERED, 403);
+  if (row.role !== ANY && (!me || !me.registered)) return no(NOT_REGISTERED, 403);
   // Действия владельца бота (051): без события и без компании конвейера — компанию из тела проверяет обработчик
-  if (row.role === BOT && !(await ctx.isBotOwner())) return fail(BOT_ONLY, 403);
+  if (row.role === BOT && !(await ctx.isBotOwner())) return no(BOT_ONLY, 403);
   if (admin) {
     // Общий признак: админ хотя бы в одной компании или владелец бота (050)
-    if (!me.is_admin && !(await ctx.isBotOwner())) return fail(ADMIN_ONLY, 403);
+    if (!me.is_admin && !(await ctx.isBotOwner())) return no(ADMIN_ONLY, 403);
     // Владелец бота — сразу: если он в настройках недействителен, назначается самый ранний админ (не откладывать запись)
     await ctx.botOwnerId();
   }
   const owner = async (c) => !row.owner || ((await c.isOwner()) && (!row.bot || (await c.isBotOwner())));
-  const word = () => row.confirm && !confirmed(body, row.confirm[0]);
+  const word = () => row.confirm && !confirmed(ctx, body, row.confirm);
 
   if (!(row.event === true || (row.event === 'given' && body.event))) {
-    if (!row.company) return word() ? fail(row.confirm[1]) : respond(await row.run(ctx, body));
+    if (!row.company) return word() ? no(wordRefusal(row.confirm)) : respond(await row.run(ctx, body));
     // Общее действие организатора — в компании из запроса или в единственной компании вызывающего
     const id = Number(body.company) || (await ctx.soleCompany());
-    if (!id) return fail('Выбери комнату.');
+    if (!id) return no(tx('api.chooseRoom'));
     const c = await ctx.in(id);
-    if (!c?.me.is_admin) return fail(ADMIN_ONLY, 403);
-    if (!(await owner(c))) return fail(ownerRefusal(row.owner, c), 403);
+    if (!c?.me.is_admin) return no(ADMIN_ONLY, 403);
+    if (!(await owner(c))) return no(ownerRefusal(row.owner, c), 403);
     return respond(await row.run(c, body));
   }
   const ev = await getEvent(db, body.event);
   const c = ev && (await ctx.in(ev.company_id));
-  if (!c) return fail(NO_EVENT, 404);
+  if (!c) return no(NO_EVENT, 404);
   let member = null;
   if (admin) {
     // Событие чужой компании — как несуществующее: номера событий не выдают соседей (050, R9)
-    if (!c.me.is_admin) return fail(NO_EVENT, 404);
+    if (!c.me.is_admin) return no(NO_EVENT, 404);
   } else {
     member = await getMember(db, ev.id, me.tg_id);
-    if (!member && !(row.role === VIEWER && c.me.is_admin)) return fail(NOT_MEMBER, 403);
+    if (!member && !(row.role === VIEWER && c.me.is_admin)) return no(NOT_MEMBER, 403);
   }
-  if (isFinished(ev) && row.finished !== true) return fail(row.finished);
+  if (isFinished(ev) && row.finished !== true) return no(tx(row.finished));
   // Владелец — после «событие завершено»: админ на завершённом событии получает 400, а не 403
-  if (!(await owner(c))) return fail(ownerRefusal(row.owner, c), 403);
-  if (word()) return fail(row.confirm[1]);
+  if (!(await owner(c))) return no(ownerRefusal(row.owner, c), 403);
+  if (word()) return no(wordRefusal(row.confirm));
   return respond(await row.run(c, body, ev, member));
 }

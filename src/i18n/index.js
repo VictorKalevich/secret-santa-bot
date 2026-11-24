@@ -37,7 +37,8 @@ function pluralCategory(lang, n) {
   return pluralRules.get(locale).select(n);
 }
 
-const SLOT = /\{([A-Za-z0-9_]+)\}/g;
+// {имя} — значение подстановки; {имя.форма} — форма из набора форм подстановки (ownerWord: nom, gen, dat, ins, nomCap)
+const SLOT = /\{([A-Za-z0-9_]+)(?:\.([A-Za-z0-9_]+))?\}/g;
 
 // Имена подстановок текста или набора форм
 export function slotsOf(value) {
@@ -70,9 +71,11 @@ export function t(lang, key, params) {
       if (!used.has(name) && !(name === 'n' && typeof value === 'object')) report(`${key}: лишняя подстановка ${name}`);
     }
   }
-  return text.replace(SLOT, (m, name) => {
-    if (params && Object.hasOwn(params, name)) return String(render(params[name], lang));
-    report(`${key}: нет подстановки ${name}`);
+  return text.replace(SLOT, (m, name, form) => {
+    let v = params && Object.hasOwn(params, name) ? params[name] : undefined;
+    if (form !== undefined && v !== undefined) v = v && typeof v === 'object' && Object.hasOwn(v, form) ? v[form] : undefined;
+    if (v !== undefined) return String(render(v, lang));
+    report(`${key}: нет подстановки ${form ? name + '.' + form : name}`);
     return m;
   });
 }
@@ -98,6 +101,10 @@ export const tx = (key, params) => (params ? { $t: key, $p: params } : { $t: key
 // Дата: 'YYYY-MM-DD' или миллисекунды с поясом в часах
 export const tdate = (d, offsetHours) => (typeof d === 'number' ? { $d: d, $o: offsetHours } : { $d: d });
 export const tjoin = (sep, parts) => ({ $j: parts, $s: sep });
+// HTML сообщения бота: экранирование текста; у отложенного — после сборки ({ $h: текст }, escapeHtml в format.js)
+export const escapeText = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// Текст: строка или отложенный текст (а не объект сообщения)
+export const isText = (v) => typeof v === 'string' || (!!v && typeof v === 'object' && (typeof v.$t === 'string' || v.$d !== undefined || Array.isArray(v.$j) || v.$h !== undefined));
 
 export function render(value, lang) {
   if (value === null || typeof value !== 'object') return value;
@@ -105,6 +112,7 @@ export function render(value, lang) {
   if (typeof value.$t === 'string') return t(lang, value.$t, value.$p);
   if (value.$d !== undefined) return typeof value.$d === 'number' ? formatMs(value.$d, value.$o, lang) : formatDate(value.$d, lang);
   if (Array.isArray(value.$j)) return value.$j.map((v) => render(v, lang)).join(value.$s ?? '');
+  if (value.$h !== undefined) return escapeText(render(value.$h, lang));
   const out = {};
   for (const [k, v] of Object.entries(value)) out[k] = render(v, lang);
   return out;

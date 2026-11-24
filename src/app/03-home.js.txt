@@ -18,6 +18,7 @@
     roster: null, rosterOpen: null, // 037: участники на «Инфо»; rosterOpen — id события, где список раскрыт
     looks: { postcards: [], masks: [] }, // наборы открыток и масок — с сервера (me)
     companies: [], companyId: null, company: null, botOwner: false, open: false, create: null,
+    lang: 'ru', textsVersion: '', // 060: язык и версия словаря приложения (ответ me)
   };
   const main = document.getElementById('main');
   const heroTitle = document.getElementById('heroTitle');
@@ -54,7 +55,9 @@
   }
 
   async function reloadMe() {
-    const d = await api('me');
+    // Словарь — только если у приложения его нет или он другой (060); до любого построения экрана
+    const d = await api('me', { texts: state.textsVersion || undefined });
+    setTexts(d);
     if (!d.registered) return d;
     state.me = d.me;
     state.botOwner = !!d.me.is_owner;
@@ -96,14 +99,14 @@
     return d;
   }
 
-  function showLoader() { main.replaceChildren(h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…')); }
+  function showLoader() { main.replaceChildren(h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), t('app.boot.loading'))); }
   // retry — повтор именно неудавшейся загрузки (009); на экране эвента — ещё выход к списку
   function showError(e, retry) {
-    const again = h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => (retry || render)() }, 'Попробовать снова');
+    const again = h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => (retry || render)() }, t('app.boot.retry'));
     const home = state.view === 'event' && state.me
       ? h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => { setDirty(false); goHome(); } }, 'К списку событий')
       : null;
-    main.replaceChildren(ui.empty('⚠️', 'Не получилось загрузить', e.message, [again, home]));
+    main.replaceChildren(ui.empty('⚠️', t('app.boot.loadFailed'), e.message, [again, home]));
   }
   // Асинхронный экран («Подопечный», «Управление»; 026): отказ при построении — экран ошибки с повтором, а не вечный
   // загрузчик, откуда бы экран ни вызвали (render, закрытие шторки, перестройка панели); для покинутого экрана — ничего

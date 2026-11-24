@@ -121,6 +121,12 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, open = fal
       const data = JSON.parse(text);
       if (raw) return { status: res.status, data, text };
       if (!data.ok) throw new Error(`${action}: ${data.error}`);
+      // 060: поля словаря приложения в me проверяет тест i18n (raw), прочие сравнивают прежний ответ
+      if (action === 'me') {
+        delete data.lang;
+        delete data.texts_version;
+        delete data.texts;
+      }
       return data;
     },
     // Ключ — только формой (010, FR-1002)

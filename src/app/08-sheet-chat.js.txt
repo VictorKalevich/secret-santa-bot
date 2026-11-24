@@ -207,7 +207,7 @@
   function openChat(withWhom) {
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
     const c = composerParts('Сообщение…');
-    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — переписка только для чтения.');
+    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, t('app.sheet.chatReadOnly'));
     const evId = state.evId;
     // lastId — только из ответа chat.get (009): своё отправленное сообщение его не двигает, иначе ответ собеседника,
     // пришедший в те же секунды (с меньшим id), не загрузился бы никогда
@@ -289,7 +289,7 @@
     const c = composerParts('Сообщение по событию…');
     const list = h('div', { class: 'ds-chat' }, h('div', { class: 'ds-chat__empty' }, 'Загрузка…'));
     const status = ui.hint('');
-    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, 'Событие завершено больше недели назад — обращения только для чтения.');
+    const closedNote = h('div', { class: 'ds-notice ds-text-sm', hidden: true }, t('app.sheet.supportReadOnly'));
     // Под полем ввода: в шторке на весь экран нет ds-stack — отступ сверху даёт ds-sheet__action (027)
     const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block ds-sheet__action');
     resolve.hidden = true;

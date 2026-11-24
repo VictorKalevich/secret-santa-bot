@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ACTIONS, ROLES } from '../src/api.js';
+import { t, DEFAULT_LANG } from '../src/i18n/index.js';
 
 const ROLE_SET = new Set(Object.values(ROLES));
 const filled = (s) => typeof s === 'string' && s.trim().length > 0;
@@ -49,7 +50,7 @@ test('таблица действий: действия владельца и с
     'admin.draw.cancel.force', 'admin.draw.swap', 'admin.draw.swap.check', 'admin.event.delete', 'admin.fixed.add', 'admin.fixed.del', 'admin.insert', 'admin.owner.transfer',
     'admin.reset.full', 'admin.role.grant', 'admin.role.revoke', 'admin.transfer', 'admin.vault.pairs', 'admin.vault.person',
   ]);
-  const words = Object.fromEntries(Object.entries(ACTIONS).filter(([, r]) => r.confirm).map(([a, r]) => [a, r.confirm[0]]));
+  const words = Object.fromEntries(Object.entries(ACTIONS).filter(([, r]) => r.confirm).map(([a, r]) => [a, t(DEFAULT_LANG, r.confirm[0])]));
   // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер; 035: выход из события — ВЫЙТИ; 051, 052: удаление компании
   assert.deepEqual(words, {
     'event.leave': 'ВЫЙТИ', 'admin.draw.cancel.force': 'ОТМЕНА', 'admin.event.delete': 'УДАЛИТЬ', 'admin.vault.person': 'ОТКРЫТЬ',

@@ -1,7 +1,13 @@
-// Общие помощники: тексты сообщений, HTML, даты, имена, ссылки. Без обращений к базе.
+// Общие помощники: тексты сообщений, HTML, даты, имена, ссылки. Без обращений к базе. Тексты для людей — из словаря
+// (060): общие — src/i18n/<язык>/common.js.
 
+import { tx, escapeText, formatDate, formatMs } from './i18n/index.js';
+
+export { formatDate, formatMs };
+
+// Отложенный текст (060) экранируется тоже отложенно — после сборки на языке получателя
 export function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return s && typeof s === 'object' ? { $h: s } : escapeText(s);
 }
 
 // Название эвента в кавычках для сообщений бота (HTML)
@@ -35,10 +41,11 @@ export function displayName(u) {
 }
 
 // Кто может действие владельца (051): в компании, которую ведёт владелец бота (botRun), — «владелец бота», в компании с
-// назначенным владельцем — «владелец». Формы по падежам: именительный, родительный, дательный, творительный
+// назначенным владельцем — «владелец». Формы — отложенные тексты (060): именительный, родительный, дательный,
+// творительный, именительный с прописной; в тексте словаря — {owner.nom} и т. п.
 export function ownerWord(botRun) {
-  const tail = botRun ? ' бота' : '';
-  return { nom: 'владелец' + tail, gen: 'владельца' + tail, dat: 'владельцу' + tail, ins: 'владельцем' + tail };
+  const k = botRun ? 'common.botOwner.' : 'common.owner.';
+  return { nom: tx(k + 'nom'), gen: tx(k + 'gen'), dat: tx(k + 'dat'), ins: tx(k + 'ins'), nomCap: tx(k + 'nomCap') };
 }
 
 // Кому из админов писать: зарегистрированные администраторы, кроме перечисленных
@@ -48,19 +55,9 @@ export function adminRecipients(users, exclude = []) {
 
 // ---------- даты ----------
 
-const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+// formatDate(iso, lang), formatMs(ms, offsetHours, lang) — из словаря (src/i18n/index.js); в сообщении другому человеку —
+// отложенная дата tdate
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-export function formatDate(iso) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
-  if (!m) return iso || '';
-  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`;
-}
-
-export function formatMs(ms, offsetHours = 3) {
-  const d = new Date(ms + offsetHours * 3600 * 1000);
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
-}
 
 export const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 
@@ -85,23 +82,23 @@ export function appUrl(settings, params = {}) {
   return (settings.base_url || '') + '/app' + (query ? '?' + query : '');
 }
 
-export function openAppButton(settings, text = '🎁 Открыть приложение', params = {}) {
+export function openAppButton(settings, text = tx('common.openApp'), params = {}) {
   return { text, web_app: { url: appUrl(settings, params) } };
 }
 
 // Одна кнопка приложения под сообщением (019): msg(text, appKeyboard(…)) или { …, ...appKeyboard(…) } — ключ последним
 export const appKeyboard = (settings, text, params) => ({ reply_markup: { inline_keyboard: [[openAppButton(settings, text, params)]] } });
 
-// Общие тексты (019): побайтно одинаковые в нескольких модулях
-export const NOT_REGISTERED = 'Сначала зарегистрируйся по пригласительной ссылке.';
-export const ADMIN_ONLY = 'Только для администратора.';
-export const NO_DRAW = 'Жеребьёвка ещё не проведена.';
-export const PAIRS_RACE = 'Пары изменились одновременно с этим действием — попробуй ещё раз.';
-export const NOT_MEMBER = 'Ты не участвуешь в этом событии.';
-export const COMPANY_NOT_FOUND = 'Комната не найдена.'; // 051: удаление компании и создание события в ней
-// 034: те же тексты показывает приложение (свои копии в 08-sheet-chat — сверяет тест behavior)
-export const CHAT_READ_ONLY = 'Событие завершено больше недели назад — переписка только для чтения.';
-export const SUPPORT_READ_ONLY = 'Событие завершено больше недели назад — обращения только для чтения.';
+// Общие тексты (019): одинаковые в нескольких модулях — отложенные тексты словаря (060), собираются на языке ответа
+export const NOT_REGISTERED = tx('common.notRegistered');
+export const ADMIN_ONLY = tx('common.adminOnly');
+export const NO_DRAW = tx('common.noDraw');
+export const PAIRS_RACE = tx('common.pairsRace');
+export const NOT_MEMBER = tx('common.notMember');
+export const COMPANY_NOT_FOUND = tx('common.companyNotFound'); // 051: удаление компании и создание события в ней
+// 034: тот же текст показывает приложение — ключ словаря приложения
+export const CHAT_READ_ONLY = tx('app.sheet.chatReadOnly');
+export const SUPPORT_READ_ONLY = tx('app.sheet.supportReadOnly');
 
 export function inviteLink(settings, ev) {
   if (!settings.bot_username || !ev?.invite_code) return '';

@@ -7,12 +7,17 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { ACTIONS, ROLES } from '../src/api.js';
+import { t, DEFAULT_LANG } from '../src/i18n/index.js';
+import { ownerWord } from '../src/format.js';
 
 const DOC = readFileSync(new URL('../docs/api.md', import.meta.url), 'utf8');
 const SRC = new URL('../src/', import.meta.url);
 const SOURCES = readdirSync(SRC)
   .filter((f) => f.endsWith('.js'))
   .map((f) => ({ name: f, text: readFileSync(new URL(f, SRC), 'utf8') }));
+
+// 060: в таблице действий — ключи словаря; документ показывает русский текст компании, которую ведёт владелец бота
+const ru = (key, params) => t(DEFAULT_LANG, key, key.startsWith('api.owner.') || key.startsWith('api.confirm.') ? params : undefined);
 
 // Словарь колонок сводной таблицы (research R4 фичи 022)
 const WHO = {
@@ -102,9 +107,9 @@ function actionProblems(doc, actions) {
     const text = texts.get(name);
     if (text === undefined) continue;
     const need = [
-      ...(typeof row.finished === 'string' ? [row.finished] : []),
-      ...(row.owner ? [row.owner] : []),
-      ...(row.confirm || []),
+      ...(typeof row.finished === 'string' ? [ru(row.finished)] : []),
+      ...(row.owner ? [ru(row.owner, { owner: ownerWord(true) })] : []),
+      ...(row.confirm ? [ru(row.confirm[0]), ru(row.confirm[1], { word: ru(row.confirm[0]) })] : []),
     ];
     for (const t of need) if (!text.includes(norm(t))) out.push(`${name}: в разделе нет текста «${t}»`);
   }
@@ -158,7 +163,7 @@ describe('сводный контракт API: документ ↔ таблиц
   });
 
   it('от противного: действие в коде без описания, лишний раздел и лишняя строка', () => {
-    const extra = { ...ACTIONS, 'admin.new': { role: ROLES.ADMIN, event: true, finished: 'X', run() {} } };
+    const extra = { ...ACTIONS, 'admin.new': { role: ROLES.ADMIN, event: true, finished: 'api.closed', run() {} } };
     const p = actionProblems(DOC, extra);
     assert.ok(has(p, 'admin.new: нет строки в сводной таблице'), p.join('\n'));
     assert.ok(has(p, 'admin.new: нет раздела'), p.join('\n'));

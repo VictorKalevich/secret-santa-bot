@@ -1,9 +1,12 @@
 // Тонкая обёртка над Telegram Bot API.
 
+import { render, DEFAULT_LANG } from './i18n/index.js';
+
 // Зависший запрос не должен съедать время вызова: через 10 с — ошибка (сообщение очереди уйдёт позже)
 const TIMEOUT_MS = 10000;
 
-export function tgApi(env) {
+// lang — язык того, кому ответ (строка или функция): отложенные тексты (060) в параметрах собираются на нём
+export function tgApi(env, lang = DEFAULT_LANG) {
   const base = (env.TG_API || 'https://api.telegram.org') + '/bot' + env.BOT_TOKEN + '/';
   return async function call(method, params = {}) {
     if (env.meter) env.meter.used++; // бюджет внешних запросов вызова (budget.js)
@@ -11,7 +14,7 @@ export function tgApi(env) {
       const res = await fetch(base + method, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(params),
+        body: JSON.stringify(render(params, typeof lang === 'function' ? lang() : lang)),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       const data = await res.json().catch(() => ({ ok: false, description: 'bad json' }));

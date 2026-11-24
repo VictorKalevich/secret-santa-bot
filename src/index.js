@@ -15,9 +15,11 @@ import { setup } from './setup.js';
 import { appPolicy } from './csp.js';
 import { t, DEFAULT_LANG, bootTexts } from './i18n/index.js';
 
-// Страница мини-приложения (склейка частей src/app/, 021) со встроенной дизайн-системой (без сборщика).
+// Страница мини-приложения (склейка частей src/app/, 021) со встроенной дизайн-системой (без сборщика) и текстами до
+// ответа сервера (060: набор app.boot.* языка по умолчанию; «<» — экранировано, строка не закроет <script>)
 const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS)
-  .replace('/*@clearable-input*/', () => CLEARABLE_INPUT);
+  .replace('/*@clearable-input*/', () => CLEARABLE_INPUT)
+  .replace('/*@boot-texts*/null', () => JSON.stringify(bootTexts(DEFAULT_LANG)).replace(/</g, '\\u003c'));
 // Политика страницы (032): отпечаток встроенного скрипта считается при первом /app — один раз на экземпляр Worker
 let appCsp;
 

@@ -40,7 +40,11 @@ async function world(open) {
     assert.equal(r.data.ok, true, `${u.name} ${action}: ${r.data.error}`);
     return r.data;
   };
-  z.me = (u) => z.ok(u, 'me');
+  // Поля словаря приложения (060) — не о компаниях
+  z.me = async (u) => {
+    const { lang, texts_version, texts, ...me } = await z.ok(u, 'me');
+    return me;
+  };
   // Незнакомец без ссылки: /start и имя текстом
   z.signUp = async (u) => {
     await w.say(u, '/start');

@@ -62,7 +62,7 @@ export function doneGated(text) {
   const found = [];
   const head = fn.start + 1;
   if (!/\blet picked = value;/.test(fn.text)) found.push([head, 'выбранный при открытии день — не дата поля: без даты ничего не должно быть выделено']);
-  if (!/\bconst done = ui\.btn\('Готово'/.test(fn.text)) found.push([head, 'нет кнопки «Готово»']);
+  if (!/\bconst done = ui\.btn\(t\('app\.core\.calendar\.done'\)/.test(fn.text)) found.push([head, 'нет кнопки «Готово»']);
   if (!/\bdone\.disabled = !picked;/.test(fn.text)) found.push([head, '«Готово» не недоступна без выбранного дня (нет done.disabled = !picked)']);
   fn.text.split('\n').forEach((l, i) => {
     if (/\bdone\.disabled = /.test(l) && !/\bdone\.disabled = !picked;/.test(l) && !/\bpicked = c\.iso;\s*done\.disabled = false;/.test(l)) {
@@ -70,7 +70,7 @@ export function doneGated(text) {
     }
   });
   // 028: вторая кнопка — всегда: «Сбросить» при дате, «Закрыть» без неё
-  if (!/\bconst reset = ui\.btn\(value \? 'Сбросить' : 'Закрыть', 'secondary'/.test(fn.text)) {
+  if (!/\bconst reset = ui\.btn\(t\(value \? 'app\.core\.calendar\.reset' : 'app\.core\.calendar\.close'\), 'secondary'/.test(fn.text)) {
     found.push([head, 'вторая кнопка — не всегда: «Сбросить» при дате, «Закрыть» без неё']);
   }
   return found;
@@ -224,9 +224,9 @@ test('от противного 3: «Готово» без выбора, выд�
   const bad = [
     '  function openCalendar(value, onPick, { title, hint } = {}) {',
     '    let picked = value || today;',
-    "    const done = ui.btn('Готово', '', 'ds-btn--block');",
+    "    const done = ui.btn(t('app.core.calendar.done'), '', 'ds-btn--block');",
     '    done.disabled = false;',
-    "    const reset = ui.btn('Сбросить', 'secondary', 'ds-btn--block');",
+    "    const reset = ui.btn(t('app.core.calendar.reset'), 'secondary', 'ds-btn--block');",
     '  }',
   ].join('\n');
   const found = doneGated(bad).map(([, why]) => why);
@@ -234,7 +234,7 @@ test('от противного 3: «Готово» без выбора, выд�
   assert.ok(found.some((w) => w.includes('done.disabled = !picked')), '«Готово» без недоступности не найдена');
   assert.ok(found.some((w) => w.includes('не при выборе дня')), 'включение «Готово» вне выбора не найдено');
   assert.ok(found.some((w) => w.includes('«Закрыть»')), 'вторая кнопка без «Закрыть» не найдена');
-  const onlyWithDate = "    const reset = value ? ui.btn('Сбросить', 'secondary', 'ds-btn--block') : null;";
+  const onlyWithDate = "    const reset = value ? ui.btn(t('app.core.calendar.reset'), 'secondary', 'ds-btn--block') : null;";
   assert.ok(doneGated(bad.replace(/^.*const reset.*$/m, onlyWithDate)).some(([, w]) => w.includes('«Закрыть»')), '«Сбросить» только при дате не найден');
   assert.deepEqual(doneGated('  function other() {\n  }').map(([, w]) => w), ['нет function openCalendar(']);
 });

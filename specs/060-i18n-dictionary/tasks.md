@@ -23,17 +23,17 @@ quickstart.md
 
 ## Phase 1: Setup
 
-- [ ] T001 Миграция `migrations/0021_user_lang.sql`: `ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT '';` и
+- [X] T001 Миграция `migrations/0021_user_lang.sql`: `ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT '';` и
   `settings.schema = '21'` (вид — как `0019`/`0020`, комментарий «применяется до выката кода, прежний код колонку не
   читает»); `REQUIRED_SCHEMA = 21` в `src/db.js`; в `tests/migrations.test.mjs` — 0021: колонка `lang` с `''` у всех
   строк, версия 21, остальные строки прежние
-- [ ] T002 Модуль `src/i18n/index.js` по `contracts/i18n.md`, раздел 1–2: `DEFAULT_LANG`, `LANGUAGES = ['ru']`,
+- [X] T002 Модуль `src/i18n/index.js` по `contracts/i18n.md`, раздел 1–2: `DEFAULT_LANG`, `LANGUAGES = ['ru']`,
   `DICTIONARIES` (`{ ru: { server, app, locale: 'ru-RU' } }` из `src/i18n/ru/index.js`), `langOf`, `t` (поиск
   `server` → `app` → русский → ключ; формы числа по `Intl.PluralRules(plural ?? lang)` и `params.n`; подстановки
   `{имя}`, вложенные отложенные тексты в `params` собираются тем же языком; нехватка/лишнее — `console.error('i18n: …')`),
   `tl`, `translator`, `tx`, `tdate`, `tjoin`, `render`, `appTexts` (версия `<язык>:<FNV-1a 32 hex>` и словарь `app.*`,
   раз на экземпляр), `bootTexts`
-- [ ] T003 Папка `src/i18n/ru/`: `index.js` (`{ server, app }` из файлов: `app-*.js` → `app`) и пустые файлы
+- [X] T003 Папка `src/i18n/ru/`: `index.js` (`{ server, app }` из файлов: `app-*.js` → `app`) и пустые файлы
   `export default {};` всех областей из `data-model.md` (`common`, `api`, `bot`, `chat`, `companies`, `constraints`,
   `cron`, `db`, `event-params`, `events`, `index`, `looks`, `membership`, `pairs`, `panel`, `participant`, `roles`,
   `setup`, `shipment`, `stale`, `support`, `vault`, `app-boot`, `app-core`, `app-home`, `app-companies`, `app-event`,
@@ -45,38 +45,38 @@ quickstart.md
 
 **⚠️ До переноса текстов (Phase 3)**
 
-- [ ] T004 Тесты основы в `tests/i18n.test.mjs`: `t` (подстановки, вложенные, нет ключа → русский → ключ, нехватка и
+- [X] T004 Тесты основы в `tests/i18n.test.mjs`: `t` (подстановки, вложенные, нет ключа → русский → ключ, нехватка и
   лишнее → `console.error`), формы числа `ru` = прежний `plural(n, one, few, many)` на 0–1000, `render` (строки как
   есть, `$t`/`$d`/`$j`, вложенность, кнопки), `langOf` (пусто, неизвестный, есть), `appTexts` (версия меняется со
   словарём, один объект на экземпляр); каждое — «от противного»; файл — в скрипт `test` `package.json`
-- [ ] T005 Строгий «мир»: в `tests/support/world.mjs` `console.error`, начинающийся с `i18n:`, бросает исключение
+- [X] T005 Строгий «мир»: в `tests/support/world.mjs` `console.error`, начинающийся с `i18n:`, бросает исключение
   (вызов Worker падает — тест видит); в `tests/e2e.test.mjs` и `tests/queries.test.mjs` журнал проверяется и на `i18n:`
   (как `budget exceeded`)
-- [ ] T006 Контекст: `ctx.lang = langOf(me)` и `ctx.t` в `makeContext` (`src/context.js`), привязанный контекст
+- [X] T006 Контекст: `ctx.lang = langOf(me)` и `ctx.t` в `makeContext` (`src/context.js`), привязанный контекст
   (`ctx.in`) наследует; без человека — `DEFAULT_LANG`
-- [ ] T007 Очередь: `src/outbox.js` — оператор захвата `RETURNING *, (SELECT lang FROM users u WHERE u.tg_id =
+- [X] T007 Очередь: `src/outbox.js` — оператор захвата `RETURNING *, (SELECT lang FROM users u WHERE u.tg_id =
   outbox.chat_id) AS lang`, перед `sendMessage` — `render(payload, langOf({ lang }))`; тест в `tests/unit.test.mjs`:
   готовый текст (прежний вид) уходит как есть, отложенный — собирается на языке получателя
-- [ ] T008 Журнал: `auditStmt`/`auditIfStmt` (`src/db.js`) собирают подробность `render(detail, DEFAULT_LANG)` перед
+- [X] T008 Журнал: `auditStmt`/`auditIfStmt` (`src/db.js`) собирают подробность `render(detail, DEFAULT_LANG)` перед
   записью; `atomic(...).audit` (`src/claim.js`) передаёт как есть
-- [ ] T009 Общие тексты `src/format.js` → `src/i18n/ru/common.js`: месяцы (`common.monthsGen`), `formatDate(iso, lang)`,
+- [X] T009 Общие тексты `src/format.js` → `src/i18n/ru/common.js`: месяцы (`common.monthsGen`), `formatDate(iso, lang)`,
   `formatMs(ms, offset, lang)` (по умолчанию `DEFAULT_LANG`), `displayName` («Кто-то» — `common.someone`), `ownerWord`
   (формы — ключи `common.owner.*`/`common.botOwner.*`, возвращает отложенные тексты), `openAppButton` (подпись по
   умолчанию), общие отказы `NOT_REGISTERED`, `ADMIN_ONLY`, `NO_DRAW`, `PAIRS_RACE`, `NOT_MEMBER`, `COMPANY_NOT_FOUND` —
   константы-ключи; `CHAT_READ_ONLY`, `SUPPORT_READ_ONLY` — ключи `app.sheet.*` (тот же текст у приложения, 034); места
   вызова в модулях — `ctx.t(КЛЮЧ)` (`no(ctx.t(NOT_MEMBER))`); `render`/`t` для дат-маркеров
-- [ ] T010 API `src/api.js` → `src/i18n/ru/api.js`: конвейер (`fail(ctx.t(…))`, отказ до контекста —
+- [X] T010 API `src/api.js` → `src/i18n/ru/api.js`: конвейер (`fail(ctx.t(…))`, отказ до контекста —
   `t(DEFAULT_LANG, …)`), `ACTIONS` — `finished` и `confirm` (`[ключ слова, ключ отказа]`) и отказы не владельцу —
   ключи, конвейер собирает `ctx.t`, слово — `confirmed(body, ctx.t(row.confirm[0]))`; прочие тексты обработчиков;
   `me` (`run: (ctx, body)`) добавляет `lang`, `texts_version` и `texts` (если `body.texts` ≠ версии) — и
   незарегистрированному; адаптация `tests/api-table.test.mjs`, `tests/api-doc.test.mjs` (сверка с `docs/api.md` —
   через русский словарь), `tests/server-shape.test.mjs` (литерал отказа в модуле — по-прежнему нарушение)
-- [ ] T011 Страница: `src/index.js` — метка `/*@boot-texts*/null` → JSON `bootTexts(DEFAULT_LANG)` (замена через функцию,
+- [X] T011 Страница: `src/index.js` — метка `/*@boot-texts*/null` → JSON `bootTexts(DEFAULT_LANG)` (замена через функцию,
   как `/*@design-system*/`), тексты маршрутов → `src/i18n/ru/index.js`; `design-system/clearable-input.js.txt` —
   `bindClearableInput(box, ariaLabel)` без текста (подпись даёт вызывающий), витрина `design-system/preview.html` и
   `design-system/README.md` — новая подпись функции; `tests/app-csp.test.mjs`, `tests/world.test.mjs` — страница =
   склейка с подстановками
-- [ ] T012 Ядро приложения: `src/app/02-core.js.txt` — `const BOOT_TEXTS = /*@boot-texts*/null;`, `let TEXTS`,
+- [X] T012 Ядро приложения: `src/app/02-core.js.txt` — `const BOOT_TEXTS = /*@boot-texts*/null;`, `let TEXTS`,
   `t(key, params)` и `tl(key)` по правилам `contracts/i18n.md` (раздел 2, 6), `setTexts(d)`; `ownerWord()` — ключи
   `app.core.owner.*`; месяцы, время (`toLocaleTimeString` с `app.core.locale`), `clearable` → `bindClearableInput(…,
   t('app.core.clearField', { label }))`, прочие тексты `02-core` → `src/i18n/ru/app-core.js`; `01-shell.html` и

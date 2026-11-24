@@ -1,11 +1,11 @@
-function bindClearableInput(box, label) {
+function bindClearableInput(box, ariaLabel) {
   const input = box.querySelector('input');
   // :placeholder-shown отражает и присвоение value, и автозаполнение браузера.
   if (!input.placeholder) input.placeholder = ' ';
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'ds-clearable__button';
-  button.setAttribute('aria-label', 'Очистить поле «' + label + '»');
+  button.setAttribute('aria-label', ariaLabel);
   button.textContent = '×';
   button.addEventListener('pointerdown', event => event.preventDefault());
   button.addEventListener('click', () => {

@@ -9,6 +9,7 @@ import {
 import {
   msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine, NOT_MEMBER, ADMIN_ONLY,
 } from './format.js';
+import { tx } from './i18n/index.js';
 import { isFinished } from './status.js';
 import { atomic } from './claim.js';
 import { no } from './result.js';
@@ -151,7 +152,7 @@ export async function familiesList(ctx) {
 // ---------- участие админа и возврат удалённых (019: из api.js) ----------
 
 // 051: в компании с назначенным владельцем — «владельца», в компании владельца бота — прежний текст (ownerWord)
-const AFTER_DRAW = (w) => `После жеребьёвки так нельзя. Попроси ${w.gen} вписать тебя.`;
+const AFTER_DRAW = (w) => tx('membership.afterDraw', { owner: w });
 
 // «Я участвую» админа: вход и выход — только до жеребьёвки (вписывает после неё только владелец, 012)
 export async function participate(ctx, ev, on, actor) {
@@ -174,7 +175,8 @@ export async function participate(ctx, ev, on, actor) {
 }
 
 const LEAVE_AFTER_DRAW = 'Жеребьёвка уже прошла. Чтобы выйти, обратись к владельцу или администраторам.';
-export const LEAVE_FINISHED = 'Событие завершено — выйти из него уже нельзя.';
+// Ключ словаря: отказ «завершено» у event.leave (поле finished таблицы действий) и проигравшему выходу
+export const LEAVE_FINISHED = 'membership.leaveFinished';
 
 // Выход участника из эвента (035): только до жеребьёвки и пока эвент идёт — проверено в момент записи, как выход админа
 // (018). По прежнему состоянию (020): сообщения организаторам и журнал — перед захватом, пока человек ещё участник;
@@ -196,7 +198,7 @@ export async function leaveEvent(ctx, ev) {
   const r = await ctx.read({ ev: eventQuery(db, ev.id), member: memberQuery(db, ev.id, me.tg_id) });
   const [cur] = r.ev;
   if (!cur || !r.member.length) return no(NOT_MEMBER, 403);
-  return no(isFinished(cur) ? LEAVE_FINISHED : LEAVE_AFTER_DRAW);
+  return no(isFinished(cur) ? tx(LEAVE_FINISHED) : LEAVE_AFTER_DRAW);
 }
 
 // Разрешить удалённому организатором вернуться по ссылке (010)
@@ -334,8 +336,8 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
   p.enqueue(req.user_id, approve
     ? msg(
       ev.draw_done
-        ? `🎉 Заявка одобрена — ты в событии ${q(ev)}! Жеребьёвка уже прошла — ${ctx.ownerWord().nom} впишет тебя, бот пришлёт уведомление. А пока напиши письмо Санте.`
-        : `🎉 Заявка одобрена — ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`,
+        ? tx('membership.approvedAfterDraw', { title: q(ev), owner: ctx.ownerWord() })
+        : tx('membership.approved', { title: q(ev) }),
       appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }))
     : msg(requestRejected(ev)));
   for (const a of adminRecipients(users, [actor, req.user_id])) {

@@ -9,6 +9,7 @@ import { atomic, closedParens } from './claim.js';
 import { drawSnapshot, snapshotGuard } from './snapshots.js';
 import { planDraw, pairRules, removeFromAssignment, insertIntoAssignment } from './draw.js';
 import { msg, q, appKeyboard, randomCode, displayName, NO_DRAW, PAIRS_RACE } from './format.js';
+import { tx, tjoin } from './i18n/index.js';
 import { isFinished } from './status.js';
 import { no } from './result.js';
 
@@ -48,7 +49,7 @@ function describeProblem(p, byId, w) {
     case 'no_givers': return `${name(p.id)} не может достаться никому — проверь исключения.`;
     case 'search_exhausted': return 'Не удалось быстро подобрать распределение — попробуй ещё раз. Если не выйдет, убери часть исключений или выключи кольцевую жеребьёвку.';
     // 014: без имён — причину видят и админы (и рассылка о неудаче автожеребьёвки), а закреплённые пары знает только владелец
-    case 'fixed_block': return `Мешают закреплённые пары: с ними распределить всех по правилам не получается. ${w.nom[0].toUpperCase() + w.nom.slice(1)} может убрать часть закреплённых пар.`;
+    case 'fixed_block': return tx('pairs.reason.fixed_block', { owner: w });
     default: return 'Слишком много исключений: распределить всех так, чтобы их соблюсти, не получается. Убери часть исключений.';
   }
 }
@@ -101,7 +102,7 @@ export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
   if (ev.draw_done) return no('Жеребьёвка уже проведена.');
   const settings = await ctx.settings();
   const check = await checkDraw(ctx, ev);
-  if (!check.res.ok) return no(check.problems.join('\n'));
+  if (!check.res.ok) return no(tjoin('\n', check.problems));
   // Атомарно (006, FR-607; 020 — src/claim.js): захват первым «занимает» жеребьёвку своим токеном; остальные записи
   // выполняются, только если токен в эвенте — наш. Вторая одновременная жеребьёвка ничего не запишет.
   // 009, FR-922: захват — только если участники, исключения и параметры те же, что при расчёте пар.
