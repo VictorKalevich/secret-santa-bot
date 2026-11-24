@@ -1,12 +1,19 @@
-// Словарь (060): правила сборки текста, формы числа, отложенный текст, язык человека, словарь приложения. Контракт —
-// specs/060-i18n-dictionary/contracts/i18n.md (разделы 1–3, 6). У каждого правила — проверка «от противного».
+// Словарь (060): правила сборки текста, формы числа, отложенный текст, язык человека, словарь приложения; правила
+// словаря по исходникам (R9) и сверка сборки в приложении. Контракт — specs/060-i18n-dictionary/contracts/i18n.md.
+// У каждого правила — проверка «от противного».
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   t, tl, tx, tdate, tjoin, render, langOf, appTexts, bootTexts, translator, slotsOf, formatDate, formatMs,
-  DEFAULT_LANG, DICTIONARIES,
+  DEFAULT_LANG, DICTIONARIES, LANGUAGES,
 } from '../src/i18n/index.js';
 import { escapeHtml, ownerWord } from '../src/format.js';
+import { readdirSync } from 'node:fs';
+import {
+  read, codeFiles, cyrillicLines, keysIn, dictionary, prefixProblems, missingKeys, unusedKeys, callParams,
+} from './support/i18n-rules.mjs';
+import { APP } from './support/app-source.mjs';
+import { PSEUDO, pseudoLanguage } from './support/pseudo.mjs';
 
 // Ошибки словаря (console.error «i18n: …») — собрать, а не печатать
 function errorsOf(fn) {
@@ -169,5 +176,166 @@ describe('язык человека и словарь приложения', () 
     assert.notEqual(zz.version.slice(3), appTexts(DEFAULT_LANG).version.slice(3));
     assert.equal(zz.texts['app.boot.title'], 'Secret Santa');
     assert.equal(zz.texts['app.boot.loading'], appTexts(DEFAULT_LANG).texts['app.boot.loading']);
+  });
+});
+
+// ---------- правила словаря по исходникам (R9, T033–T035) ----------
+
+describe('кириллица — только в словарях (T033)', () => {
+  // Файлы с текстами для людей: модули сервера, части приложения, модуль словаря и общий код дизайн-системы в странице
+  const FILES = [...codeFiles(), 'design-system/clearable-input.js.txt'];
+
+  it('вне комментариев, new Error(…), console.*(…) и ошибок словаря — ни одной строки с кириллицей', () => {
+    assert.deepEqual(FILES.flatMap((f) => cyrillicLines(f)), []);
+  });
+
+  it('от противного: текст в части и в модуле — нарушение; комментарий, new Error и console — нет', () => {
+    const part = "  // Подпись кнопки\n  ui.btn('Сохранить', save);\n  /* «Отмена» */ ui.btn(t('app.core.cancel'));\n";
+    assert.deepEqual(cyrillicLines('src/app/x.js.txt', part), ["src/app/x.js.txt:2: ui.btn('Сохранить', save);"]);
+    const mod = "throw new Error('Нет базы');\nconsole.error('сбой', e);\nreturn no('Событие не найдено.');\n";
+    assert.deepEqual(cyrillicLines('src/x.js', mod), ["src/x.js:3: return no('Событие не найдено.');"]);
+    assert.deepEqual(cyrillicLines('x.html', '<!-- Заголовок -->\n<title></title>\n'), []);
+  });
+});
+
+describe('ключи словаря (T034)', () => {
+  const dict = dictionary();
+
+  it('ключи вызовов есть в словаре, у семейств есть ключи; ключ — из области своего файла', () => {
+    assert.deepEqual(missingKeys(codeFiles(), dict), []);
+    assert.deepEqual(prefixProblems(), []);
+  });
+
+  it('каждый ключ словаря используется: вызовом, строкой таблицы или членом семейства', () => {
+    assert.deepEqual(unusedKeys(codeFiles(), dict), []);
+  });
+
+  it('от противного: вызов неизвестного ключа, семейство без ключей, неиспользуемый ключ', () => {
+    const src = "t('app.core.noSuchKey'); tx('pairs.noFamily.' + type); t('common.noDraw');";
+    const { called, families } = keysIn(src);
+    assert.deepEqual([...called], ['app.core.noSuchKey', 'common.noDraw']);
+    assert.deepEqual([...families], ['pairs.noFamily.']);
+    assert.ok(!dict.has('app.core.noSuchKey'));
+    assert.ok(![...dict.keys()].some((k) => k.startsWith('pairs.noFamily.')));
+    const only = new Map([['common.noDraw', dict.get('common.noDraw')], ['common.unused', { file: 'x', value: 'x' }]]);
+    assert.equal(unusedKeys([], only).length, 2);
+    assert.ok(keysIn("x = 'common.noDraw';").literals.has('common.noDraw'), 'строка таблицы — использование');
+  });
+});
+
+// Ожидаемые подстановки текста и найденные в вызове → описание расхождения или null
+function slotMismatch(value, names) {
+  const slots = slotsOf(value);
+  const plural = !!value && typeof value === 'object' && !Array.isArray(value);
+  const extra = [...names].filter((x) => !slots.has(x) && !(x === 'n' && plural));
+  const lack = [...slots].filter((x) => !names.has(x));
+  if (plural && !names.has('n') && !lack.includes('n')) lack.push('n');
+  return extra.length || lack.length ? `лишние: ${extra.join(', ') || '—'}; нет: ${lack.join(', ') || '—'}` : null;
+}
+
+describe('подстановки, формы, файлы (T035)', () => {
+  const dict = dictionary();
+
+  it('у вызова с ключом и литералом объекта имена подстановок = подстановки текста', () => {
+    const found = [];
+    for (const f of codeFiles()) {
+      for (const c of callParams(read(f))) {
+        if (!dict.has(c.key) || c.names === null) continue;
+        const bad = slotMismatch(dict.get(c.key).value, c.names);
+        if (bad) found.push(`${f}:${c.line} ${c.key} — ${bad}`);
+      }
+    }
+    assert.deepEqual(found, []);
+  });
+
+  it('набор форм — все категории русского языка на 0–1000, в каждой форме число {n}', () => {
+    const rules = new Intl.PluralRules(DEFAULT_LANG);
+    const categories = new Set(Array.from({ length: 1001 }, (_, n) => rules.select(n)));
+    const found = [];
+    for (const [key, { value }] of dict) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      for (const c of categories) if (typeof value[c] !== 'string') found.push(`${key}: нет формы ${c}`);
+      for (const [c, text] of Object.entries(value)) if (!/\{n\}/.test(text)) found.push(`${key}.${c}: нет {n}`);
+    }
+    assert.deepEqual(found, []);
+  });
+
+  it('значения непустые; у каждого языка тот же набор файлов, что у русского', () => {
+    const blank = (v) => !String(v).trim();
+    const empty = [...dict].filter(([, { value }]) => (Array.isArray(value) ? !value.length || value.some(blank)
+      : typeof value === 'object' ? Object.values(value).some(blank) : blank(value))).map(([k]) => k);
+    assert.deepEqual(empty, []);
+    const files = (lang) => readdirSync(new URL(`../src/i18n/${lang}/`, import.meta.url)).sort();
+    for (const lang of LANGUAGES) assert.deepEqual(files(lang), files(DEFAULT_LANG), lang);
+  });
+
+  it('от противного: лишняя и недостающая подстановка, набор форм без числа', () => {
+    assert.equal(slotMismatch('Привет, {name}!', new Set(['name'])), null);
+    assert.equal(slotMismatch('Привет, {name}!', new Set(['nmae'])), 'лишние: nmae; нет: name');
+    assert.equal(slotMismatch({ one: '{n} день', few: '{n} дня', many: '{n} дней' }, new Set()), 'лишние: —; нет: n');
+    assert.deepEqual(callParams("t('a.b', { a, b: f(1, { c: 2 }), 'd': '}' }); t('a.c'); tx('a.d', p); t('a.e', { ...o })")
+      .map((c) => [c.key, c.names && [...c.names]]), [['a.b', ['a', 'b', 'd']], ['a.c', []], ['a.d', null], ['a.e', null]]);
+  });
+});
+
+// Ядро словаря приложения из склейки (02-core): t, tl, setTexts — для сверки с сервером
+function appDictionary() {
+  const from = APP.indexOf('  const BOOT_TEXTS');
+  const to = APP.indexOf('  // ---------- утилиты', from);
+  assert.ok(from > 0 && to > from, 'в склейке нет блока словаря');
+  const errors = [];
+  const make = Function('state', 'document', 'console', APP.slice(from, to) + '\nreturn { t, tl, setTexts };');
+  const core = make({}, { documentElement: {} }, { error: (m) => errors.push(m) });
+  return { ...core, errors };
+}
+
+// Подстановки для сверки: обычная — строка, с формой ({owner.nom}) — набор форм, у набора форм числа — n
+function sampleParams(value, n) {
+  const params = {};
+  const texts = typeof value === 'string' ? [value] : Object.values(value);
+  for (const text of texts) {
+    for (const m of text.matchAll(/\{([A-Za-z0-9_]+)(?:\.([A-Za-z0-9_]+))?\}/g)) {
+      if (m[2]) params[m[1]] = { ...params[m[1]], [m[2]]: `<${m[1]}.${m[2]}>` };
+      else if (m[1] !== 'n') params[m[1]] = `<${m[1]}>`;
+    }
+  }
+  if (typeof value === 'object' || texts.some((x) => x.includes('{n}'))) params.n = n;
+  return params;
+}
+
+describe('приложение собирает текст так же, как сервер (T035)', () => {
+  for (const lang of [DEFAULT_LANG, PSEUDO]) {
+    it(`все ключи app.* (${lang}): t приложения = t сервера`, () => {
+      const drop = lang === PSEUDO ? pseudoLanguage() : () => {};
+      try {
+        const app = appDictionary();
+        const { texts, version } = appTexts(lang);
+        app.setTexts({ lang, texts, texts_version: version });
+        const diff = [];
+        for (const [key, value] of Object.entries(texts)) {
+          if (Array.isArray(value)) {
+            if (JSON.stringify(app.tl(key)) !== JSON.stringify(tl(lang, key))) diff.push(key);
+            continue;
+          }
+          for (const n of typeof value === 'object' ? [0, 1, 2, 5, 11, 21, 22, 25, 101, 1000] : [7]) {
+            const params = sampleParams(value, n);
+            const want = t(lang, key, params);
+            const got = app.t(key, params);
+            if (got !== want) diff.push(`${key} (n=${n}): ${got} ≠ ${want}`);
+          }
+        }
+        assert.deepEqual(diff, []);
+        assert.deepEqual(app.errors, []);
+      } finally {
+        drop();
+      }
+    });
+  }
+
+  it('от противного: другой словарь у приложения — расхождение замечено', () => {
+    const app = appDictionary();
+    const { texts } = appTexts(DEFAULT_LANG);
+    app.setTexts({ lang: DEFAULT_LANG, texts: { ...texts, 'app.boot.loading': 'Иначе' } });
+    assert.notEqual(app.t('app.boot.loading'), t(DEFAULT_LANG, 'app.boot.loading'));
   });
 });

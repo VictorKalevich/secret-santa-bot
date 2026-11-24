@@ -25,9 +25,11 @@
     }
     return names;
   }
+  // Формы числа — по локали словаря (app.core.locale): код языка не обязан быть локалью Intl
   function pluralCategory(n) {
     if (!pluralRules) {
-      try { pluralRules = new Intl.PluralRules(textsLang); } catch (e) { pluralRules = new Intl.PluralRules('ru'); }
+      const locale = own(TEXTS, 'app.core.locale') ? TEXTS['app.core.locale'] : textsLang;
+      try { pluralRules = new Intl.PluralRules(locale); } catch (e) { pluralRules = new Intl.PluralRules('ru'); }
     }
     return pluralRules.select(n);
   }
@@ -72,10 +74,12 @@
   }
   // Словарь из ответа me: язык, версия (повторный me без словаря, если версия та же) и тексты
   function setTexts(d) {
-    if (d.texts) TEXTS = { ...BOOT_TEXTS, ...d.texts };
+    if (d.texts) {
+      TEXTS = { ...BOOT_TEXTS, ...d.texts };
+      pluralRules = null;
+    }
     if (d.lang && d.lang !== textsLang) {
       textsLang = d.lang;
-      pluralRules = null;
       document.documentElement.lang = d.lang;
     }
     if (d.texts_version) state.textsVersion = d.texts_version;

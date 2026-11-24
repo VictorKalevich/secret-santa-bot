@@ -65,6 +65,68 @@ export function keysIn(text) {
   return { called, families, literals };
 }
 
+// Конец выражения от позиции i (открывающая скобка): с учётом вложенных скобок, строк и шаблонов → индекс после него
+function closing(src, i) {
+  const pairs = { '{': '}', '(': ')', '[': ']' };
+  const stack = [];
+  for (let j = i; j < src.length; j++) {
+    const c = src[j];
+    if (c === "'" || c === '"' || c === '`') {
+      for (j++; j < src.length && src[j] !== c; j++) if (src[j] === '\\') j++;
+      continue;
+    }
+    if (pairs[c]) stack.push(pairs[c]);
+    else if (c === stack[stack.length - 1]) {
+      stack.pop();
+      if (!stack.length) return j + 1;
+    }
+  }
+  return src.length;
+}
+
+// Части объекта верхнего уровня: '{ a, b: x(1, 2), ...c }' → ['a', 'b: x(1, 2)', '...c']
+function members(obj) {
+  const inner = obj.slice(1, -1);
+  const out = [];
+  let from = 0;
+  for (let j = 0; j < inner.length; j++) {
+    const c = inner[j];
+    if ('{(['.includes(c) || c === "'" || c === '"' || c === '`') j = closing(inner, j) - 1;
+    else if (c === ',') {
+      out.push(inner.slice(from, j));
+      from = j + 1;
+    }
+  }
+  out.push(inner.slice(from));
+  return out.map((s) => s.trim()).filter(Boolean);
+}
+
+// Вызовы с ключом-литералом и подстановками-литералом объекта: [{ key, names, line }]; names — null, если подстановки
+// не литерал объекта или в нём есть «...» (тогда имена не проверить); без второго аргумента — пустое множество
+export function callParams(text) {
+  const src = stripComments(text);
+  const out = [];
+  for (const m of src.matchAll(CALL)) {
+    if (m[3] === '+') continue;
+    const line = src.slice(0, m.index).split('\n').length;
+    if (m[3] === ')') {
+      out.push({ key: m[2], names: new Set(), line });
+      continue;
+    }
+    let i = m.index + m[0].length;
+    while (/\s/.test(src[i])) i++;
+    if (src[i] !== '{') {
+      out.push({ key: m[2], names: null, line });
+      continue;
+    }
+    const parts = members(src.slice(i, closing(src, i)));
+    const names = parts.some((p) => p.startsWith('...')) ? null
+      : new Set(parts.map((p) => /^['"]?([A-Za-z_$][\w$]*)['"]?\s*(?::|$)/.exec(p)?.[1] ?? p));
+    out.push({ key: m[2], names, line });
+  }
+  return out;
+}
+
 // Русский словарь: ключ → { area, file, value }
 export function dictionary() {
   const out = new Map();
