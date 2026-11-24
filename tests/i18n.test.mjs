@@ -4,7 +4,7 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  t, tl, tx, tdate, tjoin, render, langOf, appTexts, bootTexts, translator, slotsOf, formatDate, formatMs,
+  t, tl, tx, tdate, tjoin, render, langOf, appTexts, bootTexts, translator, slotsOf, formatDate, formatMs, telegramLanguage, foldWord,
   DEFAULT_LANG, DICTIONARIES, LANGUAGES,
 } from '../src/i18n/index.js';
 import { escapeHtml, ownerWord } from '../src/format.js';
@@ -16,6 +16,8 @@ import { APP } from './support/app-source.mjs';
 import { PSEUDO, pseudoLanguage } from './support/pseudo.mjs';
 import { POSTCARDS, MASKS } from '../src/looks.js';
 import { SWAP_RULES } from '../src/pairs.js';
+import { AREAS as RU_AREAS } from '../src/i18n/ru/index.js';
+import { languageProblems, loadLanguage, valueProblems } from './support/i18n-lang-rules.mjs';
 
 // Ошибки словаря (console.error «i18n: …») — собрать, а не печатать
 function errorsOf(fn) {
@@ -168,8 +170,10 @@ describe('язык человека и словарь приложения', () 
     assert.ok(Object.keys(a.texts).every((k) => k.startsWith('app.')));
     assert.match(a.version, /^ru:[0-9a-f]{8}$/);
     assert.equal(appTexts(DEFAULT_LANG), a, 'один объект на экземпляр');
-    const boot = bootTexts(DEFAULT_LANG);
-    assert.ok(Object.keys(boot).length > 0 && Object.keys(boot).every((k) => k.startsWith('app.boot.')));
+    const boot = bootTexts().texts;
+    for (const lang of LANGUAGES) {
+      assert.ok(Object.keys(boot[lang]).length > 0 && Object.keys(boot[lang]).every((k) => k.startsWith('app.boot.')), lang);
+    }
   });
 
   it('от противного: другой словарь — другая версия; нет ключа у языка — русский текст', () => {
@@ -281,14 +285,19 @@ describe('подстановки, формы, файлы (T035)', () => {
 });
 
 // Ядро словаря приложения из склейки (02-core): t, tl, setTexts — для сверки с сервером
-function appDictionary() {
-  const from = APP.indexOf('  const BOOT_TEXTS');
+// 061: страница — с текстами до ответа, как её отдаёт сервер; languageCode — язык Telegram, browser — браузера
+function appDictionary({ languageCode, browser = '' } = {}) {
+  const from = APP.indexOf('  const BOOT = ');
   const to = APP.indexOf('  // ---------- утилиты', from);
   assert.ok(from > 0 && to > from, 'в склейке нет блока словаря');
   const errors = [];
-  const make = Function('state', 'document', 'console', 'shellTexts', APP.slice(from, to) + '\nreturn { t, tl, setTexts };');
-  const core = make({}, { documentElement: {} }, { error: (m) => errors.push(m) }, () => {});
-  return { ...core, errors };
+  const src = APP.slice(from, to).replace('/*@boot-texts*/null', () => JSON.stringify(bootTexts()));
+  const make = Function('state', 'document', 'console', 'shellTexts', 'tg', 'navigator',
+    src + '\nreturn { t, tl, setTexts, telegramLanguage, foldWord, bootLang, lang: () => textsLang };');
+  const doc = { documentElement: {} };
+  const tg = languageCode === undefined ? undefined : { initDataUnsafe: { user: { language_code: languageCode } } };
+  const core = make({}, doc, { error: (m) => errors.push(m) }, () => {}, tg, { language: browser });
+  return { ...core, errors, doc };
 }
 
 // Подстановки для сверки: обычная — строка, с формой ({owner.nom}) — набор форм, у набора форм числа — n
@@ -306,7 +315,7 @@ function sampleParams(value, n) {
 }
 
 describe('приложение собирает текст так же, как сервер (T035)', () => {
-  for (const lang of [DEFAULT_LANG, PSEUDO]) {
+  for (const lang of [...LANGUAGES, PSEUDO]) {
     it(`все ключи app.* (${lang}): t приложения = t сервера`, () => {
       const drop = lang === PSEUDO ? pseudoLanguage() : () => {};
       try {
@@ -339,6 +348,34 @@ describe('приложение собирает текст так же, как �
     const { texts } = appTexts(DEFAULT_LANG);
     app.setTexts({ lang: DEFAULT_LANG, texts: { ...texts, 'app.boot.loading': 'Иначе' } });
     assert.notEqual(app.t('app.boot.loading'), t(DEFAULT_LANG, 'app.boot.loading'));
+  });
+
+  // 061: язык до ответа me и слово подтверждения — то же правило, что на сервере
+  const CODES = ['', 'ru', 'RU', 'en', 'en-US', 'en_GB', 'pt-br', 'pt-PT', 'zh-hans', 'zh-hant', 'zh-TW', 'uk', 'be', 'kk', 'ky',
+    'tg', 'uz', 'hy', 'az', 'tk', 'ka', 'he', 'ar', 'ja', 'hi', 'es-419', 'fr', 'de', 'it', 'tr', 'id', 'pl', 'nl', 'xx-yy'];
+  it('правило языка Telegram: приложение = сервер на таблице кодов; язык загрузки — по Telegram, иначе браузера', () => {
+    const app = appDictionary();
+    assert.deepEqual(CODES.map(app.telegramLanguage), CODES.map(telegramLanguage));
+    for (const code of CODES) {
+      const page = appDictionary({ languageCode: code });
+      const want = telegramLanguage(code) || DEFAULT_LANG;
+      assert.equal(page.lang(), LANGUAGES.includes(want) ? want : DEFAULT_LANG, code);
+      assert.equal(page.doc.documentElement.lang, page.lang(), code);
+      assert.deepEqual(page.errors, []);
+    }
+    assert.equal(appDictionary({ browser: 'uk-UA' }).lang(), DEFAULT_LANG, 'вне Telegram — язык браузера');
+  });
+
+  it('слово подтверждения: приложение = сервер (регистр, пробелы, диакритика, турецкая İ)', () => {
+    const app = appDictionary();
+    const words = [' выйти ', 'ВЫЙТИ', 'Удалить', 'ёлка', 'Réinitialiser', 'löschen', 'ÇIKIŞ', 'çıkış', 'sil', 'İptal', '删除', 'Zażółć'];
+    for (const lang of ['ru', 'tr', 'fr', 'de', 'pl', 'zh']) {
+      app.setTexts({ lang });
+      assert.deepEqual(words.map((w) => app.foldWord(w)), words.map((w) => foldWord(w, lang)), lang);
+    }
+    assert.equal(foldWord(' réinitialiser ', 'fr'), 'REINITIALISER');
+    assert.equal(foldWord('çıkış', 'tr'), foldWord('ÇIKIŞ', 'tr'));
+    assert.notEqual(foldWord('ВЫЙТИ', 'ru'), foldWord('EXIT', 'ru'), 'от противного: другое слово');
   });
 });
 
@@ -391,5 +428,39 @@ describe('семейства ключей — по источнику кодов
     const codes = [...POSTCARDS.map((c) => c.id), 'new_card'];
     assert.notDeepEqual(membersOf('looks.card.'), [...codes].sort());
     assert.notDeepEqual(membersOf('looks.card.'), POSTCARDS.slice(1).map((c) => c.id).sort());
+  });
+});
+
+// 061: каждый язык бота — полный перевод русского словаря (контракт specs/061-i18n-languages/contracts/translation.md)
+describe('словари языков бота (061)', () => {
+  for (const lang of LANGUAGES.filter((l) => l !== DEFAULT_LANG)) {
+    it(`${lang}: те же ключи, вид, подстановки, формы числа, разметка, слова подтверждения, пределы Telegram; без кириллицы`, async () => {
+      const { areas, error } = await loadLanguage(lang);
+      assert.equal(error, undefined);
+      assert.deepEqual(languageProblems(lang, RU_AREAS, areas), []);
+    });
+  }
+
+  it('от противного: каждое правило перевода находит нарушение', () => {
+    const p = (key, ru, v, lang = 'en') => valueProblems(lang, key, ru, v).map((x) => x.replace(`${lang} ${key}: `, ''));
+    assert.deepEqual(p('a.b', 'Привет, {name}', 'Hi, {name}'), []);
+    assert.deepEqual(p('a.b', 'Привет', undefined), ['нет перевода']);
+    assert.deepEqual(p('a.b', 'Привет, {name}', 'Hi, {nmae}'), ['подстановки {nmae}, у русского — {name}']);
+    assert.deepEqual(p('a.b', 'Привет', 'Привет'), ['кириллица']);
+    assert.deepEqual(p('a.b', '<b>Да</b>', 'Yes'), ['теги разметки «», у русского — «/b,b»']);
+    assert.deepEqual(p('a.b', 'Да', 'a < b'), ['символ < > или & вне разметки']);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { one: '{n} day', other: '{n} days' }), []);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { one: 'a day', other: '{n} days' }), ['в форме one нет {n}']);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { other: '{n} days' }), ['нет формы one']);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { other: '{n} hari' }, 'id'), []);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { one: '{n}', few: '{n}', other: '{n}' }, 'id'),
+      ['лишняя форма one (у языка формы: other)', 'лишняя форма few (у языка формы: other)']);
+    assert.deepEqual(p('a.b', '{owner.gen}', '{owner.acc}'), ['подстановка {owner.acc} — формы есть только у owner: nom, gen, dat, ins, nomCap']);
+    assert.deepEqual(p('app.core.word.leave', 'ВЫЙТИ', 'Leave'), ['слово подтверждения — заглавными']);
+    assert.deepEqual(p('app.core.word.leave', 'ВЫЙТИ', 'GO OUT'), ['слово подтверждения — одно слово без пробелов']);
+    assert.deepEqual(p('setup.shortDescription', 'Бот', 'x'.repeat(121)), ['121 символов (предел 120)']);
+    assert.deepEqual(p('setup.command.start', 'Старт', ''), ['пустой перевод', 'описание команды — 0 символов (1…256)']);
+    assert.deepEqual(p('a.list', ['а', 'б'], ['a']), ['список из 1, у русского — 2']);
+    assert.deepEqual(p('a.b', 'Да', ['Yes']), ['вид значения list, у русского — string']);
   });
 });

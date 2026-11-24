@@ -1,0 +1,58 @@
+// Texts of the app part 02-core (061, English): core — fields, dates, calendar, who can do owner actions, confirmation words
+export default {
+  // Label of the "×" button of an input (design system, bindClearableInput)
+  'app.core.clearField': 'Clear “{label}”',
+  // Dates: "November 25", "November 25, 2026"; time — by the language rules (toLocaleTimeString)
+  'app.core.locale': 'en',
+  'app.core.date': '{month} {day}',
+  'app.core.dateYear': '{date}, {year}',
+  'app.core.dateNone': 'Not set',
+  'app.core.monthsGen': ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  'app.core.monthsNom': ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  'app.core.weekdays': ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
+  'app.core.todayAt': 'today at {time}',
+  'app.core.yesterdayAt': 'yesterday at {time}',
+  'app.core.dateAt': '{date} at {time}',
+  // Own calendar (027)
+  'app.core.calendar.title': 'Date',
+  'app.core.calendar.month': '{month} {year}',
+  'app.core.calendar.prev': 'Previous month',
+  'app.core.calendar.next': 'Next month',
+  'app.core.calendar.done': 'Done',
+  'app.core.calendar.reset': 'Clear',
+  'app.core.calendar.close': 'Close',
+  // Who can do owner actions (ownerWord)
+  'app.core.owner.nom': 'the owner',
+  'app.core.owner.gen': 'the owner',
+  'app.core.owner.dat': 'the owner',
+  'app.core.owner.ins': 'the owner',
+  'app.core.owner.nomCap': 'The owner',
+  'app.core.botOwner.nom': 'the bot owner',
+  'app.core.botOwner.gen': 'the bot owner',
+  'app.core.botOwner.dat': 'the bot owner',
+  'app.core.botOwner.ins': 'the bot owner',
+  'app.core.botOwner.nomCap': 'The bot owner',
+  // Sharing the invitation to a chat (037)
+  'app.core.shareInvite': '🎄 Let’s play Secret Santa — “{title}”! Join with this link:',
+  // Confirmation words: typed by a person, checked by the app and the server
+  'app.core.word.open': 'OPEN',
+  'app.core.word.leave': 'LEAVE',
+  'app.core.word.delete': 'DELETE',
+  'app.core.word.reset': 'RESET',
+  'app.core.word.cancel': 'CANCEL',
+  // Shared texts
+  'app.core.save': 'Save',
+  'app.core.saved': 'Saved',
+  'app.core.noName': 'no name',
+  'app.core.role.owner': '👑 owner',
+  'app.core.role.admin': '🛠 admin',
+  'app.core.role.member': 'participant',
+  'app.core.role.guest': '👁 bot owner',
+  'app.core.create': 'Create',
+  'app.core.needTitle': 'Enter a name',
+  'app.core.pickPerson': 'Choose a person',
+  'app.core.auditLog': '📜 Activity log',
+  'app.core.link.copied': 'Link copied',
+  'app.core.link.copyByHand': 'Select and copy the link',
+  'app.core.link.share': '📤 Send to a chat',
+};

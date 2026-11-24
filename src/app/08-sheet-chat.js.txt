@@ -154,7 +154,7 @@
     const inp = h('input', { class: 'ds-input', type: 'text', placeholder: t('app.sheet.typed.placeholder', { word }), autocomplete: 'off' });
     const go = ui.btn(label, 'danger', 'ds-btn--block');
     go.disabled = true;
-    inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== word; });
+    inp.addEventListener('input', () => { go.disabled = foldWord(inp.value) !== foldWord(word); });
     go.addEventListener('click', async () => {
       if (sure && !(await confirmBox(t('app.sheet.typed.sure', { title })))) return;
       busy(go, async () => { const r = await run(word); closeSheet(); await after(r); });

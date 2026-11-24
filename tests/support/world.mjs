@@ -10,6 +10,7 @@ import { telegramReply } from './telegram-rules.mjs';
 // Динамический импорт: статический загрузил бы части мини-приложения (src/app/) раньше, чем зарегистрирован
 // перехватчик text-hooks
 const worker = (await import('../../src/index.js')).default;
+const { profileVersion, profileCalls } = await import('../../src/bot-profile.js');
 
 const BASE = 'http://w.test';
 
@@ -121,18 +122,21 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, open = fal
       const data = JSON.parse(text);
       if (raw) return { status: res.status, data, text };
       if (!data.ok) throw new Error(`${action}: ${data.error}`);
-      // 060: поля словаря приложения в me проверяет тест i18n (raw), прочие сравнивают прежний ответ
+      // 060: поля словаря приложения в me проверяет тест i18n (raw), прочие сравнивают прежний ответ; 061: и выбор языка
       if (action === 'me') {
-        delete data.lang;
-        delete data.texts_version;
-        delete data.texts;
+        for (const k of ['lang', 'texts_version', 'texts', 'lang_choice', 'lang_auto', 'languages']) delete data[k];
       }
       return data;
     },
-    // Ключ — только формой (010, FR-1002)
-    async setup(key = ADMIN_SECRET) {
+    // Ключ — только формой (010, FR-1002). 061: остаток профиля бота (команды и описания на языках) по умолчанию
+    // считается отправленным — иначе его части шли бы с каждым обращением сценария; profile: true — как в бою
+    async setup(key = ADMIN_SECRET, { profile = false } = {}) {
       const res = await request('/setup', { method: 'POST', body: new URLSearchParams({ key }) });
       const html = await res.text();
+      if (res.status === 200 && !profile) {
+        DB.sqlite.exec(`INSERT INTO settings (key, value) VALUES ('bot_profile', '${profileVersion()}:${profileCalls().length}')
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+      }
       webhookSecret = calls.find((c) => c.method === 'setWebhook')?.params.secret_token || '';
       return {
         status: res.status,
@@ -150,7 +154,7 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, open = fal
       });
       return res.status;
     },
-    from: (u) => ({ id: u.id, is_bot: false, first_name: u.name, username: u.username }),
+    from: (u) => ({ id: u.id, is_bot: false, first_name: u.name, username: u.username, ...(u.language_code ? { language_code: u.language_code } : {}) }),
     say: (u, text) => world.update({ message: { message_id: updateId, date: 1, from: world.from(u), chat: { id: u.id, type: 'private' }, text } }),
     press: (u, data) => world.update({ callback_query: { id: 'cq' + updateId, from: world.from(u), data, chat_instance: 'x' } }),
     cron: () => invoke(() => worker.scheduled({ cron: '* * * * *', scheduledTime: Date.now() }, env)),

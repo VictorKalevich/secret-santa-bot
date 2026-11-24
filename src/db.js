@@ -8,7 +8,7 @@ import { render, t, DEFAULT_LANG } from './i18n/index.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 21;
+export const REQUIRED_SCHEMA = 22;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -86,11 +86,11 @@ export async function getUser(db, id) {
 export function createUserStmt(db, id, username, fields = {}) {
   return db
     .prepare(
-      `INSERT INTO users (tg_id, username, created_at, is_admin, pending)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO users (tg_id, username, created_at, is_admin, pending, tg_lang)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(tg_id) DO NOTHING`
     )
-    .bind(id, username || '', Date.now(), fields.is_admin ? 1 : 0, fields.pending || '');
+    .bind(id, username || '', Date.now(), fields.is_admin ? 1 : 0, fields.pending || '', fields.tg_lang || '');
 }
 
 export async function createUser(db, id, username, fields = {}) {
@@ -158,7 +158,7 @@ export function adminFlagStmt(db, userId) {
     .bind(userId);
 }
 
-const USER_FIELDS = new Set(['name', 'username', 'is_admin', 'registered', 'notify_mode', 'pending', 'blocked_at']);
+const USER_FIELDS = new Set(['name', 'username', 'is_admin', 'registered', 'notify_mode', 'pending', 'blocked_at', 'lang', 'tg_lang', 'menu_lang']);
 
 export function updateUserStmt(db, id, fields) {
   const keys = Object.keys(fields).filter((k) => USER_FIELDS.has(k));
@@ -377,30 +377,39 @@ function auditSphere(sphere) {
   return { event, company: 'COALESCE((SELECT company_id FROM events WHERE id = ?), 0)', args: [event] };
 }
 
+// Подробность записи: details — на языке по умолчанию (как прежде; по нему же сверяются условия «уже записано»),
+// details_tx (061) — отложенный текст JSON, чтобы показать запись на языке смотрящего; строка или длинный JSON — ''
+const DETAILS_MAX = 500;
+const DETAILS_TX_MAX = 2000;
+function auditDetails(details) {
+  const json = details && typeof details === 'object' ? JSON.stringify(details) : '';
+  return [String(render(details, DEFAULT_LANG)).slice(0, DETAILS_MAX), json.length <= DETAILS_TX_MAX ? json : ''];
+}
+
 // Запись журнала — в том же batch, что и само действие. actor = 0 — бот. details — без пар и текстов писем; отложенный
 // текст (tx, 060) собирается на языке по умолчанию
 export function auditStmt(db, sphere, actor, action, details = '') {
   const s = auditSphere(sphere);
   return db
-    .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) VALUES (?, ${s.company}, ?, ?, ?, ?)`)
-    .bind(s.event, ...s.args, actor || 0, action, String(render(details, DEFAULT_LANG)).slice(0, 500), Date.now());
+    .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at) VALUES (?, ${s.company}, ?, ?, ?, ?, ?)`)
+    .bind(s.event, ...s.args, actor || 0, action, ...auditDetails(details), Date.now());
 }
 
 // Последние записи: события (число), общие записи компании ({ company }) или журнал бота (BOT_LOG); t — переводчик
-// вызывающего (имя бота и безымянного)
+// вызывающего (имя бота и безымянного; 061 — подробности новых записей на его языке, прежние — как записаны)
 export async function getAudit(db, sphere, t, limit = 100) {
   const s = auditSphere(sphere);
   const where = s.event ? 'a.event_id = ?1' : 'a.company_id = ?1 AND a.event_id = 0';
   const { results } = await db
     .prepare(
-      `SELECT a.id, a.event_id, a.action, a.details, a.created_at,
+      `SELECT a.id, a.event_id, a.action, a.details, a.details_tx, a.created_at,
               CASE WHEN a.actor = 0 THEN ?3 ELSE COALESCE(NULLIF(u.name, ''), ?4) END AS actor_name
          FROM audit a LEFT JOIN users u ON u.tg_id = a.actor
         WHERE ${where} ORDER BY a.id DESC LIMIT ?2`
     )
     .bind(s.event || s.args[0], limit, t('db.bot'), t('db.someone'))
     .all();
-  return results;
+  return results.map(({ details_tx: tx, ...r }) => (tx ? { ...r, details: String(render(JSON.parse(tx), t.lang)).slice(0, DETAILS_MAX) } : r));
 }
 
 // ---------- объявления (007) ----------
@@ -418,8 +427,8 @@ export const announcementsQuery = (db, eventId, author, limit = 20) => db
 export function auditIfStmt(db, sphere, actor, action, details, guard, ...args) {
   const s = auditSphere(sphere);
   return db
-    .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) SELECT ?, ${s.company}, ?, ?, ?, ? WHERE ${guard}`)
-    .bind(s.event, ...s.args, actor || 0, action, String(render(details, DEFAULT_LANG)).slice(0, 500), Date.now(), ...args);
+    .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at) SELECT ?, ${s.company}, ?, ?, ?, ?, ? WHERE ${guard}`)
+    .bind(s.event, ...s.args, actor || 0, action, ...auditDetails(details), Date.now(), ...args);
 }
 
 // ---------- данные события и человека (018) ----------

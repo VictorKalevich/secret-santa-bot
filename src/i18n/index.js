@@ -1,19 +1,52 @@
 // Тексты для людей — только из словаря (060, контракт specs/060-i18n-dictionary/contracts/i18n.md). Словарь языка —
 // папка src/i18n/<язык>/: файл на область, ключ начинается с области (pairs.js → pairs.*, app-admin.js → app.admin.*).
 // Строка собирается на языке того, кому она предназначена: ответ — вызывающему (ctx.t), сообщение очереди — получателю
-// при отправке (tx → render в flushOutbox), подробность журнала — на языке по умолчанию при записи.
+// при отправке (tx → render в flushOutbox), подробность журнала — на языке смотрящего (061: запись хранит и отложенный
+// текст; русская строка — для прежних записей и запасная).
 
 import RU from './ru/index.js';
+import EN from './en/index.js';
+import ES from './es/index.js';
+import PT from './pt/index.js';
+import FR from './fr/index.js';
+import DE from './de/index.js';
+import ZH from './zh/index.js';
+import IT from './it/index.js';
+import TR from './tr/index.js';
+import ID from './id/index.js';
+import PL from './pl/index.js';
 
 export const DEFAULT_LANG = 'ru';
-// Языки, у которых есть словари (шаг 2 добавит остальные). Тесты добавляют в DICTIONARIES служебный язык.
-export const LANGUAGES = ['ru'];
-// { [язык]: { server, app, plural? } } — plural: язык правил форм числа, если код языка не из Intl
-export const DICTIONARIES = { ru: RU };
+// { [язык]: { server, app, plural? } } — plural: язык правил форм числа, если код языка не из Intl. Тесты добавляют
+// служебный язык (и в LANGUAGES)
+export const DICTIONARIES = { ru: RU, en: EN, es: ES, pt: PT, fr: FR, de: DE, zh: ZH, it: IT, tr: TR, id: ID, pl: PL };
+// Языки бота в порядке списка выбора (061)
+export const LANGUAGES = Object.keys(DICTIONARIES);
+// Язык Telegram, которого нет в боте: этим — русский, остальным — FALLBACK_LANG (решение владельца 2026-11-25)
+export const RUSSIAN_SPEAKING = ['be', 'uk', 'kk', 'ky', 'tg', 'uz', 'hy', 'az', 'tk'];
+export const FALLBACK_LANG = 'en';
 
-export function langOf(user) {
-  const lang = user?.lang;
-  return lang && Object.hasOwn(DICTIONARIES, lang) ? lang : DEFAULT_LANG;
+// Язык бота по коду языка Telegram (IETF: en-US, pt-br, zh-hant): основной код; нет кода — '' (язык неизвестен)
+export function telegramLanguage(code) {
+  const base = String(code ?? '').toLowerCase().split(/[-_]/)[0];
+  if (!base) return '';
+  if (LANGUAGES.includes(base)) return base;
+  return RUSSIAN_SPEAKING.includes(base) ? DEFAULT_LANG : FALLBACK_LANG;
+}
+
+const known = (lang) => !!lang && Object.hasOwn(DICTIONARIES, lang);
+// Язык человека (061): выбранный им → язык Telegram этого обращения (уже приведённый) → запомненный язык Telegram → русский
+export function langOf(user, telegram = '') {
+  for (const lang of [user?.lang, telegram, user?.tg_lang]) if (known(lang)) return lang;
+  return DEFAULT_LANG;
+}
+
+// Слово подтверждения без регистра, пробелов по краям и диакритики (061): так сравниваются набранное и слово словаря
+export function foldWord(s, lang = DEFAULT_LANG) {
+  const text = String(s ?? '').trim();
+  let up;
+  try { up = text.toLocaleUpperCase(lang); } catch { up = text.toUpperCase(); }
+  return up.normalize('NFD').replace(/\p{M}/gu, '');
 }
 
 // Ошибка словаря у людей — только журнал Worker; быстрые тесты превращают её в исключение
@@ -152,7 +185,12 @@ export function appTexts(lang) {
   return appCache.get(lang);
 }
 
-// Набор до ответа сервера (app.boot.*) — сервер вставляет его в страницу
-export function bootTexts(lang = DEFAULT_LANG) {
-  return Object.fromEntries(Object.entries(appTexts(lang).texts).filter(([k]) => k.startsWith('app.boot.')));
+// Тексты до ответа сервера (061): наборы app.boot.* всех языков и правило языка Telegram — сервер вставляет их в
+// страницу, приложение выбирает язык по Telegram (тем же правилом, что telegramLanguage)
+export function bootTexts() {
+  const boot = (lang) => Object.fromEntries(Object.entries(appTexts(lang).texts).filter(([k]) => k.startsWith('app.boot.')));
+  return {
+    texts: Object.fromEntries(LANGUAGES.map((lang) => [lang, boot(lang)])),
+    rule: { languages: LANGUAGES, russian: RUSSIAN_SPEAKING, fallback: FALLBACK_LANG },
+  };
 }

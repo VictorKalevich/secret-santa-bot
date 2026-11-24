@@ -1,0 +1,58 @@
+// Texts of the app part 02-core (060): core - fields, dates, calendar, who can do owner actions, confirmation words
+export default {
+  // Label of the field clear button (design system, bindClearableInput)
+  'app.core.clearField': "Svuota il campo «{label}»",
+  // Dates: "25 novembre", "25 novembre 2026", time - by the language rules (toLocaleTimeString)
+  'app.core.locale': "it",
+  'app.core.date': "{day} {month}",
+  'app.core.dateYear': "{date} {year}",
+  'app.core.dateNone': "Nessuna data",
+  'app.core.monthsGen': ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"],
+  'app.core.monthsNom': ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"],
+  'app.core.weekdays': ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"],
+  'app.core.todayAt': "oggi alle {time}",
+  'app.core.yesterdayAt': "ieri alle {time}",
+  'app.core.dateAt': "{date} alle {time}",
+  // Own calendar (027)
+  'app.core.calendar.title': "Data",
+  'app.core.calendar.month': "{month} {year}",
+  'app.core.calendar.prev': "Mese precedente",
+  'app.core.calendar.next': "Mese successivo",
+  'app.core.calendar.done': "Fatto",
+  'app.core.calendar.reset': "Cancella",
+  'app.core.calendar.close': "Chiudi",
+  // Who can do owner actions (ownerWord): nom = subject, gen = "del ...", dat = "al ...", ins = "dal ...", nomCap = capitalized subject
+  'app.core.owner.nom': "il proprietario",
+  'app.core.owner.gen': "del proprietario",
+  'app.core.owner.dat': "al proprietario",
+  'app.core.owner.ins': "dal proprietario",
+  'app.core.owner.nomCap': "Il proprietario",
+  'app.core.botOwner.nom': "il proprietario del bot",
+  'app.core.botOwner.gen': "del proprietario del bot",
+  'app.core.botOwner.dat': "al proprietario del bot",
+  'app.core.botOwner.ins': "dal proprietario del bot",
+  'app.core.botOwner.nomCap': "Il proprietario del bot",
+  // Forwarding the invitation to a chat (037)
+  'app.core.shareInvite': "🎄 Giochiamo a Babbo Natale segreto — «{title}»! Entra con il link:",
+  // Confirmation words: typed by the person, checked by the app and the server
+  'app.core.word.open': "APRI",
+  'app.core.word.leave': "ESCI",
+  'app.core.word.delete': "ELIMINA",
+  'app.core.word.reset': "RESET",
+  'app.core.word.cancel': "ANNULLA",
+  // shared
+  'app.core.save': "Salva",
+  'app.core.saved': "Salvato",
+  'app.core.noName': "senza nome",
+  'app.core.role.owner': "👑 proprietario",
+  'app.core.role.admin': "🛠 amministratore",
+  'app.core.role.member': "partecipante",
+  'app.core.role.guest': "👁 proprietario del bot",
+  'app.core.create': "Crea",
+  'app.core.needTitle': "Scrivi un nome",
+  'app.core.pickPerson': "Scegli una persona",
+  'app.core.auditLog': "📜 Registro attività",
+  'app.core.link.copied': "Link copiato",
+  'app.core.link.copyByHand': "Seleziona e copia il link",
+  'app.core.link.share': "📤 Invia in una chat",
+};

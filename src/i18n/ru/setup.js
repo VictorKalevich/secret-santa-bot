@@ -22,9 +22,12 @@ export default {
   'setup.step.webhook': 'Webhook',
   'setup.step.commands': 'Команды',
   'setup.step.menuButton': 'Кнопка приложения',
+  // 061: команды и описания на остальных языках уходят частями с обращениями людей
+  'setup.profileLater': 'остальные языки бот передаст Telegram в ближайшие минуты',
   'setup.failed': 'Не получилось',
   // Команды, кнопка меню и описания бота в Telegram
   'setup.command.start': 'Главное меню и мои события',
+  'setup.command.language': 'Язык бота',
   'setup.command.cancel': 'Отменить ввод',
   'setup.menuButton': '🎁 Санта',
   'setup.description': '🎄 Закрытый бот для игры в Тайного Санту: письма Санте, жеребьёвка с исключениями, анонимные вопросы. Вход по пригласительной ссылке на событие.',

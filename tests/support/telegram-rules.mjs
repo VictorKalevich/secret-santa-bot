@@ -22,7 +22,27 @@ const failure = (code, description) => ({ status: code, body: { ok: false, error
 
 // Ответ Telegram на вызов бота: { status, body }. nextMessageId() вызывается только для сообщения, которое Telegram
 // принял, — номера идут подряд, как у настоящего чата.
+// Пределы профиля бота (061): описание команды 1…256, команда — латиница, цифры и «_» до 32, описание ≤ 512, краткое ≤ 120
+export const PROFILE_LIMITS = { command: 256, description: 512, short: 120 };
+function profileRefusal(method, params) {
+  if (method === 'setMyCommands') {
+    for (const c of params.commands || []) {
+      if (!/^[a-z0-9_]{1,32}$/.test(c.command)) return failure(400, 'Bad Request: BOT_COMMAND_INVALID');
+      if (!c.description || c.description.length > PROFILE_LIMITS.command) return failure(400, 'Bad Request: BOT_COMMAND_DESCRIPTION_INVALID');
+    }
+  }
+  if (method === 'setMyDescription' && String(params.description ?? '').length > PROFILE_LIMITS.description) {
+    return failure(400, 'Bad Request: description is too long');
+  }
+  if (method === 'setMyShortDescription' && String(params.short_description ?? '').length > PROFILE_LIMITS.short) {
+    return failure(400, 'Bad Request: short description is too long');
+  }
+  return null;
+}
+
 export function telegramReply(method, params, nextMessageId) {
+  const refused = profileRefusal(method, params);
+  if (refused) return refused;
   let result = true;
   if (method === 'getMe') result = { id: 1, is_bot: true, first_name: 'Santa', username: 'test_santa_bot' };
   if (method === 'sendMessage') {

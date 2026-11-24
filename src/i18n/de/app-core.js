@@ -1,0 +1,58 @@
+// Texts of app part 02-core (061, German): core - fields, dates, calendar, who may do owner actions, confirmation words
+export default {
+  // Label of the input "x" button (design system, bindClearableInput)
+  'app.core.clearField': 'Feld «{label}» leeren',
+  // Dates: "25. November", "25. November 2026", time - by the language rules (toLocaleTimeString)
+  'app.core.locale': 'de',
+  'app.core.date': '{day}. {month}',
+  'app.core.dateYear': '{date} {year}',
+  'app.core.dateNone': 'Nicht gewählt',
+  'app.core.monthsGen': ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
+  'app.core.monthsNom': ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
+  'app.core.weekdays': ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+  'app.core.todayAt': 'heute um {time}',
+  'app.core.yesterdayAt': 'gestern um {time}',
+  'app.core.dateAt': '{date} um {time}',
+  // Own calendar (027)
+  'app.core.calendar.title': 'Datum',
+  'app.core.calendar.month': '{month} {year}',
+  'app.core.calendar.prev': 'Vorheriger Monat',
+  'app.core.calendar.next': 'Nächster Monat',
+  'app.core.calendar.done': 'Fertig',
+  'app.core.calendar.reset': 'Zurücksetzen',
+  'app.core.calendar.close': 'Schließen',
+  // Who may do an owner action (ownerWord), with article: nom - nominative, gen - accusative, dat and ins - dative
+  'app.core.owner.nom': 'der Inhaber',
+  'app.core.owner.gen': 'den Inhaber',
+  'app.core.owner.dat': 'dem Inhaber',
+  'app.core.owner.ins': 'dem Inhaber',
+  'app.core.owner.nomCap': 'Der Inhaber',
+  'app.core.botOwner.nom': 'der Bot-Inhaber',
+  'app.core.botOwner.gen': 'den Bot-Inhaber',
+  'app.core.botOwner.dat': 'dem Bot-Inhaber',
+  'app.core.botOwner.ins': 'dem Bot-Inhaber',
+  'app.core.botOwner.nomCap': 'Der Bot-Inhaber',
+  // Sharing the invitation to a chat (037)
+  'app.core.shareInvite': '🎄 Wir wichteln – «{title}»! Mach mit über diesen Link:',
+  // Confirmation words: typed by the person, checked by the app and the server
+  'app.core.word.open': 'ANSEHEN',
+  'app.core.word.leave': 'AUSTRETEN',
+  'app.core.word.delete': 'ENTFERNEN',
+  'app.core.word.reset': 'RESET',
+  'app.core.word.cancel': 'AUFHEBEN',
+  // Shared (060: the same text with one meaning - one key)
+  'app.core.save': 'Speichern',
+  'app.core.saved': 'Gespeichert',
+  'app.core.noName': 'ohne Namen',
+  'app.core.role.owner': '👑 Inhaber',
+  'app.core.role.admin': '🛠 Admin',
+  'app.core.role.member': 'Teilnehmer',
+  'app.core.role.guest': '👁 Bot-Inhaber',
+  'app.core.create': 'Erstellen',
+  'app.core.needTitle': 'Gib einen Namen ein',
+  'app.core.pickPerson': 'Wähle eine Person',
+  'app.core.auditLog': '📜 Aktivitätsprotokoll',
+  'app.core.link.copied': 'Link kopiert',
+  'app.core.link.copyByHand': 'Markiere den Link und kopiere ihn',
+  'app.core.link.share': '📤 In einen Chat senden',
+};

@@ -16,6 +16,7 @@ import {
 import { resolveOwner } from './roles.js';
 import { ownerWord } from './format.js';
 import { langOf, translator } from './i18n/index.js';
+import { profileFrom } from './bot-profile.js';
 
 // Обещание в кэше; при ошибке — забыть его
 function remember(promise, forget) {
@@ -38,7 +39,7 @@ const noCompany = () => {
 const mineFrom = (rows) => new Map(rows.map((r) => [r.company_id, { is_admin: r.is_admin, label: r.label, joined_at: r.joined_at }]));
 
 // first — строки первого пакета (openContext): mine, companies, owner (запись владельца бота по настройке)
-export function makeContext(env, { me = null, settings = null, first = null } = {}) {
+export function makeContext(env, { me = null, settings = null, first = null, telegramLang = '' } = {}) {
   const db = env.DB;
   let settingsP = settings ? Promise.resolve(settings) : null;
   // 055: компании первого пакета — свои; all — все (вызывающий — владелец бота по настройке, как условие companiesQuery)
@@ -75,14 +76,17 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
     return r;
   }
 
-  const lang = langOf(me);
+  const lang = langOf(me, telegramLang);
   const ctx = {
     env,
     db,
     me,
-    // 060: язык вызывающего (без человека — по умолчанию) и строки словаря на нём; привязанный контекст наследует
+    // 060: язык вызывающего (без человека — по умолчанию) и строки словаря на нём; привязанный контекст наследует.
+    // 061: язык человека по правилу langOf с языком Telegram этого обращения (уже приведённым, '' — неизвестен);
+    // выбор языка в том же вызове меняет оба поля (setLanguage, src/language.js)
     lang,
     t: translator(lang),
+    telegramLang,
     settings: () => (settingsP ||= remember(getSettings(db), () => { settingsP = null; })),
     // Компании, которые знает вызывающий (055): свои — по его строкам компаний; владельцу бота — все. Владелец бота,
     // найденный запасным поиском (resolveOwner записал его в настройки), дочитывает все; без вызывающего — ни одной
@@ -196,7 +200,8 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
 
 // Начало вызова API, сообщения боту и нажатия кнопки: пользователь, настройки, его строки компаний, его компании (055:
 // владельцу бота — все) и запись владельца бота — одним пакетом
-export async function openContext(env, userId) {
+// telegramLang — язык Telegram обращения, приведённый telegramLanguage (061)
+export async function openContext(env, userId, { telegramLang = '' } = {}) {
   const db = env.DB;
   const r = await readMany(db, {
     me: userQuery(db, userId),
@@ -205,5 +210,8 @@ export async function openContext(env, userId) {
     companies: companiesQuery(db, userId),
     owner: botOwnerQuery(db),
   });
-  return makeContext(env, { me: r.me[0] ?? null, settings: settingsFrom(r.settings), first: r });
+  const settings = settingsFrom(r.settings);
+  // 061: профиль бота ещё не весь у Telegram — afterRequest отправит часть после ответа (src/bot-profile.js)
+  if (env.meter) env.meter.profile = profileFrom(settings);
+  return makeContext(env, { me: r.me[0] ?? null, settings, first: r, telegramLang });
 }

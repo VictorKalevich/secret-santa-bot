@@ -10,6 +10,7 @@ import { handleUpdate } from './bot.js';
 import { handleApi } from './api.js';
 import { runScheduled } from './cron.js';
 import { flushOutbox } from './outbox.js';
+import { sendProfile } from './bot-profile.js';
 import { metered, reportBudget } from './budget.js';
 import { setup } from './setup.js';
 import { appPolicy } from './csp.js';
@@ -19,19 +20,20 @@ import { t, DEFAULT_LANG, bootTexts } from './i18n/index.js';
 // ответа сервера (060: набор app.boot.* языка по умолчанию; «<» — экранировано, строка не закроет <script>)
 const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS)
   .replace('/*@clearable-input*/', () => CLEARABLE_INPUT)
-  .replace('/*@boot-texts*/null', () => JSON.stringify(bootTexts(DEFAULT_LANG)).replace(/</g, '\\u003c'));
+  .replace('/*@boot-texts*/null', () => JSON.stringify(bootTexts()).replace(/</g, '\\u003c'));
 // Политика страницы (032): отпечаток встроенного скрипта считается при первом /app — один раз на экземпляр Worker
 let appCsp;
 
 // Единственная точка отправки очереди после запроса (009): если обработчик ставил сообщения в очередь —
-// отправить их уже после ответа, в пределах оставшегося бюджета вызова; остаток уйдёт в cron.
+// отправить их уже после ответа, в пределах оставшегося бюджета вызова; остаток уйдёт в cron. 061: затем — часть
+// профиля бота, если он ещё не весь у Telegram (отметку ставит openContext), из того, что осталось от бюджета
 function afterRequest(env, ctx, where) {
-  if (!env.meter.enqueued) return reportBudget(env, where);
-  ctx.waitUntil(
-    flushOutbox(env, 25)
-      .catch((e) => console.log('flush failed', where, e && e.stack ? e.stack : String(e)))
-      .finally(() => reportBudget(env, where))
-  );
+  const profile = env.meter.profile ?? null;
+  if (!env.meter.enqueued && profile === null) return reportBudget(env, where);
+  ctx.waitUntil((async () => {
+    if (env.meter.enqueued) await flushOutbox(env, 25).catch((e) => console.log('flush failed', where, e && e.stack ? e.stack : String(e)));
+    if (profile !== null) await sendProfile(env, profile).catch((e) => console.log('bot profile failed', where, e && e.stack ? e.stack : String(e)));
+  })().finally(() => reportBudget(env, where)));
 }
 
 export default {

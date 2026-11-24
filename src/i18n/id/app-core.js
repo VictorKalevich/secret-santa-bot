@@ -1,0 +1,58 @@
+// Texts of app part 02-core (061): core — fields, dates, calendar, who can do owner actions, confirmation words
+export default {
+  // Label of the field clear button
+  'app.core.clearField': 'Kosongkan kolom «{label}»',
+  // Dates: "25 November", "25 November 2026", time — by the language rules (toLocaleTimeString)
+  'app.core.locale': 'id',
+  'app.core.date': '{day} {month}',
+  'app.core.dateYear': '{date} {year}',
+  'app.core.dateNone': 'Belum dipilih',
+  'app.core.monthsGen': ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+  'app.core.monthsNom': ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+  'app.core.weekdays': ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+  'app.core.todayAt': 'hari ini pukul {time}',
+  'app.core.yesterdayAt': 'kemarin pukul {time}',
+  'app.core.dateAt': '{date} pukul {time}',
+  // Own calendar
+  'app.core.calendar.title': 'Tanggal',
+  'app.core.calendar.month': '{month} {year}',
+  'app.core.calendar.prev': 'Bulan sebelumnya',
+  'app.core.calendar.next': 'Bulan berikutnya',
+  'app.core.calendar.done': 'Selesai',
+  'app.core.calendar.reset': 'Hapus',
+  'app.core.calendar.close': 'Tutup',
+  // Who can do an owner action (ownerWord); no cases in Indonesian
+  'app.core.owner.nom': 'pemilik',
+  'app.core.owner.gen': 'pemilik',
+  'app.core.owner.dat': 'pemilik',
+  'app.core.owner.ins': 'pemilik',
+  'app.core.owner.nomCap': 'Pemilik',
+  'app.core.botOwner.nom': 'pemilik bot',
+  'app.core.botOwner.gen': 'pemilik bot',
+  'app.core.botOwner.dat': 'pemilik bot',
+  'app.core.botOwner.ins': 'pemilik bot',
+  'app.core.botOwner.nomCap': 'Pemilik bot',
+  // Forwarding the invitation to a chat
+  'app.core.shareInvite': '🎄 Ayo main Secret Santa — «{title}»! Gabung lewat tautan ini:',
+  // Confirmation words: typed by the person, checked by the app and the server
+  'app.core.word.open': 'BUKA',
+  'app.core.word.leave': 'KELUAR',
+  'app.core.word.delete': 'HAPUS',
+  'app.core.word.reset': 'RESET',
+  'app.core.word.cancel': 'BATAL',
+  // shared
+  'app.core.save': 'Simpan',
+  'app.core.saved': 'Tersimpan',
+  'app.core.noName': 'tanpa nama',
+  'app.core.role.owner': '👑 pemilik',
+  'app.core.role.admin': '🛠 admin',
+  'app.core.role.member': 'peserta',
+  'app.core.role.guest': '👁 pemilik bot',
+  'app.core.create': 'Buat',
+  'app.core.needTitle': 'Tulis nama',
+  'app.core.pickPerson': 'Pilih orang',
+  'app.core.auditLog': '📜 Log aktivitas',
+  'app.core.link.copied': 'Tautan disalin',
+  'app.core.link.copyByHand': 'Pilih dan salin tautannya',
+  'app.core.link.share': '📤 Kirim ke chat',
+};

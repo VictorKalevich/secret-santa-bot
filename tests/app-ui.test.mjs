@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { APP, where, partLines, indent, code, blockAt, topBlock, ownerOf } from './support/app-source.mjs';
-import { appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
+import { appTexts, DEFAULT_LANG, LANGUAGES } from '../src/i18n/index.js';
 
 // ---------- 1. «Сохранить» в «Параметрах» перестраивает панель ----------
 // Обработчик, в котором уходит admin.game со значениями формы, вызывает refresh() или again()
@@ -123,8 +123,14 @@ const LIMITS = {
 };
 // 060: текст словаря приложения (русский) — t('ключ', { имя: выражение, … }): длиннейшая форма, подстановки — по худшему
 // случаю своих выражений; {owner.форма} — длиннейшая из форм ownerWord
-const APP_DICT = appTexts(DEFAULT_LANG).texts;
-const OWNER_MAX = Math.max(...Object.entries(APP_DICT).filter(([k]) => /^app\.core\.(?:bot)?[oO]wner\./.test(k)).map(([, v]) => v.length));
+// 061: словарь — языка проверки (useDict), по умолчанию русский
+let APP_DICT, OWNER_MAX;
+function useDict(lang) {
+  APP_DICT = appTexts(lang).texts;
+  OWNER_MAX = ownerMax();
+}
+const ownerMax = () => Math.max(...Object.entries(APP_DICT).filter(([k]) => /^app\.core\.(?:bot)?[oO]wner\./.test(k)).map(([, v]) => v.length));
+useDict(DEFAULT_LANG);
 function objectArgs(expr) {
   const e = expr.trim();
   if (!e.startsWith('{') || closing(e, 1) !== e.length - 1) throw new Error(`подстановки t() — не объект: ${e}`);
@@ -327,6 +333,17 @@ const RULES = [
 for (const [name, rule] of RULES) {
   test(name, () => {
     assert.deepEqual(rule(APP).map(([n, why]) => `${where(n)}: ${why}`), []);
+  });
+}
+// 061: окно подтверждения — на каждом языке бота (слова и подстановки — его словаря)
+for (const lang of LANGUAGES.filter((l) => l !== DEFAULT_LANG)) {
+  test(`6 (${lang}). тексты подтверждений помещаются в окно на языке ${lang}`, () => {
+    useDict(lang);
+    try {
+      assert.deepEqual(confirmProblems(APP).map(([n, why]) => `${where(n)}: ${why}`), []);
+    } finally {
+      useDict(DEFAULT_LANG);
+    }
   });
 }
 

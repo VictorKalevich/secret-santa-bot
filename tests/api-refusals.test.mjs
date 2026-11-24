@@ -32,12 +32,14 @@
 //   «Комната с таким …»; «В компании есть события — сначала удали их.» (3) → «В комнате есть события — …»; «Вести можно
 //   не больше двух своих компаний — …» (1) → «… своих комнат — …»; «Удалить компанию может только владелец бота.» (1) и
 //   «… только её владелец.» (1) → «Удалить комнату может только …».
+//   061 (specs/061-i18n-languages/contracts/language.md, раздел 3): действие lang.set — прежние ответы те же, новые ключи
+//   «061 <ситуация> lang.set» и «061 extra …» (код не из списка, заглавными, имя свойства объекта, язык, «как в Telegram»).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   runRefusals, NEW_ACTIONS, NEW_ACTIONS_038, NEW_ACTIONS_040, NEW_ACTIONS_041, NEW_ACTIONS_042, NEW_ACTIONS_048, NEW_ACTIONS_051,
-  NEW_ACTIONS_052,
+  NEW_ACTIONS_052, NEW_ACTIONS_061,
 } from './support/refusals-scenario.mjs';
 import { restoreFetch } from './support/world.mjs';
 import { ACTIONS } from '../src/api.js';
@@ -52,10 +54,10 @@ test('отказы API: каждый код и текст — как в этал
   const names = Object.keys(ACTIONS);
   const later = [
     ...NEW_ACTIONS, ...NEW_ACTIONS_038, ...NEW_ACTIONS_040, ...NEW_ACTIONS_041, ...NEW_ACTIONS_042, ...NEW_ACTIONS_048, ...NEW_ACTIONS_051,
-    ...NEW_ACTIONS_052,
+    ...NEW_ACTIONS_052, ...NEW_ACTIONS_061,
   ];
   assert.deepEqual(names.filter((a) => !later.includes(a)), golden.actions, 'таблица действий — прежние 59 действий в прежнем порядке');
-  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038, 040, 041, 042, 048, 051, 052) — в таблице');
+  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038, 040, 041, 042, 048, 051, 052, 061) — в таблице');
   const diff = [];
   for (const key of new Set([...Object.keys(golden.cases), ...Object.keys(now.cases)])) {
     const a = JSON.stringify(golden.cases[key]);

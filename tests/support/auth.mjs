@@ -10,7 +10,9 @@ export function initData(user, { authDate = Math.floor(Date.now() / 1000), token
   const p = new URLSearchParams();
   p.set('auth_date', String(authDate));
   p.set('query_id', 'AAQ' + user.id);
-  p.set('user', JSON.stringify({ id: user.id, first_name: user.name, username: user.username }));
+  // 061: язык Telegram человека — language_code, если задан
+  const lang = user.language_code ? { language_code: user.language_code } : {};
+  p.set('user', JSON.stringify({ id: user.id, first_name: user.name, username: user.username, ...lang }));
   const dcs = [...p.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(token).digest();
   p.set('hash', createHmac('sha256', secret).update(dcs).digest('hex'));

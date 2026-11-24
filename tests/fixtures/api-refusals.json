@@ -6016,6 +6016,98 @@
   "052 open create-after-delete": {
    "status": 200,
    "error": null
+  },
+  "061 stranger lang.set": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "061 outsider lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 member lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 admin lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 owner lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 missing-owner lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 missing-admin lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 missing-member lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 none-owner lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 none-admin lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 none-member lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 finished-owner lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 finished-admin lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 finished-member lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 finished-delivery-member lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 finished-old-owner lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 finished-old-admin lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 finished-old-member lang.set": {
+   "status": 200,
+   "error": null
+  },
+  "061 extra unknown": {
+   "status": 400,
+   "error": "Такого языка нет."
+  },
+  "061 extra upper": {
+   "status": 400,
+   "error": "Такого языка нет."
+  },
+  "061 extra proto": {
+   "status": 400,
+   "error": "Такого языка нет."
+  },
+  "061 extra ru": {
+   "status": 200,
+   "error": null
+  },
+  "061 extra auto": {
+   "status": 200,
+   "error": null
   }
  }
 }

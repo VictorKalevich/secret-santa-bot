@@ -19,6 +19,7 @@
     looks: { postcards: [], masks: [] }, // наборы открыток и масок — с сервера (me)
     companies: [], companyId: null, company: null, botOwner: false, open: false, create: null,
     lang: 'ru', textsVersion: '', // 060: язык и версия словаря приложения (ответ me)
+    langs: { choice: '', auto: 'ru', list: [] }, // 061: выбор языка ('' — как в Telegram), язык по Telegram, языки бота
   };
   const main = document.getElementById('main');
   const heroTitle = document.getElementById('heroTitle');
@@ -57,6 +58,7 @@
     // Словарь — только если у приложения его нет или он другой (060); до любого построения экрана
     const d = await api('me', { texts: state.textsVersion || undefined });
     setTexts(d);
+    state.langs = { choice: d.lang_choice || '', auto: d.lang_auto || 'ru', list: d.languages || [] };
     if (!d.registered) return d;
     state.me = d.me;
     state.botOwner = !!d.me.is_owner;
@@ -303,8 +305,35 @@
       onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast(t('app.core.saved')); }),
     }, label)));
     draw();
-    return [ui.section(t('app.home.profile.title')), ui.card(nameText, editName), ui.section(t('app.home.notify.title')),
-      ui.card(ui.hint(t('app.home.notify.hint')), seg)];
+    // Язык бота и приложения (061) — шторка выбора
+    const langRow = h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openLangSheet() },
+      h('div', { class: 'ds-grow ds-list-item__title' }, t('app.home.lang.button')),
+      h('span', { class: 'ds-text-muted' }, langLabel(state.langs.choice)),
+      h('span', { class: 'ds-list-item__chevron' }, '›'));
+    return [ui.section(t('app.home.profile.title')), ui.card(nameText, editName), h('div', { class: 'ds-card ds-card--flush' }, langRow),
+      ui.section(t('app.home.notify.title')), ui.card(ui.hint(t('app.home.notify.hint')), seg)];
+  }
+
+  // Подпись языка (061): название на самом языке; '' — «Как в Telegram (<язык по Telegram>)»
+  function langLabel(code) {
+    const name = (c) => (state.langs.list.find((x) => x.code === c) || { name: c }).name;
+    return code ? name(code) : t('app.home.lang.auto', { name: name(state.langs.auto) });
+  }
+
+  // Шторка «🌐 Язык» (061): «Как в Telegram (…)» и языки, у выбранного — ✓. Выбор — словарь нового языка (reloadMe) и
+  // тот же экран на нём, прокрутка прежняя
+  function openLangSheet() {
+    const codes = ['', ...state.langs.list.map((x) => x.code)];
+    const btns = codes.map((code) => ui.btn((state.langs.choice === code ? '✓ ' : '') + langLabel(code), 'secondary', 'ds-btn--block'));
+    btns.forEach((b, i) => b.addEventListener('click', () => busy(btns, async () => {
+      await api('lang.set', { lang: codes[i] });
+      const y = window.scrollY;
+      await reloadMe();
+      closeSheet();
+      render();
+      window.scrollTo(0, y);
+    })));
+    openSheet(t('app.home.lang.button'), [ui.hint(t('app.home.lang.hint')), ...btns]);
   }
 
   // Шторка «Твоё имя» (035): правило — как при регистрации (до 40 символов, пробелы схлопывает сервер); saved(имя из

@@ -8,9 +8,9 @@
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
 //
 // Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 040: NEW_ACTIONS_040, 041, 042, 048, 051,
-// 052), проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются;
-// их ответы — новые ключи эталона «035 …», «038 …», «040 …», «041 …», «042 …», «048 …», «051 …» и «052 …» (052 — ещё и
-// второй мир, открытый бот: «052 open …»).
+// 052, 061), проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не
+// сдвигаются; их ответы — новые ключи эталона «035 …», «038 …», «040 …», «041 …», «042 …», «048 …», «051 …», «052 …» (052 —
+// ещё и второй мир, открытый бот: «052 open …») и «061 …».
 import { startWorld } from './world.mjs';
 
 // 59 действий в порядке прежних `case` в src/api.js: 13 участника, 11 общих админа, 35 — в пределах события
@@ -43,6 +43,8 @@ export const NEW_ACTIONS_048 = ['admin.draw.swap.check', 'admin.draw.swap'];
 export const NEW_ACTIONS_051 = ['company.label.set', 'bot.company.create', 'bot.company.link', 'bot.company.delete', 'bot.owner.transfer', 'bot.audit'];
 // 052: открытый бот — своя компания
 export const NEW_ACTIONS_052 = ['company.create', 'company.delete'];
+// 061: выбор языка
+export const NEW_ACTIONS_061 = ['lang.set'];
 
 const MISSING = 999999;
 const WEEK = 7 * 24 * 3600 * 1000;
@@ -273,6 +275,19 @@ export async function runRefusals() {
     ['delete-has-events', boss, 'company.delete', { company: 1, confirm: 'УДАЛИТЬ' }],
   ];
   for (const [name, user, action, b] of extra052) await record(`052 extra ${name}`, user, action, b);
+
+  // ---------- 061: выбор языка — те же ситуации; код не из списка, язык и «как в Telegram» ----------
+  for (const [name, user, ev] of situations) {
+    for (const a of NEW_ACTIONS_061) await record(`061 ${name} ${a}`, user, a, body(await ev()));
+  }
+  const extra061 = [
+    ['unknown', member, 'lang.set', { lang: 'xx' }],
+    ['upper', member, 'lang.set', { lang: 'RU' }],
+    ['proto', member, 'lang.set', { lang: 'constructor' }],
+    ['ru', member, 'lang.set', { lang: 'ru' }],
+    ['auto', member, 'lang.set', { lang: '' }],
+  ];
+  for (const [name, user, action, b] of extra061) await record(`061 extra ${name}`, user, action, b);
   await openRefusals(cases);
   return { actions: ACTION_LIST, cases };
 }
