@@ -375,5 +375,6 @@ test('приложение: секция только владельцу пос�
   assert.equal((said.match(/тем, кто уже открыл подопечного, бот напишет/gi) || []).length, 2, 'окно и плашка');
   const members = topBlock(admin, 'adminMembers');
   assert.ok(admin.slice(members[0], members[1] + 1).join('\n').includes('if (u.ward_seen === false) chips.push(unseenChip());'));
-  assert.ok(admin.join('\n').includes("const unseenChip = () => ui.chip('👀 не открыл подопечного', 'warning');"));
+  assert.ok(admin.join('\n').includes("const unseenChip = () => ui.chip(t('app.admin.unseen'), 'warning');"));
+  assert.equal(appTexts(DEFAULT_LANG).texts['app.admin.unseen'], '👀 не открыл подопечного');
 });
