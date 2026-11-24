@@ -4,24 +4,24 @@
 
 ## Phase 1: Тесты (сначала падают)
 
-- [ ] T001 `tests/cron-reads.test.mjs` (+ в скрипт `test` в `package.json`): мир с историей (завершённое событие с
+- [x] T001 `tests/cron-reads.test.mjs` (+ в скрипт `test` в `package.json`): мир с историей (завершённое событие с
   парами, идущее до жеребьёвки, идущее после с правкой письма); все операторы `w.cron()` (и внутри пакетов) —
   `EXPLAIN QUERY PLAN`: полный просмотр только у `settings`, `outbox` и индекса `events_active`; без идущих событий пары,
   участники и компании не читаются; до жеребьёвки участники не перебираются; уведомление Санте — как раньше, один раз;
   «от противного»: прежний запрос уведомлений, пакет с компаниями и база без индекса находятся
-- [ ] T002 [P] `tests/migrations.test.mjs`: `0017` — один `CREATE INDEX IF NOT EXISTS events_active ON events (id) WHERE
+- [x] T002 [P] `tests/migrations.test.mjs`: `0017` — один `CREATE INDEX IF NOT EXISTS events_active ON events (id) WHERE
   status = 'active'`, без данных и версии схемы; база с данными после применения и повтора — те же строки
 
 ## Phase 2: Реализация (US1, US2)
 
-- [ ] T003 [US1] `migrations/0017_active_events_index.sql` — частичный индекс идущих событий (комментарий как у `0008`)
-- [ ] T004 [US1] `notifyWishlistChanges` (`src/cron.js`): от идущих событий, `CROSS JOIN` закрепляет порядок
+- [x] T003 [US1] `migrations/0017_active_events_index.sql` — частичный индекс идущих событий (комментарий как у `0008`)
+- [x] T004 [US1] `notifyWishlistChanges` (`src/cron.js`): от идущих событий, `CROSS JOIN` закрепляет порядок
   «события → пары → подопечный», условия прежние
-- [ ] T005 [US1] `dailyStep` (`src/cron.js`): чтение идущих событий без `companies: true`
-- [ ] T006 [US2] `npm test` — прежние тесты уведомлений, расписания, `queries` (cron 3 запроса) зелёные без изменений
+- [x] T005 [US1] `dailyStep` (`src/cron.js`): чтение идущих событий без `companies: true`
+- [x] T006 [US2] `npm test` — прежние тесты уведомлений, расписания, `queries` (cron 3 запроса) зелёные без изменений
 
 ## Phase 3: Polish
 
-- [ ] T007 [P] README «Обновление бота»: `0017` — только индекс (как `0008`), в обе базы, порядок с выкатом не важен
-- [ ] T008 [P] `CLAUDE.md`: строка 054, миграция в списке `migrations/` (файлов 17), тест `cron-reads`
-- [ ] T009 `npm run test:all`; статус в `spec.md`; `quickstart.md` — выкат и проверка плана на базе бота
+- [x] T007 [P] README «Обновление бота»: `0017` — только индекс (как `0008`), в обе базы, порядок с выкатом не важен
+- [x] T008 [P] `CLAUDE.md`: строка 054, миграция в списке `migrations/` (файлов 17), тест `cron-reads`
+- [x] T009 `npm run test:all`; статус в `spec.md`; `quickstart.md` — выкат и проверка плана на базе бота
