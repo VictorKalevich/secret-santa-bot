@@ -35,6 +35,8 @@ before(async () => {
   for (const u of [anna, bob, carl, dina]) await w.api(u, 'wishlist.save', { event: E, text: 'Books and tea' });
   await w.api(bob, 'support.send', { event: E, text: 'Question' });
   await w.api(anna, 'admin.draw', { event: E });
+  // Подробности журнала — данные на языке по умолчанию (контракт, раздел 3): в журнале проверяются подписи, не они
+  w.query("UPDATE audit SET details = 'details' WHERE details != ''");
   browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' });
 });
 after(async () => {
@@ -88,36 +90,46 @@ const label = (ru) => translit(ru);
 
 test('060: человек с языком xx — главный экран, «Комнаты», событие, панель и шторки без кириллицы', async (t) => {
   const found = [];
+  // Шторка по кнопке с подписью (транслит русской): открыть, проверить, закрыть ✕; нет кнопки — false
+  async function sheet(page, ru, where) {
+    const btn = page.locator('.ds-btn', { hasText: label(ru) });
+    if (!(await btn.count())) return false;
+    await btn.first().scrollIntoViewIfNeeded();
+    await btn.first().click();
+    await page.waitForSelector('.ds-sheet');
+    await page.waitForTimeout(300);
+    await expectPseudo(page, where, found);
+    await page.locator('.ds-sheet .ds-icon-btn').last().click();
+    await page.waitForTimeout(200);
+    return true;
+  }
+
   const home = await openApp(t, anna);
   assert.equal(await home.page.evaluate(() => document.documentElement.lang), PSEUDO);
   await expectPseudo(home.page, 'главный экран', found);
+  if (!(await sheet(home.page, 'Изменить имя', 'шторка имени'))) found.push('главный экран: нет кнопки «Изменить имя»');
   // «‹» владельца бота с одной комнатой ведёт к «Комнатам» (051, 052)
   const back = home.page.locator('#heroBack');
   if (await back.isVisible()) {
     await back.click();
     await home.page.waitForTimeout(300);
     await expectPseudo(home.page, '«Комнаты»', found);
-  }
+  } else found.push('главный экран: нет «‹» к «Комнатам»');
 
   const ev = await openApp(t, anna, `?event=${E}`);
   const tabs = ev.page.locator('.ds-tab');
   const count = await tabs.count();
   assert.ok(count >= 4, `вкладок: ${count}`);
+  // Шторки вкладок: открытка («Письмо»), маска («Подопечный»), журнал действий («Управление»)
+  const SHEETS = ['Открытка', 'Маска', 'Журнал действий'];
+  const opened = new Set();
   for (let i = 0; i < count; i++) {
     await tabs.nth(i).click();
     await ev.page.waitForTimeout(400);
     await expectPseudo(ev.page, `вкладка ${i + 1}`, found);
+    for (const ru of SHEETS) if (!opened.has(ru) && (await sheet(ev.page, ru, `шторка «${ru}»`))) opened.add(ru);
   }
-  // Панель организатора: журнал действий — шторка
-  const journal = ev.page.locator('.ds-btn', { hasText: label('Журнал действий') });
-  if (await journal.count()) {
-    await journal.first().scrollIntoViewIfNeeded();
-    await journal.first().click();
-    await ev.page.waitForSelector('.ds-sheet');
-    await ev.page.waitForTimeout(300);
-    await expectPseudo(ev.page, 'шторка журнала', found);
-    await ev.page.locator('.ds-sheet .ds-icon-btn').last().click();
-  } else found.push('панель: нет кнопки журнала (подпись транслитом)');
+  for (const ru of SHEETS) if (!opened.has(ru)) found.push(`событие: нет кнопки шторки «${ru}» (подпись транслитом)`);
 
   const chat = await openApp(t, anna, `?event=${E}&chat=santa`);
   await chat.page.waitForSelector('.ds-sheet');

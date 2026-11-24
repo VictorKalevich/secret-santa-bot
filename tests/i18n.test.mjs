@@ -286,8 +286,8 @@ function appDictionary() {
   const to = APP.indexOf('  // ---------- утилиты', from);
   assert.ok(from > 0 && to > from, 'в склейке нет блока словаря');
   const errors = [];
-  const make = Function('state', 'document', 'console', APP.slice(from, to) + '\nreturn { t, tl, setTexts };');
-  const core = make({}, { documentElement: {} }, { error: (m) => errors.push(m) });
+  const make = Function('state', 'document', 'console', 'shellTexts', APP.slice(from, to) + '\nreturn { t, tl, setTexts };');
+  const core = make({}, { documentElement: {} }, { error: (m) => errors.push(m) }, () => {});
   return { ...core, errors };
 }
 

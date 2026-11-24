@@ -1,11 +1,14 @@
 
   // ---------- старт ----------
-  async function start() {
-    // Оболочка до первого ответа (060): тексты — из набора app.boot.*
+  // Тексты оболочки (060): до первого ответа — из набора app.boot.* в странице, после словаря из me — на языке человека
+  function shellTexts() {
     document.title = t('app.boot.title');
+    heroBack.title = t('app.boot.back');
+  }
+  async function start() {
+    shellTexts();
     heroTitle.textContent = t('app.boot.title');
     heroSub.textContent = t('app.boot.loading');
-    heroBack.title = t('app.boot.back');
     showLoader();
     if (!initData) {
       heroSub.textContent = '';
