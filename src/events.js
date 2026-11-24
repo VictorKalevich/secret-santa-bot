@@ -276,6 +276,8 @@ export async function saveEventSettings(ctx, ev, body, actor) {
     }
     fields[k] = value;
   }
+  // 057: после сохранения ежедневный шаг проверит событие снова — заданное автодействие выполнится в ближайшую минуту
+  fields.checked_on = '';
   await db.batch([updateEventStmt(db, ev.id, fields), auditStmt(db, ev.id, actor, 'event.settings', 'параметры')]);
   return { ok: true };
 }

@@ -28,8 +28,9 @@ export function staleStep(env, ev, today) {
   return addDays(ev.finish_warned, STALE.wait) <= today ? { act: 'finish' } : null;
 }
 
-// Идущие события ежедневного шага (индекс events_active, 054) и outsiders — сколько участников не организаторы компании
-// события (её администраторы — в том числе владелец компании, инвариант I3 (050/051), — и владелец бота). Считается только в открытом боте у кандидатов правила Г, ещё не
+// Идущие события ежедневного шага, ещё не проверенные сегодня (057: индекс events_unchecked, checked_on < сегодня), и
+// outsiders — сколько участников не организаторы компании события (её администраторы — в том числе владелец компании,
+// инвариант I3 (050/051), — и владелец бота). Считается только в открытом боте у кандидатов правила Г, ещё не
 // проверенных сегодня, иначе -1: CASE не вычисляет подзапрос, участники остальных событий не читаются. since — на день
 // раньше порога Г (точная проверка — по местным датам, staleReason)
 export const dailyEventsQuery = (db, { open, today, now = Date.now() }) => db.prepare(
@@ -40,7 +41,7 @@ export const dailyEventsQuery = (db, { open, today, now = Date.now() }) => db.pr
               AND NOT EXISTS (SELECT 1 FROM company_members cm
                                WHERE cm.company_id = events.company_id AND cm.user_id = m.user_id AND cm.is_admin = 1))
      ELSE -1 END AS outsiders
-     FROM events WHERE status = 'active'`
+     FROM events WHERE status = 'active' AND checked_on < ?2`
 ).bind(open ? 1 : 0, today, now - (STALE.empty - 1) * DAY_MS);
 
 const WHY = {
@@ -56,7 +57,8 @@ const KEEP = {
 const LOGGED = { date: 'дата вручения прошла', empty: 'никто не вступил, кроме владельца и администраторов', age: 'нет даты вручения' };
 
 // Предупреждение организаторам компании события (ctx — её контекст) по прежнему состоянию (020): сообщения и журнал —
-// перед захватом, захват — отметка; из одновременных запусков отправляет один, завершённому событию — ничего
+// перед захватом, захват — отметка (с ней и «сегодня сделано», «на сегодня проверено» — 057); из одновременных запусков
+// отправляет один, завершённому событию — ничего
 export async function warnStale(ctx, ev, { reason, until }, today) {
   const db = ctx.db;
   const { users, settings } = await ctx.read({ users: true, settings: true });
@@ -65,7 +67,7 @@ export async function warnStale(ctx, ev, { reason, until }, today) {
   const fresh = atomic(db, "EXISTS (SELECT 1 FROM events WHERE id = ? AND status = 'active' AND finish_warned = '')", ev.id);
   for (const u of adminRecipients(users)) fresh.enqueue(u.tg_id, msg(text, appKeyboard(settings, '⚙️ Открыть событие', { event: ev.id })));
   fresh.audit(ev.id, 0, 'finish.warn', `${LOGGED[reason]}; завершится ${when}`);
-  fresh.claim(db.prepare("UPDATE events SET finish_warned = ?, last_daily = ? WHERE id = ? AND status = 'active' AND finish_warned = ''")
-    .bind(today, today, ev.id));
+  fresh.claim(db.prepare("UPDATE events SET finish_warned = ?, last_daily = ?, checked_on = ? WHERE id = ? AND status = 'active' AND finish_warned = ''")
+    .bind(today, today, today, ev.id));
   return fresh.run();
 }

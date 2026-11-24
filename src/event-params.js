@@ -32,10 +32,11 @@ export const EVENT_PARAMS = {
 
 // Служебные колонки. Состояние события — со значением после полного сброса; код приглашения сброс задаёт новым;
 // остальное сброс не трогает (название меняется сохранением, со своей проверкой). finish_warned — отметка предупреждения
-// об автозавершении (056, src/stale.js).
+// об автозавершении (056, src/stale.js); checked_on — «на сегодня проверено» ежедневного шага (057, src/cron.js): его
+// снимают и сохранение параметров, и жеребьёвка.
 export const EVENT_STATE_RESET = {
   status: 'active', finished_at: 0, registration_open: 1, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, last_daily: '',
-  finish_warned: '',
+  finish_warned: '', checked_on: '',
 };
 export const EVENT_SERVICE = ['id', 'company_id', 'title', 'created_at', 'created_by', 'invite_code', ...Object.keys(EVENT_STATE_RESET)];
 

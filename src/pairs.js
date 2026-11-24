@@ -105,11 +105,12 @@ export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
   // Атомарно (006, FR-607; 020 — src/claim.js): захват первым «занимает» жеребьёвку своим токеном; остальные записи
   // выполняются, только если токен в эвенте — наш. Вторая одновременная жеребьёвка ничего не запишет.
   // 009, FR-922: захват — только если участники, исключения и параметры те же, что при расчёте пар.
+  // 057: checked_on = '' — ежедневный шаг проверит событие снова (после жеребьёвки может наступить автораскрытие).
   const token = randomCode(16);
   const same = snapshotGuard(ev.id, check.snapshot);
   const mine = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)', ev.id, token);
   mine.claim(db.prepare(
-    `UPDATE events SET draw_done = 1, draw_at = ?, draw_token = ?, registration_open = 0, revealed = 0
+    `UPDATE events SET draw_done = 1, draw_at = ?, draw_token = ?, registration_open = 0, revealed = 0, checked_on = ''
       WHERE id = ? AND draw_done = 0 AND status = 'active' AND ring = ? AND families_on = ? AND ${same.sql}`
   ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ev.families_on ? 1 : 0, ...same.args));
   mine.where('DELETE FROM pairs WHERE event_id = ?', ev.id);

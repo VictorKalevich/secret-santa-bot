@@ -7,7 +7,7 @@ import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 19;
+export const REQUIRED_SCHEMA = 20;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -482,6 +482,9 @@ export const REGISTRY = {
     // значение не пусто (009, FR-938). Открытка — спутник письма (038): не «разъезжается» с ним
     personal: [['wishlist', 'wishlist_updated_at', 'card'], ['delivery', 'delivery_updated_at']],
     draftFields: ['draft_text', 'draft_stale', 'letter_revision'],
+    // 057: правка письма или адреса ждёт уведомления Санте (время, 0 — нет): сброс обнуляет, слияние ставит по
+    // объединённым письму и адресу, перенос переносит со строкой
+    notify: 'notify_at',
   },
   exclusions: { event: 'event_id', people: { giver: MEMBER, receiver: MEMBER }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'dedupe', noSelf: true },
   // 014: если у нового аккаунта в событии уже своя закреплённая пара — остаётся она
@@ -572,7 +575,8 @@ export function eventDataDeleteStmts(db, eventId, { keepMember = 0, keepEvent = 
       const fields = spec.personal.flatMap(([value, time, ...rest]) => [[value, ''], [time, 0], ...rest.map((f) => [f, ''])]);
       add(`DELETE FROM ${table} WHERE ${spec.event} = ? AND ${who} != ?`, eventId, keepMember);
       add(`UPDATE ${table} SET ${fields.map(([f]) => `${f} = ?`).join(', ')},
-           draft_text = NULL, draft_stale = 0, letter_revision = letter_revision + 1 WHERE ${spec.event} = ?`, ...fields.map(([, v]) => v), eventId);
+           draft_text = NULL, draft_stale = 0, letter_revision = letter_revision + 1, ${spec.notify} = 0 WHERE ${spec.event} = ?`,
+        ...fields.map(([, v]) => v), eventId);
     } else {
       add(`DELETE FROM ${table} WHERE ${spec.event} = ?`, eventId);
     }
@@ -629,6 +633,8 @@ export function mergeMembership(from, to) {
   set.draft_text = draftOwner.draft_text ?? null;
   set.draft_stale = Number(set.draft_text !== null && (draftOwner.draft_stale || draftOwner.wishlist !== set.wishlist));
   set.letter_revision = Math.max(from.letter_revision ?? 0, to.letter_revision ?? 0) + 1;
+  // Ждёт ли Санта уведомления, решит минутная проверка по времени пары (057): отметка — время объединённых письма и адреса
+  set[REGISTRY.members.notify] = Math.max(...REGISTRY.members.personal.map(([, time]) => Number(set[time]) || 0));
   return { event_id: from.event_id, set };
 }
 
@@ -651,7 +657,7 @@ export function personTransferStmts(db, fromId, toId, { merge = [] } = {}, guard
     fix(spec.transferBefore);
     if (spec.onTransfer === 'merge') {
       const [who] = moved;
-      const fields = [...spec.personal.flat(), ...spec.draftFields];
+      const fields = [...spec.personal.flat(), ...spec.draftFields, spec.notify];
       for (const m of merge) {
         add(`DELETE FROM ${table} WHERE ${spec.event} = ? AND ${who} = ?`, m.event_id, toId);
         add(`UPDATE ${table} SET ${fields.map((f) => `${f} = ?`).join(', ')} WHERE ${spec.event} = ? AND ${who} = ?`,

@@ -443,3 +443,83 @@ test('сверка при двух компаниях: оператор 3 нич
   assert.equal(w.query('SELECT is_admin FROM users WHERE tg_id = 101')[0].is_admin, 0, 'признак — по строкам');
   assert.deepEqual(invariants(w), []);
 });
+
+// ---------- 057: миграция 0020 и сверка tools/notify-reconcile.sql (specs/057-cron-marks/) ----------
+
+const SQL20 = readFileSync(new URL('0020_cron_marks.sql', MIGRATIONS_DIR), 'utf8');
+const statementsOf = (sql) => sql.replace(/--[^\n]*/g, '').split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+const NOTIFY_RECONCILE = readFileSync(new URL('../tools/notify-reconcile.sql', import.meta.url), 'utf8');
+const MARK_PENDING = statementsOf(SQL20).find((s) => s.startsWith('UPDATE members'));
+
+test('0020: две колонки, два частичных индекса, отметки ждущих правок и версия схемы 20', () => {
+  assert.deepEqual(statementsOf(SQL20), [
+    'ALTER TABLE members ADD COLUMN notify_at INTEGER NOT NULL DEFAULT 0',
+    "ALTER TABLE events ADD COLUMN checked_on TEXT NOT NULL DEFAULT ''",
+    'CREATE INDEX IF NOT EXISTS members_notify ON members (notify_at) WHERE notify_at > 0',
+    "CREATE INDEX IF NOT EXISTS events_unchecked ON events (checked_on) WHERE status = 'active'",
+    MARK_PENDING,
+    "INSERT INTO settings (key, value) VALUES ('schema', '20') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ]);
+  assert.match(MARK_PENDING, /^UPDATE members SET notify_at = MAX\(wishlist_updated_at, delivery_updated_at\) WHERE EXISTS/);
+});
+
+// База «до 0020»: колонок и индексов 057 нет, версия 19 (данные «мира» — прежние)
+const before20 = (w) => w.sql(`DROP INDEX members_notify; DROP INDEX events_unchecked;
+  ALTER TABLE members DROP COLUMN notify_at; ALTER TABLE events DROP COLUMN checked_on;
+  UPDATE settings SET value = '19' WHERE key = 'schema'`);
+const stripped = (rows, col) => rows.map((r) => { const o = JSON.parse(r); delete o[col]; return JSON.stringify(o); }).sort();
+
+test('база с данными «до 0020»: отметка — только у подопечного с неучтённой правкой в идущем событии, остальное прежнее, версия 20; cron шлёт ждущее уведомление', async () => {
+  const { w } = await filledWorld();
+  const E = w.query('SELECT id FROM events')[0].id;
+  await w.api({ id: 100, name: 'Игрок1' }, 'wishlist.save', { event: E, text: 'Правка, ждущая уведомления' });
+  before20(w);
+  const before = snapshot(w);
+  w.sql(SQL20);
+  const after = snapshot(w);
+  const marked = w.query('SELECT user_id, notify_at, MAX(wishlist_updated_at, delivery_updated_at) AS upd FROM members WHERE notify_at > 0');
+  assert.deepEqual(marked.map((r) => r.user_id), [100], 'отмечен только подопечный с неучтённой правкой');
+  assert.equal(marked[0].notify_at, marked[0].upd, 'отметка — время правки');
+  assert.ok(w.query('SELECT checked_on FROM events').every((e) => e.checked_on === ''), 'события не проверены');
+  assert.deepEqual(stripped(after.members, 'notify_at'), before.members, 'участники — те же значения');
+  assert.deepEqual(stripped(after.events, 'checked_on'), before.events, 'события — те же значения');
+  const schema = (snap) => snap.settings.map((r) => JSON.parse(r)).find((r) => r.key === 'schema').value;
+  assert.deepEqual([schema(before), schema(after)], ['19', '20']);
+  for (const t of Object.keys(before).filter((t) => !['members', 'events', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
+  const santa = w.query('SELECT santa FROM pairs WHERE event_id = ? AND ward = 100', E)[0].santa;
+  await w.cron();
+  assert.equal(w.texts({ id: santa }).filter((t) => /обновил письмо/.test(t)).length, 1, 'ждавшая правка — уведомление');
+  assert.equal(w.query('SELECT notify_at FROM members WHERE user_id = 100')[0].notify_at, 0);
+  // Колонка уже есть — повтор миграции падает (Wrangler применяет её один раз)
+  assert.throws(() => w.sql(SQL20), /duplicate column name: notify_at/);
+});
+
+test('от противного (057): миграция без отметок ждущих правок теряет уведомление', async () => {
+  const { w } = await filledWorld();
+  const E = w.query('SELECT id FROM events')[0].id;
+  await w.api({ id: 100, name: 'Игрок1' }, 'wishlist.save', { event: E, text: 'Правка, ждущая уведомления' });
+  before20(w);
+  w.sql(statementsOf(SQL20).filter((st) => st !== MARK_PENDING).join(';\n'));
+  const santa = w.query('SELECT santa FROM pairs WHERE event_id = ? AND ward = 100', E)[0].santa;
+  await w.cron();
+  assert.equal(w.texts({ id: santa }).filter((t) => /обновил письмо/.test(t)).length, 0, 'без отметки уведомления нет');
+});
+
+test('сверка 057: тот же оператор, что в 0020; правка «прежним кодом» отмечается, история — нет, повтор ничего не меняет', async () => {
+  assert.deepEqual(statementsOf(NOTIFY_RECONCILE), [MARK_PENDING], 'один оператор — как в миграции');
+  assert.ok(!/schema|DELETE|ALTER|CREATE/i.test(NOTIFY_RECONCILE.replace(/--[^\n]*/g, '')), 'схему не трогает');
+  const { w } = await filledWorld();
+  const E = w.query('SELECT id FROM events')[0].id;
+  // Прежний код между миграцией и выкатом: правка письма без отметки
+  w.sql(`UPDATE members SET wishlist = 'Правка прежнего кода', wishlist_updated_at = ${Date.now() + 5} WHERE event_id = ${E} AND user_id = 101`);
+  assert.equal(w.query('SELECT notify_at FROM members WHERE user_id = 101')[0].notify_at, 0);
+  w.sql(`UPDATE events SET status = 'finished' WHERE id = ${E}`);
+  w.sql(NOTIFY_RECONCILE);
+  assert.equal(w.query('SELECT COUNT(*) AS n FROM members WHERE notify_at > 0')[0].n, 0, 'завершённое событие — без отметок');
+  w.sql(`UPDATE events SET status = 'active' WHERE id = ${E}`);
+  w.sql(NOTIFY_RECONCILE);
+  assert.deepEqual(w.query('SELECT user_id FROM members WHERE notify_at > 0').map((r) => r.user_id), [101], 'правка отмечена');
+  const once = snapshot(w);
+  w.sql(NOTIFY_RECONCILE);
+  assert.deepEqual(snapshot(w), once, 'повтор ничего не меняет');
+});

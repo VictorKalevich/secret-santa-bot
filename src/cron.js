@@ -31,28 +31,30 @@ async function step(name, fn) {
 
 // Санта получает уведомление, когда подопечный перестал править письмо
 // (через NOTIFY_DELAY_MINUTES после последней правки), чтобы не было спама.
-// 054: CROSS JOIN закрепляет порядок «идущие события (индекс events_active) → их пары → подопечный» — пары завершённых
-// событий и участники без пар не читаются (лимит чтений D1 бесплатного тарифа)
+// 057: проверка начинается с отметок правок (members.notify_at, индекс members_notify — только отмеченные): пары, письма
+// и события без правок не читаются. Решение «уведомлять» — прежнее (событие идёт, Санта есть, правка новее учтённой
+// парой); отметка снимается, только если её не сменила новая правка после чтения
 async function notifyWishlistChanges(ctx) {
   const { db, env } = ctx;
   const delayMs = Number(env.NOTIFY_DELAY_MINUTES ?? 10) * 60 * 1000;
   const { results } = await db
     .prepare(
-      `SELECT p.event_id, p.santa, MAX(w.wishlist_updated_at, w.delivery_updated_at) AS upd, s.notify_mode, e.title, e.delivery_on
-         FROM events e
-        CROSS JOIN pairs p ON p.event_id = e.id
-        CROSS JOIN members w ON w.event_id = p.event_id AND w.user_id = p.ward
-         JOIN users s ON s.tg_id = p.santa
-        WHERE e.status = 'active'
-          AND MAX(w.wishlist_updated_at, w.delivery_updated_at) > p.notified_at
-          AND MAX(w.wishlist_updated_at, w.delivery_updated_at) <= ?`
+      `SELECT w.event_id, w.user_id, w.notify_at, MAX(w.wishlist_updated_at, w.delivery_updated_at) AS upd,
+              p.santa, p.notified_at, s.notify_mode, e.title, e.delivery_on, e.status
+         FROM members w
+         LEFT JOIN pairs p ON p.event_id = w.event_id AND p.ward = w.user_id
+         LEFT JOIN events e ON e.id = w.event_id
+         LEFT JOIN users s ON s.tg_id = p.santa
+        WHERE w.notify_at > 0 AND w.notify_at <= ?`
     )
     .bind(Date.now() - delayMs)
     .all();
   if (!results.length) return;
-  const settings = await ctx.settings(); // только если есть что отправлять
-  const stmts = [];
-  for (const r of results) {
+  const due = results.filter((r) => r.santa != null && r.status === 'active' && r.upd > r.notified_at);
+  const settings = due.some((r) => r.notify_mode !== 'off') ? await ctx.settings() : null; // только если есть кому писать
+  const stmts = results.map((r) => db.prepare('UPDATE members SET notify_at = 0 WHERE event_id = ? AND user_id = ? AND notify_at = ?')
+    .bind(r.event_id, r.user_id, r.notify_at));
+  for (const r of due) {
     stmts.push(db.prepare('UPDATE pairs SET notified_at = ? WHERE event_id = ? AND santa = ?').bind(r.upd, r.event_id, r.santa));
     if (r.notify_mode === 'off') continue;
     // Без имени подопечного и без текста — превью видно на экране блокировки.
@@ -84,12 +86,16 @@ function dailyReminder(env, ev) {
 // раз за разом падает, он не задерживает остальные. Эвенты, которым сегодня ничего не нужно, отмечаются одним запросом.
 // 056: в открытом боте — ещё правила автозавершения брошенных событий (src/stale.js): завершение важнее напоминания,
 // предупреждение — нет; снятие отметки — вместе с «сегодня сделано».
+// 057: событие, с которым на сегодня всё (ежедневная часть сделана, автодействие не нужно), отмечается checked_on и до
+// завтра не читается. Автодействие может наступить в тот же день только после сохранения параметров, жеребьёвки или
+// сброса — они отметку снимают (specs/057-cron-marks/research.md, R7); last_daily при этом остаётся — напоминание не
+// повторяется.
 async function dailyStep(ctx) {
   const { db, env } = ctx;
   const now = localDate(env);
   if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
-  // Все идущие эвенты (индекс events_active, 054): автодействие, заданное уже после сегодняшнего прохода, выполняется
-  // сразу. Компании читает ctx.in только для действия — в обычную минуту их не читаем (054)
+  // Идущие эвенты без отметки «на сегодня проверено» (057). Компании читает ctx.in только для действия — в обычную
+  // минуту их не читаем (054)
   const open = openBot(env);
   const { events: results } = await ctx.read({ events: dailyEventsQuery(db, { open, today: now.iso }) });
   const inCompany = (ev) => ctx.in(ev.company_id);
@@ -105,21 +111,21 @@ async function dailyStep(ctx) {
       const remind = dailyReminder(env, ev);
       // Отметка «сегодня сделано» — в одном batch с напоминанием: либо оба, либо ничего
       if (stale?.act === 'finish') reminders.push(async () => finishEvent(await inCompany(ev), ev, 0));
-      else if (remind) reminders.push(async () => remind(await inCompany(ev), ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso })]));
+      else if (remind) reminders.push(async () => remind(await inCompany(ev), ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso, checked_on: now.iso })]));
       else if (stale?.act === 'warn') reminders.push(async () => warnStale(await inCompany(ev), ev, stale, now.iso));
       else (stale?.act === 'clear' ? cleared : quiet).push(ev.id);
-    }
+    } else quiet.push(ev.id); // ежедневная часть сделана раньше, отметку сняли — автодействие не наступило
   }
-  await markDaily(db, 'last_daily = ?', quiet, now.iso);
-  await markDaily(db, "last_daily = ?, finish_warned = ''", cleared, now.iso);
+  await markDaily(db, 'last_daily = ?, checked_on = ?', quiet, [now.iso, now.iso]);
+  await markDaily(db, "last_daily = ?, finish_warned = '', checked_on = ?", cleared, [now.iso, now.iso]);
   const candidates = [...autos, ...reminders];
   if (candidates.length) await candidates[now.minute % candidates.length]();
 }
 
-async function markDaily(db, set, ids, today) {
+async function markDaily(db, set, ids, values) {
   for (let i = 0; i < ids.length; i += 90) {
     const part = ids.slice(i, i + 90); // не больше 100 параметров в запросе
-    await db.prepare(`UPDATE events SET ${set} WHERE id IN (${part.map(() => '?').join(',')})`).bind(today, ...part).run();
+    await db.prepare(`UPDATE events SET ${set} WHERE id IN (${part.map(() => '?').join(',')})`).bind(...values, ...part).run();
   }
 }
 

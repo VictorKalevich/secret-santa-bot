@@ -162,6 +162,12 @@ export async function setCard(ctx, ev, raw) {
   return { ok: true, card };
 }
 
+// 057: правка письма или адреса — отметка «ждёт уведомления Санте» (время правки) в той же записи, если у участника есть
+// Санта; минутная проверка (src/cron.js) читает только отметки. Каждая запись, меняющая время письма или адреса, — с ней
+// (тест cron-marks). Параметр — время правки
+export const NOTIFY_MARK = `notify_at = CASE WHEN EXISTS (SELECT 1 FROM pairs WHERE pairs.event_id = members.event_id
+  AND pairs.ward = members.user_id) THEN ? ELSE notify_at END`;
+
 export async function saveWishlist(ctx, ev, member, raw) {
   if (ev.letter_drafts) return no('Включены черновики. Открой письмо заново для публикации.');
   const text = String(raw ?? '').replace(/\r\n/g, '\n');
@@ -171,9 +177,9 @@ export async function saveWishlist(ctx, ev, member, raw) {
   if (text === member.wishlist) return { ok: true, updated_at: member.wishlist_updated_at };
   const now = Date.now();
   const result = await ctx.db.prepare(`UPDATE members SET wishlist = ?, wishlist_updated_at = ?, letter_revision = letter_revision + 1,
-      draft_stale = (draft_text IS NOT NULL) WHERE event_id = ? AND user_id = ?
+      draft_stale = (draft_text IS NOT NULL), ${NOTIFY_MARK} WHERE event_id = ? AND user_id = ?
       AND EXISTS (SELECT 1 FROM events WHERE id = members.event_id AND letter_drafts = 0 AND status = 'active')`)
-    .bind(text, now, ev.id, ctx.me.tg_id).run();
+    .bind(text, now, now, ev.id, ctx.me.tg_id).run();
   if (!result.meta.changes) return no('Настройки события изменились. Открой письмо заново.');
   return { ok: true, updated_at: now };
 }
@@ -188,9 +194,12 @@ export async function writeLetterDraft(ctx, ev, member, body, publish) {
   if (publish && !text.trim()) return no('Напиши письмо перед публикацией.');
   const conflict = 'Письмо или настройки изменились. Открой событие заново.';
   if (body.revision !== member.letter_revision || body.joined_at !== member.joined_at) return no(conflict);
-  const updated = publish && text !== member.wishlist ? Math.max(Date.now(), member.wishlist_updated_at + 1) : member.wishlist_updated_at;
-  const assignment = publish ? 'wishlist = ?, wishlist_updated_at = ?, draft_text = NULL' : 'draft_text = ?';
-  const values = publish ? [text, updated] : [text === member.wishlist ? null : text];
+  const changed = publish && text !== member.wishlist;
+  const updated = changed ? Math.max(Date.now(), member.wishlist_updated_at + 1) : member.wishlist_updated_at;
+  // Публикация неизменённого текста только снимает черновик: время письма и отметка уведомления прежние (057)
+  const assignment = !publish ? 'draft_text = ?'
+    : changed ? `wishlist = ?, wishlist_updated_at = ?, draft_text = NULL, ${NOTIFY_MARK}` : 'draft_text = NULL';
+  const values = !publish ? [text === member.wishlist ? null : text] : changed ? [text, updated, updated] : [];
   const result = await ctx.db.prepare(`UPDATE members SET ${assignment}, draft_stale = 0, letter_revision = letter_revision + 1
     WHERE event_id = ? AND user_id = ? AND letter_revision = ? AND joined_at = ?
     AND EXISTS (SELECT 1 FROM events WHERE id = members.event_id AND letter_drafts = 1 AND status = 'active')`)
@@ -206,8 +215,8 @@ export async function saveDelivery(ctx, ev, member, raw) {
   if (text.length > DELIVERY_MAX) return no(`Слишком длинно: ${text.length} символов, максимум ${DELIVERY_MAX}.`);
   if (text === member.delivery) return { ok: true, updated_at: member.delivery_updated_at };
   const now = Date.now();
-  await ctx.db.prepare('UPDATE members SET delivery = ?, delivery_updated_at = ? WHERE event_id = ? AND user_id = ?')
-    .bind(text, now, ev.id, ctx.me.tg_id).run();
+  await ctx.db.prepare(`UPDATE members SET delivery = ?, delivery_updated_at = ?, ${NOTIFY_MARK} WHERE event_id = ? AND user_id = ?`)
+    .bind(text, now, now, ev.id, ctx.me.tg_id).run();
   return { ok: true, updated_at: now };
 }
 

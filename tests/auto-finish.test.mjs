@@ -47,9 +47,10 @@ async function world(open = true) {
     return id;
   };
   z.ev = (id) => w.query('SELECT status, finish_warned, last_daily FROM events WHERE id = ?', id)[0];
-  // «Перемотка»: правка дат события и сброс отметки «сегодня проверено» — следующий ежедневный шаг проверит его заново
+  // «Перемотка»: правка дат события и сброс отметок «сегодня сделано» и «на сегодня проверено» (057) — следующий
+  // ежедневный шаг проверит его заново
   z.set = (id, fields) => {
-    const all = { last_daily: '', ...fields };
+    const all = { last_daily: '', checked_on: '', ...fields };
     const keys = Object.keys(all);
     w.DB.sqlite.prepare(`UPDATE events SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...keys.map((k) => all[k]), id);
   };
@@ -288,10 +289,11 @@ test('056: ежедневный шаг — участники только у к
   const list = await statementsDuring(w, () => w.cron());
   const daily = list.find((s) => /AS outsiders/.test(s));
   assert.ok(daily, 'запрос событий ежедневного шага');
-  const scans = list.flatMap((s) => scansOf(w.DB.sqlite, s, { tables: ['settings', 'outbox'], indexes: ['events_active'] }).map((x) => `${x} ← ${s.slice(0, 80)}`));
+  const scans = list.flatMap((s) => scansOf(w.DB.sqlite, s, { tables: ['settings', 'outbox'] }).map((x) => `${x} ← ${s.slice(0, 80)}`));
   assert.deepEqual(scans, []);
   const plan = w.DB.sqlite.prepare('EXPLAIN QUERY PLAN ' + daily).all().map((r) => r.detail);
-  assert.ok(plan.some((d) => /^SCAN events USING (?:COVERING )?INDEX events_active\b/.test(d)), plan.join(' | '));
+  // 057: только не проверенные сегодня — поиском по индексу events_unchecked
+  assert.ok(plan.some((d) => /^SEARCH events USING (?:COVERING )?INDEX events_unchecked \(checked_on<\?\)/.test(d)), plan.join(' | '));
   assert.ok(plan.some((d) => /^SEARCH m USING (?:COVERING )?INDEX \w+ \(event_id=\?/.test(d)), plan.join(' | '));
   assert.ok(plan.some((d) => /^SEARCH cm USING (?:COVERING )?INDEX \w+ \(company_id=\? AND user_id=\?\)/.test(d)), plan.join(' | '));
   assert.equal(z.warns(org, 'План').length, 1, 'кандидат Г обработан');
