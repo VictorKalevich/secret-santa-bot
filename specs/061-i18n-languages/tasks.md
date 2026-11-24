@@ -97,7 +97,7 @@ contracts/language.md, contracts/translation.md, quickstart.md
   «Профиле»; `npm run screenshots`
 - [X] T023 [P] `docs/api.md` (`lang.set`, `me`, `/language`, `lang:`, профиль, журнал), README (языки, `/language`,
   миграция 0022), `CLAUDE.md` (строка 061, структура, правило, тесты), Конституция 4.0.0 (принцип II)
-- [ ] T024 `npm run test:all`; коммит; push; слияние в `main`; выкат второго, проверка, выкат первого (quickstart)
+- [X] T024 `npm run test:all`; коммит; push; слияние в `main`; выкат второго, проверка, выкат первого (quickstart)
 
 ## Dependencies
 
