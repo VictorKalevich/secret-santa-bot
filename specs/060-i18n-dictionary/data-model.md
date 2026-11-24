@@ -13,9 +13,13 @@
 - Читается без новых запросов: `userQuery` — `SELECT *` первого пакета контекста; язык получателя очереди — подзапрос в
   операторе захвата `flushOutbox`.
 
-## Словарь языка — `src/i18n/<язык>/server.js`, `src/i18n/<язык>/app.js`
+## Словарь языка — папка `src/i18n/<язык>/`
 
-`export default { [ключ]: значение }`.
+Файл на область, `export default { [ключ]: значение }`; `index.js` языка собирает `{ server, app }` (файлы `app-*.js` —
+в `app`, остальные — в `server`). Области сервера: `common` и модули с текстами (`api`, `bot`, `chat`, `companies`,
+`constraints`, `cron`, `db`, `event-params` → `eventParams`, `events`, `index`, `looks`, `membership`, `pairs`, `panel`,
+`participant`, `roles`, `setup`, `shipment`, `stale`, `support`, `vault`); приложения: `app-boot`, `app-core`,
+`app-home`, `app-companies`, `app-event`, `app-admin`, `app-vault`, `app-sheet`.
 
 | Значение | Вид | Пример |
 |---|---|---|
@@ -24,10 +28,9 @@
 | список | массив строк | `'common.monthsGen': ['января', …]` |
 
 Правила:
-- ключ — `<область>.<имя>` (имя — латиница, цифры, точки); область сервера — имя модуля `src/<модуль>.js` или
-  `common`/`setup`/`looks`/`audit`; область приложения — `app.<часть>` (`boot`, `core`, `home`, `companies`, `event`,
-  `admin`, `vault`, `sheet`);
-- ключи `app.*` — только в `app.js`, остальные — только в `server.js`; один ключ — один раз в языке;
+- ключ — `<область>.<имя>` (имя — латиница, цифры, точки); область = файл: `pairs.js` → `pairs.*`, `event-params.js` →
+  `eventParams.*`, `app-admin.js` → `app.admin.*`;
+- один ключ — один раз в языке; у каждого языка — тот же набор файлов, что у русского;
 - подстановки: данные людей вставляются уже экранированными там, где сейчас (`q(ev)`, `escapeHtml`); HTML-разметка
   сообщений бота — часть значения;
 - в шаге 1 язык один — `ru`; служебный `xx` добавляют только тесты (R10).
