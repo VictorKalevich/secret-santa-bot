@@ -133,7 +133,7 @@ export const ACTIONS = {
     confirm: ['УДАЛИТЬ', 'Для удаления введи слово УДАЛИТЬ.'],
     async run(ctx, body) {
       const bot = await ctx.isBotOwner();
-      if (!bot && !openBot(ctx.env)) return refuse(onlyBotOwner('Удалить компанию'), 403);
+      if (!bot && !openBot(ctx.env)) return refuse(onlyBotOwner('Удалить комнату'), 403);
       return out(await deleteCompany(ctx, body.company, !bot), none);
     },
   },
@@ -511,7 +511,7 @@ export async function handleApi(request, env, action) {
     if (!row.company) return word() ? fail(row.confirm[1]) : respond(await row.run(ctx, body));
     // Общее действие организатора — в компании из запроса или в единственной компании вызывающего
     const id = Number(body.company) || (await ctx.soleCompany());
-    if (!id) return fail('Выбери компанию.');
+    if (!id) return fail('Выбери комнату.');
     const c = await ctx.in(id);
     if (!c?.me.is_admin) return fail(ADMIN_ONLY, 403);
     if (!(await owner(c))) return fail(ownerRefusal(row.owner, c), 403);

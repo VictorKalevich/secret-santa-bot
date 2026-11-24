@@ -190,11 +190,11 @@ describe('компании: две компании не видят друг д�
     assert.deepEqual(z.counts(), before);
   });
 
-  it('T023: без company у человека с двумя компаниями — 400 «Выбери компанию.»; участник чужого события — прежнее 403', async () => {
+  it('T023: без company у человека с двумя компаниями — 400 «Выбери комнату.»; участник чужого события — прежнее 403', async () => {
     for (const u of [dual, boss]) {
       const r = await z.w.api(u, 'admin.users', {}, true);
       assert.equal(r.status, 400, u.name);
-      assert.equal(r.data.error, 'Выбери компанию.');
+      assert.equal(r.data.error, 'Выбери комнату.');
     }
     assert.ok((await z.w.api(dual, 'admin.users', { company: z.A.company })).users.some((u) => u.id === dual.id));
     const notOrganizer = await z.w.api(dual, 'admin.users', { company: z.B.company }, true);
@@ -344,7 +344,7 @@ describe('компании: владелец бота — гость компа�
     for (const a of ADMIN) {
       const ev = await z.event(z.B.company, 'Гость ' + a);
       const r = await z.w.api(boss, a, { ...body(ev), company: z.B.company }, true);
-      if (r.status === 403 || r.data.error === NO_EVENT || r.data.error === 'Выбери компанию.') denied.push(`${a}: ${r.status} ${r.data.error}`);
+      if (r.status === 403 || r.data.error === NO_EVENT || r.data.error === 'Выбери комнату.') denied.push(`${a}: ${r.status} ${r.data.error}`);
     }
     assert.deepEqual(denied, []);
   });

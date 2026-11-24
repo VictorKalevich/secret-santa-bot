@@ -6,7 +6,7 @@
   // specs/052-open-bot/contracts/open-bot.md, раздел 4): создать компанию может каждый — не больше двух своих; у своей
   // компании — общее название и удаление пустой
   const ROLE_CHIPS = { owner: '👑 владелец', admin: '🛠 администратор', member: 'участник', guest: '👁 владелец бота' };
-  const OWN_LIMIT = 'Вести можно не больше двух своих компаний — передай или удали одну из них.';
+  const OWN_LIMIT = 'Вести можно не больше двух своих комнат — передай или удали одну из них.';
 
   function renderCompanies() {
     const me = state.me;
@@ -15,9 +15,9 @@
     const greet = () => { heroSub.textContent = 'Привет, ' + me.name + '!'; };
     greet();
     document.getElementById('tabs').hidden = true;
-    const nodes = [ui.section('Компании')];
+    const nodes = [ui.section('Комнаты')];
     if (state.companies.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, state.companies.map((c) => companyRow(c, true))));
-    else nodes.push(ui.hint(state.botOwner ? 'Компаний пока нет.' : 'Компаний пока нет. Создай свою — или попроси пригласительную ссылку на событие.', 'ds-hint--inset'));
+    else nodes.push(ui.hint(state.botOwner ? 'Комнат пока нет.' : 'Комнат пока нет. Создай свою — или попроси пригласительную ссылку на событие.', 'ds-hint--inset'));
     if (state.botOwner) nodes.push(...companiesTools());
     else if (state.create) nodes.push(ownCreate());
     nodes.push(...personalSections(state.nav, greet));
@@ -42,9 +42,9 @@
         ui.hint(about)),
       link && c.unread ? h('span', { class: 'ds-badge' }, String(c.unread)) : null,
       h('div', { class: 'ds-row ds-row--tight' },
-        h('button', { class: 'ds-icon-btn', title: c.rename ? 'Название компании' : 'Название для себя', onclick: own(() => openLabelSheet(c)) }, '✏️'),
+        h('button', { class: 'ds-icon-btn', title: c.rename ? 'Название комнаты' : 'Название для себя', onclick: own(() => openLabelSheet(c)) }, '✏️'),
         state.botOwner || c.deletable
-          ? h('button', { class: 'ds-icon-btn', title: 'Компания', onclick: own(() => (state.botOwner ? openCompanySheet(c) : openOwnCompanySheet(c))) }, '⚙️')
+          ? h('button', { class: 'ds-icon-btn', title: 'Комната', onclick: own(() => (state.botOwner ? openCompanySheet(c) : openOwnCompanySheet(c))) }, '⚙️')
           : null),
       link ? h('span', { class: 'ds-list-item__chevron' }, '›') : null);
   }
@@ -64,15 +64,15 @@
       toast('Название сохранено');
       if (state.view !== 'event') render();
     }));
-    openSheet(c.rename ? 'Название компании' : 'Название для себя', [
-      ui.hint(c.shared && common ? 'Это название видят все люди компании.'
-        : state.botOwner ? 'Название компании видишь только ты — владелец бота.' : 'Это название видишь только ты.'),
+    openSheet(c.rename ? 'Название комнаты' : 'Название для себя', [
+      ui.hint(c.shared && common ? 'Это название видят все люди комнаты.'
+        : state.botOwner ? 'Название комнаты видишь только ты — владелец бота.' : 'Это название видишь только ты.'),
       clearable(input, 'Название'), save]);
   }
 
   // Инструменты владельца бота — только на экране «Компании» (052): создать компанию, журнал бота, передать права
   function companiesTools() {
-    const create = ui.btn('🏢 Создать компанию', 'secondary', 'ds-btn--block');
+    const create = ui.btn('🚪 Создать комнату', 'secondary', 'ds-btn--block');
     create.addEventListener('click', openCreateCompany);
     const log = ui.btn('📜 Журнал бота', 'secondary', 'ds-btn--block');
     log.addEventListener('click', () => openAudit(null, true));
@@ -83,7 +83,7 @@
 
   // Своя компания человека открытого бота (052): две своих — кнопка недоступна, под ней — почему
   function ownCreate() {
-    const create = ui.btn('🏢 Создать компанию', 'secondary', 'ds-btn--block');
+    const create = ui.btn('🚪 Создать комнату', 'secondary', 'ds-btn--block');
     const full = state.create.left === 0;
     create.disabled = full;
     create.addEventListener('click', openCreateCompany);
@@ -100,57 +100,57 @@
       if (!name.value.trim()) return toast('Напиши название');
       const r = await api(own ? 'company.create' : 'bot.company.create', { name: name.value });
       closeSheet();
-      toast('🏢 Компания создана');
+      toast('🚪 Комната создана');
       await openCompany(r.company);
     }));
-    openSheet('Новая компания', [
+    openSheet('Новая комната', [
       ui.hint(own
-        ? 'Ты станешь владельцем компании: создаёшь события, приглашаешь людей, назначаешь администраторов. Название увидят все люди компании.'
-        : 'У компании свои люди, события, семьи и администраторы. Её можно вести самому или отдать владельцу по ссылке.'),
-      clearable(name, 'Название компании'), ok]);
+        ? 'Ты станешь владельцем комнаты: создаёшь события, приглашаешь людей, назначаешь администраторов. Название увидят все люди комнаты.'
+        : 'У комнаты свои люди, события, семьи и администраторы. Её можно вести самому или отдать владельцу по ссылке.'),
+      clearable(name, 'Название комнаты'), ok]);
   }
 
   // Шторка «Компания» (владелец бота): кто ведёт и «Вести самому», ссылка владельца компании, удаление пустой компании
   function openCompanySheet(c) {
     const items = [ui.section('Кто ведёт')];
-    if (c.bot_run) items.push(ui.card(h('div', { class: 'ds-text-strong' }, 'Ты'), ui.hint('Своего владельца у компании нет: её ведёшь ты.')));
+    if (c.bot_run) items.push(ui.card(h('div', { class: 'ds-text-strong' }, 'Ты'), ui.hint('Своего владельца у комнаты нет: её ведёшь ты.')));
     else {
       const self = ui.btn('Вести самому', 'secondary', 'ds-btn--block');
       self.addEventListener('click', async () => {
-        if (!(await confirmBox(`Вести компанию самому? «${c.owner_name}» останется администратором.`))) return;
+        if (!(await confirmBox(`Вести комнату самому? «${c.owner_name}» останется администратором.`))) return;
         busy(self, async () => {
           await capi('admin.owner.transfer', { company: c.id, id: state.me.id });
           closeSheet();
-          toast('Компанию снова ведёшь ты');
+          toast('Комнату снова ведёшь ты');
           await reloadMe();
           render();
         });
       });
-      items.push(ui.card(h('div', { class: 'ds-text-strong' }, c.owner_name), ui.hint('Владелец компании: администраторы, сброс и удаление событий, служебный просмотр пар.'), self));
+      items.push(ui.card(h('div', { class: 'ds-text-strong' }, c.owner_name), ui.hint('Владелец комнаты: администраторы, сброс и удаление событий, служебный просмотр пар.'), self));
     }
-    items.push(ui.section('🔗 Ссылка владельца компании'), companyLinkCard(c));
-    items.push(...companyDeletion(c, 'bot.company.delete', 'Событий в компании нет. Её владелец и администраторы получат сообщение.'));
+    items.push(ui.section('🔗 Ссылка владельца комнаты'), companyLinkCard(c));
+    items.push(...companyDeletion(c, 'bot.company.delete', 'Событий в комнате нет. Её владелец и администраторы получат сообщение.'));
     openSheet(c.title, items);
   }
 
   // Шторка своей компании человека открытого бота (052): только удаление пустой
   function openOwnCompanySheet(c) {
-    openSheet(c.title, companyDeletion(c, 'company.delete', 'Событий в компании нет. Её администраторы получат сообщение.'));
+    openSheet(c.title, companyDeletion(c, 'company.delete', 'Событий в комнате нет. Её администраторы получат сообщение.'));
   }
 
   // Раздел «Удаление»: есть события — почему нельзя; иначе шторка со словом УДАЛИТЬ (action — действие API), после —
   // корневой экран
   function companyDeletion(c, action, keep) {
-    if (c.events) return [ui.section('Удаление'), ui.hint('В компании есть события — сначала удали их.', 'ds-hint--inset')];
-    const del = ui.btn('🗑 Удалить компанию', 'danger', 'ds-btn--block');
-    del.addEventListener('click', () => typedSheet('Удалить компанию', {
-      lines: ['её люди, администраторы и семьи;', 'общий журнал компании.'],
+    if (c.events) return [ui.section('Удаление'), ui.hint('В комнате есть события — сначала удали их.', 'ds-hint--inset')];
+    const del = ui.btn('🗑 Удалить комнату', 'danger', 'ds-btn--block');
+    del.addEventListener('click', () => typedSheet('Удалить комнату', {
+      lines: ['её люди, администраторы и семьи;', 'общий журнал комнаты.'],
       keep,
       word: 'УДАЛИТЬ',
-      label: '🗑 Удалить компанию',
+      label: '🗑 Удалить комнату',
       sure: true,
       run: (word) => api(action, { company: c.id, confirm: word }),
-      after: async () => { toast('Компания удалена'); await reloadMe(); await goRoot(); },
+      after: async () => { toast('Комната удалена'); await reloadMe(); await goRoot(); },
     }));
     return [ui.section('Удаление'), ui.card(del)];
   }
@@ -168,7 +168,7 @@
           catch (e) { input.select(); toast('Выдели и скопируй ссылку'); }
         });
         const share = ui.btn('📤 Отправить в чат', 'secondary', 'ds-btn--sm');
-        share.addEventListener('click', () => shareLink(link, '👑 Ссылка владельца в «Тайном Санте»: открой её, чтобы вести свою компанию.'));
+        share.addEventListener('click', () => shareLink(link, '👑 Ссылка владельца в «Тайном Санте»: открой её, чтобы вести свою комнату.'));
         shown.push(input, h('div', { class: 'ds-row' }, copy, share));
       } else if (c.link) shown.push(ui.hint('Ссылка действует. Показать её ещё раз нельзя — можно создать новую.'));
       const make = ui.btn(c.link ? 'Создать новую' : 'Создать ссылку', 'secondary', 'ds-btn--sm');
@@ -185,7 +185,7 @@
         toast('Ссылка отозвана');
         draw('');
       }));
-      card.replaceChildren(ui.hint('Ссылка одноразовая: кто первым перейдёт по ней, станет владельцем компании и сможет открывать пары её событий. Отправляй её лично.'),
+      card.replaceChildren(ui.hint('Ссылка одноразовая: кто первым перейдёт по ней, станет владельцем комнаты и сможет открывать пары её событий. Отправляй её лично.'),
         ...shown, h('div', { class: 'ds-row' }, ...row));
     };
     draw('');
@@ -205,7 +205,7 @@
       go.addEventListener('click', async () => {
         const u = people.find((x) => String(x.id) === sel.value);
         if (!u) return toast('Выбери человека');
-        if (!(await confirmBox(`Передать права владельца бота «${u.name}»? Он(а) будет создавать и удалять компании и назначать их владельцев. Ты останешься администратором своих компаний.`))) return;
+        if (!(await confirmBox(`Передать права владельца бота «${u.name}»? Он(а) будет создавать и удалять комнаты и назначать их владельцев. Ты останешься администратором своих комнат.`))) return;
         busy(go, async () => {
           await api('bot.owner.transfer', { id: u.id });
           closeSheet();
@@ -214,6 +214,6 @@
           await goRoot();
         });
       });
-      openSheet('Права владельца бота', [ui.hint('Владелец бота один. Передать права можно человеку из компаний, которые ведёшь ты.'), sel, go]);
+      openSheet('Права владельца бота', [ui.hint('Владелец бота один. Передать права можно человеку из комнат, которые ведёшь ты.'), sel, go]);
     });
   }

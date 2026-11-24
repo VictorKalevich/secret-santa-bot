@@ -12,9 +12,9 @@ after(restoreFetch);
 const boss = { id: 9001, name: 'Владелец', username: 'boss' };
 const person = (id, name) => ({ id, name, username: 'u' + id });
 const inviteOf = (st) => /start=(inv_[a-z0-9]+)/.exec(st.settings.invite_link)[1];
-const NAME_RULE = 'Название компании — от 1 до 40 символов.';
+const NAME_RULE = 'Название комнаты — от 1 до 40 символов.';
 const BOT_ONLY = 'Только для владельца бота.';
-const NEW_OWNER = '👑 Ты — владелец своей компании в «Тайном Санте»: создаёшь события, приглашаешь людей, назначаешь администраторов.';
+const NEW_OWNER = '👑 Ты — владелец своей комнаты в «Тайном Санте»: создаёшь события, приглашаешь людей, назначаешь администраторов.';
 const GONE = 'Эта ссылка владельца уже использована или отозвана. Попроси новую.';
 
 // Мир: владелец бота, «Основная» (№1) с событием и её администратором. Ответы API всем, кроме владельца бота, и сообщения
@@ -86,7 +86,7 @@ describe('051: создание компании (US1)', () => {
   it('двойное нажатие в одну миллисекунду — одна компания и одна запись; другое название — сразу можно', async () => {
     const rs = await z.w.together([1, 2].map(() => () => z.w.api(boss, 'bot.company.create', { name: 'Дубль' }, true)), { sameMoment: true });
     assert.deepEqual(rs.map((r) => r.status).sort(), [200, 400]);
-    assert.equal(rs.find((r) => r.status === 400).data.error, 'Компания с таким названием только что создана.');
+    assert.equal(rs.find((r) => r.status === 400).data.error, 'Комната с таким названием только что создана.');
     assert.equal(z.w.query("SELECT COUNT(*) AS n FROM companies WHERE name = 'Дубль'")[0].n, 1);
     assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.create' AND details = '«Дубль»'")[0].n, 1);
     assert.equal((await z.w.api(boss, 'bot.company.create', { name: 'Дубль 2' }, true)).status, 200);
@@ -134,7 +134,7 @@ describe('051: создание компании (US1)', () => {
     assert.deepEqual(invariants(z.w), []);
   });
 
-  it('событие в несуществующей компании — 404 «Компания не найдена.», ничего не записано', async () => {
+  it('событие в несуществующей компании — 404 «Комната не найдена.», ничего не записано', async () => {
     const before = z.w.query('SELECT COUNT(*) AS n FROM events')[0].n;
     const r = await z.w.api(boss, 'admin.events.create', { company: 999, title: 'Никуда' }, true);
     assert.equal(r.status, 403, 'компании нет — конвейер: не организатор');
@@ -143,7 +143,7 @@ describe('051: создание компании (US1)', () => {
     z.w.beforeWrite('INSERT INTO events', () => z.w.sql(`DELETE FROM company_members WHERE company_id = ${c}; DELETE FROM companies WHERE id = ${c}`));
     const gone = await z.w.api(boss, 'admin.events.create', { company: c, title: 'Не будет' }, true);
     assert.equal(gone.status, 404);
-    assert.equal(gone.data.error, 'Компания не найдена.');
+    assert.equal(gone.data.error, 'Комната не найдена.');
     assert.equal(z.w.query('SELECT COUNT(*) AS n FROM events')[0].n, before);
     assert.equal(z.w.query('SELECT COUNT(*) AS n FROM audit WHERE event_id NOT IN (SELECT id FROM events) AND event_id != 0')[0].n, 0);
   });
@@ -246,8 +246,8 @@ describe('051: владелец компании (US2)', () => {
     assert.equal(z.w.texts(x).length, tx, 'передал сам — без сообщения');
     assert.equal(z.company(C).owner_id, y.id);
     assert.equal(z.row(C, x.id).is_admin, 1, 'прежний владелец остаётся администратором');
-    assert.match(z.w.texts(y).slice(ty).join('\n'), /Тебе переданы права владельца компании/);
-    assert.deepEqual(z.w.texts(boss).slice(tb), ['ℹ️ <b>Ксения</b> передал(а) права владельца компании «Клуб»: теперь владелец — <b>Юрий</b>.']);
+    assert.match(z.w.texts(y).slice(ty).join('\n'), /Тебе переданы права владельца комнаты/);
+    assert.deepEqual(z.w.texts(boss).slice(tb), ['ℹ️ <b>Ксения</b> передал(а) права владельца комнаты «Клуб»: теперь владелец — <b>Юрий</b>.']);
     assert.equal(z.w.texts(q).length, tq, 'не организатору — ничего');
     assert.deepEqual(z.companyLog(C).at(-1), { action: 'company.owner', details: '→ Юрий', actor: x.id });
     assert.equal((await z.api(y, 'admin.owner.transfer', { company: C, id: y.id })).data.error, 'Ты и так владелец.');
@@ -264,7 +264,7 @@ describe('051: владелец компании (US2)', () => {
     assert.equal(z.company(C).owner_id, 0);
     assert.equal(z.row(C, boss.id).is_admin, 1, 'I2');
     assert.equal(z.row(C, y.id).is_admin, 1);
-    assert.deepEqual(z.w.texts(y).slice(ty), ['ℹ️ Компанию снова ведёт владелец бота. Ты остаёшься администратором.']);
+    assert.deepEqual(z.w.texts(y).slice(ty), ['ℹ️ Комнату снова ведёт владелец бота. Ты остаёшься администратором.']);
     assert.equal(z.w.texts(boss).length, tb, 'владельцу бота при «Вести самому» — ничего');
     assert.deepEqual(z.botLog().at(-1), { action: 'company.owner', details: '«Клуб»: → владелец бота', actor: boss.id });
     assert.deepEqual(invariants(z.w), []);
@@ -288,14 +288,14 @@ describe('051: владелец компании (US2)', () => {
     // владелец бота
     let code = await link();
     await z.w.say(boss, '/start ' + code);
-    assert.equal(last2(boss)[0], 'Ты владелец бота — эту компанию и так ведёшь ты.');
+    assert.equal(last2(boss)[0], 'Ты владелец бота — эту комнату и так ведёшь ты.');
     // зарегистрированный человек
     const tb = z.w.texts(boss).length;
     await z.w.say(s, '/start ' + code);
     assert.equal(last2(s)[0], NEW_OWNER + ' Всё — в приложении.');
     assert.equal(z.company(L).owner_id, s.id);
     assert.equal(z.company(L).owner_code, '', 'код стёрт');
-    assert.deepEqual(z.w.texts(boss).slice(tb), ['👑 <b>Сеня</b> (@u2004) — теперь владелец компании «По ссылке».']);
+    assert.deepEqual(z.w.texts(boss).slice(tb), ['👑 <b>Сеня</b> (@u2004) — теперь владелец комнаты «По ссылке».']);
     assert.deepEqual(z.companyLog(L).at(-1), { action: 'company.owner', details: 'по ссылке: Сеня', actor: s.id });
     // тот же код ещё раз — «использована»
     await z.w.say(s, '/start ' + code);
@@ -308,7 +308,7 @@ describe('051: владелец компании (US2)', () => {
     // новый человек: имя текстом
     const n1 = person(3001, 'Нина');
     await z.w.say(n1, '/start ' + code);
-    assert.match(z.w.lastText(n1), /^👑 Ты — владелец своей компании/);
+    assert.match(z.w.lastText(n1), /^👑 Ты — владелец своей комнаты/);
     assert.match(z.w.query('SELECT pending FROM users WHERE tg_id = ?', n1.id)[0].pending, new RegExp(`^name_own:${L}:`));
     assert.equal(z.company(L).owner_id, s.id, 'до имени прав нет');
     await z.w.say(n1, n1.name);
@@ -394,12 +394,12 @@ describe('051: видимость и названия (US3)', () => {
 
   it('видимость: участник события, администратор; названия по умолчанию — «Компания N» по времени вступления', async () => {
     const meA = await z.ok(a, 'me');
-    assert.deepEqual(ids(meA), [[1, 'Компания 1', false], [C, 'Компания 2', false]]);
+    assert.deepEqual(ids(meA), [[1, 'Комната 1', false], [C, 'Комната 2', false]]);
     assert.deepEqual(meA.companies.map((x) => [x.role, x.bot_run, x.owner_name]), [['member', true, 'Владелец'], ['member', true, 'Владелец']]);
     assert.deepEqual(meA.events.map((e) => [e.id, e.company]).sort((x, y) => x[0] - y[0]), [[z.E1, 1], [evC, C]]);
     assert.equal((await z.ok(a, 'event.get', { event: evC })).event.company, C);
-    assert.deepEqual(ids(await z.ok(b, 'me')), [[C, 'Компания 1', false]], 'одна компания — её номер 1');
-    assert.deepEqual(ids(await z.ok(d, 'me')), [[1, 'Компания 1', false]]);
+    assert.deepEqual(ids(await z.ok(b, 'me')), [[C, 'Комната 1', false]], 'одна компания — её номер 1');
+    assert.deepEqual(ids(await z.ok(d, 'me')), [[1, 'Комната 1', false]]);
     // Администратор без событий компании её видит; участник после выхода из единственного события — нет
     await z.ok(c, 'event.leave', { event: evC, confirm: 'ВЫЙТИ' });
     assert.deepEqual((await z.ok(c, 'me')).companies.map((x) => [x.id, x.role]), [[C, 'admin']]);
@@ -411,15 +411,15 @@ describe('051: видимость и названия (US3)', () => {
 
   it('своё название: видно только себе, пустое — снова по умолчанию, длиннее 40 — отказ, чужая компания — 404', async () => {
     assert.deepEqual(await z.ok(a, 'company.label.set', { company: C, label: `  ${LABEL}  ` }), { ok: true, title: LABEL });
-    assert.deepEqual(ids(await z.ok(a, 'me')), [[1, 'Компания 1', false], [C, LABEL, true]]);
+    assert.deepEqual(ids(await z.ok(a, 'me')), [[1, 'Комната 1', false], [C, LABEL, true]]);
     assert.equal(z.row(C, a.id).label, LABEL);
     assert.equal(z.company(C).name, 'Клуб-тайна', 'название владельца бота не меняется');
     const long = await z.api(a, 'company.label.set', { company: C, label: 'я'.repeat(41) });
     assert.deepEqual([long.status, long.data.error], [400, 'Название — до 40 символов.']);
     const alien = await z.api(d, 'company.label.set', { company: C, label: 'Чужая' });
-    assert.deepEqual([alien.status, alien.data.error], [404, 'Компания не найдена.']);
+    assert.deepEqual([alien.status, alien.data.error], [404, 'Комната не найдена.']);
     assert.deepEqual(await z.ok(a, 'company.label.set', { company: 1, label: 'Дом' }), { ok: true, title: 'Дом' });
-    assert.deepEqual(await z.ok(a, 'company.label.set', { company: 1, label: '' }), { ok: true, title: 'Компания 1' });
+    assert.deepEqual(await z.ok(a, 'company.label.set', { company: 1, label: '' }), { ok: true, title: 'Комната 1' });
     // Владелец бота переименовывает саму компанию — пустое нельзя
     const empty = await z.w.api(boss, 'company.label.set', { company: C, label: ' ' }, true);
     assert.equal(empty.status, 400);
@@ -431,10 +431,10 @@ describe('051: видимость и названия (US3)', () => {
   it('меню бота: при нескольких компаниях — название рядом с событием, при одной — как раньше', async () => {
     await z.w.say(a, '/start');
     const menuA = z.w.lastText(a);
-    assert.match(menuA, /«Основное событие» \(Компания 1\)/);
+    assert.match(menuA, /«Основное событие» \(Комната 1\)/);
     assert.ok(menuA.includes(`«Событие клуба» (${LABEL})`), menuA);
     await z.w.say(d, '/start');
-    assert.doesNotMatch(z.w.lastText(d), /Компания|\(/);
+    assert.doesNotMatch(z.w.lastText(d), /Комната|компани|\(/i);
   });
 
   it('чужое своё название и название владельца бота — ни в одном ответе и сообщении другим людям', async () => {
@@ -511,8 +511,8 @@ describe('051: удаление компании и журнал бота (US6)'
     for (const table of ['companies WHERE id', 'company_members WHERE company_id', 'families WHERE company_id', 'family_members WHERE company_id', 'audit WHERE company_id']) {
       assert.equal(z.w.query(`SELECT COUNT(*) AS n FROM ${table} = ?`, C)[0].n, 0, table);
     }
-    assert.deepEqual(z.w.texts(o).slice(t0[0]), ['Владелец бота удалил компанию, которую ты вёл: событий в ней не было.']);
-    assert.deepEqual(z.w.texts(p).slice(t0[1]), ['Владелец бота удалил компанию, в которой ты был администратором: событий в ней не было.']);
+    assert.deepEqual(z.w.texts(o).slice(t0[0]), ['Владелец бота удалил комнату, которую ты вёл: событий в ней не было.']);
+    assert.deepEqual(z.w.texts(p).slice(t0[1]), ['Владелец бота удалил комнату, в которой ты был администратором: событий в ней не было.']);
     assert.deepEqual(z.botLog().at(-1), { action: 'company.delete', details: '«Пустеющая», людей: 2', actor: boss.id });
     for (const u of [o, p]) {
       const me = await z.ok(u, 'me');
@@ -524,9 +524,9 @@ describe('051: удаление компании и журнал бота (US6)'
 
   it('отказы: в компании есть события, компании нет; журнал бота — только владельцу бота', async () => {
     const busy = await z.w.api(boss, 'bot.company.delete', { company: 1, confirm: 'УДАЛИТЬ' }, true);
-    assert.deepEqual([busy.status, busy.data.error], [400, 'В компании есть события — сначала удали их.']);
+    assert.deepEqual([busy.status, busy.data.error], [400, 'В комнате есть события — сначала удали их.']);
     const gone = await z.w.api(boss, 'bot.company.delete', { company: 999, confirm: 'УДАЛИТЬ' }, true);
-    assert.deepEqual([gone.status, gone.data.error], [404, 'Компания не найдена.']);
+    assert.deepEqual([gone.status, gone.data.error], [404, 'Комната не найдена.']);
     const { entries } = await z.ok(boss, 'bot.audit');
     assert.deepEqual(entries.slice(0, 1).map((e) => [e.action, e.actor_name]), [['company.delete', 'Владелец']]);
     assert.equal((await z.api(z.adm, 'bot.audit')).status, 403);

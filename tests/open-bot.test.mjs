@@ -14,11 +14,11 @@ const person = (id, name) => ({ id, name, username: 'u' + id });
 const inviteOf = (st) => /start=(inv_[a-z0-9]+)/.exec(st.settings.invite_link)[1];
 const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси пригласительную ссылку на событие.';
 const HELLO = '🎄 Привет! Это бот для игры в Тайного Санту.';
-const NAME_RULE = 'Название компании — от 1 до 40 символов.';
-const OWN_LIMIT = 'Вести можно не больше двух своих компаний — передай или удали одну из них.';
-const OWN_DELETE = 'Удалить компанию может только её владелец.';
-const DELETED = 'Владелец удалил компанию, в которой ты был администратором: событий в ней не было.';
-const MENU_OPEN = 'Сейчас ты не участвуешь ни в одном идущем событии. Создай свою компанию в приложении или попроси пригласительную ссылку на событие.';
+const NAME_RULE = 'Название комнаты — от 1 до 40 символов.';
+const OWN_LIMIT = 'Вести можно не больше двух своих комнат — передай или удали одну из них.';
+const OWN_DELETE = 'Удалить комнату может только её владелец.';
+const DELETED = 'Владелец удалил комнату, в которой ты был администратором: событий в ней не было.';
+const MENU_OPEN = 'Сейчас ты не участвуешь ни в одном идущем событии. Создай свою комнату в приложении или попроси пригласительную ссылку на событие.';
 const ME_KEYS = ['companies', 'events', 'limits', 'looks', 'me', 'registered'];
 const OPEN_FIELDS = ['shared', 'rename', 'deletable'];
 
@@ -88,11 +88,11 @@ describe('052: закрытый бот — как раньше', () => {
     const r = await z.api(mem, 'company.create', { name: 'Своя' });
     assert.deepEqual([r.status, r.data.error], [403, 'Только для владельца бота.']);
     const d = await z.api(mem, 'company.delete', { company: 1, confirm: 'УДАЛИТЬ' });
-    assert.deepEqual([d.status, d.data.error], [403, 'Удалить компанию может только владелец бота.']);
+    assert.deepEqual([d.status, d.data.error], [403, 'Удалить комнату может только владелец бота.']);
     const me = await z.me(mem);
     assert.deepEqual(Object.keys(me).filter((k) => k !== 'ok').sort(), ME_KEYS);
     for (const c of me.companies) assert.deepEqual(OPEN_FIELDS.filter((k) => k in c), []);
-    assert.equal(me.companies[0].title, 'Компания 1');
+    assert.equal(me.companies[0].title, 'Комната 1');
     assert.equal(z.w.query('SELECT COUNT(*) AS n FROM companies')[0].n, 1);
   });
 
@@ -174,7 +174,7 @@ describe('052: открытый бот — незнакомец и своя ко
   });
 });
 
-describe('052: не больше двух своих компаний', () => {
+describe('052: не больше двух своих комнат', () => {
   let z;
   const anya = person(9330, 'Аня');
   const borya = person(9331, 'Боря');
@@ -231,7 +231,7 @@ describe('052: не больше двух своих компаний', () => {
 
   it('повтор названия за минуту — «только что создана»; пустое и длинное — правило названия', async () => {
     const r = await z.api(carol, 'company.create', { name: 'Клуб' });
-    assert.deepEqual([r.status, r.data.error], [400, 'Компания с таким названием только что создана.']);
+    assert.deepEqual([r.status, r.data.error], [400, 'Комната с таким названием только что создана.']);
     for (const name of ['   ', 'я'.repeat(41)]) {
       const e = await z.api(carol, 'company.create', { name });
       assert.deepEqual([e.status, e.data.error], [400, NAME_RULE]);
@@ -291,7 +291,7 @@ describe('052: общее название', () => {
     await z.event(boss, S, 'Корпоратив', [vera]);
     const me = await z.me(vera);
     const c = me.companies.find((x) => x.id === S);
-    assert.deepEqual([c.title, 'shared' in c], ['Компания 2', false]);
+    assert.deepEqual([c.title, 'shared' in c], ['Комната 2', false]);
     assert.ok(!z.seenBy(vera).includes('Секрет владельца'));
     assert.equal((await z.me(boss)).companies.find((x) => x.id === S).title, 'Секрет владельца');
     assert.deepEqual(invariants(z.w), []);
@@ -314,7 +314,7 @@ describe('052: удаление своей пустой компании', () =>
 
   it('с событием — отказ; администратор — не владелец — отказ; слово — отказ', async () => {
     const has = await z.api(anya, 'company.delete', { company: P, confirm: 'УДАЛИТЬ' });
-    assert.deepEqual([has.status, has.data.error], [400, 'В компании есть события — сначала удали их.']);
+    assert.deepEqual([has.status, has.data.error], [400, 'В комнате есть события — сначала удали их.']);
     await z.ok(anya, 'admin.event.delete', { event: ev, confirm: 'УДАЛИТЬ' });
     const adm = await z.api(vera, 'company.delete', { company: P, confirm: 'УДАЛИТЬ' });
     assert.deepEqual([adm.status, adm.data.error], [403, OWN_DELETE]);
@@ -335,7 +335,7 @@ describe('052: удаление своей пустой компании', () =>
     assert.deepEqual(z.w.query('SELECT tg_id, is_admin FROM users WHERE tg_id IN (?, ?) ORDER BY tg_id', anya.id, vera.id),
       [{ tg_id: anya.id, is_admin: 0 }, { tg_id: vera.id, is_admin: 0 }]);
     const again = await z.api(anya, 'company.delete', { company: P, confirm: 'УДАЛИТЬ' });
-    assert.deepEqual([again.status, again.data.error], [404, 'Компания не найдена.']);
+    assert.deepEqual([again.status, again.data.error], [404, 'Комната не найдена.']);
     const me = await z.me(anya);
     assert.deepEqual([me.companies, me.create], [[], { left: 2 }]);
     assert.deepEqual(invariants(z.w), []);

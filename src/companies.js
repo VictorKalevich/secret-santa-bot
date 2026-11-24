@@ -11,26 +11,26 @@ import { no } from './result.js';
 const NAME_MAX = 40;
 // Своих компаний во владении у человека открытого бота (052)
 const OWN_MAX = 2;
-const OWN_LIMIT = 'Вести можно не больше двух своих компаний — передай или удали одну из них.';
-const RECENT = 'Компания с таким названием только что создана.';
-const NAME_RULE = 'Название компании — от 1 до 40 символов.';
+const OWN_LIMIT = 'Вести можно не больше двух своих комнат — передай или удали одну из них.';
+const RECENT = 'Комната с таким названием только что создана.';
+const NAME_RULE = 'Название комнаты — от 1 до 40 символов.';
 const LABEL_RULE = 'Название — до 40 символов.';
-const HAS_EVENTS = 'В компании есть события — сначала удали их.';
-const OWN_DELETE = 'Удалить компанию может только её владелец.';
+const HAS_EVENTS = 'В комнате есть события — сначала удали их.';
+const OWN_DELETE = 'Удалить комнату может только её владелец.';
 const SETUP_FIRST = 'Сначала открой страницу настройки /setup (см. README).';
 // Двойное нажатие «Создать» (опора — запись журнала бота, как у рассылок 024)
 const REPEAT_MS = 60 * 1000;
 const RECENT_CREATE = `NOT EXISTS (SELECT 1 FROM audit WHERE company_id = 0 AND event_id = 0 AND action = 'company.create'
   AND actor = ? AND details = ? AND created_at > ?)`;
 export const OWNER_LINK_GONE = 'Эта ссылка владельца уже использована или отозвана. Попроси новую.';
-export const NEW_COMPANY_OWNER = '👑 Ты — владелец своей компании в «Тайном Санте»: создаёшь события, приглашаешь людей, назначаешь администраторов.';
+export const NEW_COMPANY_OWNER = '👑 Ты — владелец своей комнаты в «Тайном Санте»: создаёшь события, приглашаешь людей, назначаешь администраторов.';
 const TRANSFER_TARGET = 'Передать права владельца можно только зарегистрированному человеку.';
 
 // Открытый бот (052): создавать компании может любой человек. Признак — настройка выката (vars окружения), читается
 // только здесь
 export const openBot = (env) => env.OPEN_BOT === '1';
 
-const NUMBERED = (n) => `Компания ${n}`;
+const NUMBERED = (n) => `Комната ${n}`;
 const linkOf = (settings, code) => `https://t.me/${settings.bot_username}?start=own_${code}`;
 const quoted = (name) => `«${escapeHtml(name)}»`;
 
@@ -252,21 +252,21 @@ async function ownerChange(ctx, { next, target, actor, code = '' }) {
   if (next && !code) {
     const wasOrganizer = !!users.find((u) => u.tg_id === next)?.is_admin;
     a.enqueue(next, msg(wasOrganizer
-      ? '👑 <b>Тебе переданы права владельца компании.</b> Теперь ты назначаешь и снимаешь администраторов, сбрасываешь и удаляешь события, открываешь служебный просмотр — всё в приложении.'
+      ? '👑 <b>Тебе переданы права владельца комнаты.</b> Теперь ты назначаешь и снимаешь администраторов, сбрасываешь и удаляешь события, открываешь служебный просмотр — всё в приложении.'
       : NEW_COMPANY_OWNER, appKeyboard(settings, '🛠 Открыть')));
   }
-  if (!next && !fromBot) a.enqueue(botOwnerId, msg(`👑 ${by} передал(а) тебе компанию ${quoted(company.name)}: её снова ведёшь ты.`));
+  if (!next && !fromBot) a.enqueue(botOwnerId, msg(`👑 ${by} передал(а) тебе комнату ${quoted(company.name)}: её снова ведёшь ты.`));
   // Прежний назначенный владелец остаётся администратором (передал сам — видит итог в приложении)
   if (prev && prev !== actor.tg_id) {
     a.enqueue(prev, msg(next
-      ? `ℹ️ Права владельца компании теперь у ${who}. Ты остаёшься администратором.`
-      : 'ℹ️ Компанию снова ведёт владелец бота. Ты остаёшься администратором.'));
+      ? `ℹ️ Права владельца комнаты теперь у ${who}. Ты остаёшься администратором.`
+      : 'ℹ️ Комнату снова ведёт владелец бота. Ты остаёшься администратором.'));
   }
   // Владельцу бота — кто стал владельцем, если сменил не он (по ссылке — всегда)
   if (next && botOwnerId && (code || !fromBot)) {
     a.enqueue(botOwnerId, msg(code
-      ? `👑 ${who}${target.username ? ` (@${escapeHtml(target.username)})` : ''} — теперь владелец компании ${quoted(company.name)}.`
-      : `ℹ️ ${by} передал(а) права владельца компании ${quoted(company.name)}: теперь владелец — ${who}.`));
+      ? `👑 ${who}${target.username ? ` (@${escapeHtml(target.username)})` : ''} — теперь владелец комнаты ${quoted(company.name)}.`
+      : `ℹ️ ${by} передал(а) права владельца комнаты ${quoted(company.name)}: теперь владелец — ${who}.`));
   }
   // Остальным администраторам компании — без звука
   for (const u of adminRecipients(users, [actor.tg_id, next, prev, botOwnerId])) {
@@ -384,9 +384,9 @@ export async function deleteCompany(ctx, companyId, own = false) {
     ? atomic(db, 'EXISTS (SELECT 1 FROM companies WHERE id = ? AND owner_id = ?) AND NOT EXISTS (SELECT 1 FROM events WHERE company_id = ?)', id, me.tg_id, id)
     : atomic(db, 'EXISTS (SELECT 1 FROM companies WHERE id = ?) AND NOT EXISTS (SELECT 1 FROM events WHERE company_id = ?)', id, id);
   for (const u of adminRecipients(r.people, [me.tg_id])) {
-    a.enqueue(u.tg_id, msg(own ? 'Владелец удалил компанию, в которой ты был администратором: событий в ней не было.'
-      : u.tg_id === c.owner_id ? 'Владелец бота удалил компанию, которую ты вёл: событий в ней не было.'
-      : 'Владелец бота удалил компанию, в которой ты был администратором: событий в ней не было.'));
+    a.enqueue(u.tg_id, msg(own ? 'Владелец удалил комнату, в которой ты был администратором: событий в ней не было.'
+      : u.tg_id === c.owner_id ? 'Владелец бота удалил комнату, которую ты вёл: событий в ней не было.'
+      : 'Владелец бота удалил комнату, в которой ты был администратором: событий в ней не было.'));
   }
   a.audit(BOT_LOG, me.tg_id, 'company.delete', `«${c.name}», людей: ${r.people.length}`);
   a.where(

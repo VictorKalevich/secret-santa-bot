@@ -98,7 +98,7 @@ button{font:inherit;padding:10px 16px;border:0;border-radius:10px;background:#24
   await call('setMyDescription', {
     description: '🎄 Закрытый бот для игры в Тайного Санту: письма Санте, жеребьёвка с исключениями, анонимные вопросы. Вход по пригласительной ссылке на событие.',
   });
-  await call('setMyShortDescription', { short_description: '🎄 Тайный Санта для своей компании' });
+  await call('setMyShortDescription', { short_description: '🎄 Тайный Санта для друзей, семьи и коллег' });
 
   await setSettings(env.DB, { base_url: origin, bot_username: me.result.username });
 

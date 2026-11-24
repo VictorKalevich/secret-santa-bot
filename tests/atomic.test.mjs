@@ -769,8 +769,8 @@ describe('атомарность: компании (051)', () => {
     await z.w.together([() => z.w.say(p, '/start ' + code), () => z.w.say(q, '/start ' + code)], { sameMoment: true });
     assert.ok([p.id, q.id].includes(z.owner()));
     const [won, lost] = z.owner() === p.id ? [p, q] : [q, p];
-    assert.equal(z.sent(boss, 'теперь владелец компании'), 1);
-    assert.equal(z.sent(won, '👑 Ты — владелец своей компании'), 1);
+    assert.equal(z.sent(boss, 'теперь владелец комнаты'), 1);
+    assert.equal(z.sent(won, '👑 Ты — владелец своей комнаты'), 1);
     assert.equal(z.sent(lost, GONE), 1);
     assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.owner' AND company_id = ?", z.C)[0].n, 1);
     assert.deepEqual(invariants(z.w), []);
@@ -783,7 +783,7 @@ describe('атомарность: компании (051)', () => {
     assert.deepEqual(sorted(rs), [200, 400]);
     assert.equal(rs.find((r) => r.status === 400).data.error, 'Права владельца уже переданы.');
     assert.equal(z.owner(), p.id);
-    assert.equal(z.sent(p, '👑 Ты — владелец своей компании'), 1);
+    assert.equal(z.sent(p, '👑 Ты — владелец своей комнаты'), 1);
     assert.equal(z.audit('company.owner'), 2, 'журнал компании и журнал бота');
     assert.deepEqual(invariants(z.w), []);
   });
@@ -838,9 +838,9 @@ describe('атомарность: компании (051)', () => {
     const [p] = z.people;
     const rs = await z.twice(boss, 'bot.company.delete', { company: z.C, confirm: 'УДАЛИТЬ' }, { sameMoment: true });
     assert.deepEqual(sorted(rs), [200, 404]);
-    assert.equal(rs.find((r) => r.status === 404).data.error, 'Компания не найдена.');
+    assert.equal(rs.find((r) => r.status === 404).data.error, 'Комната не найдена.');
     assert.equal(z.left(), 0);
-    assert.equal(z.sent(p, 'Владелец бота удалил компанию'), 1);
+    assert.equal(z.sent(p, 'Владелец бота удалил комнату'), 1);
     assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 1);
     assert.deepEqual(invariants(z.w), []);
   });
@@ -855,14 +855,14 @@ describe('атомарность: компании (051)', () => {
       ], { writeOrder });
       if (writeOrder[0] === 0) {
         assert.deepEqual(statuses(rs), [200, 404]);
-        assert.equal(rs[1].data.error, 'Компания не найдена.');
+        assert.equal(rs[1].data.error, 'Комната не найдена.');
         assert.equal(z.left(), 0);
-        assert.equal(z.sent(p, 'Владелец бота удалил компанию'), 1);
+        assert.equal(z.sent(p, 'Владелец бота удалил комнату'), 1);
       } else {
         assert.deepEqual(statuses(rs), [400, 200]);
-        assert.equal(rs[0].data.error, 'В компании есть события — сначала удали их.');
+        assert.equal(rs[0].data.error, 'В комнате есть события — сначала удали их.');
         assert.equal(z.left(), 1);
-        assert.equal(z.sent(p, 'Владелец бота удалил компанию'), 0);
+        assert.equal(z.sent(p, 'Владелец бота удалил комнату'), 0);
         assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 0);
       }
       assert.equal(z.w.query('SELECT COUNT(*) AS n FROM events WHERE company_id NOT IN (SELECT id FROM companies)')[0].n, 0);
@@ -872,7 +872,7 @@ describe('атомарность: компании (051)', () => {
 });
 
 describe('атомарность: своя компания в открытом боте (052)', () => {
-  const LIMIT = 'Вести можно не больше двух своих компаний — передай или удали одну из них.';
+  const LIMIT = 'Вести можно не больше двух своих комнат — передай или удали одну из них.';
   const anya = { id: 9401, name: 'Аня', username: 'anya' };
   const vera = { id: 9402, name: 'Вера', username: 'vera' };
   // Открытый бот: Аня пришла без ссылки
@@ -891,7 +891,7 @@ describe('атомарность: своя компания в открытом 
     const z = await open();
     const rs = await z.both([{ name: 'Своя' }, { name: 'Своя' }], { sameMoment: true });
     assert.deepEqual(sorted(rs), [200, 400]);
-    assert.equal(rs.find((r) => r.status === 400).data.error, 'Компания с таким названием только что создана.');
+    assert.equal(rs.find((r) => r.status === 400).data.error, 'Комната с таким названием только что создана.');
     assert.deepEqual([z.own(), z.created()], [1, 1]);
     assert.deepEqual(invariants(z.w), []);
   });
@@ -920,7 +920,7 @@ describe('атомарность: своя компания в открытом 
     const rs = await z.w.together([1, 2].map(() => () => z.w.api(anya, 'company.delete', { company: C, confirm: 'УДАЛИТЬ' }, true)), { sameMoment: true });
     assert.deepEqual(sorted(rs), [200, 404]);
     assert.equal(z.own(), 0);
-    assert.equal(z.w.texts(vera).filter((t) => t.includes('Владелец удалил компанию')).length, 1);
+    assert.equal(z.w.texts(vera).filter((t) => t.includes('Владелец удалил комнату')).length, 1);
     assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 1);
     assert.deepEqual(invariants(z.w), []);
   });

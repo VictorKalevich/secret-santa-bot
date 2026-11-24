@@ -5323,7 +5323,7 @@
   },
   "051 outsider company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 outsider bot.company.create": {
    "status": 403,
@@ -5347,7 +5347,7 @@
   },
   "051 member company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 member bot.company.create": {
    "status": 403,
@@ -5371,7 +5371,7 @@
   },
   "051 admin company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 admin bot.company.create": {
    "status": 403,
@@ -5395,15 +5395,15 @@
   },
   "051 owner company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 owner bot.company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "051 owner bot.company.link": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 owner bot.company.delete": {
    "status": 400,
@@ -5419,15 +5419,15 @@
   },
   "051 missing-owner company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 missing-owner bot.company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "051 missing-owner bot.company.link": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 missing-owner bot.company.delete": {
    "status": 400,
@@ -5443,7 +5443,7 @@
   },
   "051 missing-admin company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 missing-admin bot.company.create": {
    "status": 403,
@@ -5467,7 +5467,7 @@
   },
   "051 missing-member company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 missing-member bot.company.create": {
    "status": 403,
@@ -5491,15 +5491,15 @@
   },
   "051 none-owner company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 none-owner bot.company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "051 none-owner bot.company.link": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 none-owner bot.company.delete": {
    "status": 400,
@@ -5515,7 +5515,7 @@
   },
   "051 none-admin company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 none-admin bot.company.create": {
    "status": 403,
@@ -5539,7 +5539,7 @@
   },
   "051 none-member company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 none-member bot.company.create": {
    "status": 403,
@@ -5563,15 +5563,15 @@
   },
   "051 finished-owner company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-owner bot.company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "051 finished-owner bot.company.link": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-owner bot.company.delete": {
    "status": 400,
@@ -5587,7 +5587,7 @@
   },
   "051 finished-admin company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-admin bot.company.create": {
    "status": 403,
@@ -5611,7 +5611,7 @@
   },
   "051 finished-member company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-member bot.company.create": {
    "status": 403,
@@ -5635,7 +5635,7 @@
   },
   "051 finished-delivery-member company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-delivery-member bot.company.create": {
    "status": 403,
@@ -5659,15 +5659,15 @@
   },
   "051 finished-old-owner company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-old-owner bot.company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "051 finished-old-owner bot.company.link": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-old-owner bot.company.delete": {
    "status": 400,
@@ -5683,7 +5683,7 @@
   },
   "051 finished-old-admin company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-old-admin bot.company.create": {
    "status": 403,
@@ -5707,7 +5707,7 @@
   },
   "051 finished-old-member company.label.set": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 finished-old-member bot.company.create": {
    "status": 403,
@@ -5731,7 +5731,7 @@
   },
   "051 extra create-repeat": {
    "status": 400,
-   "error": "Компания с таким названием только что создана."
+   "error": "Комната с таким названием только что создана."
   },
   "051 extra label-long": {
    "status": 400,
@@ -5739,23 +5739,23 @@
   },
   "051 extra label-missing": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 extra label-not-visible": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 extra create-blank": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "051 extra create-long": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "051 extra link-missing": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 extra delete-word": {
    "status": 400,
@@ -5763,11 +5763,11 @@
   },
   "051 extra delete-has-events": {
    "status": 400,
-   "error": "В компании есть события — сначала удали их."
+   "error": "В комнате есть события — сначала удали их."
   },
   "051 extra delete-missing": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "051 extra owner.transfer-admin": {
    "status": 403,
@@ -5783,7 +5783,7 @@
   },
   "051 extra owner.transfer-no-company": {
    "status": 400,
-   "error": "Выбери компанию."
+   "error": "Выбери комнату."
   },
   "051 extra bot.owner.transfer-self": {
    "status": 400,
@@ -5831,7 +5831,7 @@
   },
   "052 owner company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 owner company.delete": {
    "status": 400,
@@ -5839,7 +5839,7 @@
   },
   "052 missing-owner company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 missing-owner company.delete": {
    "status": 400,
@@ -5863,7 +5863,7 @@
   },
   "052 none-owner company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 none-owner company.delete": {
    "status": 400,
@@ -5887,7 +5887,7 @@
   },
   "052 finished-owner company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 finished-owner company.delete": {
    "status": 400,
@@ -5919,7 +5919,7 @@
   },
   "052 finished-old-owner company.create": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 finished-old-owner company.delete": {
    "status": 400,
@@ -5947,11 +5947,11 @@
   },
   "052 extra create-bot-owner-blank": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 extra delete-closed": {
    "status": 403,
-   "error": "Удалить компанию может только владелец бота."
+   "error": "Удалить комнату может только владелец бота."
   },
   "052 extra delete-word": {
    "status": 400,
@@ -5959,15 +5959,15 @@
   },
   "052 extra delete-has-events": {
    "status": 400,
-   "error": "В компании есть события — сначала удали их."
+   "error": "В комнате есть события — сначала удали их."
   },
   "052 open create-blank": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 open create-long": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 open create-first": {
    "status": 200,
@@ -5975,7 +5975,7 @@
   },
   "052 open create-repeat": {
    "status": 400,
-   "error": "Компания с таким названием только что создана."
+   "error": "Комната с таким названием только что создана."
   },
   "052 open create-second": {
    "status": 200,
@@ -5983,11 +5983,11 @@
   },
   "052 open create-limit": {
    "status": 400,
-   "error": "Вести можно не больше двух своих компаний — передай или удали одну из них."
+   "error": "Вести можно не больше двух своих комнат — передай или удали одну из них."
   },
   "052 open label-blank": {
    "status": 400,
-   "error": "Название компании — от 1 до 40 символов."
+   "error": "Название комнаты — от 1 до 40 символов."
   },
   "052 open delete-word": {
    "status": 400,
@@ -5995,19 +5995,19 @@
   },
   "052 open delete-missing": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "052 open delete-not-visible": {
    "status": 404,
-   "error": "Компания не найдена."
+   "error": "Комната не найдена."
   },
   "052 open delete-not-owner": {
    "status": 403,
-   "error": "Удалить компанию может только её владелец."
+   "error": "Удалить комнату может только её владелец."
   },
   "052 open delete-has-events": {
    "status": 400,
-   "error": "В компании есть события — сначала удали их."
+   "error": "В комнате есть события — сначала удали их."
   },
   "052 open delete-own": {
    "status": 200,

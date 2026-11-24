@@ -1,7 +1,8 @@
 // 051 (контракт specs/051-companies/contracts/companies.md, раздел 5): мини-приложение и компании — правила по склейке.
 // Общие действия организатора — только через capi (компания открытого экрана); права в компании (state.me.is_admin,
 // is_owner) пишет только enterCompany; корневой экран — «Компании» при двух и больше, иначе главный экран единственной;
-// слово «компания» — только в части 04-companies и в перечисленных местах (FR-5127); часть 04-companies — в APP_PARTS.
+// слово «комната» (059; прежде «компания») — только в части 04-companies и в перечисленных местах (FR-5127); часть
+// 04-companies — в APP_PARTS.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { APP, PARTS, where, code, topBlock, ownerOf } from './support/app-source.mjs';
@@ -31,21 +32,22 @@ function roleWrites(text) {
   return found;
 }
 
-// Слово «компания» в текстах частей, кроме 04-companies и разрешённых мест: [часть, кусок строки]
+// Слово «комната» (059; до него — «компания») в текстах частей, кроме 04-companies и разрешённых мест: [часть, кусок
+// строки]. Прежнее слово «компани…» вне комментариев — нигде, и в 04-companies
 const COMPANY_WORD = [
-  ['03-home.js.txt', 'Ты здесь как владелец бота: в списках компании'], // плашка гостя (владелец бота)
-  ['03-home.js.txt', 'Твои изменения записываются в журнал компании'],
-  ['03-home.js.txt', 'владельцем этой компании?'], // 👑 владельца бота
-  ['06-admin.js.txt', 'ту же компанию на следующий год'], // прежний текст (до 051): «компания» — люди события
-  ['07-vault-audit.js.txt', "'company.create': '🏢 Создана компания'"], // записи журнала бота
+  ['03-home.js.txt', 'Ты здесь как владелец бота: в списках комнаты'], // плашка гостя (владелец бота)
+  ['03-home.js.txt', 'Твои изменения записываются в журнал комнаты'],
+  ['03-home.js.txt', 'владельцем этой комнаты?'], // 👑 владельца бота
+  ['07-vault-audit.js.txt', "'company.create': '🚪 Создана комната'"], // записи журнала бота
 ];
 function companyWords(parts, allowed = COMPANY_WORD) {
   const found = [];
   for (const p of parts) {
-    if (p.name === '04-companies.js.txt') continue;
     p.text.split('\n').forEach((line, i) => {
       const c = code(line);
-      if (/компани/iu.test(c) && !allowed.some(([name, part]) => name === p.name && c.includes(part))) found.push(`src/app/${p.name}:${i + 1}`);
+      const room = /комнат/iu.test(c) && p.name !== '04-companies.js.txt'
+        && !allowed.some(([name, part]) => name === p.name && c.includes(part));
+      if (room || /компани/iu.test(c)) found.push(`src/app/${p.name}:${i + 1}`);
     });
   }
   return found;
@@ -120,12 +122,14 @@ test('«‹» главного экрана компании — по withList; 
     { hero: false, back: true, system: true, tools: true }, 'от противного');
 });
 
-test('слово «компания» — только в части 04-companies и в разрешённых местах', () => {
+test('слово «комната» — только в части 04-companies и в разрешённых местах; «компания» — нигде (059)', () => {
   assert.deepEqual(companyWords(PARTS), []);
-  // от противного: подсказка в событии и устаревший список
-  const bad = PARTS.map((p) => (p.name === '05-event.js.txt' ? { ...p, text: p.text + "    ui.hint('Событие компании');\n" } : p));
+  // от противного: подсказка в событии, устаревший список, прежнее слово в 04-companies
+  const bad = PARTS.map((p) => (p.name === '05-event.js.txt' ? { ...p, text: p.text + "    ui.hint('Событие комнаты');\n" } : p));
   assert.equal(companyWords(bad).length, 1);
   assert.equal(companyWords(PARTS, COMPANY_WORD.slice(1)).length, 1);
+  const old = PARTS.map((p) => (p.name === '04-companies.js.txt' ? { ...p, text: p.text + "    ui.hint('Новая компания');\n" } : p));
+  assert.equal(companyWords(old).length, 1);
 });
 
 test('часть 04-companies — в сборке между главным экраном и событием', () => {
