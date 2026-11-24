@@ -385,7 +385,7 @@ export async function deleteCompany(ctx, companyId, own = false) {
   a.where(
     `UPDATE users SET is_admin = (
        EXISTS (SELECT 1 FROM company_members WHERE user_id = users.tg_id AND is_admin = 1 AND company_id != ?)
-       OR tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'))
+       OR tg_id = COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'), 0))
       WHERE tg_id IN (SELECT user_id FROM company_members WHERE company_id = ? AND is_admin = 1)`,
     id, id,
   );

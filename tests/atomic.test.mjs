@@ -1,6 +1,6 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 69 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 73 проверки «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
@@ -12,7 +12,8 @@
 // обоих порядках); одна — роли в двух компаниях (050: назначение в А и в Б одновременно, ×2 в одной компании в одну
 // миллисекунду); девять — компании (051: два перехода по ссылке владельца в одну миллисекунду, назначение ×2, «Вести самому»
 // ↔ передача и новая ссылка ↔ переход — в обоих порядках, удаление ×2 в одну миллисекунду, удаление ↔ создание события в
-// обоих порядках). После сценариев с ролями и переносом — инварианты компаний
+// обоих порядках); четыре — своя компания в открытом боте (052: создание ×2 с тем же названием в одну миллисекунду, ×2 с
+// разными названиями у владельца одной — в обоих порядках, удаление ×2). После сценариев с ролями и переносом — инварианты компаний
 // (050, tests/support/companies.mjs). Известный дефект — todo с номером фичи, которая его чинит: фича снимает пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -868,4 +869,59 @@ describe('атомарность: компании (051)', () => {
       assert.deepEqual(invariants(z.w), []);
     });
   }
+});
+
+describe('атомарность: своя компания в открытом боте (052)', () => {
+  const LIMIT = 'Вести можно не больше двух своих компаний — передай или удали одну из них.';
+  const anya = { id: 9401, name: 'Аня', username: 'anya' };
+  const vera = { id: 9402, name: 'Вера', username: 'vera' };
+  // Открытый бот: Аня пришла без ссылки
+  async function open() {
+    const w = await startWorld({ open: true });
+    await w.setup();
+    await w.say(anya, '/start');
+    await w.say(anya, anya.name);
+    const own = () => w.query('SELECT COUNT(*) AS n FROM companies WHERE owner_id = ?', anya.id)[0].n;
+    const created = () => w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.create'")[0].n;
+    const both = (bodies, opts) => w.together(bodies.map((b) => () => w.api(anya, 'company.create', b, true)), opts);
+    return { w, own, created, both };
+  }
+
+  it('company.create ×2 в одну миллисекунду с тем же названием — одна компания, одна запись журнала', async () => {
+    const z = await open();
+    const rs = await z.both([{ name: 'Своя' }, { name: 'Своя' }], { sameMoment: true });
+    assert.deepEqual(sorted(rs), [200, 400]);
+    assert.equal(rs.find((r) => r.status === 400).data.error, 'Компания с таким названием только что создана.');
+    assert.deepEqual([z.own(), z.created()], [1, 1]);
+    assert.deepEqual(invariants(z.w), []);
+  });
+
+  for (const writeOrder of [[0, 1], [1, 0]]) {
+    it(`у владельца одной: ×2 с разными названиями в одну миллисекунду, первой пишет ${writeOrder[0] + 1}-я — одна компания, второй — лимит`, async () => {
+      const z = await open();
+      await z.w.api(anya, 'company.create', { name: 'Первая' });
+      const rs = await z.both([{ name: 'Вторая' }, { name: 'Третья' }], { sameMoment: true, writeOrder });
+      assert.deepEqual(statuses(rs), writeOrder[0] === 0 ? [200, 400] : [400, 200]);
+      assert.equal(rs.find((r) => r.status === 400).data.error, LIMIT);
+      assert.deepEqual([z.own(), z.created()], [2, 2]);
+      assert.equal(z.w.query('SELECT COUNT(*) AS n FROM company_members WHERE user_id = ?', anya.id)[0].n, 2);
+      assert.deepEqual(invariants(z.w), []);
+    });
+  }
+
+  it('company.delete ×2 в одну миллисекунду — одно удаление, одно сообщение администратору, одна запись', async () => {
+    const z = await open();
+    const C = (await z.w.api(anya, 'company.create', { name: 'Пустая' })).company;
+    const ev = (await z.w.api(anya, 'admin.events.create', { company: C, title: 'Было' })).event.id;
+    await z.w.say(vera, '/start ' + inviteOf(await z.w.api(anya, 'admin.state', { event: ev })));
+    await z.w.say(vera, vera.name);
+    await z.w.api(anya, 'admin.role.grant', { company: C, id: vera.id });
+    await z.w.api(anya, 'admin.event.delete', { event: ev, confirm: 'УДАЛИТЬ' });
+    const rs = await z.w.together([1, 2].map(() => () => z.w.api(anya, 'company.delete', { company: C, confirm: 'УДАЛИТЬ' }, true)), { sameMoment: true });
+    assert.deepEqual(sorted(rs), [200, 404]);
+    assert.equal(z.own(), 0);
+    assert.equal(z.w.texts(vera).filter((t) => t.includes('Владелец удалил компанию')).length, 1);
+    assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 1);
+    assert.deepEqual(invariants(z.w), []);
+  });
 });

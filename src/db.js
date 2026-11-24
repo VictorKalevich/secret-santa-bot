@@ -131,13 +131,14 @@ export function joinCompanyStmt(db, companyId, userId, guard = '1', ...args) {
 }
 
 // Общий признак users.is_admin (050, инвариант I4): администратор хотя бы в одной компании или владелец бота. Пишет его
-// только этот оператор (и перенос — правилом MAX)
+// только этот оператор (и перенос — правилом MAX). Строки owner_id может не быть (открытый бот, владелец бота ещё не
+// открыл ссылку /setup): без COALESCE признак стал бы NULL
 export function adminFlagStmt(db, userId) {
   return db
     .prepare(
       `UPDATE users SET is_admin = (
          EXISTS (SELECT 1 FROM company_members WHERE user_id = users.tg_id AND is_admin = 1)
-         OR tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'))
+         OR tg_id = COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'), 0))
         WHERE tg_id = ?`
     )
     .bind(userId);
