@@ -28,7 +28,7 @@ const SETUP_FORM = `<form method="post" action="/setup" autocomplete="off">
 <button type="submit">${t('setup.form.submit')}</button>
 </form>
 <script>${CLEARABLE_INPUT}
-bindClearableInput(document.querySelector('.ds-clearable'), '${t('setup.form.field')}');</script>`;
+bindClearableInput(document.querySelector('.ds-clearable'), '${t('setup.form.clear')}');</script>`;
 
 export async function setup(request, url, env) {
   const page = (body, status = 200) =>

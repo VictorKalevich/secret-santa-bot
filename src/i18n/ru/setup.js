@@ -4,7 +4,7 @@ export default {
   'setup.title': 'Настройка',
   // Форма ключа
   'setup.form.label': 'Ключ настройки (значение секрета ADMIN_SECRET)',
-  'setup.form.field': 'Ключ настройки',
+  'setup.form.clear': 'Очистить поле «Ключ настройки»',
   'setup.form.submit': 'Настроить бота',
   'setup.noSecret.title': 'Нужен ADMIN_SECRET',
   'setup.noSecret.text': 'Задай секрет ADMIN_SECRET длиной от 8 символов (см. инструкцию).',
