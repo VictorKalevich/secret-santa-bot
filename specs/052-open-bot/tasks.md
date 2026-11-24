@@ -32,17 +32,17 @@
 Цель: у владельца бота «‹» к «Компаниям», раздела «Компании» на экране компании нет; остальные — без изменений.
 Независимая проверка: Chrome `checkCompanies`, `tests/app-companies.test.mjs`.
 
-- [ ] T005 [US1] `src/app/02-core.js.txt`: `withList()` — `state.companies.length >= 2 || state.botOwner || state.open`;
+- [X] T005 [US1] `src/app/02-core.js.txt`: `withList()` — `state.companies.length >= 2 || state.botOwner || state.open`;
   `companyTitle()` — название компании при `withList()` и открытой компании.
-- [ ] T006 [US1] `src/app/03-home.js.txt`: `state.open`, `state.create` в начальном состоянии и в `reloadMe` (`d.open`,
+- [X] T006 [US1] `src/app/03-home.js.txt`: `state.open`, `state.create` в начальном состоянии и в `reloadMe` (`d.open`,
   `d.create`); `goBack`, `syncBack`, `renderHome` (`heroBack.hidden`) — по `withList()`; строка
   `companiesTools(state.company)` из `renderHome` удалена.
-- [ ] T007 [US1] `src/app/04-companies.js.txt`: `companiesTools()` без параметра `single` (только экран «Компании»);
+- [X] T007 [US1] `src/app/04-companies.js.txt`: `companiesTools()` без параметра `single` (только экран «Компании»);
   `goRoot()` и `src/app/09-start.html` `start()` — корневой экран «Компании», если компаний две и больше или (их нет и
   `withList()`), иначе вход в единственную; `openCreateCompany` после создания — `reloadMe()` и `openCompany(id)`.
-- [ ] T008 [US1] `tests/app-companies.test.mjs`: правило корневого экрана — через `withList()` (и «от противного»);
+- [X] T008 [US1] `tests/app-companies.test.mjs`: правило корневого экрана — через `withList()` (и «от противного»);
   `withList` — одно определение в `02-core`, `heroBack` и «Назад» — по нему.
-- [ ] T009 [US1] `tests/screenshots.mjs` `checkCompanies`: владелец бота с одной компанией — «‹» есть, раздела «Компании»
+- [X] T009 [US1] `tests/screenshots.mjs` `checkCompanies`: владелец бота с одной компанией — «‹» есть, раздела «Компании»
   нет, шапка — название компании; «‹» → «Компании» → создание → экран новой компании → «‹» → две строки; участник с одной
   компанией — как раньше.
 

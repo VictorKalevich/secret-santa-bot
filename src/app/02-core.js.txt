@@ -209,8 +209,11 @@
     const tail = botRun ? ' бота' : '';
     return { nom: 'владелец' + tail, gen: 'владельца' + tail, dat: 'владельцу' + tail, ins: 'владельцем' + tail };
   }
-  // Заголовок главного экрана: у человека с несколькими компаниями — её название, иначе прежний
-  const companyTitle = () => (state.companies.length >= 2 && state.company ? state.company.title : 'Тайный Санта');
+  // Экран «Компании» доступен (052): компаний несколько, владелец бота или открытый бот — тогда у главного экрана
+  // компании «‹» к списку
+  const withList = () => state.companies.length >= 2 || state.botOwner || state.open;
+  // Заголовок главного экрана: если есть список компаний — её название, иначе прежний
+  const companyTitle = () => (withList() && state.company ? state.company.title : 'Тайный Санта');
 
   let toastTimer;
   function toast(text) {

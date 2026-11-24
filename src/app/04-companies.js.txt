@@ -2,8 +2,11 @@
   // ---------- компании (051) ----------
   // Экран «Компании» — корневой у человека с несколькими компаниями: строки компаний (вход, своё название), у владельца
   // бота — шторка «Компания» (кто ведёт, ссылка владельца, удаление) и инструменты: создать компанию, журнал бота, передать
-  // права владельца бота. Контракт — specs/051-companies/contracts/companies.md, раздел 5
+  // права владельца бота. Контракт — specs/051-companies/contracts/companies.md, раздел 5. 052 (открытый бот,
+  // specs/052-open-bot/contracts/open-bot.md, раздел 4): создать компанию может каждый — не больше двух своих; у своей
+  // компании — общее название и удаление пустой
   const ROLE_CHIPS = { owner: '👑 владелец', admin: '🛠 администратор', member: 'участник', guest: '👁 владелец бота' };
+  const OWN_LIMIT = 'Вести можно не больше двух своих компаний — передай или удали одну из них.';
 
   function renderCompanies() {
     const me = state.me;
@@ -12,15 +15,20 @@
     const greet = () => { heroSub.textContent = 'Привет, ' + me.name + '!'; };
     greet();
     document.getElementById('tabs').hidden = true;
-    const nodes = [ui.section('Компании'), h('div', { class: 'ds-card ds-card--flush' }, state.companies.map((c) => companyRow(c, true)))];
-    if (state.botOwner) nodes.push(...companiesTools(null));
+    const nodes = [ui.section('Компании')];
+    if (state.companies.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, state.companies.map((c) => companyRow(c, true))));
+    else nodes.push(ui.hint(state.botOwner ? 'Компаний пока нет.' : 'Компаний пока нет. Создай свою — или попроси пригласительную ссылку на событие.', 'ds-hint--inset'));
+    if (state.botOwner) nodes.push(...companiesTools());
+    else if (state.create) nodes.push(ownCreate());
     nodes.push(...personalSections(state.nav, greet));
     main.replaceChildren(...nodes);
   }
 
-  // Корневой экран: «Компании», если их несколько; иначе главный экран единственной компании (или без компании)
+  // Корневой экран (052): «Компании», если их несколько или их нет, а список доступен (withList); иначе главный экран
+  // единственной компании (или без компании)
+  const listFirst = () => state.companies.length >= 2 || (!state.companies.length && withList());
   function goRoot() {
-    return state.companies.length >= 2 ? goCompanies() : openCompany(state.companies.length ? state.companies[0].id : null);
+    return listFirst() ? goCompanies() : openCompany(state.companies.length ? state.companies[0].id : null);
   }
 
   // Строка компании: нажатие — вход (link), «✏️» и «⚙️» компанию не открывают
@@ -57,33 +65,43 @@
       clearable(input, 'Название'), save]);
   }
 
-  // Инструменты владельца бота: под списком «Компаний» и на главном экране, если компания одна (single — она)
-  function companiesTools(single) {
+  // Инструменты владельца бота — только на экране «Компании» (052): создать компанию, журнал бота, передать права
+  function companiesTools() {
     const create = ui.btn('🏢 Создать компанию', 'secondary', 'ds-btn--block');
     create.addEventListener('click', openCreateCompany);
     const log = ui.btn('📜 Журнал бота', 'secondary', 'ds-btn--block');
     log.addEventListener('click', () => openAudit(null, true));
     const pass = ui.btn('👑 Передать права владельца бота', 'secondary', 'ds-btn--block');
     pass.addEventListener('click', () => openBotOwnerSheet(pass));
-    const nodes = state.view === 'companies' ? [] : [ui.section('Компании')];
-    if (single) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, companyRow(single, false)));
-    nodes.push(ui.card(create, log, pass));
-    return nodes;
+    return [ui.card(create, log, pass)];
   }
 
+  // Своя компания человека открытого бота (052): две своих — кнопка недоступна, под ней — почему
+  function ownCreate() {
+    const create = ui.btn('🏢 Создать компанию', 'secondary', 'ds-btn--block');
+    const full = state.create.left === 0;
+    create.disabled = full;
+    create.addEventListener('click', openCreateCompany);
+    return ui.card(create, full ? ui.hint(OWN_LIMIT) : null);
+  }
+
+  // Новая компания: владельцу бота — компания, которую ведёт он (051); человеку открытого бота — своя, он её владелец
+  // (052). После создания — её главный экран
   function openCreateCompany() {
+    const own = !state.botOwner;
     const name = h('input', { class: 'ds-input', type: 'text', maxlength: 40, placeholder: 'Например: Работа', autocomplete: 'off' });
     const ok = ui.btn('Создать', '', 'ds-btn--block');
     ok.addEventListener('click', () => busy(ok, async () => {
       if (!name.value.trim()) return toast('Напиши название');
-      await api('bot.company.create', { name: name.value });
+      const r = await api(own ? 'company.create' : 'bot.company.create', { name: name.value });
       closeSheet();
       toast('🏢 Компания создана');
-      await reloadMe();
-      await goRoot();
+      await openCompany(r.company);
     }));
     openSheet('Новая компания', [
-      ui.hint('У компании свои люди, события, семьи и администраторы. Её можно вести самому или отдать владельцу по ссылке.'),
+      ui.hint(own
+        ? 'Ты станешь владельцем компании: создаёшь события, приглашаешь людей, назначаешь администраторов. Название увидят все люди компании.'
+        : 'У компании свои люди, события, семьи и администраторы. Её можно вести самому или отдать владельцу по ссылке.'),
       clearable(name, 'Название компании'), ok]);
   }
 

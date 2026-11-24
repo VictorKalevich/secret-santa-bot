@@ -51,14 +51,33 @@ function companyWords(parts, allowed = COMPANY_WORD) {
   return found;
 }
 
-// Выбор корневого экрана в start(): при ≥ 2 компаниях — «Компании», иначе вход в единственную
+// Выбор корневого экрана в start() и goRoot() (052): «Компании» — по listFirst (≥ 2 компаний или их нет, а список
+// доступен), иначе вход в единственную; listFirst и withList — по одному определению с прежним смыслом
 function rootRule(text) {
   const lines = text.split('\n');
-  const [a, b] = topBlock(lines, 'start');
-  const body = lines.slice(a, b + 1).map(code).join('\n');
+  const body = (name) => {
+    const found = topBlock(lines, name);
+    return found ? lines.slice(found[0], found[1] + 1).map(code).join('\n') : '';
+  };
+  const start = body('start');
   return {
-    companies: /if \(state\.companies\.length >= 2\) \{\s*state\.view = 'companies';/.test(body),
-    single: /enterCompany\(state\.companies\.length \? state\.companies\[0\]\.id : null\)/.test(body),
+    companies: /if \(listFirst\(\)\) \{\s*state\.view = 'companies';/.test(start)
+      && /return listFirst\(\) \? goCompanies\(\) :/.test(body('goRoot')),
+    single: /enterCompany\(state\.companies\.length \? state\.companies\[0\]\.id : null\)/.test(start),
+    listFirst: /^\s*const listFirst = \(\) => state\.companies\.length >= 2 \|\| \(!state\.companies\.length && withList\(\)\);$/m.test(body('listFirst')),
+    withList: /^\s*const withList = \(\) => state\.companies\.length >= 2 \|\| state\.botOwner \|\| state\.open;$/m.test(body('withList')),
+  };
+}
+
+// «‹» и «Назад» главного экрана компании — по withList (052): renderHome, goBack, syncBack
+function backRule(text) {
+  const lines = text.split('\n');
+  const body = (name) => lines.slice(...topBlock(lines, name).map((x, i) => x + i)).map(code).join('\n');
+  return {
+    hero: /heroBack\.hidden = !withList\(\);/.test(body('renderHome')),
+    back: /state\.view === 'home' && withList\(\)\) return goCompanies\(\)/.test(body('goBack')),
+    system: /state\.view === 'home' && withList\(\)\)\) && !heroBack\.hidden/.test(body('syncBack')),
+    tools: !/companiesTools\(/.test(body('renderHome')),
   };
 }
 
@@ -86,10 +105,19 @@ test('права в компании (state.me.is_admin, is_owner) пишет т
   assert.deepEqual(roleWrites(bad), [2]);
 });
 
-test('корневой экран: «Компании» при двух и больше, иначе главный экран единственной компании', () => {
-  assert.deepEqual(rootRule(APP), { companies: true, single: true });
-  assert.deepEqual(rootRule(APP.replace('state.companies.length >= 2) {\n        state.view', 'state.companies.length >= 1) {\n        state.view')),
-    { companies: false, single: true }, 'от противного');
+test('корневой экран: «Компании» при двух и больше или без компаний при доступном списке, иначе главный экран единственной', () => {
+  const all = { companies: true, single: true, listFirst: true, withList: true };
+  assert.deepEqual(rootRule(APP), all);
+  // от противного
+  assert.deepEqual(rootRule(APP.replace("if (listFirst()) {\n        state.view", "if (state.companies.length >= 2) {\n        state.view")),
+    { ...all, companies: false });
+  assert.deepEqual(rootRule(APP.replace('|| state.botOwner || state.open;', '|| state.botOwner;')), { ...all, withList: false });
+});
+
+test('«‹» главного экрана компании — по withList; раздела «Компании» на главном экране нет (052)', () => {
+  assert.deepEqual(backRule(APP), { hero: true, back: true, system: true, tools: true });
+  assert.deepEqual(backRule(APP.replace('heroBack.hidden = !withList();', 'heroBack.hidden = !many;')),
+    { hero: false, back: true, system: true, tools: true }, 'от противного');
 });
 
 test('слово «компания» — только в части 04-companies и в разрешённых местах', () => {

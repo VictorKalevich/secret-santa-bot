@@ -1558,14 +1558,21 @@ addEventListener('message', (e) => {
       if (await mainHasWord(page)) problems.push('одна компания: на главном экране есть слово «компания»');
     });
 
-    // Владелец бота с одной компанией: раздел «Компании» внизу главного экрана, создание — шторкой
+    // Владелец бота с одной компанией (052): главный экран со «‹» и названием компании, раздела «Компании» нет; создание —
+    // на «Компаниях», после него — экран новой компании
+    const heroIs = (page, text) => page.locator('#heroTitle', { hasText: new RegExp(`^${text}$`) }).waitFor({ timeout: 5000 });
     await onPage(problems, 'владелец бота: создание компании', admin, null, async (page) => {
-      const create = page.getByRole('button', { name: '🏢 Создать компанию' });
-      await create.scrollIntoViewIfNeeded();
-      await create.click();
+      await heroIs(page, 'Основная').catch(async () => problems.push(`владелец бота с одной компанией: шапка «${await heroTitle(page)}»`));
+      if (!(await backShown(page))) problems.push('владелец бота с одной компанией: нет «‹»');
+      if (await page.getByRole('button', { name: '🏢 Создать компанию' }).count()) problems.push('владелец бота: «Создать компанию» на главном экране компании');
+      await page.locator('#heroBack').click();
+      await companiesShown(page);
+      await page.getByRole('button', { name: '🏢 Создать компанию' }).click();
       await page.locator('.ds-sheet .ds-input').fill('Работа');
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Создать' }).click();
       await toastIs(page, 'Компания создана');
+      await heroIs(page, 'Работа').catch(async () => problems.push(`после создания: шапка «${await heroTitle(page)}»`));
+      await page.locator('#heroBack').click();
       await companiesShown(page);
       const list = await rows(page);
       if (list.join('|') !== 'Основная|Работа') problems.push(`владелец бота: список компаний — ${list.join(', ')}`);
@@ -1655,7 +1662,7 @@ addEventListener('message', (e) => {
     await shot(admin, '51-company-sheet', { fullPage: false, before: (p) => p.locator('#main .ds-list-item--link', { hasText: 'Основная' }).locator('.ds-icon-btn', { hasText: '⚙️' }).click() });
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'компании (051): ' + x));
-    else console.log('✔ компании: одна — прежний экран; две — список, вход, «‹», своё название; ссылка из бота; владелец бота — создание, ссылка, удаление, журнал, гость');
+    else console.log('✔ компании: одна — прежний экран; две — список, вход, «‹», своё название; ссылка из бота; владелец бота — «‹» при одной компании, создание, ссылка, удаление, журнал, гость');
   }
 
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
