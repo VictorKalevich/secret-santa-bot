@@ -15,6 +15,7 @@ import {
 } from './db.js';
 import { resolveOwner } from './roles.js';
 import { ownerWord } from './format.js';
+import { langOf, translator } from './i18n/index.js';
 
 // Обещание в кэше; при ошибке — забыть его
 function remember(promise, forget) {
@@ -74,10 +75,14 @@ export function makeContext(env, { me = null, settings = null, first = null } = 
     return r;
   }
 
+  const lang = langOf(me);
   const ctx = {
     env,
     db,
     me,
+    // 060: язык вызывающего (без человека — по умолчанию) и строки словаря на нём; привязанный контекст наследует
+    lang,
+    t: translator(lang),
     settings: () => (settingsP ||= remember(getSettings(db), () => { settingsP = null; })),
     // Компании, которые знает вызывающий (055): свои — по его строкам компаний; владельцу бота — все. Владелец бота,
     // найденный запасным поиском (resolveOwner записал его в настройки), дочитывает все; без вызывающего — ни одной

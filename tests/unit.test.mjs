@@ -155,3 +155,33 @@ test('пустота письма: BLANK_SQL в базе = !String.prototype.tri
   // NULL — «нет» и для «письмо есть», и для «адрес указан» (колонки NOT NULL — это страховка)
   assert.equal(!!text.get(null, null).has, false);
 });
+
+// 060: очередь собирает отложенный текст на языке получателя (users.lang) в момент отправки; готовая строка — как есть
+test('очередь: отложенный текст — на языке получателя, прежний готовый текст — как есть', async () => {
+  const { DICTIONARIES, tx, tdate } = await import('../src/i18n/index.js');
+  DICTIONARIES.zz = { server: { 'common.date': '{month} {day}', 'common.monthsGen': Array.from({ length: 12 }, (_, i) => 'M' + (i + 1)) }, app: {} };
+  try {
+    const calls = mockTelegram();
+    const db = createMigratedD1();
+    db.sqlite.exec("INSERT INTO users (tg_id, name, lang) VALUES (1, 'a', ''), (2, 'b', 'zz'), (3, 'c', 'неизвестный')");
+    const payload = JSON.stringify({
+      text: tx('common.date', { day: 8, month: 'марта' }),
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [[{ text: tdate('2026-03-08'), web_app: { url: 'u' } }]] },
+    });
+    const ins = db.sqlite.prepare('INSERT INTO outbox (chat_id, payload, created_at) VALUES (?, ?, ?)');
+    for (const chat of [1, 2, 3, 4]) ins.run(chat, payload, Date.now());
+    ins.run(2, '{"text":"готовый текст прежней версии"}', Date.now());
+    await flushOutbox(metered({ DB: db, BOT_TOKEN: 't', TG_API: 'http://tg.test' }), 25);
+    const sent = calls.map((c) => [c.body.chat_id, c.body.text, c.body.reply_markup?.inline_keyboard[0][0].text]);
+    assert.deepEqual(sent, [
+      [1, '8 марта', '8 марта'],
+      [2, 'марта 8', 'M3 8'],
+      [3, '8 марта', '8 марта'], // неизвестный язык — по умолчанию
+      [4, '8 марта', '8 марта'], // человека нет в базе — по умолчанию
+      [2, 'готовый текст прежней версии', undefined],
+    ]);
+  } finally {
+    delete DICTIONARIES.zz;
+  }
+});

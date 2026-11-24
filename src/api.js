@@ -219,7 +219,7 @@ export const ACTIONS = {
     event: 'given',
     company: true,
     finished: true,
-    run: async (ctx, body, ev) => ({ entries: await getAudit(ctx.db, ev ? ev.id : { company: ctx.company.id }) }),
+    run: async (ctx, body, ev) => ({ entries: await getAudit(ctx.db, ev ? ev.id : { company: ctx.company.id }, ctx.t) }),
   },
   'admin.users': { role: ADMIN, company: true, run: (ctx) => usersList(ctx) },
   'admin.rename': {

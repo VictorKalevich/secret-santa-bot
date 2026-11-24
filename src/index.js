@@ -13,6 +13,7 @@ import { flushOutbox } from './outbox.js';
 import { metered, reportBudget } from './budget.js';
 import { setup } from './setup.js';
 import { appPolicy } from './csp.js';
+import { t, DEFAULT_LANG, bootTexts } from './i18n/index.js';
 
 // Страница мини-приложения (склейка частей src/app/, 021) со встроенной дизайн-системой (без сборщика).
 const APP_PAGE = APP_HTML.replace('/*@design-system*/', () => TOKENS_CSS + '\n' + COMPONENTS_CSS)
@@ -34,7 +35,7 @@ function afterRequest(env, ctx, where) {
 export default {
   async fetch(request, rawEnv, ctx) {
     const url = new URL(request.url);
-    if (!rawEnv.BOT_TOKEN) return new Response('Не задан секрет BOT_TOKEN (см. инструкцию).', { status: 500 });
+    if (!rawEnv.BOT_TOKEN) return new Response(t(DEFAULT_LANG, 'routes.noToken'), { status: 500 });
     const env = metered(rawEnv);
     try {
       await checkSchema(env.DB);
@@ -83,7 +84,7 @@ export default {
         return await handleApi(request, env, action);
       } catch (e) {
         console.log('api failed', e && e.stack ? e.stack : String(e));
-        return new Response(JSON.stringify({ ok: false, error: 'Ошибка сервера. Попробуй ещё раз.' }), {
+        return new Response(JSON.stringify({ ok: false, error: t(DEFAULT_LANG, 'routes.serverError') }), {
           status: 500,
           headers: { 'content-type': 'application/json; charset=utf-8' },
         });
@@ -98,7 +99,7 @@ export default {
       return res;
     }
 
-    return new Response('🎄 Бот Тайного Санты работает.', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
+    return new Response(t(DEFAULT_LANG, 'routes.alive'), { headers: { 'content-type': 'text/plain; charset=utf-8' } });
   },
 
   async scheduled(event, rawEnv) {

@@ -3,15 +3,16 @@
 // компании 050 (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
 import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
+import { render, t, DEFAULT_LANG } from './i18n/index.js';
 
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 20;
+export const REQUIRED_SCHEMA = 21;
 
 export class SchemaError extends Error {
   constructor(found) {
-    super('База не подготовлена: примени миграции (см. README).');
+    super(t(DEFAULT_LANG, 'db.schemaNotReady'));
     this.name = 'SchemaError';
     this.found = found;
   }
@@ -376,46 +377,49 @@ function auditSphere(sphere) {
   return { event, company: 'COALESCE((SELECT company_id FROM events WHERE id = ?), 0)', args: [event] };
 }
 
-// Запись журнала — в том же batch, что и само действие. actor = 0 — бот. details — без пар и текстов писем.
+// Запись журнала — в том же batch, что и само действие. actor = 0 — бот. details — без пар и текстов писем; отложенный
+// текст (tx, 060) собирается на языке по умолчанию
 export function auditStmt(db, sphere, actor, action, details = '') {
   const s = auditSphere(sphere);
   return db
     .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) VALUES (?, ${s.company}, ?, ?, ?, ?)`)
-    .bind(s.event, ...s.args, actor || 0, action, String(details).slice(0, 500), Date.now());
+    .bind(s.event, ...s.args, actor || 0, action, String(render(details, DEFAULT_LANG)).slice(0, 500), Date.now());
 }
 
-// Последние записи: события (число), общие записи компании ({ company }) или журнал бота (BOT_LOG)
-export async function getAudit(db, sphere, limit = 100) {
+// Последние записи: события (число), общие записи компании ({ company }) или журнал бота (BOT_LOG); t — переводчик
+// вызывающего (имя бота и безымянного)
+export async function getAudit(db, sphere, t, limit = 100) {
   const s = auditSphere(sphere);
-  const where = s.event ? 'a.event_id = ?' : 'a.company_id = ? AND a.event_id = 0';
+  const where = s.event ? 'a.event_id = ?1' : 'a.company_id = ?1 AND a.event_id = 0';
   const { results } = await db
     .prepare(
       `SELECT a.id, a.event_id, a.action, a.details, a.created_at,
-              CASE WHEN a.actor = 0 THEN 'бот' ELSE COALESCE(NULLIF(u.name, ''), 'кто-то') END AS actor_name
+              CASE WHEN a.actor = 0 THEN ?3 ELSE COALESCE(NULLIF(u.name, ''), ?4) END AS actor_name
          FROM audit a LEFT JOIN users u ON u.tg_id = a.actor
-        WHERE ${where} ORDER BY a.id DESC LIMIT ?`
+        WHERE ${where} ORDER BY a.id DESC LIMIT ?2`
     )
-    .bind(s.event || s.args[0], limit)
+    .bind(s.event || s.args[0], limit, t('db.bot'), t('db.someone'))
     .all();
   return results;
 }
 
 // ---------- объявления (007) ----------
 
-export const announcementsQuery = (db, eventId, limit = 20) => db
+// author — подпись объявления без имени автора на языке вызывающего
+export const announcementsQuery = (db, eventId, author, limit = 20) => db
     .prepare(
-      `SELECT a.id, a.text, a.created_at, COALESCE(NULLIF(u.name, ''), 'Автор объявления') AS author_name
+      `SELECT a.id, a.text, a.created_at, COALESCE(NULLIF(u.name, ''), ?3) AS author_name
          FROM announcements a LEFT JOIN users u ON u.tg_id = a.author
-        WHERE a.event_id = ? ORDER BY a.id DESC LIMIT ?`
+        WHERE a.event_id = ?1 ORDER BY a.id DESC LIMIT ?2`
     )
-    .bind(eventId, limit);
+    .bind(eventId, limit, author);
 
 // Запись журнала только при условии guard (как enqueueIfStmt) — для атомарных действий 006/007; сфера — как у auditStmt
 export function auditIfStmt(db, sphere, actor, action, details, guard, ...args) {
   const s = auditSphere(sphere);
   return db
     .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) SELECT ?, ${s.company}, ?, ?, ?, ? WHERE ${guard}`)
-    .bind(s.event, ...s.args, actor || 0, action, String(details).slice(0, 500), Date.now(), ...args);
+    .bind(s.event, ...s.args, actor || 0, action, String(render(details, DEFAULT_LANG)).slice(0, 500), Date.now(), ...args);
 }
 
 // ---------- данные события и человека (018) ----------

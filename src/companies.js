@@ -403,5 +403,5 @@ export async function deleteCompany(ctx, companyId, own = false) {
 
 // bot.audit: последние записи журнала бота
 export async function botAudit(ctx) {
-  return { entries: await getAudit(ctx.db, BOT_LOG) };
+  return { entries: await getAudit(ctx.db, BOT_LOG, ctx.t) };
 }

@@ -93,7 +93,7 @@ export async function eventView(ctx, ev, member) {
   // счётчики обращений, суммы по парам, пользователи и настройки (организаторы, ссылка-приглашение)
   const r = await ctx.read({
     people: peopleQuery(db, ev.id),
-    announcements: announcementsQuery(db, ev.id), // 007, FR-701
+    announcements: announcementsQuery(db, ev.id, ctx.t('db.announcementAuthor')), // 007, FR-701
     pair: member && pairOfSantaQuery(db, ev.id, me.tg_id),
     wardPair: member && pairOfWardQuery(db, ev.id, me.tg_id),
     unread: member && unreadQuery(db, ev.id, me.tg_id),
