@@ -1547,7 +1547,8 @@ addEventListener('message', (e) => {
     const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
     const heroTitle = (page) => page.locator('#heroTitle').textContent();
     const backShown = (page) => page.locator('#heroBack').isVisible();
-    const rows = (page) => page.locator('#main .ds-list-item--link .ds-list-item__title').allTextContents();
+    // Строка «🌐 Язык» (061) — личный раздел экрана, не комната
+    const rows = async (page) => (await page.locator('#main .ds-list-item--link .ds-list-item__title').allTextContents()).filter((x) => x !== '🌐 Язык');
     const mainHasWord = (page) => page.evaluate(() => /комнат|компани/i.test(document.getElementById('main').textContent));
     const companiesShown = (page) => page.locator('#main .ds-section-title', { hasText: 'Комнаты' }).waitFor({ timeout: 5000 });
 

@@ -1,0 +1,62 @@
+// Texts of app part 04-companies (060): "Rooms" screen, "Room" sheet, owner link, bot owner rights
+export default {
+  // "Rooms" screen
+  'app.companies.title': 'Pokoje',
+  'app.companies.empty': 'Nie ma jeszcze pokoi. Utwórz własny — albo poproś o link z zaproszeniem do wydarzenia.',
+  'app.companies.emptyBotOwner': 'Nie ma jeszcze pokoi.',
+  'app.companies.create': '🚪 Utwórz pokój',
+  'app.companies.ownLimit': 'Możesz prowadzić najwyżej dwa własne pokoje — przekaż lub usuń jeden z nich.',
+  'app.companies.botLog': '📜 Dziennik bota',
+  // Room row: owner, number of events; buttons "✏️" and "⚙️"
+  'app.companies.about': 'Właściciel — {owner} · wydarzeń: {events}',
+  'app.companies.aboutIdle': 'Właściciel — {owner} · wydarzeń: {events} · brak trwających',
+  'app.companies.roomName': 'Nazwa pokoju',
+  'app.companies.ownName': 'Nazwa dla siebie',
+  'app.companies.settings': 'Pokój',
+  // Name sheet
+  'app.companies.label.field': 'Nazwa',
+  'app.companies.label.shared': 'Tę nazwę widzą wszyscy w pokoju.',
+  'app.companies.label.botOwner': 'Nazwę pokoju widzisz tylko Ty — właściciel bota.',
+  'app.companies.label.own': 'Tę nazwę widzisz tylko Ty.',
+  'app.companies.label.saved': 'Nazwa zapisana',
+  // New room
+  'app.companies.new.title': 'Nowy pokój',
+  'app.companies.new.placeholder': 'Np. Praca',
+  'app.companies.new.done': '🚪 Pokój utworzony',
+  'app.companies.new.hintOwn': 'Zostaniesz właścicielem pokoju: tworzysz wydarzenia, zapraszasz ludzi, mianujesz administratorów. Nazwę zobaczą wszyscy w pokoju.',
+  'app.companies.new.hintBot': 'Pokój ma własnych ludzi, wydarzenia, rodziny i administratorów. Możesz prowadzić go samodzielnie albo przekazać właścicielowi przez link.',
+  // Bot owner's "Room" sheet: who runs it
+  'app.companies.lead.title': 'Kto prowadzi',
+  'app.companies.lead.you': 'Ty',
+  'app.companies.lead.botRun': 'Pokój nie ma własnego właściciela: prowadzisz go Ty.',
+  'app.companies.lead.owner': 'Właściciel pokoju: administratorzy, reset i usuwanie wydarzeń, podgląd serwisowy par.',
+  'app.companies.lead.self': 'Prowadź samodzielnie',
+  'app.companies.lead.selfConfirm': 'Prowadzić pokój samodzielnie? „{name}” pozostanie administratorem.',
+  'app.companies.lead.selfDone': 'Znów prowadzisz pokój',
+  // Room owner link
+  'app.companies.link.title': '🔗 Link właściciela pokoju',
+  'app.companies.link.hint': 'Link jest jednorazowy: kto pierwszy go otworzy, zostanie właścicielem pokoju i będzie mógł otwierać pary jego wydarzeń. Wysyłaj go tylko bezpośrednio do tej osoby.',
+  'app.companies.link.active': 'Link jest aktywny. Nie można pokazać go ponownie — można utworzyć nowy.',
+  'app.companies.link.copy': '📋 Kopiuj',
+  'app.companies.link.shareText': '👑 Link właściciela w „Tajemniczym Mikołaju”: otwórz go, aby prowadzić własny pokój.',
+  'app.companies.link.create': 'Utwórz link',
+  'app.companies.link.renew': 'Utwórz nowy',
+  'app.companies.link.revoke': 'Odwołaj',
+  'app.companies.link.revoked': 'Link odwołany',
+  // Deletion of an empty room (sheet with a confirmation word)
+  'app.companies.delete.section': 'Usuwanie',
+  'app.companies.delete.hasEvents': 'W pokoju są wydarzenia — najpierw je usuń.',
+  'app.companies.delete.button': '🗑 Usuń pokój',
+  'app.companies.delete.title': 'Usuń pokój',
+  'app.companies.delete.lines': ['jego ludzie, administratorzy i rodziny;', 'wspólny dziennik pokoju.'],
+  'app.companies.delete.keepBot': 'W pokoju nie ma wydarzeń. Jego właściciel i administratorzy dostaną wiadomość.',
+  'app.companies.delete.keepOwn': 'W pokoju nie ma wydarzeń. Jego administratorzy dostaną wiadomość.',
+  'app.companies.delete.done': 'Pokój usunięty',
+  // Passing bot owner rights
+  'app.companies.botOwner.pass': '👑 Przekaż prawa właściciela bota',
+  'app.companies.botOwner.title': 'Prawa właściciela bota',
+  'app.companies.botOwner.hint': 'Właściciel bota jest jeden. Prawa można przekazać osobie z pokoi, które prowadzisz.',
+  'app.companies.botOwner.choose': 'Komu przekazać…',
+  'app.companies.botOwner.confirm': 'Przekazać prawa właściciela bota osobie „{name}”? Będzie ona tworzyć i usuwać pokoje oraz mianować ich właścicieli. Pozostaniesz administratorem swoich pokoi.',
+  'app.companies.botOwner.done': '👑 Prawa właściciela bota przekazane',
+};

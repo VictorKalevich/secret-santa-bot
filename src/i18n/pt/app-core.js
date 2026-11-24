@@ -1,0 +1,58 @@
+// Texts of app part 02-core (060): core — fields, dates, calendar, who can do owner actions, confirmation words
+export default {
+  // Label of the field "x" button (design system, bindClearableInput)
+  'app.core.clearField': 'Limpar o campo “{label}”',
+  // Dates: "25 de novembro", "25 de novembro de 2026", time — by the language rules (toLocaleTimeString)
+  'app.core.locale': 'pt',
+  'app.core.date': '{day} de {month}',
+  'app.core.dateYear': '{date} de {year}',
+  'app.core.dateNone': 'Não escolhida',
+  'app.core.monthsGen': ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'],
+  'app.core.monthsNom': ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
+  'app.core.weekdays': ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
+  'app.core.todayAt': 'hoje às {time}',
+  'app.core.yesterdayAt': 'ontem às {time}',
+  'app.core.dateAt': '{date} às {time}',
+  // Own calendar (027)
+  'app.core.calendar.title': 'Data',
+  'app.core.calendar.month': '{month} de {year}',
+  'app.core.calendar.prev': 'Mês anterior',
+  'app.core.calendar.next': 'Próximo mês',
+  'app.core.calendar.done': 'Pronto',
+  'app.core.calendar.reset': 'Limpar',
+  'app.core.calendar.close': 'Fechar',
+  // Who can do an owner action (ownerWord): room with an assigned owner and room run by the bot owner
+  'app.core.owner.nom': 'o dono',
+  'app.core.owner.gen': 'o dono',
+  'app.core.owner.dat': 'o dono',
+  'app.core.owner.ins': 'o dono',
+  'app.core.owner.nomCap': 'O dono',
+  'app.core.botOwner.nom': 'o dono do bot',
+  'app.core.botOwner.gen': 'o dono do bot',
+  'app.core.botOwner.dat': 'o dono do bot',
+  'app.core.botOwner.ins': 'o dono do bot',
+  'app.core.botOwner.nomCap': 'O dono do bot',
+  // Forwarding the invitation to a chat (037)
+  'app.core.shareInvite': '🎄 Vamos jogar Amigo Secreto — “{title}”! Entre pelo link:',
+  // Confirmation words: typed by the person, checked by the app and the server
+  'app.core.word.open': 'ABRIR',
+  'app.core.word.leave': 'SAIR',
+  'app.core.word.delete': 'EXCLUIR',
+  'app.core.word.reset': 'ZERAR',
+  'app.core.word.cancel': 'CANCELAR',
+  // Shared (060: the same text with the same meaning — one key)
+  'app.core.save': 'Salvar',
+  'app.core.saved': 'Salvo',
+  'app.core.noName': 'sem nome',
+  'app.core.role.owner': '👑 dono',
+  'app.core.role.admin': '🛠 administrador',
+  'app.core.role.member': 'participante',
+  'app.core.role.guest': '👁 dono do bot',
+  'app.core.create': 'Criar',
+  'app.core.needTitle': 'Escreva um nome',
+  'app.core.pickPerson': 'Escolha uma pessoa',
+  'app.core.auditLog': '📜 Registro de atividades',
+  'app.core.link.copied': 'Link copiado',
+  'app.core.link.copyByHand': 'Selecione e copie o link',
+  'app.core.link.share': '📤 Enviar para um chat',
+};

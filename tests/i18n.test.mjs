@@ -16,6 +16,8 @@ import { APP } from './support/app-source.mjs';
 import { PSEUDO, pseudoLanguage } from './support/pseudo.mjs';
 import { POSTCARDS, MASKS } from '../src/looks.js';
 import { SWAP_RULES } from '../src/pairs.js';
+import { AREAS as RU_AREAS } from '../src/i18n/ru/index.js';
+import { languageProblems, loadLanguage, valueProblems } from './support/i18n-lang-rules.mjs';
 
 // Ошибки словаря (console.error «i18n: …») — собрать, а не печатать
 function errorsOf(fn) {
@@ -426,5 +428,39 @@ describe('семейства ключей — по источнику кодов
     const codes = [...POSTCARDS.map((c) => c.id), 'new_card'];
     assert.notDeepEqual(membersOf('looks.card.'), [...codes].sort());
     assert.notDeepEqual(membersOf('looks.card.'), POSTCARDS.slice(1).map((c) => c.id).sort());
+  });
+});
+
+// 061: каждый язык бота — полный перевод русского словаря (контракт specs/061-i18n-languages/contracts/translation.md)
+describe('словари языков бота (061)', () => {
+  for (const lang of LANGUAGES.filter((l) => l !== DEFAULT_LANG)) {
+    it(`${lang}: те же ключи, вид, подстановки, формы числа, разметка, слова подтверждения, пределы Telegram; без кириллицы`, async () => {
+      const { areas, error } = await loadLanguage(lang);
+      assert.equal(error, undefined);
+      assert.deepEqual(languageProblems(lang, RU_AREAS, areas), []);
+    });
+  }
+
+  it('от противного: каждое правило перевода находит нарушение', () => {
+    const p = (key, ru, v, lang = 'en') => valueProblems(lang, key, ru, v).map((x) => x.replace(`${lang} ${key}: `, ''));
+    assert.deepEqual(p('a.b', 'Привет, {name}', 'Hi, {name}'), []);
+    assert.deepEqual(p('a.b', 'Привет', undefined), ['нет перевода']);
+    assert.deepEqual(p('a.b', 'Привет, {name}', 'Hi, {nmae}'), ['подстановки {nmae}, у русского — {name}']);
+    assert.deepEqual(p('a.b', 'Привет', 'Привет'), ['кириллица']);
+    assert.deepEqual(p('a.b', '<b>Да</b>', 'Yes'), ['теги разметки «», у русского — «/b,b»']);
+    assert.deepEqual(p('a.b', 'Да', 'a < b'), ['символ < > или & вне разметки']);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { one: '{n} day', other: '{n} days' }), []);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { one: 'a day', other: '{n} days' }), ['в форме one нет {n}']);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { other: '{n} days' }), ['нет формы one']);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { other: '{n} hari' }, 'id'), []);
+    assert.deepEqual(p('a.b', { one: '{n} день', few: '{n} дня', many: '{n} дней' }, { one: '{n}', few: '{n}', other: '{n}' }, 'id'),
+      ['лишняя форма one (у языка формы: other)', 'лишняя форма few (у языка формы: other)']);
+    assert.deepEqual(p('a.b', '{owner.gen}', '{owner.acc}'), ['подстановка {owner.acc} — формы есть только у owner: nom, gen, dat, ins, nomCap']);
+    assert.deepEqual(p('app.core.word.leave', 'ВЫЙТИ', 'Leave'), ['слово подтверждения — заглавными']);
+    assert.deepEqual(p('app.core.word.leave', 'ВЫЙТИ', 'GO OUT'), ['слово подтверждения — одно слово без пробелов']);
+    assert.deepEqual(p('setup.shortDescription', 'Бот', 'x'.repeat(121)), ['121 символов (предел 120)']);
+    assert.deepEqual(p('setup.command.start', 'Старт', ''), ['пустой перевод', 'описание команды — 0 символов (1…256)']);
+    assert.deepEqual(p('a.list', ['а', 'б'], ['a']), ['список из 1, у русского — 2']);
+    assert.deepEqual(p('a.b', 'Да', ['Yes']), ['вид значения list, у русского — string']);
   });
 });

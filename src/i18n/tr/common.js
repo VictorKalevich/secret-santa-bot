@@ -1,0 +1,27 @@
+// Common server texts (060): dates, names, who can do an owner action, common refusals.
+export default {
+  'common.date': "{day} {month}",
+  'common.monthsGen': ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
+  'common.someone': "Biri",
+  // ownerWord forms: nom - nominative, gen - genitive, dat - dative, ins - instrumental (Turkish cases)
+  'common.owner.nom': "sahip",
+  'common.owner.gen': "sahibin",
+  'common.owner.dat': "sahibe",
+  'common.owner.ins': "sahiple",
+  'common.owner.nomCap': "Sahip",
+  'common.botOwner.nom': "bot sahibi",
+  'common.botOwner.gen': "bot sahibinin",
+  'common.botOwner.dat': "bot sahibine",
+  'common.botOwner.ins': "bot sahibiyle",
+  'common.botOwner.nomCap': "Bot sahibi",
+  'common.openApp': "🎁 Uygulamayı aç",
+  'common.notRegistered': "Önce davet bağlantısıyla kaydol.",
+  'common.adminOnly': "Yalnızca yöneticiler için.",
+  'common.noDraw': "Çekiliş henüz yapılmadı.",
+  'common.pairsRace': "Eşleşmeler bu işlemle aynı anda değişti — tekrar dene.",
+  'common.notMember': "Bu etkinliğe katılmıyorsun.",
+  'common.companyNotFound': "Oda bulunamadı.",
+  'common.writeLetterButton': "✏️ Mektup yaz",
+  'common.replyButton': "↩️ Yanıtla",
+  'common.tooLong': "Çok uzun: {n} karakter, en fazla {max}.",
+};

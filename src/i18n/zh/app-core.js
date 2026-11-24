@@ -1,0 +1,58 @@
+// Texts of app part 02-core (060): core (fields, dates, calendar, who may do an owner action, confirmation words)
+export default {
+  // Label of the input clear button (design system, bindClearableInput)
+  'app.core.clearField': '清空“{label}”',
+  // Dates: "11月25日", "2026年11月25日", time by the language rules (toLocaleTimeString)
+  'app.core.locale': 'zh',
+  'app.core.date': '{month}{day}日',
+  'app.core.dateYear': '{year}年{date}',
+  'app.core.dateNone': '未选择',
+  'app.core.monthsGen': ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+  'app.core.monthsNom': ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+  'app.core.weekdays': ['一', '二', '三', '四', '五', '六', '日'],
+  'app.core.todayAt': '今天 {time}',
+  'app.core.yesterdayAt': '昨天 {time}',
+  'app.core.dateAt': '{date} {time}',
+  // Own calendar (027)
+  'app.core.calendar.title': '日期',
+  'app.core.calendar.month': '{year}年{month}',
+  'app.core.calendar.prev': '上个月',
+  'app.core.calendar.next': '下个月',
+  'app.core.calendar.done': '完成',
+  'app.core.calendar.reset': '清除',
+  'app.core.calendar.close': '关闭',
+  // Who may do an owner action (ownerWord): room with an assigned owner and room of the bot owner
+  'app.core.owner.nom': '所有者',
+  'app.core.owner.gen': '所有者',
+  'app.core.owner.dat': '所有者',
+  'app.core.owner.ins': '所有者',
+  'app.core.owner.nomCap': '所有者',
+  'app.core.botOwner.nom': '机器人所有者',
+  'app.core.botOwner.gen': '机器人所有者',
+  'app.core.botOwner.dat': '机器人所有者',
+  'app.core.botOwner.ins': '机器人所有者',
+  'app.core.botOwner.nomCap': '机器人所有者',
+  // Forwarding an invitation to a chat (037)
+  'app.core.shareInvite': '🎄 一起来玩神秘圣诞老人“{title}”吧！点击链接加入：',
+  // Confirmation words: typed by the person, checked by the app and the server
+  'app.core.word.open': '打开',
+  'app.core.word.leave': '退出',
+  'app.core.word.delete': '删除',
+  'app.core.word.reset': '重置',
+  'app.core.word.cancel': '取消',
+  // shared (060: same text with one meaning, one key)
+  'app.core.save': '保存',
+  'app.core.saved': '已保存',
+  'app.core.noName': '未命名',
+  'app.core.role.owner': '👑 所有者',
+  'app.core.role.admin': '🛠 管理员',
+  'app.core.role.member': '参与者',
+  'app.core.role.guest': '👁 机器人所有者',
+  'app.core.create': '创建',
+  'app.core.needTitle': '请填写名称',
+  'app.core.pickPerson': '请选择一个人',
+  'app.core.auditLog': '📜 操作日志',
+  'app.core.link.copied': '链接已复制',
+  'app.core.link.copyByHand': '请选中并复制链接',
+  'app.core.link.share': '📤 发送到聊天',
+};

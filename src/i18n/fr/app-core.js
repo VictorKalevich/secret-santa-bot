@@ -1,0 +1,58 @@
+// Texts of app part 02-core (060): core - fields, dates, calendar, who can do owner actions, confirmation words
+export default {
+  // Label of the input "x" button (design system, bindClearableInput)
+  'app.core.clearField': "Effacer le champ « {label} »",
+  // Dates: "25 novembre", "25 novembre 2026", time by the language rules (toLocaleTimeString)
+  'app.core.locale': "fr",
+  'app.core.date': "{day} {month}",
+  'app.core.dateYear': "{date} {year}",
+  'app.core.dateNone': "Aucune",
+  'app.core.monthsGen': ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+  'app.core.monthsNom': ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"],
+  'app.core.weekdays': ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"],
+  'app.core.todayAt': "aujourd'hui à {time}",
+  'app.core.yesterdayAt': "hier à {time}",
+  'app.core.dateAt': "{date} à {time}",
+  // Own calendar (027)
+  'app.core.calendar.title': "Date",
+  'app.core.calendar.month': "{month} {year}",
+  'app.core.calendar.prev': "Mois précédent",
+  'app.core.calendar.next': "Mois suivant",
+  'app.core.calendar.done': "OK",
+  'app.core.calendar.reset': "Effacer",
+  'app.core.calendar.close': "Fermer",
+  // Who can do owner actions (ownerWord): nom "le ...", gen "du ...", dat "au ...", ins "par le ...", nomCap "Le ..."
+  'app.core.owner.nom': "le propriétaire",
+  'app.core.owner.gen': "du propriétaire",
+  'app.core.owner.dat': "au propriétaire",
+  'app.core.owner.ins': "par le propriétaire",
+  'app.core.owner.nomCap': "Le propriétaire",
+  'app.core.botOwner.nom': "le propriétaire du bot",
+  'app.core.botOwner.gen': "du propriétaire du bot",
+  'app.core.botOwner.dat': "au propriétaire du bot",
+  'app.core.botOwner.ins': "par le propriétaire du bot",
+  'app.core.botOwner.nomCap': "Le propriétaire du bot",
+  // Sharing the invitation to a chat (037)
+  'app.core.shareInvite': "🎄 On joue au Père Noël secret — « {title} » ! Rejoins-nous avec ce lien :",
+  // Confirmation words: typed by the person, checked by the app and the server
+  'app.core.word.open': "OUVRIR",
+  'app.core.word.leave': "QUITTER",
+  'app.core.word.delete': "SUPPRIMER",
+  'app.core.word.reset': "REINITIALISER",
+  'app.core.word.cancel': "ANNULER",
+  // Shared texts
+  'app.core.save': "Enregistrer",
+  'app.core.saved': "Enregistré",
+  'app.core.noName': "sans nom",
+  'app.core.role.owner': "👑 propriétaire",
+  'app.core.role.admin': "🛠 administrateur",
+  'app.core.role.member': "participant",
+  'app.core.role.guest': "👁 propriétaire du bot",
+  'app.core.create': "Créer",
+  'app.core.needTitle': "Écris un nom",
+  'app.core.pickPerson': "Choisis une personne",
+  'app.core.auditLog': "📜 Journal d'activité",
+  'app.core.link.copied': "Lien copié",
+  'app.core.link.copyByHand': "Sélectionne et copie le lien",
+  'app.core.link.share': "📤 Envoyer dans une discussion",
+};

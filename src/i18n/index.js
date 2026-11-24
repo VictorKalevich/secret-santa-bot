@@ -1,14 +1,25 @@
 // Тексты для людей — только из словаря (060, контракт specs/060-i18n-dictionary/contracts/i18n.md). Словарь языка —
 // папка src/i18n/<язык>/: файл на область, ключ начинается с области (pairs.js → pairs.*, app-admin.js → app.admin.*).
 // Строка собирается на языке того, кому она предназначена: ответ — вызывающему (ctx.t), сообщение очереди — получателю
-// при отправке (tx → render в flushOutbox), подробность журнала — на языке по умолчанию при записи.
+// при отправке (tx → render в flushOutbox), подробность журнала — на языке смотрящего (061: запись хранит и отложенный
+// текст; русская строка — для прежних записей и запасная).
 
 import RU from './ru/index.js';
+import EN from './en/index.js';
+import ES from './es/index.js';
+import PT from './pt/index.js';
+import FR from './fr/index.js';
+import DE from './de/index.js';
+import ZH from './zh/index.js';
+import IT from './it/index.js';
+import TR from './tr/index.js';
+import ID from './id/index.js';
+import PL from './pl/index.js';
 
 export const DEFAULT_LANG = 'ru';
 // { [язык]: { server, app, plural? } } — plural: язык правил форм числа, если код языка не из Intl. Тесты добавляют
 // служебный язык (и в LANGUAGES)
-export const DICTIONARIES = { ru: RU };
+export const DICTIONARIES = { ru: RU, en: EN, es: ES, pt: PT, fr: FR, de: DE, zh: ZH, it: IT, tr: TR, id: ID, pl: PL };
 // Языки бота в порядке списка выбора (061)
 export const LANGUAGES = Object.keys(DICTIONARIES);
 // Язык Telegram, которого нет в боте: этим — русский, остальным — FALLBACK_LANG (решение владельца 2026-11-25)
