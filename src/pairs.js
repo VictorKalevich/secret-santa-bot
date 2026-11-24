@@ -125,7 +125,7 @@ export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
       appKeyboard(settings, tx('pairs.drawnButton'), { event: ev.id })
     ));
   }
-  mine.audit(ev.id, actor, action, tx('pairs.audit.members', { n: check.people.length }));
+  mine.audit(ev.id, actor, action, tx('pairs.auditText.members', { n: check.people.length }));
   if (!(await mine.run()).won) {
     const cur = await getEvent(db, ev.id);
     if (cur?.draw_done) return no(tx('api.drawDone'));
@@ -381,7 +381,7 @@ export async function swapWards(ctx, ev, { a, b, version, agree }, actor) {
   }
   const next = new Map(d.pairs).set(a, d.pairs.get(b)).set(b, d.pairs.get(a));
   await applyPairsChange(ctx, ev, change, d.rows, next, [], d.members);
-  change.audit(ev.id, actor, 'draw.swap', tx('pairs.audit.changed', { n: 2 }));
+  change.audit(ev.id, actor, 'draw.swap', tx('pairs.auditText.changed', { n: 2 }));
   change.claim(claim);
   if (!(await change.run()).won) {
     const cur = await getEvent(ctx.db, ev.id);
@@ -424,7 +424,7 @@ async function undoDraw(ctx, ev, actor, { tag, cond = '', condArgs = [], chats =
   undone.where('DELETE FROM pairs WHERE event_id = ?', ev.id);
   if (chats) undone.where('DELETE FROM messages WHERE event_id = ?', ev.id);
   for (const p of rows) undone.enqueue(p.santa, msg(text, appKeyboard(settings, tx('events.openButton'), { event: ev.id })));
-  undone.audit(ev.id, actor, action, tx('pairs.audit.removed', { n: rows.length }));
+  undone.audit(ev.id, actor, action, tx('pairs.auditText.removed', { n: rows.length }));
   if (!(await undone.run()).won) return no(await lost());
   return { ok: true, count: rows.length };
 }

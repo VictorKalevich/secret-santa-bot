@@ -117,20 +117,17 @@ function actionProblems(doc, actions) {
 }
 
 // Коды журнала, которые пишет серверный код (research R3 фичи 022): литералы в строке вызова auditStmt / auditIfStmt /
-// .audit( или INSERT INTO audit — начиная с вызова; параметр action: 'код' / action = 'код' перед «,» или «}». Ключ
-// словаря в подробностях (060: первый аргумент t( / tx() — не код
+// .audit( или INSERT INTO audit — начиная с вызова; параметр action: 'код' / action = 'код' перед «,» или «}»
 const CODE = "'([a-z]+(?:\\.[a-z_]+)*)'";
 const AUDIT_CALL = /(?:\bauditStmt|\bauditIfStmt|\.audit)\(|INSERT INTO audit\b/;
 const ACTION_PARAM = new RegExp(`\\baction(?::\\s*|\\s*=\\s*)${CODE}(?=\\s*[,}])`, 'g');
-const TEXT_KEY = /\b(?:t|tx)\(\s*$/;
 
 function serverAuditCodes(sources) {
   const codes = new Set();
   for (const { text } of sources) {
     for (const line of text.split('\n')) {
       const at = line.search(AUDIT_CALL);
-      const call = line.slice(at);
-      if (at >= 0) for (const m of call.matchAll(new RegExp(CODE, 'g'))) if (!TEXT_KEY.test(call.slice(0, m.index))) codes.add(m[1]);
+      if (at >= 0) for (const m of line.slice(at).matchAll(new RegExp(CODE, 'g'))) codes.add(m[1]);
       for (const m of line.matchAll(ACTION_PARAM)) codes.add(m[1]);
     }
   }
@@ -258,9 +255,7 @@ describe('сводный контракт API: коды журнала', () => {
       "db.prepare(`INSERT INTO audit (event_id, actor, action) VALUES (?, ?, 'c.sql')`);",
       "AND NOT EXISTS (SELECT 1 FROM audit WHERE action = 'd.where')",
       "runDraw(ctx, ev, { actor: 0, action: 'e.param' }); function f({ action = 'f.default' } = {}) {}",
-      "g.audit(ev.id, actor, 'g.code', tx('g.audit.key', { n, why: tx('g.why') }));",
     ].join('\n');
-    assert.deepEqual([...serverAuditCodes([{ name: 's.js', text: src }])].sort(),
-      ['a.one', 'b.no', 'b.yes', 'c.sql', 'e.param', 'f.default', 'g.code']);
+    assert.deepEqual([...serverAuditCodes([{ name: 's.js', text: src }])].sort(), ['a.one', 'b.no', 'b.yes', 'c.sql', 'e.param', 'f.default']);
   });
 });
