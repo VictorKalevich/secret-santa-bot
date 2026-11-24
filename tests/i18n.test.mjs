@@ -10,10 +10,12 @@ import {
 import { escapeHtml, ownerWord } from '../src/format.js';
 import { readdirSync } from 'node:fs';
 import {
-  read, codeFiles, cyrillicLines, keysIn, dictionary, prefixProblems, missingKeys, unusedKeys, callParams,
+  read, codeFiles, cyrillicLines, keysIn, stripComments, dictionary, prefixProblems, missingKeys, unusedKeys, callParams,
 } from './support/i18n-rules.mjs';
 import { APP } from './support/app-source.mjs';
 import { PSEUDO, pseudoLanguage } from './support/pseudo.mjs';
+import { POSTCARDS, MASKS } from '../src/looks.js';
+import { SWAP_RULES } from '../src/pairs.js';
 
 // Ошибки словаря (console.error «i18n: …») — собрать, а не печатать
 function errorsOf(fn) {
@@ -337,5 +339,57 @@ describe('приложение собирает текст так же, как �
     const { texts } = appTexts(DEFAULT_LANG);
     app.setTexts({ lang: DEFAULT_LANG, texts: { ...texts, 'app.boot.loading': 'Иначе' } });
     assert.notEqual(app.t('app.boot.loading'), t(DEFAULT_LANG, 'app.boot.loading'));
+  });
+});
+
+// Семейства ключей (T034): ключи берутся по коду из данных — у каждого кода источника есть ключ, лишних ключей нет
+describe('семейства ключей — по источнику кодов (T034)', () => {
+  const dict = dictionary();
+  const membersOf = (prefix) => [...dict.keys()].filter((k) => k.startsWith(prefix)).map((k) => k.slice(prefix.length)).sort();
+  const src = (f) => read(f);
+  // Коды таблицы «## Коды журнала» docs/api.md
+  const auditCodes = () => {
+    const doc = read('docs/api.md');
+    const chapter = doc.slice(doc.indexOf('\n## Коды журнала'), doc.indexOf('\n## ', doc.indexOf('\n## Коды журнала') + 5));
+    return [...chapter.matchAll(/^\| `([a-z_.]+)` \|/gm)].map((m) => m[1]);
+  };
+  const FAMILIES = [
+    ['looks.card.', () => POSTCARDS.map((c) => c.id)],
+    ['looks.mask.', () => MASKS.map((m) => m.id)],
+    ['app.vault.audit.', auditCodes],
+    ['pairs.reason.', () => [...src('src/draw.js').matchAll(/type: '([a-z_]+)'/g)].map((m) => m[1])],
+    ['pairs.swapRule.', () => Object.keys(SWAP_RULES)],
+    ['app.core.role.', () => [...src('src/companies.js').matchAll(/'(owner|admin|member|guest)'/g)].map((m) => m[1])],
+    ['bot.notify.mode.', () => JSON.parse(/const NOTIFY_MODES = (\[[^\]]*\])/.exec(src('src/bot.js'))[1].replace(/'/g, '"'))],
+    ['stale.keep.', () => Object.keys(staleWhy())],
+    ['stale.logged.', () => Object.keys(staleWhy())],
+  ];
+  // Причины автозавершения — ключи WHY в src/stale.js
+  function staleWhy() {
+    const block = /const WHY = \{([\s\S]*?)\n\};/.exec(src('src/stale.js'))[1];
+    return Object.fromEntries([...block.matchAll(/^\s+(\w+):/gm)].map((m) => [m[1], true]));
+  }
+
+  for (const [prefix, codes] of FAMILIES) {
+    it(`${prefix}<код> — ровно коды источника`, () => {
+      assert.deepEqual(membersOf(prefix), [...new Set(codes())].sort());
+    });
+  }
+
+  it('каждое семейство кода (склейка с префиксом) — в списке с источником; SWAP_RULES — ключи семейства', () => {
+    const used = new Set();
+    for (const f of codeFiles()) {
+      for (const m of stripComments(read(f)).matchAll(/\b(?:t|tx|tl)\(\s*'([A-Za-z.]+\.)'\s*\+/g)) used.add(m[1]);
+    }
+    const listed = new Set(FAMILIES.map(([p]) => p));
+    assert.ok(used.size >= 7, [...used].join(', '));
+    assert.deepEqual([...used].filter((f) => !listed.has(f)), []);
+    for (const [rule, key] of Object.entries(SWAP_RULES)) assert.equal(key, 'pairs.swapRule.' + rule);
+  });
+
+  it('от противного: код без ключа и лишний ключ семейства — расхождение', () => {
+    const codes = [...POSTCARDS.map((c) => c.id), 'new_card'];
+    assert.notDeepEqual(membersOf('looks.card.'), [...codes].sort());
+    assert.notDeepEqual(membersOf('looks.card.'), POSTCARDS.slice(1).map((c) => c.id).sort());
   });
 });
