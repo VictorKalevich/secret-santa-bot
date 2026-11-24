@@ -1,5 +1,8 @@
 # Cloudflare Worker «Тайный Санта»
 name = "secret-santa-bot"
+# Аккаунт Cloudflare первого бота (`npx wrangler whoami`). Не секрет. Нужен, когда вход Wrangler видит несколько
+# аккаунтов, иначе он спросит, куда выкатывать. Свою установку — свой id или удалите строку.
+account_id = "c9b5da37ad9113f8827e00327cebb6e4"
 main = "src/index.js"
 compatibility_date = "2026-06-01"
 
@@ -28,3 +31,22 @@ fallthrough = true
 
 [observability]
 enabled = true
+
+# Второй бот — тот же код на своём аккаунте Cloudflare (свои бесплатные лимиты, база, секреты).
+# Все команды для него — с `--env second` (README, «Второй бот»). Код, cron, rules и observability окружение берёт
+# сверху; базу и vars Wrangler не наследует — они здесь, vars держите такими же, как наверху.
+[env.second]
+name = "secret-santa-bot-2"
+account_id = "0c9f6b89b9448089366771867271036f"
+preview_urls = false   # версии без выката (`wrangler versions upload`) снаружи не открываются
+
+[[env.second.d1_databases]]
+binding = "DB"
+database_name = "secret-santa-db-2"
+database_id = "e50af65d-afbf-4a62-b041-8caf5e2c6a03"
+migrations_dir = "migrations"
+
+[env.second.vars]
+TIMEZONE_OFFSET_HOURS = "3"
+REMINDER_HOUR = "10"
+NOTIFY_DELAY_MINUTES = "10"

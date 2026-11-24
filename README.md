@@ -106,7 +106,8 @@ npx wrangler d1 create secret-santa-db
 скопируйте из ответа значение `database_id` и вставьте его в `wrangler.toml` в строку `database_id = "…"` вместо
 того, что там стоит (в репозитории — id базы автора проекта, в вашем аккаунте Cloudflare её нет).
 Потеряли значение — `npx wrangler d1 list` покажет его снова. `database_id` — не секрет, но это настройка именно вашей
-установки.
+установки. Так же и строка `account_id = "…"` в начале `wrangler.toml`: впишите id своего аккаунта (его показывает
+`npx wrangler whoami`) или удалите строку.
 
 Создайте таблицы — примените миграции (папка `migrations/`):
 
@@ -215,6 +216,49 @@ npx wrangler secret put ADMIN_SECRET
 
 Имя и аватар бота меняются у @BotFather (`/mybots`); команды, кнопку «🎁 Санта» и описание бот выставляет сам при
 настройке на странице `/setup`.
+
+### Второй бот на отдельном аккаунте Cloudflare
+
+Тот же код можно запустить вторым ботом: другое имя в Telegram, свои люди и события, свой владелец. Код один — папка и
+git те же, а у второго бота свой Worker, своя база и свои секреты в окружении `second` (`wrangler.toml`, раздел
+`[env.second]`). Если он живёт на отдельном аккаунте Cloudflare, бесплатные лимиты (запросы, база, cron) у него свои,
+они считаются на аккаунт. Бот сам узнаёт своё имя и адрес на странице `/setup`, поэтому в коде менять ничего не надо.
+Нужна просто ещё одна группа людей в том же боте — это [компании](#компании), второй бот для этого не нужен.
+
+**Один раз:**
+
+1. У @BotFather — `/newbot`, запишите токен второго бота.
+2. Зарегистрируйте второй аккаунт Cloudflare на другую почту и подтвердите адрес. В нём откройте **Workers & Pages** и,
+   если попросит, выберите поддомен `workers.dev` (любой свободный).
+3. Во втором аккаунте: **Manage Account → Members → Invite** — пригласите почту основного аккаунта с ролью
+   **Super Administrator**, примите приглашение из письма. Теперь один вход Wrangler видит оба аккаунта:
+   `npx wrangler whoami` покажет два Account ID (если второго нет — `npx wrangler login` ещё раз).
+4. Впишите Account ID второго аккаунта в `[env.second]` → `account_id`. У первого бота `account_id` наверху файла
+   должен быть заполнен — иначе Wrangler, видя два аккаунта, спросит, куда выкатывать.
+5. База, таблицы, выкат — во втором аккаунте (это делает `--env second`):
+
+   ```powershell
+   npx wrangler d1 create secret-santa-db-2 --env second
+   # database_id из ответа → [[env.second.d1_databases]] в wrangler.toml
+   npx wrangler d1 migrations apply secret-santa-db-2 --env second --remote
+   npm run deploy:second
+   ```
+
+6. Секреты второго бота — свои, пароль `ADMIN_SECRET` — не такой, как у первого:
+
+   ```powershell
+   npx wrangler secret put BOT_TOKEN --env second
+   npx wrangler secret put ADMIN_SECRET --env second
+   ```
+
+7. Откройте `https://secret-santa-bot-2.<поддомен второго аккаунта>.workers.dev/setup`, введите `ADMIN_SECRET` второго
+   бота и перейдите по ссылке владельца в Telegram — дальше как в шагах 8–9 выше.
+
+**Дальше** каждая команда из этого README для второго бота — с `--env second` и базой `secret-santa-db-2` вместо
+`secret-santa-db`: `npm run deploy:second` вместо `npm run deploy`, копия базы, миграции, `deployments list`,
+`rollback`, `secret put`. Команды без `--env` относятся к первому боту; Wrangler при этом пишет «Multiple environments
+are defined…» — это предупреждение, для первого бота так и должно быть. Настройки `[vars]` у второго бота свои
+(`[env.second.vars]`): поменяли наверху — поменяйте и там.
 
 ---
 
@@ -671,6 +715,10 @@ npx wrangler rollback <Version ID прежней версии> -m "откат"
 
 Откат возвращает только код Worker, база остаётся как есть. Подробные шаги проверки и отката для конкретного обновления
 — в `quickstart.md` его фичи в `specs/` (например, для политики страницы — `specs/032-app-csp/quickstart.md`).
+
+Второй бот ([отдельный аккаунт](#второй-бот-на-отдельном-аккаунте-cloudflare)) обновляется так же, отдельно: те же
+команды с `--env second` и базой `secret-santa-db-2`, вместо `npm run deploy` — `npm run deploy:second`. Удобно сначала
+обновить второго бота, проверить его и только потом первого.
 
 ### Резервная копия и восстановление
 
