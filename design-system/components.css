@@ -119,6 +119,8 @@
 .ds-btn--danger { background: var(--ds-color-fill); color: var(--ds-color-danger); }
 .ds-btn--festive { background: var(--ds-gradient-festive); color: var(--ds-color-on-festive); }
 .ds-btn--on-festive { background: var(--ds-color-on-festive-fill); color: var(--ds-color-on-festive); }
+/* Фирменный цвет DonationAlerts (053) — только кнопка поддержки проекта */
+.ds-btn--donate { background: var(--ds-color-donate); color: var(--ds-color-on-donate); }
 .ds-btn--sm { min-height: var(--ds-size-control-sm); padding: var(--ds-space-1-5) var(--ds-space-3); font-size: var(--ds-text-md); border-radius: var(--ds-radius-md); }
 .ds-btn:disabled { opacity: var(--ds-opacity-disabled); cursor: default; }
 .ds-icon-btn {
@@ -333,6 +335,14 @@ select.ds-input {
 .ds-empty__icon { font-size: var(--ds-text-display); line-height: 1; margin-bottom: var(--ds-space-3); }
 .ds-empty__title { margin: 0 0 var(--ds-space-1-5); font-size: var(--ds-text-lg); }
 .ds-empty__action { margin-top: var(--ds-space-4); }
+
+/* ========== Поддержка проекта (053) ========== */
+.ds-donate { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-2); text-align: center; }
+.ds-donate__icon { font-size: var(--ds-text-icon); line-height: 1; }
+.ds-donate__title { font-size: var(--ds-text-lg); font-weight: var(--ds-weight-bold); line-height: var(--ds-leading-tight); }
+.ds-donate__text { font-size: var(--ds-text-md); line-height: var(--ds-leading-base); color: var(--ds-color-text-muted); }
+.ds-donate__note { font-size: var(--ds-text-sm); color: var(--ds-color-text-muted); }
+.ds-donate .ds-btn { margin-top: var(--ds-space-2); }
 
 /* ========== Сведения ========== */
 .ds-info-grid { display: grid; grid-template-columns: auto 1fr; gap: var(--ds-space-2) var(--ds-space-4); margin: 0; }

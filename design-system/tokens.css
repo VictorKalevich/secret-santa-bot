@@ -39,6 +39,10 @@
   --ds-gradient-festive: linear-gradient(145deg, var(--ds-color-festive-light), var(--ds-color-festive));
   --ds-gradient-ward: linear-gradient(150deg, var(--ds-color-festive-mid), var(--ds-color-festive-deep));
 
+  /* ---------- Цвета: DonationAlerts (053) — фирменные, одинаковые в обеих темах; только кнопка поддержки проекта ---------- */
+  --ds-color-donate: #ed8224;
+  --ds-color-on-donate: #ffffff;
+
   /* ---------- Цвета: статусы ---------- */
   --ds-color-success: #2f9e5f;
   --ds-color-success-soft: rgba(47, 158, 95, 0.15);
