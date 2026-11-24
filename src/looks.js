@@ -1,56 +1,65 @@
 // Открытка письма (038, specs/038-emoji-postcards/contracts/looks.md): один набор на сервере —
 // приложение получает его в ответе `me`. Вид открытки (узор, бумага, цвет текста, наклейка) — тема `ds-postcard--<id>`
 // в дизайн-системе; тест looks сверяет набор с темами и витриной в обе стороны.
+// 060: названия — в словаре (looks.card.<id>, looks.mask.<id>), набор хранит только id и эмодзи.
+
+import { tx } from './i18n/index.js';
 
 export const POSTCARDS = [
-  { id: 'snow', title: 'Снегопад' },
-  { id: 'firs', title: 'Ёлочки' },
-  { id: 'gingerbread', title: 'Имбирное печенье' },
-  { id: 'night', title: 'Звёздная ночь' },
-  { id: 'tartan', title: 'Тёплый плед' },
-  { id: 'candy', title: 'Леденец' },
-  { id: 'aurora', title: 'Северное сияние' },
-  { id: 'fireplace', title: 'У камина' },
-  { id: 'snowman', title: 'Снеговик' },
-  { id: 'tangerine', title: 'Мандарины' },
-  { id: 'cocoa', title: 'Какао с зефиром' },
-  { id: 'gift', title: 'Подарок с лентой' },
-  { id: 'sparkle', title: 'Золотые блёстки' },
-  { id: 'nordic', title: 'Скандинавский узор' },
-  { id: 'airmail', title: 'Авиапочта' },
+  { id: 'snow' },
+  { id: 'firs' },
+  { id: 'gingerbread' },
+  { id: 'night' },
+  { id: 'tartan' },
+  { id: 'candy' },
+  { id: 'aurora' },
+  { id: 'fireplace' },
+  { id: 'snowman' },
+  { id: 'tangerine' },
+  { id: 'cocoa' },
+  { id: 'gift' },
+  { id: 'sparkle' },
+  { id: 'nordic' },
+  { id: 'airmail' },
 ];
 
 // Маска Санты в переписке (040, specs/040-santa-mask/contracts/mask.md): у пары в событии, видна только её Санте и
 // подопечному.
 export const MASKS = [
-  { id: 'elf', emoji: '🧝', title: 'Эльф' },
-  { id: 'wizard', emoji: '🧙', title: 'Волшебник' },
-  { id: 'fairy', emoji: '🧚', title: 'Фея' },
-  { id: 'genie', emoji: '🧞', title: 'Джинн' },
-  { id: 'dragon', emoji: '🐉', title: 'Дракон' },
-  { id: 'ghost', emoji: '👻', title: 'Привидение' },
-  { id: 'matryoshka', emoji: '🪆', title: 'Матрёшка' },
-  { id: 'agent', emoji: '🕵️', title: 'Тайный агент' },
-  { id: 'ninja', emoji: '🥷', title: 'Ниндзя' },
-  { id: 'stranger', emoji: '🎭', title: 'Незнакомец' },
-  { id: 'superhero', emoji: '🦸', title: 'Супергерой' },
-  { id: 'robot', emoji: '🤖', title: 'Робот' },
-  { id: 'alien', emoji: '👽', title: 'Пришелец' },
-  { id: 'dinosaur', emoji: '🦖', title: 'Динозавр' },
-  { id: 'lion', emoji: '🦁', title: 'Лев' },
-  { id: 'frog', emoji: '🐸', title: 'Лягушка' },
-  { id: 'turtle', emoji: '🐢', title: 'Черепаха' },
-  { id: 'octopus', emoji: '🐙', title: 'Осьминог' },
-  { id: 'whale', emoji: '🐳', title: 'Кит' },
-  { id: 'seal', emoji: '🦭', title: 'Тюлень' },
+  { id: 'elf', emoji: '🧝' },
+  { id: 'wizard', emoji: '🧙' },
+  { id: 'fairy', emoji: '🧚' },
+  { id: 'genie', emoji: '🧞' },
+  { id: 'dragon', emoji: '🐉' },
+  { id: 'ghost', emoji: '👻' },
+  { id: 'matryoshka', emoji: '🪆' },
+  { id: 'agent', emoji: '🕵️' },
+  { id: 'ninja', emoji: '🥷' },
+  { id: 'stranger', emoji: '🎭' },
+  { id: 'superhero', emoji: '🦸' },
+  { id: 'robot', emoji: '🤖' },
+  { id: 'alien', emoji: '👽' },
+  { id: 'dinosaur', emoji: '🦖' },
+  { id: 'lion', emoji: '🦁' },
+  { id: 'frog', emoji: '🐸' },
+  { id: 'turtle', emoji: '🐢' },
+  { id: 'octopus', emoji: '🐙' },
+  { id: 'whale', emoji: '🐳' },
+  { id: 'seal', emoji: '🦭' },
 ];
+
+// Наборы для ответа me (038, 040): названия — отложенные тексты, ответ собирается на языке вызывающего
+export const looksView = () => ({
+  postcards: POSTCARDS.map((c) => ({ ...c, title: tx('looks.card.' + c.id) })),
+  masks: MASKS.map((m) => ({ ...m, title: tx('looks.mask.' + m.id) })),
+});
 
 // Значение из набора или '' («без»); иначе null
 export const validCard = (x) => (x === '' || POSTCARDS.some((c) => c.id === x) ? x : null);
 export const validMask = (x) => (x === '' || MASKS.some((m) => m.id === x) ? x : null);
 
-// «🐉 Дракон»; '' — без маски или маски больше нет в наборе
+// «🐉 Дракон» — отложенный текст (060: только значение подстановки); '' — без маски или маски больше нет в наборе
 export const maskLabel = (id) => {
   const m = MASKS.find((x) => x.id === id);
-  return m ? `${m.emoji} ${m.title}` : '';
+  return m ? tx('looks.maskLabel', { emoji: m.emoji, title: tx('looks.mask.' + m.id) }) : '';
 };

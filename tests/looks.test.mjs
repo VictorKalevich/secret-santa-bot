@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { POSTCARDS } from '../src/looks.js';
+import { t, DEFAULT_LANG } from '../src/i18n/index.js';
 
 after(restoreFetch);
 
@@ -151,7 +152,7 @@ const contrast = (a, b) => {
 
 test('набор открыток — 15 разных id и названий', () => {
   assert.equal(new Set(IDS).size, 15);
-  assert.equal(new Set(POSTCARDS.map((c) => c.title)).size, 15);
+  assert.equal(new Set(POSTCARDS.map((c) => t(DEFAULT_LANG, 'looks.card.' + c.id))).size, 15); // 060: названия — в словаре
   for (const id of IDS) assert.match(id, /^[a-z]+$/, id);
 });
 

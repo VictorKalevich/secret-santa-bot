@@ -6,6 +6,7 @@ import { describe, it, test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { MASKS, validMask, maskLabel } from '../src/looks.js';
+import { t, render, DEFAULT_LANG } from '../src/i18n/index.js';
 import { MAX_CHARS } from '../src/chat.js';
 
 after(restoreFetch);
@@ -56,16 +57,19 @@ async function world(people = [adm, anya, borya, vera]) {
 // ---------- набор ----------
 const VS = /[︎️]/g;
 const bare = (e) => e.replace(VS, '');
+// 060: название маски — в словаре (looks.mask.<id>), maskLabel — отложенный текст
+const maskTitle = (m) => t(DEFAULT_LANG, 'looks.mask.' + m.id);
+const label = (id) => render(maskLabel(id), DEFAULT_LANG);
 test('набор: 20 масок, id и названия разные, эмодзи — одна графема и без повторов', () => {
   const seg = new Intl.Segmenter('ru', { granularity: 'grapheme' });
   assert.equal(MASKS.length, 20);
   assert.equal(new Set(MASKS.map((m) => m.id)).size, 20);
-  assert.equal(new Set(MASKS.map((m) => m.title)).size, 20);
+  assert.equal(new Set(MASKS.map(maskTitle)).size, 20);
   assert.equal(new Set(MASKS.map((m) => bare(m.emoji))).size, 20);
   for (const m of MASKS) {
     assert.match(m.id, /^[a-z]+$/, m.id);
     assert.equal([...seg.segment(m.emoji)].length, 1, m.emoji);
-    assert.ok(m.title.trim() === m.title && m.title.length > 0, m.title);
+    assert.ok(maskTitle(m).trim() === maskTitle(m) && maskTitle(m).length > 0, maskTitle(m));
   }
 });
 
@@ -73,8 +77,8 @@ test('validMask и maskLabel: из набора или пусто; маска н
   assert.equal(validMask('dragon'), 'dragon');
   assert.equal(validMask(''), '');
   for (const x of ['nope', '🐉', 'Дракон', null, undefined, 5, 'DRAGON']) assert.equal(validMask(x), null, String(x));
-  assert.equal(maskLabel('dragon'), '🐉 Дракон');
-  assert.equal(maskLabel('agent'), '🕵️ Тайный агент');
+  assert.equal(label('dragon'), '🐉 Дракон');
+  assert.equal(label('agent'), '🕵️ Тайный агент');
   assert.equal(maskLabel(''), '');
   assert.equal(maskLabel('removed-from-set'), '');
 });
@@ -93,7 +97,7 @@ describe('Санта выбирает маску (040, US1)', () => {
   });
 
   it('me отдаёт набор масок', async () => {
-    assert.deepEqual((await z.w.api(anya, 'me')).looks.masks, MASKS);
+    assert.deepEqual((await z.w.api(anya, 'me')).looks.masks, MASKS.map((m) => ({ ...m, title: maskTitle(m) })));
   });
 
   it('маска сохраняется у пары: ward.get и chat.get Санты; «без маски» снимает; без сообщений и журнала', async () => {
@@ -228,14 +232,14 @@ describe('подопечный видит Санту в маске (040, US2)', 
 
   it('самая длинная маска с длинным названием события и 4000 символов — одно сообщение Telegram', async () => {
     const { w, create } = z;
-    const longest = MASKS.reduce((a, b) => (maskLabel(b.id).length > maskLabel(a.id).length ? b : a));
+    const longest = MASKS.reduce((a, b) => (label(b.id).length > label(a.id).length ? b : a));
     const L = await create('Новогодний обмен подарками большой и очень дружной семьи', [anya, borya, vera]);
     await w.api(boss, 'admin.draw', { event: L });
     const s = z.santaOf(anya, L);
     await w.api(s, 'mask.set', { event: L, mask: longest.id });
     await w.api(s, 'message.send', { event: L, to: 'ward', text: 'я'.repeat(MAX_CHARS) });
     const sent = w.lastText(anya);
-    assert.ok(sent.includes(maskLabel(longest.id)), sent.slice(0, 80));
+    assert.ok(sent.includes(label(longest.id)), sent.slice(0, 80));
     const visible = sent.replace(/<\/?b>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
     assert.ok(visible.length <= 4096, `${visible.length} > 4096`);
   });
@@ -258,7 +262,7 @@ test('раскрытие: подопечному Санты с маской — 
 
 // ---------- US4: тайна ----------
 // Любое упоминание маски в ответе: поле mask/santa_mask, id в кавычках, эмодзи или название из набора
-const MASK_NEEDLES = ['"mask"', '"santa_mask"', ...MASKS.flatMap((m) => [`"${m.id}"`, bare(m.emoji), m.title])];
+const MASK_NEEDLES = ['"mask"', '"santa_mask"', ...MASKS.flatMap((m) => [`"${m.id}"`, bare(m.emoji), maskTitle(m)])];
 const masked = (data) => MASK_NEEDLES.filter((n) => JSON.stringify(data).includes(n));
 
 describe('маска не уходит организаторам (040, US4)', () => {
