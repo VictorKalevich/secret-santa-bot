@@ -1665,6 +1665,100 @@ addEventListener('message', (e) => {
     else console.log('✔ компании: одна — прежний экран; две — список, вход, «‹», своё название; ссылка из бота; владелец бота — «‹» при одной компании, создание, ссылка, удаление, журнал, гость');
   }
 
+  // 052: открытый бот — второй Worker с OPEN_BOT = 1. Незнакомец без ссылки → «Компании» (пусто) → создать → экран
+  // компании со «‹»; пришедший по ссылке в чужую компанию — «‹» → «Компании» с «Создать компанию»; две своих — кнопка
+  // недоступна и подсказка лимита; ⚙️ своей пустой — удаление словом
+  async function checkOpenBot() {
+    const problems = [];
+    const o = await startWorld({ vars: { OPEN_BOT: '1' } });
+    try {
+      await o.setup();
+      const [zoya, petya] = [{ id: 260, name: 'Зоя', username: 'zoya' }, { id: 261, name: 'Петя', username: 'petya' }];
+      await o.say(zoya, '/start');
+      await o.say(zoya, zoya.name);
+      const go = async (what, user, fn) => {
+        const page = await openPage(what, { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+        try {
+          await page.goto(`${o.base}/app#tgWebAppData=${encodeURIComponent(initData(user))}`);
+          await page.waitForSelector('#main .ds-section-title, .ds-list-item--link, .ds-tabs:not([hidden])');
+          await fn(page);
+          await checkColors(page, what);
+        } catch (e) {
+          problems.push(`${what}: ${e.message.split('\n')[0]}`);
+        } finally {
+          await page.close();
+        }
+      };
+      const snap = (page, name) => page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, OUT)), fullPage: true });
+      const heroTitle = (page) => page.locator('#heroTitle').textContent();
+      const backShown = (page) => page.locator('#heroBack').isVisible();
+      const companiesShown = (page) => page.locator('#main .ds-section-title', { hasText: 'Компании' }).waitFor({ timeout: 5000 });
+      const createBtn = (page) => page.getByRole('button', { name: '🏢 Создать компанию' });
+
+      await go('открытый бот: незнакомец', zoya, async (page) => {
+        await companiesShown(page);
+        await page.locator('#main .ds-hint', { hasText: 'Компаний пока нет. Создай свою' }).waitFor({ timeout: 5000 });
+        if (await backShown(page)) problems.push('пустые «Компании»: есть «‹»');
+        await snap(page, '52-open-empty');
+        await createBtn(page).click();
+        await page.locator('.ds-sheet .ds-hint', { hasText: 'Ты станешь владельцем компании' }).waitFor({ timeout: 5000 });
+        await page.locator('.ds-sheet .ds-input').fill('Зоина компания');
+        await page.locator('.ds-sheet .ds-btn', { hasText: 'Создать' }).click();
+        await page.locator('#toast', { hasText: 'Компания создана' }).waitFor({ timeout: 5000 });
+        await page.locator('#heroTitle', { hasText: /^Зоина компания$/ }).waitFor({ timeout: 5000 });
+        if (!(await backShown(page))) problems.push('своя компания: нет «‹»');
+        if (!(await page.getByRole('button', { name: '🎄 Создать', exact: true }).count())) problems.push('своя компания: нет «🎄 Создать» (событие)');
+        await page.locator('#heroBack').click();
+        await companiesShown(page);
+        const row = page.locator('#main .ds-list-item--link', { hasText: 'Зоина компания' });
+        if (!(await row.locator('.ds-chip', { hasText: '👑 владелец' }).count())) problems.push('строка своей компании: нет «👑 владелец»');
+        if (!(await row.locator('.ds-icon-btn[title="Название компании"]').count())) problems.push('строка своей компании: ✏️ не «Название компании»');
+        if (!(await row.locator('.ds-icon-btn', { hasText: '⚙️' }).count())) problems.push('строка своей компании: нет ⚙️');
+      });
+
+      const Z = o.query("SELECT id FROM companies WHERE name = 'Зоина компания'")[0]?.id;
+      if (!Z) throw new Error('компания Зои не создана');
+      const ev = (await o.api(zoya, 'admin.events.create', { company: Z, title: 'Ёлка у Зои' })).event.id;
+      const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(zoya, 'admin.state', { event: ev })).settings.invite_link)[1];
+      await o.say(petya, '/start ' + code);
+      await o.say(petya, petya.name);
+
+      await go('открытый бот: пришедший по ссылке', petya, async (page) => {
+        await page.locator('#heroBack').click();
+        await page.locator('#main .ds-list-item--link', { hasText: 'Ёлка у Зои' }).waitFor({ timeout: 5000 });
+        if ((await heroTitle(page)) !== 'Зоина компания') problems.push(`по ссылке: шапка компании «${await heroTitle(page)}»`);
+        if (!(await backShown(page))) problems.push('по ссылке: на экране компании нет «‹»');
+        await page.locator('#heroBack').click();
+        await companiesShown(page);
+        if (!(await createBtn(page).isEnabled())) problems.push('по ссылке: «Создать компанию» недоступна');
+        await snap(page, '52-open-member');
+      });
+
+      await o.api(zoya, 'company.create', { name: 'Вторая Зои' });
+      await go('открытый бот: лимит и удаление', zoya, async (page) => {
+        await companiesShown(page);
+        if (await createBtn(page).isEnabled()) problems.push('две своих: «Создать компанию» доступна');
+        await page.locator('#main .ds-hint', { hasText: 'Вести можно не больше двух своих компаний' }).waitFor({ timeout: 5000 });
+        await snap(page, '52-open-limit');
+        page.on('dialog', (d) => d.accept());
+        await page.locator('#main .ds-list-item--link', { hasText: 'Вторая Зои' }).locator('.ds-icon-btn', { hasText: '⚙️' }).click();
+        await page.locator('.ds-sheet .ds-btn', { hasText: '🗑 Удалить компанию' }).click();
+        await page.locator('.ds-sheet .ds-input').fill('УДАЛИТЬ');
+        await page.locator('.ds-sheet .ds-btn--danger', { hasText: '🗑 Удалить компанию' }).click();
+        await page.locator('#toast', { hasText: 'Компания удалена' }).waitFor({ timeout: 5000 });
+        if (o.query("SELECT COUNT(*) AS n FROM companies WHERE name = 'Вторая Зои'")[0].n) problems.push('своя пустая компания не удалена');
+        await page.locator('#heroTitle', { hasText: /^Зоина компания$/ }).waitFor({ timeout: 5000 });
+        if (!(await backShown(page))) problems.push('после удаления: на экране единственной компании нет «‹»');
+      });
+    } catch (e) {
+      problems.push(e.message.split('\n')[0]);
+    } finally {
+      await o.stop();
+    }
+    if (problems.length) colorProblems.push(...problems.map((x) => 'открытый бот (052): ' + x));
+    else console.log('✔ открытый бот: незнакомец — «Компании», создание и экран компании со «‹»; по ссылке — «‹» к «Создать компанию»; лимит; удаление своей пустой');
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await openPage(name + (dark ? ' (тёмная)' : ''), { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -1798,6 +1892,7 @@ addEventListener('message', (e) => {
   await checkSwap();
   await checkCsp();
   await checkCompanies();
+  await checkOpenBot();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
   else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);
   console.log('Скриншоты сохранены в test-results/');
