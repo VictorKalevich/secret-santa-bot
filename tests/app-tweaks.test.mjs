@@ -97,7 +97,8 @@ export function titleHint(text, year) {
 // ---------- 5. Отступ над «Вопрос решён» — как в обычной шторке ----------
 export function resolveSpaced(text, css) {
   const lines = text.split('\n');
-  const i = lines.findIndex((l) => l.includes("ui.btn('✅ Вопрос решён'"));
+  // 060: подпись — из словаря (app.sheet.support.resolve — «✅ Вопрос решён»)
+  const i = lines.findIndex((l) => l.includes("ui.btn(t('app.sheet.support.resolve')"));
   if (i < 0) return [[1, 'нет кнопки «✅ Вопрос решён»']];
   const found = [];
   if (!lines[i].includes('ds-sheet__action')) found.push([i + 1, '«Вопрос решён» без ds-sheet__action — стоит вплотную к полю ввода']);
@@ -247,9 +248,9 @@ test('от противного 4: год числом в подсказке н�
 });
 
 test('от противного 5: кнопка без отступа и отступ не как у ds-stack находятся', () => {
-  const btn = "    const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block');";
+  const btn = "    const resolve = ui.btn(t('app.sheet.support.resolve'), 'secondary', 'ds-btn--block');";
   assert.ok(resolveSpaced(btn, CSS).some(([, why]) => why.includes('вплотную')));
-  const btnOk = "    const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block ds-sheet__action');";
+  const btnOk = "    const resolve = ui.btn(t('app.sheet.support.resolve'), 'secondary', 'ds-btn--block ds-sheet__action');";
   const cssBad = '.ds-stack > * + * { margin-top: var(--ds-space-3); }\n.ds-sheet__action { margin-top: var(--ds-space-1); }';
   assert.ok(resolveSpaced(btnOk, cssBad).some(([, why]) => why.includes('не как у ds-stack')));
   assert.ok(resolveSpaced(btnOk, '.ds-stack > * + * { margin-top: var(--ds-space-3); }').some(([, why]) => why.includes('нет .ds-sheet__action')));

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { APP, PARTS, topBlock, code } from './support/app-source.mjs';
 import { swapRules, SWAP_RULES } from '../src/pairs.js';
-import { t, DEFAULT_LANG } from '../src/i18n/index.js';
+import { t, appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
 after(restoreFetch);
 
@@ -357,13 +357,22 @@ test('приложение: секция только владельцу пос�
     assert.ok(text.includes(needle), 'в шторке нет ' + needle);
   }
   assert.ok(!/\.ward\b|\.santa\b/.test(text), 'шторка не знает пар');
-  assert.match(APP, /'draw\.swap': '🔀 Подопечные поменялись'/);
+  // 060: тексты — в словаре приложения; подпись журнала — семейство app.vault.audit.<код>, тексты шторки — по ключам её
+  // вызовов t('…')
+  const dict = appTexts(DEFAULT_LANG).texts;
+  assert.equal(dict['app.vault.audit.draw.swap'], '🔀 Подопечные поменялись');
+  assert.match(APP, /\bt\('app\.vault\.audit\.' \+ /, 'журнал берёт подпись по коду');
+  const said = [...text.matchAll(/\bt\('([\w.]+)'/g)].map((m) => {
+    const v = dict[m[1]];
+    assert.ok(v !== undefined, 'нет ключа ' + m[1]);
+    return typeof v === 'object' ? Object.values(v).join('\n') : v;
+  }).join('\n');
   // 049: метка «не открыл подопечного» — та же, что в «Участниках»; после обмена — у обоих; тексты не обещают сообщения обоим
   assert.ok(text.includes("u.ward_seen === false ? [h('div', { class: 'ds-chips' }, unseenChip())]"), 'метка по ward_seen');
   assert.match(text, /x\.ward_seen = false;\s*mark\(x\);/, 'после обмена — метка обоим');
   assert.equal((text.match(/await success\(u, v\)/g) || []).length, 2, 'оба пути обмена обновляют метки');
-  assert.ok(!text.includes('напишет обоим'), 'тексты: сообщение — только открывшим');
-  assert.equal((text.match(/тем, кто уже открыл подопечного, бот напишет/gi) || []).length, 2, 'окно и плашка');
+  assert.ok(!said.includes('напишет обоим'), 'тексты: сообщение — только открывшим');
+  assert.equal((said.match(/тем, кто уже открыл подопечного, бот напишет/gi) || []).length, 2, 'окно и плашка');
   const members = topBlock(admin, 'adminMembers');
   assert.ok(admin.slice(members[0], members[1] + 1).join('\n').includes('if (u.ward_seen === false) chips.push(unseenChip());'));
   assert.ok(admin.join('\n').includes("const unseenChip = () => ui.chip('👀 не открыл подопечного', 'warning');"));
