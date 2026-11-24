@@ -3,10 +3,14 @@
 import { getSettings, setSettings } from './db.js';
 import { tgApi, derivedSecret } from './telegram.js';
 import { escapeHtml } from './format.js';
+import { translator, DEFAULT_LANG } from './i18n/index.js';
 import { ownerLinkCode, ownerLinkUsed } from './roles.js';
 import TOKENS_CSS from '../design-system/tokens.css';
 import COMPONENTS_CSS from '../design-system/components.css';
 import CLEARABLE_INPUT from '../design-system/clearable-input.js.txt';
+
+// У страницы нет языка человека — тексты на языке по умолчанию (060)
+const t = translator(DEFAULT_LANG);
 
 // Страница настройки (010): ключ — только из формы (POST), не из адреса; ссылка владельца одноразовая, после неё
 // страница заблокирована до смены ADMIN_SECRET. Адрес страницы не уходит другим сайтам, страница не кэшируется.
@@ -19,19 +23,19 @@ const SETUP_HEADERS = {
 };
 
 const SETUP_FORM = `<form method="post" action="/setup" autocomplete="off">
-<label for="key">Ключ настройки (значение секрета ADMIN_SECRET)</label>
+<label for="key">${t('setup.form.label')}</label>
 <span class="ds-clearable"><input class="ds-input" id="key" name="key" type="password" required minlength="8" autofocus></span>
-<button type="submit">Настроить бота</button>
+<button type="submit">${t('setup.form.submit')}</button>
 </form>
 <script>${CLEARABLE_INPUT}
-bindClearableInput(document.querySelector('.ds-clearable'), 'Ключ настройки');</script>`;
+bindClearableInput(document.querySelector('.ds-clearable'), '${t('setup.form.field')}');</script>`;
 
 export async function setup(request, url, env) {
-  const page = (title, body, status = 200) =>
+  const page = (body, status = 200) =>
     new Response(
       `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer"><meta name="robots" content="noindex">
-<title>${title}</title><style>
+<title>${t('setup.title')}</title><style>
 ${TOKENS_CSS}
 ${COMPONENTS_CSS}
 :root{color-scheme:light}
@@ -46,77 +50,69 @@ button{font:inherit;padding:10px 16px;border:0;border-radius:10px;background:#24
     );
 
   if (!env.ADMIN_SECRET || String(env.ADMIN_SECRET).length < 8) {
-    return page('Настройка', '<h1>Нужен ADMIN_SECRET</h1><p>Задай секрет ADMIN_SECRET длиной от 8 символов (см. инструкцию).</p>', 500);
+    return page(`<h1>${t('setup.noSecret.title')}</h1><p>${t('setup.noSecret.text')}</p>`, 500);
   }
   // Ключ в адресе не читается: он остался бы в истории браузера и журналах (FR-1002)
   if (request.method !== 'POST') {
-    return page('Настройка', `<h1>🎄 Настройка бота</h1><p>Введи ключ настройки — тот, что ты задал командой
-<code>npx wrangler secret put ADMIN_SECRET</code>.</p>${SETUP_FORM}`);
+    return page(`<h1>${t('setup.start.title')}</h1><p>${t('setup.start.text')}</p>${SETUP_FORM}`);
   }
   const form = await request.formData().catch(() => null);
   const key = String(form?.get('key') || '');
   // Сравнение HMAC-ов, а не самих строк: время сравнения не зависит от совпавшего префикса ключа
   if ((await derivedSecret(env, 'setup-key:' + key)) !== (await derivedSecret(env, 'setup-key:' + env.ADMIN_SECRET))) {
-    return page('Настройка', `<h1>Неверный ключ</h1><p class="bad">Ключ не подошёл. Проверь значение ADMIN_SECRET.</p>${SETUP_FORM}`, 403);
+    return page(`<h1>${t('setup.badKey.title')}</h1><p class="bad">${t('setup.badKey.text')}</p>${SETUP_FORM}`, 403);
   }
   // Ссылкой владельца уже воспользовались — до смены секрета ни настройки, ни новой ссылки (FR-1005)
   if (await ownerLinkUsed(env, await getSettings(env.DB))) {
-    return page('Настройка', `<h1>🔒 Страница заблокирована</h1>
-<p>Ссылкой владельца уже воспользовались, поэтому страница настройки больше не выдаёт её и не меняет настройки бота.</p>
-<p>Чтобы разблокировать (например, если ссылка утекла или нужно забрать права владельца), смени ключ:</p>
+    return page(`<h1>${t('setup.locked.title')}</h1>
+<p>${t('setup.locked.used')}</p>
+<p>${t('setup.locked.unlock')}</p>
 <p><code>npx wrangler secret put ADMIN_SECRET</code></p>
-<p>Затем открой эту страницу снова и введи новый ключ — появится новая ссылка владельца, старая перестанет работать.</p>`, 423);
+<p>${t('setup.locked.then')}</p>`, 423);
   }
 
   const call = tgApi(env);
   const origin = url.origin;
   const steps = [];
   const me = await call('getMe');
-  steps.push(['Токен бота', me.ok, me.ok ? '@' + me.result.username : me.description]);
-  if (!me.ok) return page('Настройка', '<h1>Не получилось</h1>' + renderSteps(steps), 500);
+  steps.push([t('setup.step.token'), me.ok, me.ok ? '@' + me.result.username : me.description]);
+  if (!me.ok) return page(`<h1>${t('setup.failed')}</h1>${renderSteps(steps)}`, 500);
 
   const wh = await call('setWebhook', {
     url: origin + '/tg',
     secret_token: await derivedSecret(env, 'webhook'),
     allowed_updates: ['message', 'callback_query'],
   });
-  steps.push(['Webhook', wh.ok, wh.description || '']);
+  steps.push([t('setup.step.webhook'), wh.ok, wh.description || '']);
 
   const cmds = await call('setMyCommands', {
     commands: [
-      { command: 'start', description: 'Главное меню и мои события' },
-      { command: 'cancel', description: 'Отменить ввод' },
+      { command: 'start', description: t('setup.command.start') },
+      { command: 'cancel', description: t('setup.command.cancel') },
     ],
   });
-  steps.push(['Команды', cmds.ok, '']);
+  steps.push([t('setup.step.commands'), cmds.ok, '']);
 
   const menu = await call('setChatMenuButton', {
-    menu_button: { type: 'web_app', text: '🎁 Санта', web_app: { url: origin + '/app' } },
+    menu_button: { type: 'web_app', text: t('setup.menuButton'), web_app: { url: origin + '/app' } },
   });
-  steps.push(['Кнопка приложения', menu.ok, menu.description || '']);
+  steps.push([t('setup.step.menuButton'), menu.ok, menu.description || '']);
 
-  await call('setMyDescription', {
-    description: '🎄 Закрытый бот для игры в Тайного Санту: письма Санте, жеребьёвка с исключениями, анонимные вопросы. Вход по пригласительной ссылке на событие.',
-  });
-  await call('setMyShortDescription', { short_description: '🎄 Тайный Санта для друзей, семьи и коллег' });
+  await call('setMyDescription', { description: t('setup.description') });
+  await call('setMyShortDescription', { short_description: t('setup.shortDescription') });
 
   await setSettings(env.DB, { base_url: origin, bot_username: me.result.username });
 
   const adminLink = `https://t.me/${me.result.username}?start=${await ownerLinkCode(env)}`;
   const allOk = steps.every((x) => x[1]);
   return page(
-    'Настройка',
-    `<h1>${allOk ? '✅ Бот настроен' : '⚠️ Есть проблемы'}</h1>${renderSteps(steps)}
-<h2>1. Ссылка владельца</h2>
-<p>Открой её в Telegram — бот сделает тебя <b>владельцем бота</b>. Владелец создаёт события, назначает и снимает
-администраторов в приложении (главный экран → «Владелец и администраторы») и может открыть служебный просмотр пар.</p>
+    `<h1>${t(allOk ? 'setup.done.ok' : 'setup.done.problems')}</h1>${renderSteps(steps)}
+<h2>${t('setup.done.linkTitle')}</h2>
+<p>${t('setup.done.linkText')}</p>
 <a class="link" href="${adminLink}" rel="noreferrer">${adminLink}</a>
-<p class="warn">⚠️ Ссылка <b>срабатывает один раз</b>: после перехода по ней эта страница блокируется, пока ты не сменишь
-ADMIN_SECRET. Никому её не пересылай — тот, кто перейдёт первым, станет владельцем. Если это случилось, смени ADMIN_SECRET,
-открой страницу снова и перейди по новой ссылке. Пока ссылкой не воспользовались, страницу можно открыть повторно.</p>
-<h2>2. Создай событие</h2>
-<p>В чате с ботом нажми «🎁 Санта» → «🎄 Создать». У каждого события своя пригласительная ссылка — её можно
-скопировать или отправить в чат прямо из приложения (вкладка «Управление» события).</p>`
+<p class="warn">${t('setup.done.linkWarn')}</p>
+<h2>${t('setup.done.eventTitle')}</h2>
+<p>${t('setup.done.eventText')}</p>`
   );
 }
 
