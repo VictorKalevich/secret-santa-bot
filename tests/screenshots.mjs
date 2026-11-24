@@ -608,7 +608,7 @@ try {
   // Событие B — до жеребьёвки: заявка Стёпы, прошлое событие A. В конце регистрация снова открыта.
   async function checkRegistration() {
     const problems = [];
-    const OPEN = 'Пригласить участников прошлого события — например, ту же компанию на следующий год.';
+    const OPEN = 'Пригласить участников прошлого события — например, тех же людей на следующий год.';
     const CLOSED = 'Пригласить участников прошлого события можно, когда регистрация открыта.';
     const REQ = 'Регистрация закрыта — принять заявку можно, когда откроешь её. Отклонить можно сейчас.';
     // Состояние панели: кнопка приглашения, видимые подсказки, выбор, черновик, прокрутка, та же ли панель (не перестроена)
@@ -1532,7 +1532,7 @@ addEventListener('message', (e) => {
 
   // 051: компании (контракт specs/051-companies/contracts/companies.md, раздел 5). Идёт последней: вторая компания меняет
   // корневой экран владельца бота. Человек с одной компанией — прежний главный экран без слова «компания»; с двумя —
-  // «Компании» (вход, «‹», своё название), ссылка из бота на событие; владелец бота — создание, шторка «Компания» (ссылка
+  // «Комнаты» (вход, «‹», своё название), ссылка из бота на событие; владелец бота — создание, шторка «Компания» (ссылка
   // владельца, удаление пустой), журнал бота, гость в чужой компании
   async function checkCompanies() {
     const problems = [];
@@ -1548,29 +1548,29 @@ addEventListener('message', (e) => {
     const heroTitle = (page) => page.locator('#heroTitle').textContent();
     const backShown = (page) => page.locator('#heroBack').isVisible();
     const rows = (page) => page.locator('#main .ds-list-item--link .ds-list-item__title').allTextContents();
-    const mainHasWord = (page) => page.evaluate(() => /компани/i.test(document.getElementById('main').textContent));
-    const companiesShown = (page) => page.locator('#main .ds-section-title', { hasText: 'Компании' }).waitFor({ timeout: 5000 });
+    const mainHasWord = (page) => page.evaluate(() => /комнат|компани/i.test(document.getElementById('main').textContent));
+    const companiesShown = (page) => page.locator('#main .ds-section-title', { hasText: 'Комнаты' }).waitFor({ timeout: 5000 });
 
     await onPage(problems, 'одна компания', nina, null, async (page) => {
       await page.getByRole('button', { name: '✏️ Изменить имя' }).waitFor({ timeout: 5000 });
       if ((await heroTitle(page)) !== 'Тайный Санта') problems.push(`одна компания: шапка «${await heroTitle(page)}»`);
       if (await backShown(page)) problems.push('одна компания: на главном экране есть «‹»');
-      if (await mainHasWord(page)) problems.push('одна компания: на главном экране есть слово «компания»');
+      if (await mainHasWord(page)) problems.push('одна компания: на главном экране есть слово «комната» или «компания»');
     });
 
-    // Владелец бота с одной компанией (052): главный экран со «‹» и названием компании, раздела «Компании» нет; создание —
+    // Владелец бота с одной компанией (052): главный экран со «‹» и названием компании, раздела «Комнаты» нет; создание —
     // на «Компаниях», после него — экран новой компании
     const heroIs = (page, text) => page.locator('#heroTitle', { hasText: new RegExp(`^${text}$`) }).waitFor({ timeout: 5000 });
     await onPage(problems, 'владелец бота: создание компании', admin, null, async (page) => {
       await heroIs(page, 'Основная').catch(async () => problems.push(`владелец бота с одной компанией: шапка «${await heroTitle(page)}»`));
       if (!(await backShown(page))) problems.push('владелец бота с одной компанией: нет «‹»');
-      if (await page.getByRole('button', { name: '🏢 Создать компанию' }).count()) problems.push('владелец бота: «Создать компанию» на главном экране компании');
+      if (await page.getByRole('button', { name: '🚪 Создать комнату' }).count()) problems.push('владелец бота: «Создать комнату» на главном экране компании');
       await page.locator('#heroBack').click();
       await companiesShown(page);
-      await page.getByRole('button', { name: '🏢 Создать компанию' }).click();
+      await page.getByRole('button', { name: '🚪 Создать комнату' }).click();
       await page.locator('.ds-sheet .ds-input').fill('Работа');
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Создать' }).click();
-      await toastIs(page, 'Компания создана');
+      await toastIs(page, 'Комната создана');
       await heroIs(page, 'Работа').catch(async () => problems.push(`после создания: шапка «${await heroTitle(page)}»`));
       await page.locator('#heroBack').click();
       await companiesShown(page);
@@ -1586,11 +1586,11 @@ addEventListener('message', (e) => {
     await onPage(problems, 'две компании', nina, null, async (page) => {
       await companiesShown(page);
       const list = await rows(page);
-      if (list.join('|') !== 'Компания 1|Компания 2') problems.push(`две компании: список — ${list.join(', ')}`);
-      if (await backShown(page)) problems.push('«Компании»: есть «‹»');
-      if (!(await page.getByRole('button', { name: '✏️ Изменить имя' }).count())) problems.push('«Компании»: нет «Профиля»');
+      if (list.join('|') !== 'Комната 1|Комната 2') problems.push(`две компании: список — ${list.join(', ')}`);
+      if (await backShown(page)) problems.push('«Комнаты»: есть «‹»');
+      if (!(await page.getByRole('button', { name: '✏️ Изменить имя' }).count())) problems.push('«Комнаты»: нет «Профиля»');
       // «✏️» в строке не открывает компанию; своё название сразу в списке
-      await page.locator('#main .ds-list-item--link', { hasText: 'Компания 2' }).locator('.ds-icon-btn', { hasText: '✏️' }).click();
+      await page.locator('#main .ds-list-item--link', { hasText: 'Комната 2' }).locator('.ds-icon-btn', { hasText: '✏️' }).click();
       await page.locator('.ds-sheet .ds-input').fill('Работа Нины');
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Сохранить' }).click();
       await toastIs(page, 'Название сохранено');
@@ -1627,7 +1627,7 @@ addEventListener('message', (e) => {
       for (const b of ['📋 Скопировать', '📤 Отправить в чат', 'Отозвать']) {
         if (!(await sheet.getByRole('button', { name: b }).count())) problems.push(`шторка: нет «${b}»`);
       }
-      if (!(await sheet.locator('.ds-hint', { hasText: 'В компании есть события' }).count())) problems.push('шторка: нет подсказки «В компании есть события»');
+      if (!(await sheet.locator('.ds-hint', { hasText: 'В комнате есть события' }).count())) problems.push('шторка: нет подсказки «В комнате есть события»');
       await sheet.getByRole('button', { name: 'Отозвать' }).click();
       await toastIs(page, 'Ссылка отозвана');
       if (w.query(`SELECT owner_code FROM companies WHERE id = ${Number(C)}`)[0].owner_code !== '') problems.push('ссылка не отозвана');
@@ -1639,13 +1639,13 @@ addEventListener('message', (e) => {
     await onPage(problems, 'удаление компании', admin, null, async (page) => {
       page.on('dialog', (d) => d.accept());
       await page.locator('#main .ds-list-item--link', { hasText: 'Пустая' }).locator('.ds-icon-btn', { hasText: '⚙️' }).click();
-      await page.locator('.ds-sheet .ds-btn', { hasText: '🗑 Удалить компанию' }).click();
+      await page.locator('.ds-sheet .ds-btn', { hasText: '🗑 Удалить комнату' }).click();
       await page.locator('.ds-sheet .ds-input').fill('УДАЛИТЬ');
-      await page.locator('.ds-sheet .ds-btn--danger', { hasText: '🗑 Удалить компанию' }).click();
-      await toastIs(page, 'Компания удалена');
+      await page.locator('.ds-sheet .ds-btn--danger', { hasText: '🗑 Удалить комнату' }).click();
+      await toastIs(page, 'Комната удалена');
       if (w.query("SELECT COUNT(*) AS n FROM companies WHERE name = 'Пустая'")[0].n) problems.push('пустая компания не удалена');
       await page.getByRole('button', { name: '📜 Журнал бота' }).click();
-      await page.locator('.ds-sheet', { hasText: '🗑 Компания удалена' }).waitFor({ timeout: 5000 });
+      await page.locator('.ds-sheet', { hasText: '🗑 Комната удалена' }).waitFor({ timeout: 5000 });
     });
 
     // Гость: компанию ведёт Олег — у владельца бота метка и плашка
@@ -1665,8 +1665,8 @@ addEventListener('message', (e) => {
     else console.log('✔ компании: одна — прежний экран; две — список, вход, «‹», своё название; ссылка из бота; владелец бота — «‹» при одной компании, создание, ссылка, удаление, журнал, гость');
   }
 
-  // 052: открытый бот — второй Worker с OPEN_BOT = 1. Незнакомец без ссылки → «Компании» (пусто) → создать → экран
-  // компании со «‹»; пришедший по ссылке в чужую компанию — «‹» → «Компании» с «Создать компанию»; две своих — кнопка
+  // 052: открытый бот — второй Worker с OPEN_BOT = 1. Незнакомец без ссылки → «Комнаты» (пусто) → создать → экран
+  // компании со «‹»; пришедший по ссылке в чужую компанию — «‹» → «Комнаты» с «Создать комнату»; две своих — кнопка
   // недоступна и подсказка лимита; ⚙️ своей пустой — удаление словом
   async function checkOpenBot() {
     const problems = [];
@@ -1692,31 +1692,31 @@ addEventListener('message', (e) => {
       const snap = (page, name) => page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, OUT)), fullPage: true });
       const heroTitle = (page) => page.locator('#heroTitle').textContent();
       const backShown = (page) => page.locator('#heroBack').isVisible();
-      const companiesShown = (page) => page.locator('#main .ds-section-title', { hasText: 'Компании' }).waitFor({ timeout: 5000 });
-      const createBtn = (page) => page.getByRole('button', { name: '🏢 Создать компанию' });
+      const companiesShown = (page) => page.locator('#main .ds-section-title', { hasText: 'Комнаты' }).waitFor({ timeout: 5000 });
+      const createBtn = (page) => page.getByRole('button', { name: '🚪 Создать комнату' });
 
       await go('открытый бот: незнакомец', zoya, async (page) => {
         await companiesShown(page);
-        await page.locator('#main .ds-hint', { hasText: 'Компаний пока нет. Создай свою' }).waitFor({ timeout: 5000 });
-        if (await backShown(page)) problems.push('пустые «Компании»: есть «‹»');
+        await page.locator('#main .ds-hint', { hasText: 'Комнат пока нет. Создай свою' }).waitFor({ timeout: 5000 });
+        if (await backShown(page)) problems.push('пустые «Комнаты»: есть «‹»');
         await snap(page, '52-open-empty');
         await createBtn(page).click();
-        await page.locator('.ds-sheet .ds-hint', { hasText: 'Ты станешь владельцем компании' }).waitFor({ timeout: 5000 });
-        await page.locator('.ds-sheet .ds-input').fill('Зоина компания');
+        await page.locator('.ds-sheet .ds-hint', { hasText: 'Ты станешь владельцем комнаты' }).waitFor({ timeout: 5000 });
+        await page.locator('.ds-sheet .ds-input').fill('Комната Зои');
         await page.locator('.ds-sheet .ds-btn', { hasText: 'Создать' }).click();
-        await page.locator('#toast', { hasText: 'Компания создана' }).waitFor({ timeout: 5000 });
-        await page.locator('#heroTitle', { hasText: /^Зоина компания$/ }).waitFor({ timeout: 5000 });
+        await page.locator('#toast', { hasText: 'Комната создана' }).waitFor({ timeout: 5000 });
+        await page.locator('#heroTitle', { hasText: /^Комната Зои$/ }).waitFor({ timeout: 5000 });
         if (!(await backShown(page))) problems.push('своя компания: нет «‹»');
         if (!(await page.getByRole('button', { name: '🎄 Создать', exact: true }).count())) problems.push('своя компания: нет «🎄 Создать» (событие)');
         await page.locator('#heroBack').click();
         await companiesShown(page);
-        const row = page.locator('#main .ds-list-item--link', { hasText: 'Зоина компания' });
+        const row = page.locator('#main .ds-list-item--link', { hasText: 'Комната Зои' });
         if (!(await row.locator('.ds-chip', { hasText: '👑 владелец' }).count())) problems.push('строка своей компании: нет «👑 владелец»');
-        if (!(await row.locator('.ds-icon-btn[title="Название компании"]').count())) problems.push('строка своей компании: ✏️ не «Название компании»');
+        if (!(await row.locator('.ds-icon-btn[title="Название комнаты"]').count())) problems.push('строка своей компании: ✏️ не «Название комнаты»');
         if (!(await row.locator('.ds-icon-btn', { hasText: '⚙️' }).count())) problems.push('строка своей компании: нет ⚙️');
       });
 
-      const Z = o.query("SELECT id FROM companies WHERE name = 'Зоина компания'")[0]?.id;
+      const Z = o.query("SELECT id FROM companies WHERE name = 'Комната Зои'")[0]?.id;
       if (!Z) throw new Error('компания Зои не создана');
       const ev = (await o.api(zoya, 'admin.events.create', { company: Z, title: 'Ёлка у Зои' })).event.id;
       const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(zoya, 'admin.state', { event: ev })).settings.invite_link)[1];
@@ -1726,28 +1726,28 @@ addEventListener('message', (e) => {
       await go('открытый бот: пришедший по ссылке', petya, async (page) => {
         await page.locator('#heroBack').click();
         await page.locator('#main .ds-list-item--link', { hasText: 'Ёлка у Зои' }).waitFor({ timeout: 5000 });
-        if ((await heroTitle(page)) !== 'Зоина компания') problems.push(`по ссылке: шапка компании «${await heroTitle(page)}»`);
+        if ((await heroTitle(page)) !== 'Комната Зои') problems.push(`по ссылке: шапка компании «${await heroTitle(page)}»`);
         if (!(await backShown(page))) problems.push('по ссылке: на экране компании нет «‹»');
         await page.locator('#heroBack').click();
         await companiesShown(page);
-        if (!(await createBtn(page).isEnabled())) problems.push('по ссылке: «Создать компанию» недоступна');
+        if (!(await createBtn(page).isEnabled())) problems.push('по ссылке: «Создать комнату» недоступна');
         await snap(page, '52-open-member');
       });
 
       await o.api(zoya, 'company.create', { name: 'Вторая Зои' });
       await go('открытый бот: лимит и удаление', zoya, async (page) => {
         await companiesShown(page);
-        if (await createBtn(page).isEnabled()) problems.push('две своих: «Создать компанию» доступна');
-        await page.locator('#main .ds-hint', { hasText: 'Вести можно не больше двух своих компаний' }).waitFor({ timeout: 5000 });
+        if (await createBtn(page).isEnabled()) problems.push('две своих: «Создать комнату» доступна');
+        await page.locator('#main .ds-hint', { hasText: 'Вести можно не больше двух своих комнат' }).waitFor({ timeout: 5000 });
         await snap(page, '52-open-limit');
         page.on('dialog', (d) => d.accept());
         await page.locator('#main .ds-list-item--link', { hasText: 'Вторая Зои' }).locator('.ds-icon-btn', { hasText: '⚙️' }).click();
-        await page.locator('.ds-sheet .ds-btn', { hasText: '🗑 Удалить компанию' }).click();
+        await page.locator('.ds-sheet .ds-btn', { hasText: '🗑 Удалить комнату' }).click();
         await page.locator('.ds-sheet .ds-input').fill('УДАЛИТЬ');
-        await page.locator('.ds-sheet .ds-btn--danger', { hasText: '🗑 Удалить компанию' }).click();
-        await page.locator('#toast', { hasText: 'Компания удалена' }).waitFor({ timeout: 5000 });
+        await page.locator('.ds-sheet .ds-btn--danger', { hasText: '🗑 Удалить комнату' }).click();
+        await page.locator('#toast', { hasText: 'Комната удалена' }).waitFor({ timeout: 5000 });
         if (o.query("SELECT COUNT(*) AS n FROM companies WHERE name = 'Вторая Зои'")[0].n) problems.push('своя пустая компания не удалена');
-        await page.locator('#heroTitle', { hasText: /^Зоина компания$/ }).waitFor({ timeout: 5000 });
+        await page.locator('#heroTitle', { hasText: /^Комната Зои$/ }).waitFor({ timeout: 5000 });
         if (!(await backShown(page))) problems.push('после удаления: на экране единственной компании нет «‹»');
       });
     } catch (e) {
@@ -1756,7 +1756,7 @@ addEventListener('message', (e) => {
       await o.stop();
     }
     if (problems.length) colorProblems.push(...problems.map((x) => 'открытый бот (052): ' + x));
-    else console.log('✔ открытый бот: незнакомец — «Компании», создание и экран компании со «‹»; по ссылке — «‹» к «Создать компанию»; лимит; удаление своей пустой');
+    else console.log('✔ открытый бот: незнакомец — «Комнаты», создание и экран компании со «‹»; по ссылке — «‹» к «Создать комнату»; лимит; удаление своей пустой');
   }
 
   // 053: «Нравится бот?» на «Инфо» — только в открытом боте, сразу под «Нужна помощь?» (или на его месте), перед «Как это
@@ -1817,8 +1817,8 @@ addEventListener('message', (e) => {
       const [lena, kolya] = [{ id: 270, name: 'Лена', username: 'lena' }, { id: 271, name: 'Коля', username: 'kolya' }];
       await o.say(lena, '/start');
       await o.say(lena, lena.name);
-      await o.api(lena, 'company.create', { name: 'Ленина компания' });
-      const L = o.query("SELECT id FROM companies WHERE name = 'Ленина компания'")[0]?.id;
+      await o.api(lena, 'company.create', { name: 'Комната Лены' });
+      const L = o.query("SELECT id FROM companies WHERE name = 'Комната Лены'")[0]?.id;
       if (!L) throw new Error('компания Лены не создана');
       const ev = (await o.api(lena, 'admin.events.create', { company: L, title: 'Ёлка у Лены' })).event.id;
       const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(lena, 'admin.state', { event: ev })).settings.invite_link)[1];
