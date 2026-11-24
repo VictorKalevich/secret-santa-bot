@@ -5,11 +5,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { APP, where, code, topBlock, ownerOf } from './support/app-source.mjs';
+import { appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
 const DONATE = 'https://dalink.to/trivial_no';
-const TEXTS = ["ui.section('Нравится бот?')", "'☕'", "'Поддержать проект'",
-  "'Бот полностью бесплатный. Если он оказался вам полезен, вы можете поддержать его развитие и дальнейшее улучшение.'",
-  "'❤️ Поддержать через DonationAlerts'", "'Любая сумма имеет значение. Спасибо!'"];
+// 060: тексты — в словаре: [вызов в donateSection, ключ, текст словаря]; значок — в коде
+const TEXTS = [
+  ["ui.section(t('app.event.donate.section'))", 'app.event.donate.section', 'Нравится бот?'],
+  ["t('app.event.donate.title')", 'app.event.donate.title', 'Поддержать проект'],
+  ["t('app.event.donate.text')", 'app.event.donate.text',
+    'Бот полностью бесплатный. Если он оказался вам полезен, вы можете поддержать его развитие и дальнейшее улучшение.'],
+  ["t('app.event.donate.button')", 'app.event.donate.button', '❤️ Поддержать через DonationAlerts'],
+  ["t('app.event.donate.note')", 'app.event.donate.note', 'Любая сумма имеет значение. Спасибо!'],
+];
+const ICON = "'☕'";
+const APP_DICT = appTexts(DEFAULT_LANG).texts;
 const ds = (file) => readFileSync(new URL(`../design-system/${file}`, import.meta.url), 'utf8');
 const DS = { tokens: ds('tokens.css'), components: ds('components.css'), preview: ds('preview.html'), readme: ds('README.md') };
 
@@ -18,8 +27,8 @@ const body = (lines, name) => {
   return b ? lines.slice(b[0], b[1] + 1).map(code) : [];
 };
 
-// Правила 1–5 по склейке: имя правила → нарушения ([] — правило выполнено)
-function appRules(app) {
+// Правила 1–5 по склейке и словарю dict: имя правила → нарушения ([] — правило выполнено)
+function appRules(app, dict = APP_DICT) {
   const lines = app.split('\n');
   const owner = (i) => ownerOf(lines, i).name;
   const bad = (re, allowed) => lines.flatMap((l, i) => (re.test(code(l)) && !allowed.includes(owner(i)) ? [where(i + 1)] : []));
@@ -32,9 +41,11 @@ function appRules(app) {
     url: lines.flatMap((l, i) => (l.includes(DONATE) && !/^ {2}const DONATE_URL = 'https:\/\/dalink\.to\/trivial_no';$/.test(l) ? [where(i + 1)] : []))
       .concat(lines.filter((l) => /^ {2}const DONATE_URL = /.test(l)).length === 1 ? [] : ['DONATE_URL объявлен не один раз']),
     builder: bad(/ds-donate|ds-btn--donate|ui\.btn\([^)]*'donate'|\bDONATE_URL\b(?! = )/, ['donateSection']),
-    texts: TEXTS.filter((t) => !donate.some((l) => l.includes(t))),
+    texts: TEXTS.filter(([use, key, text]) => !donate.some((l) => l.includes(use)) || dict[key] !== text).map(([use]) => use)
+      .concat(donate.some((l) => l.includes(ICON)) ? [] : [ICON]),
     open: donate[1] && /^\s*if \(!state\.open\) return \[\];$/.test(donate[1]) ? [] : ['donateSection: первая проверка — не state.open'],
-    place: call > at(/Ты не участвуешь в этом событии/) && call > at(/ui\.section\('Нужна помощь\?'\)/) && call < at(/ui\.section\('Как это работает'\)/)
+    place: call > at(/t\('app\.event\.info\.notMember'\)/) && call > at(/ui\.section\(t\('app\.event\.support\.section'\)\)/)
+      && call < at(/ui\.section\(t\('app\.event\.how\.title'\)\)/)
       && lines.filter((l) => /\.\.\.donateSection\(\)/.test(code(l))).length === 1 ? [] : ['renderInfo: donateSection() не на своём месте'],
     link: (donate.some((l) => /openWebLink\(DONATE_URL\)/.test(l)) ? [] : ['кнопка открывает ссылку не через openWebLink'])
       .concat(/if \(tg && tg\.openLink\) tg\.openLink\(url\); else window\.open\(url, '_blank', 'noopener'\);/.test(web) ? [] : ['openWebLink: не openLink / window.open'])
@@ -67,10 +78,12 @@ test('от противного (053): каждое правило находи�
   const broken = (rules) => Object.keys(rules).filter((k) => rules[k].length);
   assert.deepEqual(broken(appRules(APP + `\n  const other = '${DONATE}';\n`)), ['url']);
   assert.deepEqual(broken(appRules(APP + "\n  function elsewhere() {\n    return h('div', { class: 'ds-card ds-donate' });\n  }\n")), ['builder']);
-  assert.deepEqual(broken(spoil("'Любая сумма имеет значение. Спасибо!'", "'Спасибо!'")), ['texts']);
+  assert.deepEqual(broken(spoil("t('app.event.donate.note')", "'Спасибо!'")), ['texts']);
+  assert.deepEqual(broken(appRules(APP, { ...APP_DICT, 'app.event.donate.note': 'Спасибо!' })), ['texts']);
+  assert.deepEqual(broken(spoil("'☕'", "'🍵'")), ['texts']);
   assert.deepEqual(broken(spoil('    if (!state.open) return [];\n', '')), ['open']);
   assert.deepEqual(broken(spoil('    nodes.push(...donateSection());\n', '')), ['place']);
-  assert.deepEqual(broken(spoil("ui.section('Как это работает'),", "ui.section('Как это работает'), ...donateSection(),")), ['place']);
+  assert.deepEqual(broken(spoil("ui.section(t('app.event.how.title')),", "ui.section(t('app.event.how.title')), ...donateSection(),")), ['place']);
   assert.deepEqual(broken(spoil('openWebLink(DONATE_URL)', 'window.open(DONATE_URL)')), ['link']);
   assert.deepEqual(broken(spoil("else window.open(url, '_blank', 'noopener');", "else location.href = url;")), ['link']);
 });

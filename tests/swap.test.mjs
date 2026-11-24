@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { APP, PARTS, topBlock, code } from './support/app-source.mjs';
 import { swapRules, SWAP_RULES } from '../src/pairs.js';
+import { t, appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
 after(restoreFetch);
 
@@ -28,6 +29,8 @@ const CHANGED = 'Правила жеребьёвки для этого обме�
 const OWNER_ONLY = 'Менять подопечных после жеребьёвки может только владелец бота.';
 const CLOSED = 'Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).';
 const SANTA_NOTE = 'Владелец изменил жеребьёвку';
+// 060: SWAP_RULES — ключи словаря; текст правила в ответе — на языке вызывающего
+const ruleText = (rule) => t(DEFAULT_LANG, SWAP_RULES[rule]);
 
 const inviteOf = (st) => /start=(inv_[a-z0-9]+)/.exec(st.settings.invite_link)[1];
 
@@ -185,7 +188,7 @@ describe('обмен вопреки правилам (US2) и невозможн
   it('невозможный обмен: Санта и его подопечный — possible: false, только self', async () => {
     const c = await z.check(p1, p2);
     assert.equal(c.possible, false);
-    assert.deepEqual(c.rules, [{ rule: 'self', text: SWAP_RULES.self }]);
+    assert.deepEqual(c.rules, [{ rule: 'self', text: ruleText('self') }]);
     const r = await z.swap(p1, p2, { version: c.version, agree: ['self', 'exclusion', 'family', 'ring', 'fixed', 'history'] });
     assert.equal(r.status, 400);
     assert.equal(r.data.error, SELF);
@@ -223,7 +226,7 @@ describe('обмен вопреки правилам (US2) и невозможн
     z.w.sql(`INSERT INTO fixed_pairs (event_id, giver, receiver) VALUES (${z.ev}, ${p4.id}, ${p5.id})`);
     const c = await z.check(p1, p4);
     assert.deepEqual(c.rules.map((r) => r.rule), ['exclusion', 'family', 'fixed', 'history']);
-    assert.deepEqual(c.rules.map((r) => r.text), ['exclusion', 'family', 'fixed', 'history'].map((r) => SWAP_RULES[r]));
+    assert.deepEqual(c.rules.map((r) => r.text), ['exclusion', 'family', 'fixed', 'history'].map(ruleText));
     for (const name of NAMES) assert.ok(!JSON.stringify(c).includes(name), 'без имён: ' + name);
   });
 
@@ -354,14 +357,24 @@ test('приложение: секция только владельцу пос�
     assert.ok(text.includes(needle), 'в шторке нет ' + needle);
   }
   assert.ok(!/\.ward\b|\.santa\b/.test(text), 'шторка не знает пар');
-  assert.match(APP, /'draw\.swap': '🔀 Подопечные поменялись'/);
+  // 060: тексты — в словаре приложения; подпись журнала — семейство app.vault.audit.<код>, тексты шторки — по ключам её
+  // вызовов t('…')
+  const dict = appTexts(DEFAULT_LANG).texts;
+  assert.equal(dict['app.vault.audit.draw.swap'], '🔀 Подопечные поменялись');
+  assert.match(APP, /\bt\('app\.vault\.audit\.' \+ /, 'журнал берёт подпись по коду');
+  const said = [...text.matchAll(/\bt\('([\w.]+)'/g)].map((m) => {
+    const v = dict[m[1]];
+    assert.ok(v !== undefined, 'нет ключа ' + m[1]);
+    return typeof v === 'object' ? Object.values(v).join('\n') : v;
+  }).join('\n');
   // 049: метка «не открыл подопечного» — та же, что в «Участниках»; после обмена — у обоих; тексты не обещают сообщения обоим
   assert.ok(text.includes("u.ward_seen === false ? [h('div', { class: 'ds-chips' }, unseenChip())]"), 'метка по ward_seen');
   assert.match(text, /x\.ward_seen = false;\s*mark\(x\);/, 'после обмена — метка обоим');
-  assert.equal((text.match(/await success\(u, t\)/g) || []).length, 2, 'оба пути обмена обновляют метки');
-  assert.ok(!text.includes('напишет обоим'), 'тексты: сообщение — только открывшим');
-  assert.equal((text.match(/тем, кто уже открыл подопечного, бот напишет/gi) || []).length, 2, 'окно и плашка');
+  assert.equal((text.match(/await success\(u, v\)/g) || []).length, 2, 'оба пути обмена обновляют метки');
+  assert.ok(!said.includes('напишет обоим'), 'тексты: сообщение — только открывшим');
+  assert.equal((said.match(/тем, кто уже открыл подопечного, бот напишет/gi) || []).length, 2, 'окно и плашка');
   const members = topBlock(admin, 'adminMembers');
   assert.ok(admin.slice(members[0], members[1] + 1).join('\n').includes('if (u.ward_seen === false) chips.push(unseenChip());'));
-  assert.ok(admin.join('\n').includes("const unseenChip = () => ui.chip('👀 не открыл подопечного', 'warning');"));
+  assert.ok(admin.join('\n').includes("const unseenChip = () => ui.chip(t('app.admin.unseen'), 'warning');"));
+  assert.equal(appTexts(DEFAULT_LANG).texts['app.admin.unseen'], '👀 не открыл подопечного');
 });

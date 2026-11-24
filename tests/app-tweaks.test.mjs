@@ -5,7 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { APP, where } from './support/app-source.mjs';
+import { appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
+const APP_DICT = appTexts(DEFAULT_LANG).texts;
 const CSS = readFileSync(new URL('../design-system/components.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
 // Верхнеуровневая функция name (отступ 2) до её закрывающей строки «  }» → { start (номер строки с 0), text }; null — нет
@@ -62,7 +64,7 @@ export function doneGated(text) {
   const found = [];
   const head = fn.start + 1;
   if (!/\blet picked = value;/.test(fn.text)) found.push([head, 'выбранный при открытии день — не дата поля: без даты ничего не должно быть выделено']);
-  if (!/\bconst done = ui\.btn\('Готово'/.test(fn.text)) found.push([head, 'нет кнопки «Готово»']);
+  if (!/\bconst done = ui\.btn\(t\('app\.core\.calendar\.done'\)/.test(fn.text)) found.push([head, 'нет кнопки «Готово»']);
   if (!/\bdone\.disabled = !picked;/.test(fn.text)) found.push([head, '«Готово» не недоступна без выбранного дня (нет done.disabled = !picked)']);
   fn.text.split('\n').forEach((l, i) => {
     if (/\bdone\.disabled = /.test(l) && !/\bdone\.disabled = !picked;/.test(l) && !/\bpicked = c\.iso;\s*done\.disabled = false;/.test(l)) {
@@ -70,34 +72,41 @@ export function doneGated(text) {
     }
   });
   // 028: вторая кнопка — всегда: «Сбросить» при дате, «Закрыть» без неё
-  if (!/\bconst reset = ui\.btn\(value \? 'Сбросить' : 'Закрыть', 'secondary'/.test(fn.text)) {
+  if (!/\bconst reset = ui\.btn\(t\(value \? 'app\.core\.calendar\.reset' : 'app\.core\.calendar\.close'\), 'secondary'/.test(fn.text)) {
     found.push([head, 'вторая кнопка — не всегда: «Сбросить» при дате, «Закрыть» без неё']);
   }
   return found;
 }
 
 // ---------- 4. Подсказки без года числом; подсказка названия — следующий год ----------
-export function literalYears(text) {
+// 060: подсказка из словаря (placeholder: t('ключ', …)) — год числом ищется в тексте словаря dict
+export function literalYears(text, dict = APP_DICT) {
   const found = [];
   text.split('\n').forEach((l, i) => {
     for (const m of l.matchAll(/placeholder: (['"`])((?:\\.|(?!\1).)*)\1/g)) {
       if (/\b20\d\d\b/.test(m[2].replace(/\$\{[^}]*\}/g, ''))) found.push([i + 1, `год числом в подсказке: «${m[2]}» — через год она устареет`]);
     }
+    for (const m of l.matchAll(/placeholder: t\('([\w.]+)'/g)) {
+      const value = dict[m[1]];
+      if (typeof value === 'string' && /\b20\d\d\b/.test(value)) found.push([i + 1, `год числом в подсказке ${m[1]}: «${value}» — через год она устареет`]);
+    }
   });
   return found;
 }
-// Подсказка названия нового события, вычисленная из склейки на «телефоне» с годом year; null — не шаблон с годом
-export function titleHint(text, year) {
-  const m = /placeholder: (`Например: Новый год \$\{[^`]*\} — семья`)/.exec(text);
-  if (!m) return null;
+// Подсказка названия нового события, вычисленная из склейки на «телефоне» с годом year: текст — из словаря dict, {year} —
+// выражение из склейки; null — не шаблон с годом
+export function titleHint(text, year, dict = APP_DICT) {
+  const m = /placeholder: t\('(app\.home\.create\.placeholder)', \{ year: ([^}]*) \}\)/.exec(text);
+  if (!m || typeof dict[m[1]] !== 'string' || !dict[m[1]].includes('{year}')) return null;
   class PhoneDate extends Date { constructor(...a) { super(...(a.length ? a : [year, 5, 15])); } }
-  return Function('Date', `return ${m[1]};`)(PhoneDate);
+  return dict[m[1]].replace('{year}', Function('Date', `return ${m[2]};`)(PhoneDate));
 }
 
 // ---------- 5. Отступ над «Вопрос решён» — как в обычной шторке ----------
 export function resolveSpaced(text, css) {
   const lines = text.split('\n');
-  const i = lines.findIndex((l) => l.includes("ui.btn('✅ Вопрос решён'"));
+  // 060: подпись — из словаря (app.sheet.support.resolve — «✅ Вопрос решён»)
+  const i = lines.findIndex((l) => l.includes("ui.btn(t('app.sheet.support.resolve')"));
   if (i < 0) return [[1, 'нет кнопки «✅ Вопрос решён»']];
   const found = [];
   if (!lines[i].includes('ds-sheet__action')) found.push([i + 1, '«Вопрос решён» без ds-sheet__action — стоит вплотную к полю ввода']);
@@ -224,9 +233,9 @@ test('от противного 3: «Готово» без выбора, выд�
   const bad = [
     '  function openCalendar(value, onPick, { title, hint } = {}) {',
     '    let picked = value || today;',
-    "    const done = ui.btn('Готово', '', 'ds-btn--block');",
+    "    const done = ui.btn(t('app.core.calendar.done'), '', 'ds-btn--block');",
     '    done.disabled = false;',
-    "    const reset = ui.btn('Сбросить', 'secondary', 'ds-btn--block');",
+    "    const reset = ui.btn(t('app.core.calendar.reset'), 'secondary', 'ds-btn--block');",
     '  }',
   ].join('\n');
   const found = doneGated(bad).map(([, why]) => why);
@@ -234,7 +243,7 @@ test('от противного 3: «Готово» без выбора, выд�
   assert.ok(found.some((w) => w.includes('done.disabled = !picked')), '«Готово» без недоступности не найдена');
   assert.ok(found.some((w) => w.includes('не при выборе дня')), 'включение «Готово» вне выбора не найдено');
   assert.ok(found.some((w) => w.includes('«Закрыть»')), 'вторая кнопка без «Закрыть» не найдена');
-  const onlyWithDate = "    const reset = value ? ui.btn('Сбросить', 'secondary', 'ds-btn--block') : null;";
+  const onlyWithDate = "    const reset = value ? ui.btn(t('app.core.calendar.reset'), 'secondary', 'ds-btn--block') : null;";
   assert.ok(doneGated(bad.replace(/^.*const reset.*$/m, onlyWithDate)).some(([, w]) => w.includes('«Закрыть»')), '«Сбросить» только при дате не найден');
   assert.deepEqual(doneGated('  function other() {\n  }').map(([, w]) => w), ['нет function openCalendar(']);
 });
@@ -244,12 +253,18 @@ test('от противного 4: год числом в подсказке н�
   assert.equal(literalYears(bad).length, 1);
   assert.equal(titleHint(bad, 2026), null);
   assert.equal(literalYears('placeholder: `Например: Новый год ${new Date().getFullYear() + 1} — семья`').length, 0);
+  // 060: год числом в тексте словаря находится, подсказка словаря без {year} не вычисляется
+  const call = "placeholder: t('app.home.create.placeholder', { year: new Date().getFullYear() + 1 })";
+  const stale = { 'app.home.create.placeholder': 'Например: Новый год 2026 — семья' };
+  assert.equal(literalYears(call).length, 0);
+  assert.equal(literalYears(call, stale).length, 1);
+  assert.equal(titleHint(call, 2026, stale), null);
 });
 
 test('от противного 5: кнопка без отступа и отступ не как у ds-stack находятся', () => {
-  const btn = "    const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block');";
+  const btn = "    const resolve = ui.btn(t('app.sheet.support.resolve'), 'secondary', 'ds-btn--block');";
   assert.ok(resolveSpaced(btn, CSS).some(([, why]) => why.includes('вплотную')));
-  const btnOk = "    const resolve = ui.btn('✅ Вопрос решён', 'secondary', 'ds-btn--block ds-sheet__action');";
+  const btnOk = "    const resolve = ui.btn(t('app.sheet.support.resolve'), 'secondary', 'ds-btn--block ds-sheet__action');";
   const cssBad = '.ds-stack > * + * { margin-top: var(--ds-space-3); }\n.ds-sheet__action { margin-top: var(--ds-space-1); }';
   assert.ok(resolveSpaced(btnOk, cssBad).some(([, why]) => why.includes('не как у ds-stack')));
   assert.ok(resolveSpaced(btnOk, '.ds-stack > * + * { margin-top: var(--ds-space-3); }').some(([, why]) => why.includes('нет .ds-sheet__action')));

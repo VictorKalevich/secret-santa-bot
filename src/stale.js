@@ -4,7 +4,8 @@
 // шаг cron (src/cron.js), только в открытом боте.
 
 import { atomic } from './claim.js';
-import { msg, q, formatDate, addDays, ISO_DATE, localDate, adminRecipients, appKeyboard } from './format.js';
+import { msg, q, addDays, ISO_DATE, localDate, adminRecipients, appKeyboard } from './format.js';
+import { tx, tdate } from './i18n/index.js';
 
 // Пороги в днях по местным датам: А — от даты вручения, Г и Б — от создания; завершение — через wait после предупреждения
 export const STALE = { afterDate: 7, empty: 23, age: 113, wait: 7 };
@@ -44,17 +45,12 @@ export const dailyEventsQuery = (db, { open, today, now = Date.now() }) => db.pr
      FROM events WHERE status = 'active' AND checked_on < ?2`
 ).bind(open ? 1 : 0, today, now - (STALE.empty - 1) * DAY_MS);
 
+// Тексты по причине (060): почему брошено (stale.why.*), как сохранить (stale.keep.*), запись журнала (stale.logged.*)
 const WHY = {
-  date: (ev) => `Дата вручения (${formatDate(ev.event_date)}) уже прошла.`,
-  empty: () => 'В него пока никто не вступил, кроме владельца и администраторов.',
-  age: () => 'У него нет даты вручения, а создано оно больше трёх месяцев назад.',
+  date: (ev) => tx('stale.why.date', { date: tdate(ev.event_date) }),
+  empty: () => tx('stale.why.empty'),
+  age: () => tx('stale.why.age'),
 };
-const KEEP = {
-  date: 'Если событие ещё нужно — перенеси дату вручения: «Управление» → «Параметры».',
-  empty: 'Если событие ещё нужно — пригласи участников или укажи дату вручения: «Управление» → «Параметры».',
-  age: 'Если событие ещё нужно — укажи дату вручения: «Управление» → «Параметры».',
-};
-const LOGGED = { date: 'дата вручения прошла', empty: 'никто не вступил, кроме владельца и администраторов', age: 'нет даты вручения' };
 
 // Предупреждение организаторам компании события (ctx — её контекст) по прежнему состоянию (020): сообщения и журнал —
 // перед захватом, захват — отметка (с ней и «сегодня сделано», «на сегодня проверено» — 057); из одновременных запусков
@@ -62,11 +58,11 @@ const LOGGED = { date: 'дата вручения прошла', empty: 'ник�
 export async function warnStale(ctx, ev, { reason, until }, today) {
   const db = ctx.db;
   const { users, settings } = await ctx.read({ users: true, settings: true });
-  const when = formatDate(until);
-  const text = `⏳ <b>Событие ${q(ev)} завершится автоматически ${when}.</b>\n${WHY[reason](ev)}\n\n${KEEP[reason]}`;
+  const when = tdate(until);
+  const text = tx('stale.warning', { title: q(ev), when, why: WHY[reason](ev), keep: tx('stale.keep.' + reason) });
   const fresh = atomic(db, "EXISTS (SELECT 1 FROM events WHERE id = ? AND status = 'active' AND finish_warned = '')", ev.id);
-  for (const u of adminRecipients(users)) fresh.enqueue(u.tg_id, msg(text, appKeyboard(settings, '⚙️ Открыть событие', { event: ev.id })));
-  fresh.audit(ev.id, 0, 'finish.warn', `${LOGGED[reason]}; завершится ${when}`);
+  for (const u of adminRecipients(users)) fresh.enqueue(u.tg_id, msg(text, appKeyboard(settings, tx('stale.openButton'), { event: ev.id })));
+  fresh.audit(ev.id, 0, 'finish.warn', tx('stale.auditText', { why: tx('stale.logged.' + reason), when }));
   fresh.claim(db.prepare("UPDATE events SET finish_warned = ?, last_daily = ?, checked_on = ? WHERE id = ? AND status = 'active' AND finish_warned = ''")
     .bind(today, today, today, ev.id));
   return fresh.run();

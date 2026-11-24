@@ -54,9 +54,9 @@
   });
 
   // Заголовок строки списка: имя и @username (заявки, удалённые, участники)
-  const personTitle = (u) => h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null);
+  const personTitle = (u) => h('div', { class: 'ds-list-item__title' }, u.name || t('app.core.noName'), u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null);
   // Санта не открыл подопечного — «Участники» и шторка обмена (049)
-  const unseenChip = () => ui.chip('👀 не открыл подопечного', 'warning');
+  const unseenChip = () => ui.chip(t('app.admin.unseen'), 'warning');
 
   // --- приглашение (только для идущего эвента)
   function adminInvite(p) {
@@ -64,54 +64,54 @@
     const regToggle = h('input', { type: 'checkbox', checked: s.registration_open });
     bindToggle(regToggle, async (on) => {
       await xapi('admin.registration', { open: on });
-      toast(on ? 'Регистрация открыта' : 'Регистрация закрыта');
+      toast(on ? t('app.admin.invite.regOpen') : t('app.admin.invite.regClosed'));
       p.set('registration_open', on); // «Пригласить участников» и подсказка у заявок — на месте, без перестройки (030)
     });
-    const linkInput = h('input', { class: 'ds-input', type: 'text', value: s.invite_link || 'Ссылки ещё нет: владелец бота должен один раз открыть /setup (см. README)', readonly: true });
-    const copyBtn = ui.btn('📋 Копировать', 'secondary', 'ds-btn--sm');
-    const shareBtn = ui.btn('📤 Отправить в чат', 'secondary', 'ds-btn--sm');
+    const linkInput = h('input', { class: 'ds-input', type: 'text', value: s.invite_link || t('app.admin.invite.noLink'), readonly: true });
+    const copyBtn = ui.btn(t('app.admin.invite.copy'), 'secondary', 'ds-btn--sm');
+    const shareBtn = ui.btn(t('app.core.link.share'), 'secondary', 'ds-btn--sm');
     // Без ссылки копировать и пересылать нечего (009)
     copyBtn.disabled = shareBtn.disabled = !s.invite_link;
     copyBtn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(s.invite_link); toast('Ссылка скопирована'); }
-      catch (e) { linkInput.select(); toast('Выдели и скопируй ссылку'); }
+      try { await navigator.clipboard.writeText(s.invite_link); toast(t('app.core.link.copied')); }
+      catch (e) { linkInput.select(); toast(t('app.core.link.copyByHand')); }
     });
     shareBtn.addEventListener('click', () => shareInvite(s.invite_link, s.title));
-    const regenBtn = ui.btn('🔄 Новая ссылка', 'danger', 'ds-btn--sm');
+    const regenBtn = ui.btn(t('app.admin.invite.regen'), 'danger', 'ds-btn--sm');
     regenBtn.addEventListener('click', async () => {
-      if (!(await confirmBox('Создать новую ссылку? Старая перестанет работать (уже вступивших это не затронет).'))) return;
-      busy(regenBtn, async () => { await xapi('admin.invite.regen'); toast('Ссылка обновлена'); await again(); });
+      if (!(await confirmBox(t('app.admin.invite.regenConfirm')))) return;
+      busy(regenBtn, async () => { await xapi('admin.invite.regen'); toast(t('app.admin.invite.regenDone')); await again(); });
     });
     // 010: возврат удалённых организатором по ссылке
     const rejoinToggle = h('input', { type: 'checkbox', checked: s.rejoin });
     bindToggle(rejoinToggle, async (on) => {
       await xapi('admin.game', { rejoin: on });
-      toast(on ? 'Удалённые могут вернуться по ссылке' : 'Удалённые не вернутся по ссылке');
+      toast(on ? t('app.admin.invite.rejoin') : t('app.admin.invite.rejoinOff'));
       await again();
     });
     // 008: вступление по одобрению
     const apprToggle = h('input', { type: 'checkbox', checked: s.approval });
     bindToggle(apprToggle, async (on) => {
       await xapi('admin.game', { approval: on });
-      toast(on ? 'Новые участники — по заявке' : 'Вступление без одобрения');
+      toast(on ? t('app.admin.invite.approvalOn') : t('app.admin.invite.approvalOff'));
     });
     const regCard = ui.card(
-      ui.toggleRow('Регистрация открыта', 'Закрыта — новых участников нет: ни по ссылке, ни по заявке, ни по приглашению (кроме «Я участвую»). Закрывается сама после жеребьёвки.', regToggle),
+      ui.toggleRow(t('app.admin.invite.regOpen'), t('app.admin.invite.regHint'), regToggle),
       linkInput,
       h('div', { class: 'ds-row ds-row--wrap' }, copyBtn, shareBtn, regenBtn),
-      ui.toggleRow('Вступление по одобрению', 'Владелец или администратор рассматривает заявку на вступление', apprToggle, 'ds-divided'),
-      ui.toggleRow('Удалённые могут вернуться по ссылке', 'Выключи, чтобы закрыть участникам повторный вход по ссылке после удаления', rejoinToggle, 'ds-divided'));
+      ui.toggleRow(t('app.admin.invite.approval'), t('app.admin.invite.approvalHint'), apprToggle, 'ds-divided'),
+      ui.toggleRow(t('app.admin.invite.rejoin'), t('app.admin.invite.rejoinHint'), rejoinToggle, 'ds-divided'));
     if (!s.draw_done) {
       const partToggle = h('input', { type: 'checkbox', checked: d.me_member });
       bindToggle(partToggle, async (on) => {
-        if (!on && !(await confirmBox('Выйти из события? Твоё письмо в этом событии будет удалено.'))) return false;
+        if (!on && !(await confirmBox(t('app.admin.participate.leaveConfirm')))) return false;
         await xapi('admin.participate', { on });
-        toast(on ? 'Ты участвуешь' : 'Ты управляешь событием без участия');
+        toast(on ? t('app.admin.participate.on') : t('app.admin.participate.off'));
         await refresh();
       });
-      regCard.append(ui.toggleRow('Я участвую', 'Выключи, если хочешь управлять событием без участия', partToggle, 'ds-divided'));
+      regCard.append(ui.toggleRow(t('app.admin.participate.title'), t('app.admin.participate.hint'), partToggle, 'ds-divided'));
     }
-    return [ui.section('Приглашение'), regCard];
+    return [ui.section(t('app.admin.invite.title')), regCard];
   }
 
   // --- заявки на вступление (008): в идущем эвенте — после приглашения; в завершённом (025) — только «Отклонить»:
@@ -125,11 +125,11 @@
       const pick = h('div', { class: 'ds-row ds-row--tight' });
       const decide = (approve) => busy([...pick.children], async () => {
         await xapi('admin.request.decide', { id: r.id, approve });
-        toast(approve ? `✅ ${r.name} в событии` : 'Заявка отклонена');
+        toast(approve ? t('app.admin.requests.approved', { name: r.name }) : t('app.admin.requests.rejected'));
         await refresh();
       });
-      if (!done) pick.append(h('button', { class: 'ds-icon-btn', title: 'Принять', onclick: () => decide(true) }, '✅'));
-      pick.append(h('button', { class: 'ds-icon-btn', title: 'Отклонить', onclick: () => decide(false) }, '❌'));
+      if (!done) pick.append(h('button', { class: 'ds-icon-btn', title: t('app.admin.requests.approve'), onclick: () => decide(true) }, '✅'));
+      pick.append(h('button', { class: 'ds-icon-btn', title: t('app.admin.requests.reject'), onclick: () => decide(false) }, '❌'));
       reqList.append(h('div', { class: 'ds-list-item' },
         h('div', { class: 'ds-grow' },
           personTitle(r),
@@ -137,14 +137,14 @@
         pick));
     }
     const hint = ui.hint(done
-      ? 'Событие завершено — принять заявку нельзя, отклонить можно: человек получит ответ.'
-      : 'Регистрация закрыта — принять заявку можно, когда откроешь её. Отклонить можно сейчас.', 'ds-hint--inset');
+      ? t('app.admin.requests.finishedHint')
+      : t('app.admin.requests.closedHint'), 'ds-hint--inset');
     if (!done) {
       const sync = () => { hint.hidden = !!s.registration_open; };
       sync();
       p.watch('registration_open', sync);
     }
-    return [ui.section(`Заявки · ${d.requests.length}`), hint, reqList];
+    return [ui.section(t('app.admin.requests.title', { n: d.requests.length })), hint, reqList];
   }
 
   // 010: удалённые организатором — при запрете возврата им можно точечно разрешить вернуться
@@ -153,20 +153,20 @@
     if (s.rejoin || !d.removed.length) return [];
     const remList = h('div', { class: 'ds-card ds-card--flush' });
     for (const r of d.removed) {
-      const allow = ui.btn('Разрешить вернуться', 'secondary', 'ds-btn--sm');
+      const allow = ui.btn(t('app.admin.removed.allow'), 'secondary', 'ds-btn--sm');
       allow.addEventListener('click', () => busy(allow, async () => {
         await xapi('admin.removed.allow', { id: r.id });
-        toast(`${r.name || 'Участник'} может вернуться по ссылке`);
+        toast(t('app.admin.removed.allowed', { name: r.name || t('app.admin.removed.noName') }));
         await again();
       }));
       remList.append(h('div', { class: 'ds-list-item' },
         h('div', { class: 'ds-grow' },
           personTitle(r),
-          ui.hint('удалён ' + fmtTime(r.removed_at))),
+          ui.hint(t('app.admin.removed.at', { time: fmtTime(r.removed_at) }))),
         allow));
     }
-    return [ui.section(`Удалённые · ${d.removed.length}`),
-      ui.hint('Чтобы человек снова мог войти по ссылке, нажми «Разрешить вернуться».', 'ds-hint--inset'),
+    return [ui.section(t('app.admin.removed.title', { n: d.removed.length })),
+      ui.hint(t('app.admin.removed.hint'), 'ds-hint--inset'),
       remList];
   }
 
@@ -174,21 +174,21 @@
   function adminInviteFrom(p) {
     const { s, d, xapi } = p;
     if (!d.other_events.length) return [];
-    const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Из какого события…'), ...d.other_events.map((e) => h('option', { value: e.id }, e.title + (e.status === 'finished' ? ' (завершено)' : ''))));
-    const inv = ui.btn('📨 Пригласить участников', 'secondary', 'ds-btn--block');
+    const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.admin.inviteFrom.pick')), ...d.other_events.map((e) => h('option', { value: e.id }, e.status === 'finished' ? t('app.admin.inviteFrom.finished', { title: e.title }) : e.title)));
+    const inv = ui.btn(t('app.admin.inviteFrom.button'), 'secondary', 'ds-btn--block');
     const hint = ui.hint('');
     // Закрытая регистрация — значит никто (010): приглашения не рассылаются. После рассылки кнопка — снова по
     // регистрации (её могли закрыть, пока шла рассылка), а не просто доступна
     const sync = () => {
       inv.disabled = !s.registration_open;
       hint.textContent = s.registration_open
-        ? 'Пригласить участников прошлого события — например, тех же людей на следующий год.'
-        : 'Пригласить участников прошлого события можно, когда регистрация открыта.';
+        ? t('app.admin.inviteFrom.hint')
+        : t('app.admin.inviteFrom.closedHint');
     };
     inv.addEventListener('click', async () => {
-      if (!sel.value) return toast('Выбери событие');
-      if (!(await confirmBox('Бот пришлёт участникам выбранного события (кого ещё нет здесь) сообщение с кнопкой вступления. Отправить?'))) return;
-      busy(inv, async () => { const r = await xapi('admin.event.invite_from', { from: +sel.value }); toast(r.count ? `Приглашения отправлены: ${r.count}` : 'Все уже здесь 👍'); }).then(sync);
+      if (!sel.value) return toast(t('app.admin.inviteFrom.pickFirst'));
+      if (!(await confirmBox(t('app.admin.inviteFrom.confirm')))) return;
+      busy(inv, async () => { const r = await xapi('admin.event.invite_from', { from: +sel.value }); toast(r.count ? t('app.admin.inviteFrom.sent', { n: r.count }) : t('app.admin.inviteFrom.allHere')); }).then(sync);
     });
     sync();
     p.watch('registration_open', sync);
@@ -199,24 +199,24 @@
   function adminSupport(p) {
     const { d, me, evId, again } = p;
     const sup = d.support || { threads: [] };
-    const openCount = sup.threads.filter((t) => t.status === 'open').length;
+    const openCount = sup.threads.filter((th) => th.status === 'open').length;
     const list = h('div', { class: 'ds-card ds-card--flush' });
-    if (!sup.threads.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Обращений пока нет.'));
-    for (const t of sup.threads) {
-      const chip = t.status !== 'open' ? ui.chip('✅ закрыто')
-        : !t.assignee ? ui.chip('🆕 ждёт ответа', 'warning')
-        : t.assignee === me.id ? ui.chip('🙋 ведёшь ты', 'success') : ui.chip('🙋 ведёт ' + t.assignee_name);
-      list.append(h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openSupportThread(t.id, evId, again) },
+    if (!sup.threads.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.admin.support.empty')));
+    for (const th of sup.threads) {
+      const chip = th.status !== 'open' ? ui.chip(t('app.admin.support.closed'))
+        : !th.assignee ? ui.chip(t('app.admin.support.waiting'), 'warning')
+        : th.assignee === me.id ? ui.chip(t('app.admin.support.mine'), 'success') : ui.chip(t('app.admin.support.ledBy', { name: th.assignee_name }));
+      list.append(h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openSupportThread(th.id, evId, again) },
         h('div', { class: 'ds-grow' },
-          h('div', { class: 'ds-list-item__title' }, t.name || 'без имени'),
+          h('div', { class: 'ds-list-item__title' }, th.name || t('app.core.noName')),
           h('div', { class: 'ds-chips' }, chip),
-          ui.hint(fmtTime(t.last_at))),
-        t.unread ? h('span', { class: 'ds-badge' }, String(t.unread)) : null,
+          ui.hint(fmtTime(th.last_at))),
+        th.unread ? h('span', { class: 'ds-badge' }, String(th.unread)) : null,
         h('span', { class: 'ds-list-item__chevron' }, '›')));
     }
     return [
-      ui.section(openCount ? `Обращения · ${openCount}` : 'Обращения'),
-      ui.hint('Участники отправляют обращения из вкладки «Инфо». Переписку взятого обращения видят тот, кто его ведёт, и владелец.', 'ds-hint--inset'),
+      ui.section(openCount ? t('app.admin.support.titleCount', { n: openCount }) : t('app.sheet.support.title')),
+      ui.hint(t('app.admin.support.hint'), 'ds-hint--inset'),
       list,
     ];
   }
@@ -224,24 +224,24 @@
   // --- объявление (007); черновик переживает перерисовку панели (009)
   function adminAnnounce(p) {
     const { evId, drafts, xapi } = p;
-    const annText = ui.textarea({ placeholder: 'Например: собираемся 28 декабря в 18:00, бюджет до 50 BYN', rows: 2, maxlength: 2000, value: drafts.announce || '' });
-    const annBtn = ui.btn('📣 Отправить всем', 'secondary', 'ds-btn--block');
+    const annText = ui.textarea({ placeholder: t('app.admin.announce.placeholder'), rows: 2, maxlength: 2000, value: drafts.announce || '' });
+    const annBtn = ui.btn(t('app.admin.announce.send'), 'secondary', 'ds-btn--block');
     const annUpdate = () => { drafts.announce = annText.value; annBtn.disabled = !annText.value.trim(); };
     annText.addEventListener('input', annUpdate);
     annUpdate();
     annBtn.addEventListener('click', async () => {
-      if (!annText.value.trim()) return toast('Напиши текст объявления');
-      if (!(await confirmBox('Бот отправит это объявление всем участникам события. Отправить?'))) return;
+      if (!annText.value.trim()) return toast(t('app.admin.announce.empty'));
+      if (!(await confirmBox(t('app.admin.announce.confirm')))) return;
       const text = annText.value;
       busy(annBtn, async () => {
         const r = await xapi('admin.announce', { text });
         if (annText.value === text) { annText.value = ''; annText.dispatchEvent(new Event('input')); }
         await reloadEvent(evId).catch(() => {});
-        toast(`📣 Объявление отправлено: ${r.count}`);
+        toast(t('app.admin.announce.sent', { n: r.count }));
       }).then(annUpdate);
     });
-    return [ui.section('Объявление'),
-      ui.card(ui.hint('Сообщение всем участникам от бота. Оно останется во вкладке «Инфо».'), annText, annBtn)];
+    return [ui.section(t('app.admin.announce.title')),
+      ui.card(ui.hint(t('app.admin.announce.hint')), annText, annBtn)];
   }
 
   // --- меню участника (004)
@@ -255,67 +255,66 @@
     const { s, me, xapi, again, refresh } = p;
     const items = [];
     if (u.registered) {
-      const b = ui.btn('👁 Открыть письмо', 'secondary', 'ds-btn--block');
+      const b = ui.btn(t('app.admin.member.openLetter'), 'secondary', 'ds-btn--block');
       b.addEventListener('click', async () => {
-        if (!(await confirmBox(`Открыть письмо участника «${u.name}»? Ты увидишь его содержимое.`))) return;
+        if (!(await confirmBox(t('app.admin.member.openLetterConfirm', { name: u.name })))) return;
         busy(b, async () => {
           const w = await xapi('admin.wishlist', { id: u.id });
-          openSheet('Письмо: ' + w.name, !w.wishlist ? h('div', { class: 'ds-card ds-text-muted' }, 'Письмо пустое.')
+          openSheet(t('app.admin.member.letterTitle', { name: w.name }), !w.wishlist ? h('div', { class: 'ds-card ds-text-muted' }, t('app.admin.member.letterEmpty'))
             : w.card ? postcard(w.card, h('div', { class: 'ds-letter' }, w.wishlist)) : h('div', { class: 'ds-card ds-letter' }, w.wishlist));
         });
       });
       items.push(b);
       // Администраторов переименовывает только владелец; себя — любой админ (006)
       const canRename = !(u.is_admin || u.is_owner) || me.is_owner || u.id === me.id;
-      const r = ui.btn('✏️ Переименовать', 'secondary', 'ds-btn--block');
+      const r = ui.btn(t('app.admin.member.rename'), 'secondary', 'ds-btn--block');
       if (canRename) r.addEventListener('click', () => {
         const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
-        const ok = ui.btn('Сохранить', '', 'ds-btn--block');
-        ok.addEventListener('click', () => busy(ok, async () => { await capi('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast('Имя изменено'); await refresh(); }));
-        openSheet('Имя участника', [ui.hint('Имя одно на все события.'), clearable(inp, 'Имя участника'), ok]);
+        const ok = ui.btn(t('app.core.save'), '', 'ds-btn--block');
+        ok.addEventListener('click', () => busy(ok, async () => { await capi('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast(t('app.admin.member.renamed')); await refresh(); }));
+        openSheet(t('app.admin.member.nameTitle'), [ui.hint(t('app.admin.member.nameHint')), clearable(inp, t('app.admin.member.nameTitle')), ok]);
       });
       if (canRename) items.push(r);
     }
     if (canTransfer(p, u) && transferTargets(p, u).length) {
-      const b = ui.btn('🔁 Перенести на новый аккаунт', 'secondary', 'ds-btn--block');
+      const b = ui.btn(t('app.admin.member.transfer'), 'secondary', 'ds-btn--block');
       b.addEventListener('click', () => adminTransfer(p, u));
       items.push(b);
     }
     if (canRemove(p, u)) {
-      const b = ui.btn('🗑 Удалить из события', 'danger', 'ds-btn--block');
+      const b = ui.btn(t('app.admin.member.remove'), 'danger', 'ds-btn--block');
       b.addEventListener('click', async () => {
-        const extra = s.draw_done && u.in_draw ? ' Жеребьёвка будет аккуратно поправлена: у одного-трёх участников сменится подопечный, бот их предупредит.' : '';
-        if (!(await confirmBox(`Удалить «${u.name || 'без имени'}» из события «${s.title}»?${extra}`))) return;
-        busy(b, async () => { await xapi('admin.remove', { id: u.id }); closeSheet(); toast('Участник удалён'); await again(); });
+        const tail = s.draw_done && u.in_draw ? t('app.admin.member.removeRedraw') : '';
+        if (!(await confirmBox(t('app.admin.member.removeConfirm', { name: u.name || t('app.core.noName'), title: s.title, tail })))) return;
+        busy(b, async () => { await xapi('admin.remove', { id: u.id }); closeSheet(); toast(t('app.admin.member.removed')); await again(); });
       });
       items.push(b);
     }
     // 051: в компании с назначенным владельцем переносит участие только владелец бота
     const assigned = !!state.company && !state.company.bot_run;
-    if (u.is_owner) items.push(ui.hint('Владельца нельзя удалить или перенести: он может только передать права (главный экран → «Владелец и администраторы»).'));
+    if (u.is_owner) items.push(ui.hint(t('app.admin.member.ownerHint')));
     else if (!me.is_owner) items.push(ui.hint(u.is_admin
-      ? (assigned ? 'Удалять администраторов может только владелец, переносить участие — владелец бота.' : 'Удалять администраторов и переносить участие может только владелец.')
-      : (assigned ? 'Переносить участие на новый аккаунт может только владелец бота.' : 'Переносить участие на новый аккаунт может только владелец.')));
-    else if (!state.botOwner && u.registered) items.push(ui.hint('Переносить участие на новый аккаунт может только владелец бота.'));
-    openSheet(u.name || 'без имени', [
+      ? (assigned ? t('app.admin.member.adminHintAssigned') : t('app.admin.member.adminHint'))
+      : (assigned ? t('app.admin.member.transferBotOwner') : t('app.admin.member.transferOwner'))));
+    else if (!state.botOwner && u.registered) items.push(ui.hint(t('app.admin.member.transferBotOwner')));
+    openSheet(u.name || t('app.core.noName'), [
       h('div', {}, u.username ? ui.hint('@' + u.username) : null, h('div', { class: 'ds-chips' }, chips)),
-      ...(items.length ? items : [ui.hint('Для этой записи действий нет.')]),
+      ...(items.length ? items : [ui.hint(t('app.admin.member.noActions'))]),
     ]);
   }
   function adminTransfer(p, u) {
     const targets = transferTargets(p, u);
-    const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Новый аккаунт…'),
+    const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.admin.transfer.pick')),
       ...targets.map((x) => h('option', { value: x.id }, x.name + (x.username ? ' (@' + x.username + ')' : ''))));
-    const go = ui.btn('🔁 Перенести', '', 'ds-btn--block');
+    const go = ui.btn(t('app.admin.transfer.go'), '', 'ds-btn--block');
     go.addEventListener('click', async () => {
-      const t = targets.find((x) => String(x.id) === sel.value);
-      if (!t) return toast('Выбери новый аккаунт');
-      if (!(await confirmBox(`Перенести участие «${u.name}» на «${t.name}»? Письма, подопечные, Санты и переписка во всех событиях перейдут на новый аккаунт, старая запись будет удалена.`))) return;
-      busy(go, async () => { await capi('admin.transfer', { from: u.id, to: t.id }); closeSheet(); toast('🔁 Участие перенесено'); await p.refresh(); });
+      const to = targets.find((x) => String(x.id) === sel.value);
+      if (!to) return toast(t('app.admin.transfer.pickFirst'));
+      if (!(await confirmBox(t('app.admin.transfer.confirm', { name: u.name, to: to.name })))) return;
+      busy(go, async () => { await capi('admin.transfer', { from: u.id, to: to.id }); closeSheet(); toast(t('app.admin.transfer.done')); await p.refresh(); });
     });
-    openSheet('Перенести на новый аккаунт', [
-      ui.hint(`Если «${u.name || 'участник'}» потерял доступ к Telegram и вступил в событие заново с нового аккаунта, выбери его новую запись. ` +
-        'Новый аккаунт получит место старого во всех событиях: письма, подопечных и Сант, переписку, исключения. Пары остальных не изменятся.'),
+    openSheet(t('app.admin.transfer.title'), [
+      ui.hint(t('app.admin.transfer.hint', { name: u.name || t('app.admin.transfer.noName') })),
       sel, go]);
   }
 
@@ -324,27 +323,27 @@
     const { s, users, players, me, done, xapi, again } = p;
     const filled = players.filter((u) => u.has_wishlist).length;
     const list = h('div', { class: 'ds-card ds-card--flush' });
-    if (!users.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Пока никого нет.'));
+    if (!users.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.event.people.empty')));
     for (const u of users) {
       const chips = [];
-      if (!u.registered) chips.push(ui.chip('регистрируется…'));
+      if (!u.registered) chips.push(ui.chip(t('app.admin.members.registering')));
       else {
-        chips.push(u.has_wishlist ? ui.chip('✉️ письмо есть', 'success') : ui.chip('✉️ письма нет', 'warning'));
+        chips.push(u.has_wishlist ? ui.chip(t('app.admin.members.letter'), 'success') : ui.chip(t('app.admin.members.noLetter'), 'warning'));
         if (s.draw_done) {
-          if (u.in_draw) chips.push(u.gift_ready ? ui.chip('🎁 готов', 'success') : ui.chip('🎁 не готов'));
-          else chips.push(ui.chip('не в жеребьёвке', 'warning'));
+          if (u.in_draw) chips.push(u.gift_ready ? ui.chip(t('app.admin.members.ready'), 'success') : ui.chip(t('app.admin.members.notReady')));
+          else chips.push(ui.chip(t('app.admin.members.notInDraw'), 'warning'));
           if (u.ward_seen === false) chips.push(unseenChip());
-          if (u.gift_sent) chips.push(ui.chip('📦 отправлен', 'success'));
-          if (u.gift_received) chips.push(ui.chip('📦 получил', 'success'));
+          if (u.gift_sent) chips.push(ui.chip(t('app.admin.members.sent'), 'success'));
+          if (u.gift_received) chips.push(ui.chip(t('app.admin.members.received'), 'success'));
         }
       }
-      if (u.has_delivery === true) chips.push(ui.chip('📍 адрес указан', 'success'));
-      else if (u.has_delivery === false && u.registered) chips.push(ui.chip('📍 адреса нет', 'warning'));
-      if (u.blocked) chips.push(ui.chip('🚫 не получает сообщения', 'warning'));
-      if (u.is_owner) chips.push(ui.chip('👑 владелец'));
-      else if (u.is_admin) chips.push(ui.chip('🛠 администратор'));
+      if (u.has_delivery === true) chips.push(ui.chip(t('app.admin.members.address'), 'success'));
+      else if (u.has_delivery === false && u.registered) chips.push(ui.chip(t('app.admin.members.noAddress'), 'warning'));
+      if (u.blocked) chips.push(ui.chip(t('app.admin.members.blocked'), 'warning'));
+      if (u.is_owner) chips.push(ui.chip(t('app.core.role.owner')));
+      else if (u.is_admin) chips.push(ui.chip(t('app.core.role.admin')));
       const actions = h('div', { class: 'ds-row ds-row--tight' },
-        h('button', { class: 'ds-icon-btn', title: 'Действия с участником', onclick: () => adminMemberMenu(p, u, chips.map((c) => c.cloneNode(true))) }, '⋯'));
+        h('button', { class: 'ds-icon-btn', title: t('app.admin.members.actions'), onclick: () => adminMemberMenu(p, u, chips.map((c) => c.cloneNode(true))) }, '⋯'));
       list.append(h('div', { class: 'ds-list-item' },
         h('div', { class: 'ds-grow' },
           personTitle(u),
@@ -353,26 +352,26 @@
       // Вписывает только владелец (012): админ по отметкам «не открыл» и «готов» понял бы, кто дарит новичку
       if (!done && s.draw_done && u.registered && !u.in_draw) {
         if (me.is_owner) {
-          const ins = ui.btn('Вписать в жеребьёвку', '', 'ds-btn--sm');
+          const ins = ui.btn(t('app.admin.members.insert'), '', 'ds-btn--sm');
           ins.addEventListener('click', async () => {
-            if (!(await confirmBox(`Вписать «${u.name}» в жеребьёвку? Подопечный сменится у одного Санты: у того, кто его ещё не открыл, а если таких нет — у того, чей подарок не готов. Бот его предупредит.`))) return;
-            busy(ins, async () => { await xapi('admin.insert', { id: u.id }); toast('Готово'); await again(); });
+            if (!(await confirmBox(t('app.admin.members.insertConfirm', { name: u.name })))) return;
+            busy(ins, async () => { await xapi('admin.insert', { id: u.id }); toast(t('app.admin.members.inserted')); await again(); });
           });
           list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ins));
         } else {
-          list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ui.hint(`Вписать в жеребьёвку может ${ownerWord().nom}`)));
+          list.append(h('div', { class: 'ds-list-item ds-list-item--sub' }, ui.hint(t('app.admin.members.insertOwnerOnly', { owner: ownerWord() }))));
         }
       }
     }
     const nodes = [
-      ui.section(`Участники · ${players.length}`),
-      ui.hint(`Письма написали ${filled} из ${players.length}. Письмо участника открывается только через «⋯» → «Открыть письмо».`, 'ds-hint--inset'),
+      ui.section(t('app.admin.members.title', { n: players.length })),
+      ui.hint(t('app.admin.members.letters', { filled, total: players.length }), 'ds-hint--inset'),
       list];
     if (!done && players.length > filled) {
-      const remindBtn = ui.btn('⏰ Напомнить тем, у кого нет письма', 'secondary', 'ds-btn--block');
+      const remindBtn = ui.btn(t('app.admin.members.remind'), 'secondary', 'ds-btn--block');
       remindBtn.addEventListener('click', () => busy(remindBtn, async () => {
         const r = await xapi('admin.remind.unfilled');
-        toast(r.count ? `Напоминание отправлено: ${r.count}` : 'Все уже написали письма 👍');
+        toast(r.count ? t('app.admin.remindSent', { n: r.count }) : t('app.admin.members.allWrote'));
       }));
       nodes.push(remindBtn);
     }
@@ -395,16 +394,21 @@
     }
     return pairs;
   }
-  // both / one — слова после имён взаимной пары и между именами односторонней; del — кнопка ✕ { title, run(pair) },
-  // без неё список только для чтения
+  // Строка пары (060): текст словаря key, {giver} и {receiver} — имена жирным. Подстановки t() — строки, поэтому на их
+  // место ставятся метки, а по меткам текст режется на части между узлами
+  function rulePairText(p, key, pair) {
+    const names = { giver: nameOf(p, pair.giver), receiver: nameOf(p, pair.receiver) };
+    return t(key, { giver: '\u0001giver\u0001', receiver: '\u0001receiver\u0001' }).split(/\u0001(giver|receiver)\u0001/)
+      .map((part, i) => (i % 2 ? h('b', {}, names[part]) : part)).filter((part) => part !== '');
+  }
+  // both / one — ключи словаря строки взаимной и односторонней пары; del — кнопка ✕ { title, run(pair) }, без неё
+  // список только для чтения
   function ruleList(p, pairs, { empty, both, one, del }) {
     const list = h('div', { class: 'ds-card ds-card--flush' });
     if (!pairs.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, empty));
     for (const pair of pairs) {
       list.append(h('div', { class: 'ds-list-item' },
-        h('div', { class: 'ds-grow' }, pair.mutual
-          ? [h('b', {}, nameOf(p, pair.giver)), ' и ', h('b', {}, nameOf(p, pair.receiver)), both]
-          : [h('b', {}, nameOf(p, pair.giver)), one, h('b', {}, nameOf(p, pair.receiver))]),
+        h('div', { class: 'ds-grow' }, rulePairText(p, pair.mutual ? both : one, pair)),
         del ? h('button', { class: 'ds-icon-btn', title: del.title, onclick: (ev) => busy(ev.currentTarget, async () => { await del.run(pair); await p.again(); }) }, '✕') : null));
     }
     return list;
@@ -412,17 +416,17 @@
   // Форма: «Кто дарит…» и to, флажок «и наоборот» (mutual — включён ли сразу), кнопка label; add(кто, кому, взаимно)
   function ruleForm(p, { to, label, mutual: on, add }) {
     const opts = (ph) => [h('option', { value: '' }, ph), ...p.players.map((u) => h('option', { value: u.id }, u.name))];
-    const selA = h('select', { class: 'ds-input' }, opts('Кто дарит…'));
+    const selA = h('select', { class: 'ds-input' }, opts(t('app.admin.rules.giver')));
     const selB = h('select', { class: 'ds-input' }, opts(to));
     const mutual = h('input', { type: 'checkbox', checked: on });
     const btn = ui.btn(label, 'secondary', 'ds-btn--block');
     btn.addEventListener('click', () => busy(btn, async () => {
-      if (!selA.value || !selB.value) return toast('Выбери двух людей');
-      if (selA.value === selB.value) return toast('Нужны два разных человека');
+      if (!selA.value || !selB.value) return toast(t('app.admin.rules.pickTwo'));
+      if (selA.value === selB.value) return toast(t('app.admin.rules.different'));
       await add(+selA.value, +selB.value, mutual.checked);
       await p.again();
     }));
-    return { selA, selB, mutualRow: h('label', { class: 'ds-check' }, mutual, 'и наоборот (в обе стороны)'), btn };
+    return { selA, selB, mutualRow: h('label', { class: 'ds-check' }, mutual, t('app.admin.rules.mutual')), btn };
   }
 
   // --- исключения
@@ -433,14 +437,14 @@
     // Владелец пары видит и так — для него заморозки нет (010)
     const exFrozen = s.draw_done && !me.is_owner;
     const exList = ruleList(p, rulePairs(d.exclusions), {
-      empty: 'Исключений нет — подарить может кто угодно кому угодно.', both: ' не дарят друг другу', one: ' не дарит ',
-      del: exFrozen ? null : { title: 'Удалить исключение', run: (e) => xapi('admin.exclusion.del', e) },
+      empty: t('app.admin.exclusions.empty'), both: 'app.admin.exclusions.both', one: 'app.admin.exclusions.one',
+      del: exFrozen ? null : { title: t('app.admin.exclusions.del'), run: (e) => xapi('admin.exclusion.del', e) },
     });
     const exForm = exFrozen ? null : ruleForm(p, {
-      to: '…кому НЕ может дарить', label: 'Добавить исключение', mutual: true,
+      to: t('app.admin.exclusions.to'), label: t('app.admin.exclusions.add'), mutual: true,
       add: async (giver, receiver, mutual) => {
         await xapi('admin.exclusion.add', { giver, receiver, mutual });
-        toast('Исключение добавлено');
+        toast(t('app.admin.exclusions.added'));
       },
     });
     // 008: семьи эвента и правило «Учитывать семьи»
@@ -448,24 +452,24 @@
     const famOn = h('input', { type: 'checkbox', checked: s.families_on, disabled: s.draw_done });
     bindToggle(famOn, async (on) => {
       await xapi('admin.game', { families_on: on });
-      toast(on ? 'Семьи учитываются' : 'Семьи не учитываются');
+      toast(on ? t('app.admin.families.on') : t('app.admin.families.off'));
       await again();
     });
-    famCard.append(ui.toggleRow('👪 Учитывать семьи', s.draw_done ? 'После жеребьёвки не меняется' : 'Члены одной семьи не дарят друг другу. Семьи задаются на главном экране.', famOn));
+    famCard.append(ui.toggleRow(t('app.admin.families.title'), s.draw_done ? t('app.admin.families.frozen') : t('app.admin.families.hint'), famOn));
     for (const f of d.families) {
       famCard.append(h('div', { class: s.families_on ? 'ds-text-sm' : 'ds-text-sm ds-text-muted' },
         h('b', {}, f.name + ': '), f.members.map((id) => nameOf(p, id)).join(', ')));
     }
     return [
-      ui.section('Исключения'),
+      ui.section(t('app.admin.exclusions.title')),
       famCard,
       exList,
       exFrozen
-        ? ui.hint('После жеребьёвки исключения не меняются: иначе по заменам участников можно было бы вычислить пары. Чтобы поменять их, отмени жеребьёвку (пока никто не открыл подопечного).', 'ds-hint--inset')
+        ? ui.hint(t('app.admin.exclusions.frozen'), 'ds-hint--inset')
         : ui.card(
           ui.hint(s.draw_done
-            ? 'После жеребьёвки исключения действуют на будущие замены (удаление и вписывание участников), текущие пары не меняются. Менять исключения после жеребьёвки может только владелец.'
-            : 'Например, пары или члены одной семьи. Бот не даст жеребьёвке нарушить эти правила.'),
+            ? t('app.admin.exclusions.afterDraw')
+            : t('app.admin.exclusions.hint')),
           exForm.selA, exForm.selB, exForm.mutualRow, exForm.btn),
     ];
   }
@@ -476,22 +480,22 @@
     // После жеребьёвки блок нужен, только если пары были закреплены (показывается для чтения)
     if (done || !d.fixed || (s.draw_done && !d.fixed.length)) return [];
     const fxPairs = rulePairs(d.fixed);
-    const nodes = [ui.section('Закреплённые пары'), ruleList(p, fxPairs, {
-      empty: 'Закреплённых пар нет — жеребьёвка распределит всех случайно.', both: ' дарят друг другу', one: ' дарит ',
+    const nodes = [ui.section(t('app.admin.fixed.title')), ruleList(p, fxPairs, {
+      empty: t('app.admin.fixed.empty'), both: 'app.admin.fixed.both', one: 'app.admin.fixed.one',
       del: s.draw_done ? null : {
-        title: 'Убрать закреплённую пару',
-        run: async (f) => { await xapi('admin.fixed.del', f); toast('Закреплённая пара убрана'); },
+        title: t('app.admin.fixed.del'),
+        run: async (f) => { await xapi('admin.fixed.del', f); toast(t('app.admin.fixed.removed')); },
       },
     })];
     if (s.draw_done) {
-      nodes.push(ui.hint('После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.', 'ds-hint--inset'));
+      nodes.push(ui.hint(t('app.admin.fixed.frozen'), 'ds-hint--inset'));
       return nodes;
     }
     const fx = ruleForm(p, {
-      to: '…кому дарит', label: 'Закрепить пару', mutual: false,
+      to: t('app.admin.fixed.to'), label: t('app.admin.fixed.add'), mutual: false,
       add: async (giver, receiver, mutual) => {
         await xapi('admin.fixed.add', { giver, receiver, mutual: !s.ring && mutual });
-        toast('Пара закреплена');
+        toast(t('app.admin.fixed.added'));
       },
     });
     const fxForm = ui.card();
@@ -501,11 +505,10 @@
       const clash = s.ring ? fxPairs.filter((f) => f.mutual) : [];
       // replaceChildren, в отличие от h(), вывел бы null текстом — пустые места отбрасываются
       fxForm.replaceChildren(...[
-        ui.hint('Бот обязательно сведёт этих людей при жеребьёвке. Закреплённая пара важнее исключений и семей. Этот блок доступен только владельцу.' +
-          (s.ring ? ' Кольцевая жеребьёвка включена: пару можно закрепить только в одну сторону.' : '')),
-        clash.length ? h('div', { class: 'ds-notice ds-notice--error' },
-          'При кольцевой жеребьёвке взаимных пар не бывает. Убери (✕) и закрепи в одну сторону: ' +
-          clash.map((f) => nameOf(p, f.giver) + ' и ' + nameOf(p, f.receiver)).join('; ') + '.') : null,
+        ui.hint(t('app.admin.fixed.hint', { ring: s.ring ? t('app.admin.fixed.hintRing') : '' })),
+        clash.length ? h('div', { class: 'ds-notice ds-notice--error' }, t('app.admin.fixed.clash', {
+          pairs: clash.map((f) => t('app.admin.fixed.clashPair', { giver: nameOf(p, f.giver), receiver: nameOf(p, f.receiver) })).join('; '),
+        })) : null,
         fx.selA, fx.selB,
         s.ring ? null : fx.mutualRow,
         fx.btn,
@@ -525,82 +528,80 @@
       const ring = h('input', { type: 'checkbox', checked: s.ring });
       bindToggle(ring, async (on) => {
         await xapi('admin.ring', { on });
-        toast(on ? 'Кольцевая жеребьёвка включена' : 'Кольцевая жеребьёвка выключена');
+        toast(on ? t('app.admin.draw.ringOn') : t('app.admin.draw.ringOff'));
         p.set('ring', on); // 014: флажок «и наоборот» и предупреждение закреплённых пар зависят от кольцевой
         await reloadEvent(evId).catch(() => {});
       });
-      drawCard.append(ui.toggleRow('🔁 Кольцевая жеребьёвка',
-        'Если А дарит Б, то Б не дарит А. Нужно минимум 3 участника. После жеребьёвки не меняется.', ring));
+      drawCard.append(ui.toggleRow(t('app.admin.draw.ring'),
+        t('app.admin.draw.ringHint'), ring));
       if (d.other_events.length) {
         const av = h('input', { type: 'checkbox', checked: s.avoid_previous });
         bindToggle(av, async (on) => { await xapi('admin.avoid_previous', { on }); });
-        drawCard.append(h('label', { class: 'ds-check' }, av, 'Не повторять пары прошлого события с этими людьми (если получится)'));
+        drawCard.append(h('label', { class: 'ds-check' }, av, t('app.admin.draw.avoidPrevious')));
       }
-      const drawBtn = ui.btn('🎲 Провести жеребьёвку', 'festive', 'ds-btn--block');
+      const drawBtn = ui.btn(t('app.admin.draw.run'), 'festive', 'ds-btn--block');
       const result = h('div');
       drawBtn.addEventListener('click', () => busy(drawBtn, async () => {
         const c = await xapi('admin.draw.check');
         result.replaceChildren();
         if (!c.possible) {
           haptic('error');
-          result.append(h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, 'Жеребьёвка невозможна:'), h('ul', { class: 'ds-bullets' }, c.problems.map((x) => h('li', {}, x)))));
+          result.append(h('div', { class: 'ds-notice ds-notice--error' }, h('b', {}, t('app.admin.draw.impossible')), h('ul', { class: 'ds-bullets' }, c.problems.map((x) => h('li', {}, x)))));
           return;
         }
         // Окно подтверждения Telegram — до 250 символов (009): важное сначала, вместо списка имён — число
         const k = c.empty_wishlists.length;
-        let text = `Провести жеребьёвку для ${c.count} ${plural(c.count, 'участника', 'участников', 'участников')}${c.ring ? ' (кольцевая)' : ''}? Отменить её можно, пока никто не открыл подопечного.`;
-        if (k) text += `\n\nПисьма ещё нет у ${k} ${plural(k, 'участника', 'участников', 'участников')} — его можно написать и позже.`;
+        let text = t('app.admin.draw.confirm', { n: c.count, ring: c.ring ? t('app.admin.draw.ringMark') : '' });
+        if (k) text += `\n\n${t('app.admin.draw.confirmNoLetters', { n: k })}`;
         if (!(await confirmBox(text))) return;
         const r = await xapi('admin.draw');
         haptic('success');
-        toast(`🎉 Жеребьёвка проведена! Участников: ${r.count}`);
+        toast(t('app.admin.draw.doneToast', { n: r.count }));
         await refresh();
       }));
       drawCard.append(
-        ui.hint('Когда все вступят — жми. Бот проверит, что правила можно соблюсти, и разошлёт уведомления. ' + (me.is_owner
-          ? 'Кто кому дарит, не видно и тебе: пары открываются только в служебном просмотре внизу панели (с записью в журнал).'
-          : 'Пары может открыть только владелец в служебном просмотре.')),
+        ui.hint(t('app.admin.draw.hint', { tail: me.is_owner ? t('app.admin.draw.hintOwner') : t('app.admin.draw.hintAdmin') })),
         drawBtn, result);
     } else {
       const inDraw = players.filter((u) => u.in_draw);
       const ready = inDraw.filter((u) => u.gift_ready).length;
       drawCard.append(
-        h('div', {}, h('div', { class: 'ds-text-strong' }, '✅ Жеребьёвка проведена' + (s.ring ? ' (кольцевая)' : '')), s.draw_at ? ui.hint(fmtTime(s.draw_at)) : null),
-        h('div', { class: 'ds-notice' }, `🎁 Подарки готовы: ${ready} из ${inDraw.length} · 📦 получено: ${inDraw.filter((u) => u.gift_received).length} из ${inDraw.length}`));
+        h('div', {}, h('div', { class: 'ds-text-strong' }, t('app.admin.draw.doneTitle', { ring: s.ring ? t('app.admin.draw.ringMark') : '' })), s.draw_at ? ui.hint(fmtTime(s.draw_at)) : null),
+        h('div', { class: 'ds-notice' }, t('app.admin.draw.progress', { ready, received: inDraw.filter((u) => u.gift_received).length, total: inDraw.length })));
       if (s.draw_cancelable) {
         // 007: отменить можно, пока никто не открыл подопечного и переписки нет
-        const cancel = ui.btn('↩️ Отменить жеребьёвку', 'secondary', 'ds-btn--block');
+        const cancel = ui.btn(t('app.admin.draw.cancel'), 'secondary', 'ds-btn--block');
         cancel.addEventListener('click', async () => {
-          if (!(await confirmBox('Отменить жеребьёвку? Пары удалятся, письма останутся, регистрация снова откроется. Участники получат уведомление.'))) return;
-          busy(cancel, async () => { await xapi('admin.draw.cancel'); toast('↩️ Жеребьёвка отменена'); await refresh(); });
+          if (!(await confirmBox(t('app.admin.draw.cancelConfirm')))) return;
+          busy(cancel, async () => { await xapi('admin.draw.cancel'); toast(t('app.admin.draw.canceled')); await refresh(); });
         });
-        drawCard.append(ui.hint('Никто ещё не открыл подопечного — жеребьёвку можно отменить, например, чтобы добавить людей.'), cancel);
+        drawCard.append(ui.hint(t('app.admin.draw.cancelHint')), cancel);
       }
       if (!done) {
-        const remindS = ui.btn('🎁 Напомнить Сантам о подарках', 'secondary', 'ds-btn--block');
+        const remindS = ui.btn(t('app.admin.draw.remindSantas'), 'secondary', 'ds-btn--block');
         remindS.addEventListener('click', () => busy(remindS, async () => {
           const r = await xapi('admin.remind.santas');
-          toast(r.count ? `Напоминание отправлено: ${r.count}` : 'Все подарки готовы 👍');
+          toast(r.count ? t('app.admin.remindSent', { n: r.count }) : t('app.admin.draw.allReady'));
         }));
         drawCard.append(remindS);
       }
-      const reveal = ui.btn(s.revealed ? '🎅 Тайна уже раскрыта' : '🎅 Раскрыть Сант (после праздника)', 'secondary', 'ds-btn--block');
+      const reveal = ui.btn(s.revealed ? t('app.admin.draw.revealed') : t('app.admin.draw.reveal'), 'secondary', 'ds-btn--block');
       reveal.disabled = s.revealed; // повторно имена Сант не рассылаются (006)
       reveal.addEventListener('click', async () => {
-        if (!(await confirmBox('Каждый участник получит сообщение, кто был его Сантой. Делай это после вручения подарков. Раскрыть?'))) return;
-        busy(reveal, async () => { const r = await xapi('admin.reveal'); toast(`Отправлено: ${r.count}`); await again(); });
+        if (!(await confirmBox(t('app.admin.draw.revealConfirm')))) return;
+        busy(reveal, async () => { const r = await xapi('admin.reveal'); toast(t('app.admin.draw.revealSent', { n: r.count })); await again(); });
       });
       drawCard.append(reveal);
     }
     if (!done) {
-      const fin = ui.btn('🏁 Завершить', 'danger', 'ds-btn--block');
+      const fin = ui.btn(t('app.admin.finish.button'), 'danger', 'ds-btn--block');
       fin.addEventListener('click', async () => {
-        if (!(await confirmBox('Завершить событие? Письма и отметки станут только для чтения, регистрация закроется, переписка останется открытой ещё 7 дней. Вернуть событие в «идёт» нельзя.'))) return;
-        busy(fin, async () => { await xapi('admin.event.finish'); toast('🏁 Событие завершено'); await refresh(); });
+        if (!(await confirmBox(t('app.admin.finish.confirm')))) return;
+        busy(fin, async () => { await xapi('admin.event.finish'); toast(t('app.admin.finish.done')); await refresh(); });
       });
-      drawCard.append(ui.hint('Когда подарки вручены — заверши событие: оно останется в истории у всех участников.'), fin);
+      drawCard.append(ui.hint(t('app.admin.finish.hint')), fin);
     }
-    return [ui.section('Жеребьёвка'), drawCard];
+    return [ui.section(t('app.admin.draw.title')), drawCard];
   }
 
   // --- параметры эвента
@@ -612,17 +613,17 @@
     const val = (k) => (k in g ? g[k] : s[k]);
     const f = {
       title: h('input', { class: 'ds-input', type: 'text', value: val('title'), maxlength: 80 }),
-      budget: h('input', { class: 'ds-input', type: 'text', value: val('budget'), placeholder: 'например, до 50 BYN', maxlength: 100 }),
+      budget: h('input', { class: 'ds-input', type: 'text', value: val('budget'), placeholder: t('app.admin.params.budgetPlaceholder'), maxlength: 100 }),
       event_date: ui.date(val('event_date')),
-      place: h('input', { class: 'ds-input', type: 'text', value: val('place'), placeholder: 'например, у Маши дома', maxlength: 200 }),
+      place: h('input', { class: 'ds-input', type: 'text', value: val('place'), placeholder: t('app.admin.params.placePlaceholder'), maxlength: 200 }),
       deadline: ui.date(val('deadline')),
-      notes: ui.textarea({ value: val('notes'), placeholder: 'Любые правила и детали для всех', rows: 2, maxlength: 2000 }),
+      notes: ui.textarea({ value: val('notes'), placeholder: t('app.admin.params.notesPlaceholder'), rows: 2, maxlength: 2000 }),
     };
     // Расписание (007): автожеребьёвка (до жеребьёвки), авто-раскрытие и автозавершение. У автожеребьёвки свой календарь
     // (027): системный сам выделяет сегодня и подставляет его по «Готово» — жеребьёвка включалась бы случайно
     if (!s.draw_done) {
       f.draw_auto_date = ui.datePick(val('draw_auto_date'), {
-        title: 'Автожеребьёвка', hint: 'В выбранный день бот сам проведёт жеребьёвку — в час ежедневных напоминаний.' });
+        title: t('app.admin.params.autoDraw'), hint: t('app.admin.params.autoDrawHint') });
     }
     const checks = {
       letter_drafts: h('input', { type: 'checkbox', checked: val('letter_drafts') }),
@@ -631,9 +632,9 @@
       reveal_auto: h('input', { type: 'checkbox', checked: val('reveal_auto') }),
       finish_auto: h('input', { type: 'checkbox', checked: val('finish_auto') }),
     };
-    const saveGame = ui.btn('Сохранить', '', 'ds-btn--block');
+    const saveGame = ui.btn(t('app.core.save'), '', 'ds-btn--block');
     // Авто-раскрытие и автозавершение считаются от даты вручения: без неё не сработают (009)
-    const noDate = ui.hint('⚠️ Авто-раскрытие и автозавершение сработают, только когда указана дата вручения.');
+    const noDate = ui.hint(t('app.admin.params.noDate'));
     const values = () => ({
       ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])),
       ...Object.fromEntries(Object.entries(checks).map(([k, el]) => [k, el.checked])),
@@ -655,47 +656,47 @@
       await refresh({ quiet: true });
       if (!live()) return;
       haptic('success');
-      toast('Сохранено');
+      toast(t('app.core.saved'));
     }));
     return [
-      ui.section('Параметры'),
+      ui.section(t('app.admin.params.title')),
       ui.card(
-        field('Название', f.title),
-        field('Бюджет подарка', f.budget),
-        field('Дата вручения', f.event_date),
-        field('Место', f.place),
-        field('Написать письмо до', f.deadline),
-        field('Заметки для всех', f.notes),
-        h('label', { class: 'ds-check' }, checks.letter_drafts, 'Черновики писем'),
-        h('label', { class: 'ds-check' }, checks.delivery_on, 'Подарки отправляют — спросить адрес доставки (увидит только Санта)'),
-        h('label', { class: 'ds-check' }, checks.contacts_on, 'Участники могут писать друг другу'),
-        ui.hint('В списке участников на «Инфо» появятся @username, нажатие на имя откроет чат в Telegram. Санта, который напишет подопечному сам, раскроет себя.'),
-        ui.hint('Бот сам напомнит: за 2 дня, за день и в день срока письма — тем, у кого его нет; за 2 дня и в день вручения — Сантам без отметки «подарок готов».'),
-        f.draw_auto_date ? field('Автожеребьёвка', f.draw_auto_date) : null,
-        h('label', { class: 'ds-check' }, checks.reveal_auto, 'Раскрыть Сант на следующий день после вручения'),
-        h('label', { class: 'ds-check' }, checks.finish_auto, 'Завершить через 3 дня после вручения'),
+        field(t('app.admin.params.name'), f.title),
+        field(t('app.admin.params.budget'), f.budget),
+        field(t('app.admin.params.eventDate'), f.event_date),
+        field(t('app.admin.params.place'), f.place),
+        field(t('app.admin.params.deadline'), f.deadline),
+        field(t('app.admin.params.notes'), f.notes),
+        h('label', { class: 'ds-check' }, checks.letter_drafts, t('app.admin.params.letterDrafts')),
+        h('label', { class: 'ds-check' }, checks.delivery_on, t('app.admin.params.delivery')),
+        h('label', { class: 'ds-check' }, checks.contacts_on, t('app.admin.params.contacts')),
+        ui.hint(t('app.admin.params.contactsHint')),
+        ui.hint(t('app.admin.params.remindersHint')),
+        f.draw_auto_date ? field(t('app.admin.params.autoDraw'), f.draw_auto_date) : null,
+        h('label', { class: 'ds-check' }, checks.reveal_auto, t('app.admin.params.revealAuto')),
+        h('label', { class: 'ds-check' }, checks.finish_auto, t('app.admin.params.finishAuto')),
         noDate,
-        ui.hint('Автодействия бот выполняет в час ежедневных напоминаний. Если автожеребьёвка не получится, бот напишет владельцу и администраторам.'),
+        ui.hint(t('app.admin.params.autoHint')),
         saveGame),
     ];
   }
 
   // --- журнал (007): по эвенту, доступен и для завершённого
   function adminLog(p) {
-    const logBtn = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
+    const logBtn = ui.btn(t('app.core.auditLog'), 'secondary', 'ds-btn--block');
     logBtn.addEventListener('click', () => openAudit(p.evId));
-    return [ui.section('Журнал'), ui.card(ui.hint('Действия владельца, администраторов и бота в этом событии.'), logBtn)];
+    return [ui.section(t('app.admin.log.title')), ui.card(ui.hint(t('app.admin.log.hint')), logBtn)];
   }
 
   // --- управление жеребьёвкой (048): только владелец, после жеребьёвки и до раскрытия; пар не показывает
   function adminSwap(p) {
     const { s, me, done } = p;
     if (!me.is_owner || !s.draw_done || s.revealed || done) return [];
-    const btn = ui.btn('🔀 Открыть управление жеребьёвкой', 'secondary', 'ds-btn--block');
+    const btn = ui.btn(t('app.admin.swap.open'), 'secondary', 'ds-btn--block');
     btn.addEventListener('click', () => openSwapSheet(p));
     return [
-      ui.section('Управление жеребьёвкой'),
-      ui.card(ui.hint(`Только для ${ownerWord().gen}: поменять подопечных у двух участников. Кто кому дарит, не видно и здесь.`), btn),
+      ui.section(t('app.admin.swap.title')),
+      ui.card(ui.hint(t('app.admin.swap.hint', { owner: ownerWord() })), btn),
     ];
   }
 
@@ -703,12 +704,11 @@
   function adminVault(p) {
     const { s, d, users, me, evId } = p;
     if (!me.is_owner) return [];
-    const vaultBtn = ui.btn('🔐 Открыть служебный просмотр', 'secondary', 'ds-btn--block');
+    const vaultBtn = ui.btn(t('app.admin.vault.open'), 'secondary', 'ds-btn--block');
     vaultBtn.addEventListener('click', () => openVaultGate(evId, s, users, d.me_member));
     return [
-      ui.section('Служебный просмотр'),
-      ui.card(ui.hint(`Только для ${ownerWord().gen}: кто кому дарит, письма, адреса и переписка — если что-то пошло не так. ` +
-        'Каждое открытие записывается в журнал события, его видят владелец и администраторы.'), vaultBtn),
+      ui.section(t('app.admin.vault.title')),
+      ui.card(ui.hint(t('app.admin.vault.hint', { owner: ownerWord() })), vaultBtn),
     ];
   }
 
@@ -719,33 +719,26 @@
     // keep (012) — что останется (необязательно): отдельной строкой под списком удаляемого
     const typed = (title, lines, word, label, action, after, keep = '') => () =>
       typedSheet(title, { lines, keep, word, label, sure: true, run: (w) => xapi(action, { confirm: w }), after });
-    const resetBtn = ui.btn('🧨 Полный сброс', 'danger', 'ds-btn--block');
-    resetBtn.addEventListener('click', typed('Полный сброс', [
-      'все участники этого события, кроме тебя;',
-      'письма, пары, исключения, отметки «подарок готов», переписка;',
-      'параметры; пригласительная ссылка станет новой.',
-    ], 'СБРОС', '🧨 Сбросить', 'admin.reset.full', async (r) => { toast(`Событие сброшено. Удалено: ${r.removed}`); await refresh(); }));
-    const delBtn = ui.btn('🗑 Удалить событие', 'danger', 'ds-btn--block');
-    delBtn.addEventListener('click', typed('Удалить событие', [
-      `событие «${s.title}» целиком — оно пропадёт из истории у всех;`,
-      'письма, пары, исключения и переписка этого события.',
-    ], 'УДАЛИТЬ', '🗑 Удалить навсегда', 'admin.event.delete', async () => { toast('Событие удалено'); await goHome(); }));
+    const resetBtn = ui.btn(t('app.admin.danger.reset'), 'danger', 'ds-btn--block');
+    resetBtn.addEventListener('click', typed(t('app.admin.danger.resetTitle'), tl('app.admin.danger.resetLines'),
+      t('app.core.word.reset'), t('app.admin.danger.resetGo'), 'admin.reset.full', async (r) => { toast(t('app.admin.danger.resetDone', { n: r.removed })); await refresh(); }));
+    const delBtn = ui.btn(t('app.admin.danger.delete'), 'danger', 'ds-btn--block');
+    delBtn.addEventListener('click', typed(t('app.admin.danger.deleteTitle'), [
+      t('app.admin.danger.deleteEvent', { title: s.title }),
+      t('app.admin.danger.deleteData'),
+    ], t('app.core.word.delete'), t('app.admin.danger.deleteGo'), 'admin.event.delete', async () => { toast(t('app.admin.danger.deleted')); await goHome(); }));
     // 012: принудительная отмена — в любой момент до раскрытия, даже если подопечных уже открыли
     let forceBtn = null;
     if (s.draw_done && !s.revealed) {
-      forceBtn = ui.btn('↩️ Отменить жеребьёвку', 'danger', 'ds-btn--block');
-      forceBtn.addEventListener('click', typed('Отменить жеребьёвку', [
-        'кто кому дарит — все пары этого события;',
-        'отметки «подарок готов» и «получил»;',
-        'вся переписка Сант и подопечных в этом событии.',
-      ], 'ОТМЕНА', '↩️ Отменить жеребьёвку', 'admin.draw.cancel.force', async (r) => { toast(`↩️ Жеребьёвка отменена. Пар удалено: ${r.count}`); await refresh(); },
-      'Останутся письма, адреса, участники, исключения и семьи. Регистрация снова откроется, участники получат уведомление.'));
+      forceBtn = ui.btn(t('app.admin.draw.cancel'), 'danger', 'ds-btn--block');
+      forceBtn.addEventListener('click', typed(t('app.admin.danger.cancelTitle'), tl('app.admin.danger.cancelLines'),
+        t('app.core.word.cancel'), t('app.admin.draw.cancel'), 'admin.draw.cancel.force', async (r) => { toast(t('app.admin.danger.canceled', { n: r.count })); await refresh(); },
+        t('app.admin.danger.cancelKeep')));
     }
     return [
-      ui.section('Опасная зона'),
+      ui.section(t('app.admin.danger.title')),
       done // по ответу панели (026): событие могли завершить, пока экран был открыт
-        ? ui.card(ui.hint('Завершённое событие нельзя сбросить — только удалить целиком. Другие события это не затронет.'), delBtn)
-        : ui.card(ui.hint('Другие события это не затронет. Для тестового прогона удобно потом удалить событие целиком.' +
-          (forceBtn ? ' Отменить жеребьёвку здесь можно, даже если подопечных уже открыли, — пока тайна не раскрыта.' : '')), forceBtn, resetBtn, delBtn),
+        ? ui.card(ui.hint(t('app.admin.danger.finishedHint')), delBtn)
+        : ui.card(ui.hint(t('app.admin.danger.hint', { tail: forceBtn ? t('app.admin.danger.hintForce') : '' })), forceBtn, resetBtn, delBtn),
     ];
   }

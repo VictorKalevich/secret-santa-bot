@@ -2,6 +2,7 @@
 
 import { tgApi } from './telegram.js';
 import { budgetLeft } from './budget.js';
+import { langOf, render } from './i18n/index.js';
 
 // Отправка очереди (006): пачку сообщений «захватываем» на минуту (locked_until), отправляем, затем удаляем
 // отправленные и освобождаем неотправленные. Если вызов оборвётся, захват истечёт и сообщения уйдут позже — без потерь
@@ -37,7 +38,7 @@ async function flushRound(env, limit) {
           WHERE o.locked_until < ?2
             AND NOT EXISTS (SELECT 1 FROM outbox p WHERE p.chat_id = o.chat_id AND p.id < o.id AND p.locked_until >= ?2)
           ORDER BY o.id LIMIT ?3)
-       RETURNING *`
+       RETURNING *, (SELECT lang FROM users u WHERE u.tg_id = outbox.chat_id) AS lang`
     )
     .bind(now + OUTBOX_LOCK_MS, now, limit)
     .all();
@@ -52,7 +53,8 @@ async function flushRound(env, limit) {
   for (const r of results) {
     if (now - r.created_at > OUTBOX_TTL_MS || blocked.has(r.chat_id)) { done.push(r.id); continue; }
     if (rateLimited || held.has(r.chat_id)) { release.push(r.id); continue; }
-    const res = await call('sendMessage', { chat_id: r.chat_id, ...JSON.parse(r.payload) });
+    // 060: отложенные тексты собираются на языке получателя; готовые строки (прежний вид) — как есть
+    const res = await call('sendMessage', { chat_id: r.chat_id, ...render(JSON.parse(r.payload), langOf(r)) });
     if (res.ok) { done.push(r.id); continue; }
     // 403 — бот заблокирован или человек удалён: запоминаем, чтобы админ это видел (006, FR-608)
     if (res.error_code === 403) { blocked.add(r.chat_id); done.push(r.id); continue; }

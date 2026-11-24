@@ -1,9 +1,18 @@
 
   // ---------- старт ----------
+  // Тексты оболочки (060): до первого ответа — из набора app.boot.* в странице, после словаря из me — на языке человека
+  function shellTexts() {
+    document.title = t('app.boot.title');
+    heroBack.title = t('app.boot.back');
+  }
   async function start() {
+    shellTexts();
+    heroTitle.textContent = t('app.boot.title');
+    heroSub.textContent = t('app.boot.loading');
+    showLoader();
     if (!initData) {
       heroSub.textContent = '';
-      main.replaceChildren(ui.empty('📱', 'Открой через Telegram', 'Это приложение работает внутри Telegram. Открой чат с ботом и нажми кнопку «🎁 Санта».'));
+      main.replaceChildren(ui.empty('📱', t('app.boot.noTelegram.title'), t('app.boot.noTelegram.text')));
       return;
     }
     try {
@@ -12,8 +21,8 @@
         heroSub.textContent = '';
         // 052: в открытом боте регистрируются и без ссылки
         main.replaceChildren(d.open
-          ? ui.empty('👋', 'Сначала назови себя', 'Открой чат с ботом, нажми «Старт» и напиши своё имя. После этого возвращайся сюда.')
-          : ui.empty('🔒', 'Сначала регистрация', 'Перейди по пригласительной ссылке события и подтверди в чате с ботом своё имя. После этого возвращайся сюда.'));
+          ? ui.empty('👋', t('app.boot.nameFirst.title'), t('app.boot.nameFirst.text'))
+          : ui.empty('🔒', t('app.boot.signUpFirst.title'), t('app.boot.signUpFirst.text')));
         return;
       }
       // ?event=…&chat=…|support=… — из кнопок бота; иначе единственный эвент открывается сразу

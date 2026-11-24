@@ -35,11 +35,25 @@ const collect = (...a) => {
   LOG.push(a.map((x) => (typeof x === 'string' ? x : String(x))).join(' '));
   if (process.env.WORLD_LOG) realLog(...a);
 };
+// 060: ошибка словаря (console.error «i18n: …») во время вызова — исключение этого вызова после его завершения
+const I18N = [];
+const realError = console.error;
+const collectError = (...a) => {
+  const line = a.map((x) => (typeof x === 'string' ? x : String(x))).join(' ');
+  if (line.startsWith('i18n:')) I18N.push(line);
+  else realError(...a);
+};
 const enter = () => {
-  if (active++ === 0) console.log = collect;
+  if (active++ === 0) {
+    console.log = collect;
+    console.error = collectError;
+  }
 };
 const leave = () => {
-  if (--active === 0) console.log = realLog;
+  if (--active === 0) {
+    console.log = realLog;
+    console.error = realError;
+  }
 };
 
 let worldNo = 0;
@@ -75,10 +89,12 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, open = fal
     const q0 = DB.stats.queries;
     const t0 = calls.length;
     const l0 = DB.stats.log.length;
+    const i0 = I18N.length;
     enter();
     try {
       const out = await fn({ waitUntil: (p) => waits.push(p), passThroughOnException() {} });
       await Promise.all(waits);
+      if (I18N.length > i0) throw new Error('словарь (060): ' + I18N.splice(i0).join('; '));
       return out;
     } finally {
       leave();
@@ -105,6 +121,12 @@ export async function startWorld({ notifyDelay = 0, reminderHour = 0, open = fal
       const data = JSON.parse(text);
       if (raw) return { status: res.status, data, text };
       if (!data.ok) throw new Error(`${action}: ${data.error}`);
+      // 060: поля словаря приложения в me проверяет тест i18n (raw), прочие сравнивают прежний ответ
+      if (action === 'me') {
+        delete data.lang;
+        delete data.texts_version;
+        delete data.texts;
+      }
       return data;
     },
     // Ключ — только формой (010, FR-1002)

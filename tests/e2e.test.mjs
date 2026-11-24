@@ -26,6 +26,8 @@ before(async () => {
 function assertBudget(log) {
   const over = log.split('\n').filter((l) => /budget exceeded/.test(l));
   assert.deepEqual(over, [], 'вызовы сверх бюджета запросов');
+  // 060: ни одной ошибки словаря (нет ключа, подстановки)
+  assert.deepEqual(log.split('\n').filter((l) => /i18n:/.test(l)), [], 'ошибки словаря');
 }
 
 after(async () => {

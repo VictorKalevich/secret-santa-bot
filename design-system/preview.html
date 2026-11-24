@@ -356,7 +356,7 @@
     input.id = 'budget-' + id;
     const label = box.previousElementSibling;
     label.htmlFor = input.id;
-    bindClearableInput(box, label.textContent);
+    bindClearableInput(box, 'Очистить поле «' + label.textContent + '»');
     document.getElementById(id).append(node);
   }
 </script>

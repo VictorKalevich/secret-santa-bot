@@ -10,7 +10,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { APP } from './support/app-source.mjs';
 import { fixedRefusal } from '../src/constraints.js';
-import { CHAT_READ_ONLY, SUPPORT_READ_ONLY } from '../src/format.js';
+import { t, render, DEFAULT_LANG } from '../src/i18n/index.js';
+
+// 060: один текст — один ключ словаря приложения; его же берут API и бот
+const CHAT_READ_ONLY = t(DEFAULT_LANG, 'app.sheet.chatReadOnly');
+const SUPPORT_READ_ONLY = t(DEFAULT_LANG, 'app.sheet.supportReadOnly');
 
 after(restoreFetch);
 
@@ -192,7 +196,8 @@ describe('заявка в завершённом событии: отклони�
 describe('закреплённые пары: отказ проигравшему — текст обычной проверки (031, US1)', () => {
   const NAMES = { 1: 'Аня', 2: 'Боря', 3: 'Вера', 4: 'Гена' };
   const name = (id) => NAMES[id];
-  const refusal = (ev, fixed, links) => fixedRefusal(ev, fixed, links, name)?.error ?? null;
+  // 060: отказ модуля — отложенный текст, собирается на языке ответа
+  const refusal = (ev, fixed, links) => render(fixedRefusal(ev, fixed, links, name)?.error ?? null, DEFAULT_LANG);
   const SANTA_TAKEN = 'У «Аня» уже есть закреплённый подопечный — сначала убери ту пару.';
 
   it('занят Санта, занят подопечный, встречная при кольцевой — те же тексты; свободно — нет отказа', () => {
@@ -301,14 +306,14 @@ describe('«только для чтения»: один текст в API, бо
   });
 
   it('приложение показывает те же тексты; в модулях сервера — только общие из format.js', () => {
-    for (const text of [CHAT_READ_ONLY, SUPPORT_READ_ONLY]) assert.ok(APP.includes(`'${text}'`), `в приложении нет «${text}»`);
-    const appLines = APP.split('\n').filter((l) => l.includes('больше недели назад'));
-    assert.equal(appLines.length, 2);
-    for (const l of appLines) assert.ok(l.includes(CHAT_READ_ONLY) || l.includes(SUPPORT_READ_ONLY), `другой текст в приложении: ${l.trim()}`);
     const src = new URL('../src/', import.meta.url);
-    for (const f of readdirSync(src).filter((x) => x.endsWith('.js') && x !== 'format.js')) {
-      assert.ok(!readFileSync(new URL(f, src), 'utf8').includes('больше недели назад'), `src/${f}: свой текст «только для чтения» — бери из format.js`);
+    for (const key of ['app.sheet.chatReadOnly', 'app.sheet.supportReadOnly']) {
+      assert.equal(APP.split(`t('${key}')`).length - 1, 1, `в приложении нет t('${key}')`);
+      for (const f of readdirSync(src).filter((x) => x.endsWith('.js') && x !== 'format.js')) {
+        assert.ok(!readFileSync(new URL(f, src), 'utf8').includes(key), `src/${f}: свой ключ «только для чтения» — бери из format.js`);
+      }
     }
+    assert.ok(!APP.includes('больше недели назад'), 'текст — только в словаре');
   });
 });
 

@@ -3,6 +3,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { APP, PARTS, topBlock, code } from './support/app-source.mjs';
+import { appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
 after(restoreFetch);
 
@@ -60,13 +61,15 @@ test('главный экран обновляется после смены и�
   };
   // «Профиль» и «Уведомления» корневого экрана (051) — personalSections: главный экран передаёт ей приветствие и разделы
   const body = block('personalSections');
-  assert.match(block('renderHome'), /heroSub\.textContent = 'Привет, ' \+ me\.name/);
+  assert.match(block('renderHome'), /heroSub\.textContent = t\('app\.home\.greet', \{ name: me\.name \}\)/);
+  assert.equal(appTexts(DEFAULT_LANG).texts['app.home.greet'], 'Привет, {name}!');
   assert.match(block('renderHome'), /personalSections\(nav, greet, people\)/);
   assert.match(body, /openNameSheet\(profileChanged\)/);
   assert.match(body, /nameText\.textContent = me\.name/);
   assert.match(body, /nav !== state\.nav/);
   assert.match(body, /for \(const load of people\) load\(\)/);
   assert.doesNotMatch(APP, /openEmojiSheet|emoji\.set|Значок у имени/);
+  assert.ok(!Object.values(appTexts(DEFAULT_LANG).texts).some((v) => /Значок у имени/.test(v)), 'в словаре приложения нет «Значок у имени»');
 });
 
 // Обработчик касаний (R4): один, в ядре, по событиям указателя, кнопки и поля не трогает

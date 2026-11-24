@@ -3,6 +3,7 @@
 import { enqueueStmt, updateEventStmt, getEvent, auditStmt } from './db.js';
 import { appKeyboard, msg, q, escapeHtml, localDate, daysUntil, addDays, ISO_DATE, adminRecipients } from './format.js';
 import { flushOutbox } from './outbox.js';
+import { tx } from './i18n/index.js';
 import { isFinished } from './status.js';
 import { remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
 import { runDraw } from './pairs.js';
@@ -59,10 +60,10 @@ async function notifyWishlistChanges(ctx) {
     if (r.notify_mode === 'off') continue;
     // Без имени подопечного и без текста — превью видно на экране блокировки.
     // 008: изменение адреса доставки — тем же уведомлением, без текста адреса
-    const what = r.delivery_on ? 'обновил письмо или адрес доставки' : 'обновил письмо Санте';
-    stmts.push(enqueueStmt(db, r.santa, msg(`📝 Твой подопечный в событии ${q(r)} ${what}.`, {
+    const what = r.delivery_on ? 'cron.wishlistOrDeliveryChanged' : 'cron.wishlistChanged';
+    stmts.push(enqueueStmt(db, r.santa, msg(tx(what, { title: q(r) }), {
       disable_notification: r.notify_mode === 'silent',
-      ...appKeyboard(settings, '👀 Посмотреть', { event: r.event_id }),
+      ...appKeyboard(settings, tx('cron.lookButton'), { event: r.event_id }),
     })));
   }
   await db.batch(stmts);
@@ -153,7 +154,7 @@ async function runAutoAction(ctx, ev, what) {
   await db.batch([
     updateEventStmt(db, ev.id, { draw_auto_date: '' }),
     ...adminRecipients(users).map((u) => enqueueStmt(db, u.tg_id, msg(
-      `⚠️ <b>Автожеребьёвка ${q(ev)} не прошла:</b>\n${escapeHtml(r.error)}\n\nДата автожеребьёвки снята — проведи жеребьёвку вручную в панели события.`
+      tx('cron.autoDrawFailed', { title: q(ev), error: escapeHtml(r.error) })
     ))),
     auditStmt(db, ev.id, 0, 'draw.auto.failed', r.error),
   ]);

@@ -523,3 +523,32 @@ test('сверка 057: тот же оператор, что в 0020; правк
   w.sql(NOTIFY_RECONCILE);
   assert.deepEqual(snapshot(w), once, 'повтор ничего не меняет');
 });
+
+// ---------- 060: миграция 0021 — язык интерфейса человека (specs/060-i18n-dictionary/) ----------
+
+const SQL21 = readFileSync(new URL('0021_user_lang.sql', MIGRATIONS_DIR), 'utf8');
+
+test('0021: только колонка users.lang с умолчанием пусто и версия схемы 21', () => {
+  assert.deepEqual(statementsOf(SQL21), [
+    "ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT ''",
+    "INSERT INTO settings (key, value) VALUES ('schema', '21') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ]);
+});
+
+test('база с данными «до 0021»: у всех людей lang пусто, остальные строки прежние, версия 21', async () => {
+  const { w } = await filledWorld();
+  w.sql("ALTER TABLE users DROP COLUMN lang; UPDATE settings SET value = '20' WHERE key = 'schema'");
+  const before = snapshot(w);
+  w.sql(SQL21);
+  const after = snapshot(w);
+  const users = w.query('SELECT lang FROM users');
+  assert.ok(users.length > 0 && users.every((u) => u.lang === ''), 'язык у всех пуст');
+  const without = (rows) => rows.map((r) => { const { lang: _, ...rest } = JSON.parse(r); return JSON.stringify(rest); }).sort();
+  assert.deepEqual(without(after.users), before.users, 'люди — те же значения');
+  const schema = (snap) => snap.settings.map((r) => JSON.parse(r)).find((r) => r.key === 'schema').value;
+  assert.equal(schema(before), '20');
+  assert.equal(schema(after), '21');
+  for (const t of Object.keys(before).filter((t) => !['users', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
+  // от противного: колонка уже есть — повтор миграции падает (Wrangler применяет её один раз)
+  assert.throws(() => w.sql(SQL21), /duplicate column name: lang/);
+});

@@ -12,7 +12,8 @@ import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
 import { no } from './result.js';
-import { POSTCARDS, MASKS, validCard, validMask } from './looks.js';
+import { tx } from './i18n/index.js';
+import { looksView, validCard, validMask } from './looks.js';
 import { companiesView, companyOwnersQuery, companyPeopleQuery, createView, openBot } from './companies.js';
 
 const DELIVERY_MAX = 500;
@@ -82,7 +83,7 @@ export async function homeView(ctx) {
     ...(create ? { create } : {}),
     events,
     limits: { chars: MAX_CHARS },
-    looks: { postcards: POSTCARDS, masks: MASKS }, // 038, 040: наборы открыток и масок — на сервере
+    looks: looksView(), // 038, 040: наборы открыток и масок — на сервере
   };
 }
 
@@ -93,7 +94,7 @@ export async function eventView(ctx, ev, member) {
   // счётчики обращений, суммы по парам, пользователи и настройки (организаторы, ссылка-приглашение)
   const r = await ctx.read({
     people: peopleQuery(db, ev.id),
-    announcements: announcementsQuery(db, ev.id), // 007, FR-701
+    announcements: announcementsQuery(db, ev.id, ctx.t('db.announcementAuthor')), // 007, FR-701
     pair: member && pairOfSantaQuery(db, ev.id, me.tg_id),
     wardPair: member && pairOfWardQuery(db, ev.id, me.tg_id),
     unread: member && unreadQuery(db, ev.id, me.tg_id),
@@ -157,7 +158,7 @@ export function rosterView(ev, people, gifts, users, ownerId, settings) {
 // 038: открытка письма выбирается из набора. Смена открытки не меняет время письма.
 export async function setCard(ctx, ev, raw) {
   const card = validCard(raw);
-  if (card === null) return no('Такой открытки нет — выбери из списка.');
+  if (card === null) return no(tx('participant.noCard'));
   await ctx.db.prepare('UPDATE members SET card = ? WHERE event_id = ? AND user_id = ?').bind(card, ev.id, ctx.me.tg_id).run();
   return { ok: true, card };
 }
@@ -169,7 +170,7 @@ export const NOTIFY_MARK = `notify_at = CASE WHEN EXISTS (SELECT 1 FROM pairs WH
   AND pairs.ward = members.user_id) THEN ? ELSE notify_at END`;
 
 export async function saveWishlist(ctx, ev, member, raw) {
-  if (ev.letter_drafts) return no('Включены черновики. Открой письмо заново для публикации.');
+  if (ev.letter_drafts) return no(tx('participant.draftsOn'));
   const text = String(raw ?? '').replace(/\r\n/g, '\n');
   if (text.length > MAX_CHARS) {
     return no(tooLong(text.length));
@@ -180,19 +181,19 @@ export async function saveWishlist(ctx, ev, member, raw) {
       draft_stale = (draft_text IS NOT NULL), ${NOTIFY_MARK} WHERE event_id = ? AND user_id = ?
       AND EXISTS (SELECT 1 FROM events WHERE id = members.event_id AND letter_drafts = 0 AND status = 'active')`)
     .bind(text, now, now, ev.id, ctx.me.tg_id).run();
-  if (!result.meta.changes) return no('Настройки события изменились. Открой письмо заново.');
+  if (!result.meta.changes) return no(tx('participant.settingsChanged'));
   return { ok: true, updated_at: now };
 }
 
 // Одна условная запись проверяет текущий режим, участие и версию. При публикации
 // снятие черновика и обновление текста для Санты вступают в силу вместе.
 export async function writeLetterDraft(ctx, ev, member, body, publish) {
-  if (!ev.letter_drafts) return no('Черновики выключены. Открой письмо заново.');
-  if (typeof body.text !== 'string') return no('Передай текст письма.');
+  if (!ev.letter_drafts) return no(tx('participant.draftsOff'));
+  if (typeof body.text !== 'string') return no(tx('participant.noText'));
   const text = body.text.replace(/\r\n/g, '\n');
   if (text.length > MAX_CHARS) return no(tooLong(text.length));
-  if (publish && !text.trim()) return no('Напиши письмо перед публикацией.');
-  const conflict = 'Письмо или настройки изменились. Открой событие заново.';
+  if (publish && !text.trim()) return no(tx('participant.emptyLetter'));
+  const conflict = tx('participant.letterConflict');
   if (body.revision !== member.letter_revision || body.joined_at !== member.joined_at) return no(conflict);
   const changed = publish && text !== member.wishlist;
   const updated = changed ? Math.max(Date.now(), member.wishlist_updated_at + 1) : member.wishlist_updated_at;
@@ -209,10 +210,10 @@ export async function writeLetterDraft(ctx, ev, member, body, publish) {
 
 // Адрес доставки (008): виден только самому участнику и его Санте. «Адрес не нужен» — раньше «завершено».
 export async function saveDelivery(ctx, ev, member, raw) {
-  if (!ev.delivery_on) return no('В этом событии адрес доставки не нужен.');
-  if (isFinished(ev)) return no('Событие завершено: адрес теперь только для чтения.');
+  if (!ev.delivery_on) return no(tx('participant.noDelivery'));
+  if (isFinished(ev)) return no(tx('participant.deliveryClosed'));
   const text = cleanText(raw);
-  if (text.length > DELIVERY_MAX) return no(`Слишком длинно: ${text.length} символов, максимум ${DELIVERY_MAX}.`);
+  if (text.length > DELIVERY_MAX) return no(tx('common.tooLong', { n: text.length, max: DELIVERY_MAX }));
   if (text === member.delivery) return { ok: true, updated_at: member.delivery_updated_at };
   const now = Date.now();
   await ctx.db.prepare(`UPDATE members SET delivery = ?, delivery_updated_at = ?, ${NOTIFY_MARK} WHERE event_id = ? AND user_id = ?`)
@@ -222,11 +223,11 @@ export async function saveDelivery(ctx, ev, member, raw) {
 
 // 040: маска Санты в переписке — у пары, пока событие идёт (завершённое отсекает конвейер API) и тайна не раскрыта: её
 // уже назвало сообщение о раскрытии. Без сообщений и журнала; условие «не раскрыта» — в самой записи (гонка с раскрытием)
-const MASK_REVEALED = 'Тайна уже раскрыта — маску больше не сменить.';
-const NO_WARD = 'У тебя пока нет подопечного.';
+const MASK_REVEALED = tx('participant.maskRevealed');
+const NO_WARD = tx('chat.noWard');
 export async function setMask(ctx, ev, raw) {
   const mask = validMask(raw);
-  if (mask === null) return no('Такой маски нет — выбери из списка.');
+  if (mask === null) return no(tx('participant.noMask'));
   if (ev.revealed) return no(MASK_REVEALED);
   const r = await ctx.db
     .prepare('UPDATE pairs SET mask = ? WHERE event_id = ? AND santa = ? AND EXISTS (SELECT 1 FROM events WHERE id = ? AND revealed = 0)')
@@ -269,7 +270,7 @@ export async function setGiftReady(ctx, ev, ready) {
   const r = await ctx.db.prepare('UPDATE pairs SET gift_ready = ?1 WHERE event_id = ?2 AND santa = ?3 AND (?1 = 1 OR gift_sent = 0)').bind(ready ? 1 : 0, ev.id, ctx.me.tg_id).run();
   if (!r.meta.changes) {
     const pair = await pairOfSanta(ctx.db, ev.id, ctx.me.tg_id);
-    return no(pair?.gift_sent ? 'Сначала сними отметку об отправке.' : NO_WARD);
+    return no(pair?.gift_sent ? tx('participant.unmarkSentFirst') : NO_WARD);
   }
   return { ok: true };
 }
@@ -280,14 +281,14 @@ export async function setGiftReady(ctx, ev, ready) {
 export async function setGiftReceived(ctx, ev, received) {
   const { db, me } = ctx;
   const pair = await pairOfWard(db, ev.id, me.tg_id);
-  if (!pair) return no('У тебя пока нет Санты.');
+  if (!pair) return no(tx('participant.noSanta'));
   const on = received ? 1 : 0;
   const a = atomic(db, 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = 0)', ev.id, me.tg_id);
   if (on && !pair.gift_received_at) {
     const settings = await ctx.settings();
     a.enqueue(pair.santa, msg(
-      `🎉 Твой подопечный в событии ${q(ev)} получил подарок! Спасибо, Санта 🎅`,
-      appKeyboard(settings, '🎁 Открыть', { event: ev.id })
+      tx('participant.giftReceived', { title: q(ev) }),
+      appKeyboard(settings, tx('events.openButton'), { event: ev.id })
     ));
   }
   a.claim(db.prepare(

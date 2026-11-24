@@ -5,6 +5,7 @@
 // 04-companies — в APP_PARTS.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
 import { APP, PARTS, where, code, topBlock, ownerOf } from './support/app-source.mjs';
 
 // Общие действия организатора (050, раздел 2): без события у них есть поле company
@@ -33,13 +34,21 @@ function roleWrites(text) {
 }
 
 // Слово «комната» (059; до него — «компания») в текстах частей, кроме 04-companies и разрешённых мест: [часть, кусок
-// строки]. Прежнее слово «компани…» вне комментариев — нигде, и в 04-companies
+// строки]. Прежнее слово «компани…» вне комментариев — нигде, и в 04-companies. 060: тексты частей — в словарях
+// приложения (src/i18n/<язык>/app-<область>.js); словарь проверяется как часть своей области
 const COMPANY_WORD = [
-  ['03-home.js.txt', 'Ты здесь как владелец бота: в списках комнаты'], // плашка гостя (владелец бота)
-  ['03-home.js.txt', 'Твои изменения записываются в журнал комнаты'],
+  ['03-home.js.txt', 'Ты здесь как владелец бота: в списках комнаты'], // плашка гостя (владелец бота), 060 — одной строкой
   ['03-home.js.txt', 'владельцем этой комнаты?'], // 👑 владельца бота
-  ['07-vault-audit.js.txt', "'company.create': '🚪 Создана комната'"], // записи журнала бота
+  ['07-vault-audit.js.txt', "audit.company.create': '🚪 Создана комната'"], // записи журнала бота
+  ['07-vault-audit.js.txt', "audit.company.delete': '🗑 Комната удалена'"],
 ];
+// Файл словаря области → часть приложения
+const DICT_PART = { 'app-boot.js': '01-shell.html', 'app-core.js': '02-core.js.txt', 'app-home.js': '03-home.js.txt',
+  'app-companies.js': '04-companies.js.txt', 'app-event.js': '05-event.js.txt', 'app-admin.js': '06-admin.js.txt',
+  'app-vault.js': '07-vault-audit.js.txt', 'app-sheet.js': '08-sheet-chat.js.txt' };
+const I18N = new URL('../src/i18n/', import.meta.url);
+const DICTS = readdirSync(I18N, { withFileTypes: true }).filter((d) => d.isDirectory()).flatMap((d) =>
+  Object.entries(DICT_PART).map(([f, name]) => ({ name, file: `src/i18n/${d.name}/${f}`, text: readFileSync(new URL(`${d.name}/${f}`, I18N), 'utf8') })));
 function companyWords(parts, allowed = COMPANY_WORD) {
   const found = [];
   for (const p of parts) {
@@ -47,7 +56,7 @@ function companyWords(parts, allowed = COMPANY_WORD) {
       const c = code(line);
       const room = /комнат/iu.test(c) && p.name !== '04-companies.js.txt'
         && !allowed.some(([name, part]) => name === p.name && c.includes(part));
-      if (room || /компани/iu.test(c)) found.push(`src/app/${p.name}:${i + 1}`);
+      if (room || /компани/iu.test(c)) found.push(`${p.file || 'src/app/' + p.name}:${i + 1}`);
     });
   }
   return found;
@@ -123,13 +132,19 @@ test('«‹» главного экрана компании — по withList; 
 });
 
 test('слово «комната» — только в части 04-companies и в разрешённых местах; «компания» — нигде (059)', () => {
-  assert.deepEqual(companyWords(PARTS), []);
+  assert.deepEqual(companyWords([...PARTS, ...DICTS]), []);
   // от противного: подсказка в событии, устаревший список, прежнее слово в 04-companies
   const bad = PARTS.map((p) => (p.name === '05-event.js.txt' ? { ...p, text: p.text + "    ui.hint('Событие комнаты');\n" } : p));
   assert.equal(companyWords(bad).length, 1);
-  assert.equal(companyWords(PARTS, COMPANY_WORD.slice(1)).length, 1);
+  assert.equal(companyWords([...PARTS, ...DICTS], COMPANY_WORD.slice(1)).length, 1);
   const old = PARTS.map((p) => (p.name === '04-companies.js.txt' ? { ...p, text: p.text + "    ui.hint('Новая компания');\n" } : p));
   assert.equal(companyWords(old).length, 1);
+  // от противного (060): текст словаря чужой области и прежнее слово в словаре комнат — нарушения, комментарий — нет
+  const dict = (name, file, text) => ({ name, file, text });
+  assert.deepEqual(companyWords([
+    dict('05-event.js.txt', 'src/i18n/ru/app-event.js', "  // комната в комментарии\n  'app.event.x': 'Событие комнаты',"),
+    dict('04-companies.js.txt', 'src/i18n/ru/app-companies.js', "  'app.companies.x': 'Комната',\n  'app.companies.y': 'Новая компания',"),
+  ]), ['src/i18n/ru/app-event.js:2', 'src/i18n/ru/app-companies.js:2']);
 });
 
 test('часть 04-companies — в сборке между главным экраном и событием', () => {

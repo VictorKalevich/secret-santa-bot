@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { APP, where, partLines, indent, code, blockAt, topBlock, ownerOf } from './support/app-source.mjs';
+import { appTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
 // ---------- 1. «Сохранить» в «Параметрах» перестраивает панель ----------
 // Обработчик, в котором уходит admin.game со значениями формы, вызывает refresh() или again()
@@ -117,7 +118,44 @@ export function stateDeclared(text) {
 // admin.family.save), название события — до 80 (создание и параметры события), числа участников — до трёх цифр;
 // имя владельца компании (051) — имя человека
 const NAME = 40, FAMILY = 40, TITLE = 80, COUNT = 3;
-const LIMITS = { 'u.name': NAME, 't.name': NAME, 'f.name': FAMILY, 's.title': TITLE, 'c.count': COUNT, k: COUNT, 'c.owner_name': NAME };
+const LIMITS = {
+  'u.name': NAME, 'v.name': NAME, 'to.name': NAME, 'th.name': NAME, 'f.name': FAMILY, 's.title': TITLE, 'c.count': COUNT, k: COUNT, 'c.owner_name': NAME,
+};
+// 060: текст словаря приложения (русский) — t('ключ', { имя: выражение, … }): длиннейшая форма, подстановки — по худшему
+// случаю своих выражений; {owner.форма} — длиннейшая из форм ownerWord
+const APP_DICT = appTexts(DEFAULT_LANG).texts;
+const OWNER_MAX = Math.max(...Object.entries(APP_DICT).filter(([k]) => /^app\.core\.(?:bot)?[oO]wner\./.test(k)).map(([, v]) => v.length));
+function objectArgs(expr) {
+  const e = expr.trim();
+  if (!e.startsWith('{') || closing(e, 1) !== e.length - 1) throw new Error(`подстановки t() — не объект: ${e}`);
+  const inner = e.slice(1, -1);
+  const out = {};
+  for (let i = 0, at; i < inner.length; i = at + 1) {
+    at = scan(inner, i, (j) => inner[j] === ',');
+    if (at < 0) at = inner.length;
+    const part = inner.slice(i, at).trim();
+    if (!part) continue;
+    const colon = scan(part, 0, (j) => part[j] === ':');
+    if (colon < 0) out[part] = part;
+    else out[part.slice(0, colon).trim()] = part.slice(colon + 1);
+  }
+  return out;
+}
+function worstText(key, paramsExpr, ctx) {
+  const value = APP_DICT[key];
+  if (value === undefined) throw new Error(`нет ключа ${key}`);
+  const args = paramsExpr ? objectArgs(paramsExpr) : {};
+  const forms = typeof value === 'string' ? [value] : Object.values(value);
+  return Math.max(...forms.map((text) => {
+    let n = 0;
+    const rest = text.replace(/\{([A-Za-z0-9_]+)(?:\.([A-Za-z0-9_]+))?\}/g, (m, name, form) => {
+      if (!Object.hasOwn(args, name)) throw new Error(`${key}: нет подстановки ${name}`);
+      n += form !== undefined && /^ownerWord\(/.test(args[name].trim()) ? OWNER_MAX : worst(form ? `${args[name].trim()}.${form}` : args[name], ctx);
+      return '';
+    });
+    return n + rest.length;
+  }));
+}
 
 function skipString(s, i) {
   for (const q = s[i++]; i < s.length; i++) {
@@ -176,6 +214,8 @@ function worst(expr, ctx) {
     }
     return n + Function('return `' + raw + '`')().length;
   }
+  const tr = /^t\('([\w.]+)'(?:,\s*([\s\S]*))?\)$/.exec(e);
+  if (tr && closing(e, 2) === e.length - 1) return worstText(tr[1], tr[2], ctx);
   if (/^plural\(/.test(e)) { // plural(n, одна, несколько, много) — длиннейшая форма
     const args = [];
     const inner = e.slice(7, -1);
@@ -207,7 +247,10 @@ export function confirmProblems(text) {
     }
   }
   // Параметр title у typed(): длиннейший из переданных заголовков
-  const typedTitles = [...text.matchAll(/\btyped\('([^']*)'/g)].map((m) => m[1].length);
+  const typedTitles = [
+    ...[...text.matchAll(/\btyped\('([^']*)'/g)].map((m) => m[1].length),
+    ...[...text.matchAll(/\btyped\(t\('([\w.]+)'\)/g)].map((m) => String(APP_DICT[m[1]] ?? '').length),
+  ];
   const limits = { ...LIMITS, ...(typedTitles.length ? { title: Math.max(...typedTitles) } : {}) };
   for (const m of text.matchAll(/\bconfirmBox\(/g)) {
     if (/function\s+$/.test(text.slice(Math.max(0, m.index - 10), m.index))) continue;
@@ -247,13 +290,19 @@ export function confirmProblems(text) {
 }
 
 // ---------- 7. Без копий: одно поле ответа, один помощник правил пар, одна шторка со словом (035) ----------
+// 060: текст живёт в словаре — копия — второй вызов t('…') любого ключа с этим текстом
+function callsOf(value) {
+  const keys = Object.keys(APP_DICT).filter((k) => APP_DICT[k] === value);
+  if (!keys.length) throw new Error(`в словаре приложения нет текста «${value}»`);
+  return new RegExp(String.raw`\bt\('(?:${keys.map((k) => k.replace(/\./g, '\\.')).join('|')})'\)`, 'g');
+}
 const ONCE = [
   ['поле ответа (ds-composer__input) — только composerParts', /ds-composer__input/g],
   ['разбор взаимных пар правил — только rulePairs', /\.giver === \w+\.receiver && \w+\.receiver === \w+\.giver/g],
-  ['флажок «и наоборот» — только ruleForm', /'и наоборот \(в обе стороны\)'/g],
-  ['проверка «Выбери двух людей» — только ruleForm', /'Выбери двух людей'/g],
-  ['проверка «Нужны два разных человека» — только ruleForm', /'Нужны два разных человека'/g],
-  ['шторка удаления со словом («Будет удалено без возможности восстановления») — только typedSheet', /'Будет удалено без возможности восстановления:'/g],
+  ['флажок «и наоборот» — только ruleForm', /\bt\('app\.admin\.rules\.mutual'\)/g],
+  ['проверка «Выбери двух людей» — только ruleForm', /\bt\('app\.admin\.rules\.pickTwo'\)/g],
+  ['проверка «Нужны два разных человека» — только ruleForm', /\bt\('app\.admin\.rules\.different'\)/g],
+  ['шторка удаления со словом («Будет удалено без возможности восстановления») — только typedSheet', callsOf('Будет удалено без возможности восстановления:')],
 ];
 export function copies(text) {
   const lineOf = (pos) => text.slice(0, pos).split('\n').length;
@@ -407,9 +456,9 @@ test('от противного 7: вторая копия поля ответа
     "  const tb = ui.textarea({ class: 'ds-input ds-composer__input' });",
     "  const m1 = rows.some((x) => x.giver === e.receiver && x.receiver === e.giver);",
     "  const m2 = rows.some((x) => x.giver === f.receiver && x.receiver === f.giver);",
-    "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');",
-    "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');",
-    "  h('input', { placeholder: `Введи слово ${word}` }); h('b', {}, 'Будет удалено без возможности восстановления:');",
-    "  h('input', { placeholder: `Введи слово ВЫЙТИ` }); h('b', {}, 'Будет удалено без возможности восстановления:');");
+    "  h('label', {}, box, t('app.admin.rules.mutual')); toast(t('app.admin.rules.pickTwo')); toast(t('app.admin.rules.different'));",
+    "  h('label', {}, box, t('app.admin.rules.mutual')); toast(t('app.admin.rules.pickTwo')); toast(t('app.admin.rules.different'));",
+    "  h('input', { placeholder: t('app.sheet.typed.placeholder', { word }) }); h('b', {}, t('app.sheet.typed.willDelete'));",
+    "  h('input', { placeholder: t('app.sheet.typed.placeholder', { word: 'ВЫЙТИ' }) }); h('b', {}, t('app.sheet.typed.willDelete'));");
   assert.deepEqual(at(copies(bad)), [2, 4, 6, 6, 6, 8]);
 });

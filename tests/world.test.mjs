@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { BLOCKED_CHAT, telegramReply } from './support/telegram-rules.mjs';
 import { APP } from './support/app-source.mjs';
+import { bootTexts, DEFAULT_LANG } from '../src/i18n/index.js';
 
 after(restoreFetch);
 
@@ -29,9 +30,15 @@ test('/app: страница приложения со встроенной ди
   assert.equal(page.headers.get('cache-control'), 'no-store');
   assert.ok(APP.includes('/*@design-system*/'), 'в склейке частей есть метка');
   const css = read('design-system/tokens.css') + '\n' + read('design-system/components.css');
+  // 060: тексты до ответа сервера — набор app.boot.* языка по умолчанию
+  assert.ok(APP.includes('/*@boot-texts*/null'), 'в склейке частей есть метка текстов');
+  const boot = JSON.stringify(bootTexts(DEFAULT_LANG)).replace(/</g, '\\u003c');
   assert.equal(page.text, APP.replace('/*@design-system*/', () => css)
-    .replace('/*@clearable-input*/', () => read('design-system/clearable-input.js.txt')));
+    .replace('/*@clearable-input*/', () => read('design-system/clearable-input.js.txt'))
+    .replace('/*@boot-texts*/null', () => boot));
   assert.ok(!page.text.includes('/*@design-system*/'), 'метки в ответе нет');
+  assert.ok(!page.text.includes('/*@boot-texts*/'), 'метки текстов в ответе нет');
+  assert.ok(Object.keys(bootTexts(DEFAULT_LANG)).length > 0 && Object.keys(bootTexts(DEFAULT_LANG)).every((k) => k.startsWith('app.boot.')));
 });
 
 test('/setup: поле ключа использует кнопку очистки дизайн-системы', async () => {

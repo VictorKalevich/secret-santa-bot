@@ -1,6 +1,7 @@
 import { atomic } from './claim.js';
 import { getUser, pairOfSanta } from './db.js';
 import { ISO_DATE, localDate, msg, appKeyboard, q, randomCode } from './format.js';
+import { tx } from './i18n/index.js';
 import { no } from './result.js';
 
 export function shipmentDetails(pair) {
@@ -8,19 +9,19 @@ export function shipmentDetails(pair) {
 }
 
 export async function saveShipment(ctx, ev, body) {
-  if (!ev.delivery_on) return no('Доставка в этом событии выключена.');
+  if (!ev.delivery_on) return no(tx('shipment.deliveryOff'));
   const { db, me } = ctx;
   const pair = await pairOfSanta(db, ev.id, me.tg_id);
-  if (!pair) return no('У тебя пока нет подопечного.');
-  const conflict = 'Данные изменились. Открой вкладку «Подопечный» заново.';
+  if (!pair) return no(tx('chat.noWard'));
+  const conflict = tx('shipment.conflict');
   if (body.version !== pair.shipment_version) return no(conflict);
-  if (typeof body.sent !== 'boolean') return no('Выбери состояние отправки.');
+  if (typeof body.sent !== 'boolean') return no(tx('shipment.chooseState'));
   const { sent } = body;
   const { date = '', carrier = '', tracking = '' } = sent ? body : {};
   if (typeof date !== 'string' || (date && (!ISO_DATE.test(date) || !Number.isFinite(Date.parse(date)) ||
-    new Date(date).toISOString().slice(0, 10) !== date || date > localDate(ctx.env).iso))) return no('Выбери сегодняшний или прошедший день.');
-  if ([carrier, tracking].some(s => typeof s !== 'string' || s.length > 200 || /[\r\n]/.test(s))) return no('Служба и трек-номер — по одной строке до 200 символов.');
-  if (!sent && !pair.gift_sent) return no('Подарок ещё не отправлен.');
+    new Date(date).toISOString().slice(0, 10) !== date || date > localDate(ctx.env).iso))) return no(tx('shipment.dateRule'));
+  if ([carrier, tracking].some(s => typeof s !== 'string' || s.length > 200 || /[\r\n]/.test(s))) return no(tx('shipment.fieldsRule'));
+  if (!sent && !pair.gift_sent) return no(tx('shipment.notSent'));
 
   const a = atomic(db, `EXISTS (SELECT 1 FROM pairs p JOIN events e ON e.id = p.event_id
     WHERE e.id = ? AND e.status = 'active' AND e.delivery_on = 1 AND e.draw_done = 1
@@ -28,10 +29,9 @@ export async function saveShipment(ctx, ev, body) {
   if (sent !== !!pair.gift_sent) {
     const recipient = await getUser(db, pair.ward);
     if (recipient && recipient.notify_mode !== 'off') {
-      const notice = sent ? '📦 Твой Тайный Санта отправил подарок' : 'Твой Тайный Санта снял отметку об отправке';
-      a.enqueue(pair.ward, msg(`${notice} в событии ${q(ev)}.`, {
+      a.enqueue(pair.ward, msg(tx(sent ? 'shipment.sent' : 'shipment.unsent', { title: q(ev) }), {
         disable_notification: recipient.notify_mode === 'silent',
-        ...appKeyboard(await ctx.settings(), 'Открыть посылку', { event: ev.id, shipment: 1 }),
+        ...appKeyboard(await ctx.settings(), tx('shipment.openButton'), { event: ev.id, shipment: 1 }),
       }));
     }
   }

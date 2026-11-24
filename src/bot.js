@@ -8,8 +8,10 @@ import {
 } from './db.js';
 import { tgApi } from './telegram.js';
 import {
-  escapeHtml, msg, q, openAppButton, appKeyboard, oneLine, shortTitle, NOT_REGISTERED, ADMIN_ONLY, CHAT_READ_ONLY, SUPPORT_READ_ONLY,
+  escapeHtml, msg, q, openAppButton, appKeyboard, oneLine, shortTitle, NOT_REGISTERED, ADMIN_ONLY, NOT_MEMBER, CHAT_READ_ONLY,
+  SUPPORT_READ_ONLY,
 } from './format.js';
+import { tx, tjoin, isText } from './i18n/index.js';
 import { isFinished, chatWritable } from './status.js';
 import { MAX_CHARS, sendChatMessage } from './chat.js';
 import { setOwner, ownerLinkCode, claimOwnerLink } from './roles.js';
@@ -23,23 +25,20 @@ import { menuEvents } from './participant.js';
 import { maskLabel } from './looks.js';
 import { claimCompanyOwner, companyByOwnerCode, menuCompanyTitles, openBot, NEW_COMPANY_OWNER, OWNER_LINK_GONE } from './companies.js';
 
-const NAME_PROMPT =
-  'Как тебя зовут? Напиши имя (и, если нужно, фамилию) — так тебя увидят твой Санта, владелец и администраторы.';
-// 047: имя из Telegram — одним нажатием
-const NAME_OFFER = (name) =>
-  `Имя в игре — <b>${escapeHtml(name)}</b>, как в Telegram. Его увидят твой Санта, владелец и администраторы. ` +
-  'Хочешь другое — нажми «✏️ Изменить имя» или просто напиши его.';
-const NAME_ASK =
-  '✏️ Напиши имя (и, если нужно, фамилию) одним сообщением — до 40 символов. Так тебя увидят твой Санта, владелец и администраторы.';
-const NAME_SAVED = 'Имя уже сохранено. Сменить его можно в приложении: «Профиль» → «✏️ Изменить имя».';
-const CLOSED_BOT = '🎄 Это закрытый бот для игры в Тайного Санту. Чтобы присоединиться, попроси пригласительную ссылку на событие.';
-const STALE_INVITE = 'Эта пригласительная ссылка устарела. Попроси новую ссылку.';
+const NAME_PROMPT = tx('bot.name.prompt');
+const NAME_SAVED = tx('bot.name.saved');
+const STALE_INVITE = tx('bot.invite.stale');
 // Удалённый организатором при запрете возврата (010, FR-1022); админам об этой попытке ничего не приходит
-const REMOVED = (ev) => `Тебя удалили из события ${q(ev)} — вернуться по ссылке нельзя. Если это ошибка, свяжись с владельцем или администратором.`;
-const registrationClosed = (ev) => `Регистрация на событие ${q(ev)} закрыта. Владелец или администратор может открыть её снова.`;
-const REPLY_EXPIRED = '⌛ Время ответа истекло — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз и пришли его снова.';
+const REMOVED = (ev) => tx('bot.invite.removed', { title: q(ev) });
+const registrationClosed = (ev) => tx('bot.invite.closed', { title: q(ev) });
+const REPLY_EXPIRED = tx('bot.reply.expired');
 // Хвост подсказки «напиши сообщение» — у переписки и обращений
-const REPLY_HINT = `\nДо ${MAX_CHARS} символов, в течение часа. Вся переписка — в приложении (кнопка «💬»).\n\n/cancel — отмена`;
+const REPLY_HINT = tx('bot.reply.hint', { n: MAX_CHARS });
+// Текст после приветствия — через пустую строку
+const afterIntro = (intro, text) => (intro ? tjoin('\n\n', [intro, text]) : text);
+// Отказ в чате — с «❌»; событие не нашлось — тот же текст, что у API
+const failed = (error) => tx('bot.reply.failed', { error });
+const EVENT_NOT_FOUND = tx('api.noEvent');
 
 // ---------- режим ответа (pending): сборка и разбор в одном месте (019) ----------
 // В переписку: msg_<ward|santa>:<эвент>:<собеседник>:<время нажатия>; старый формат (до 009) — без двух последних
@@ -72,13 +71,14 @@ function telegramName(from) {
 }
 
 // Просьба имени (047): с подходящим именем из Telegram — оно и кнопки (каждая своей строкой: длинное имя на кнопке в
-// одной строке с другой обрезалось бы); без него — прежний вопрос. joining — после пригласительной ссылки
+// одной строке с другой обрезалось бы); без него — прежний вопрос. intro — приветствие перед просьбой, joining — после
+// пригласительной ссылки
 function nameOffer(from, intro, joining) {
   const name = telegramName(from);
-  if (!name) return msg(intro + NAME_PROMPT);
-  return msg(intro + NAME_OFFER(name), { reply_markup: { inline_keyboard: [
-    [{ text: `✅ ${joining ? 'Участвовать' : 'Продолжить'} как ${name}`, callback_data: 'reg:ok' }],
-    [{ text: '✏️ Изменить имя', callback_data: 'reg:edit' }],
+  if (!name) return msg(afterIntro(intro, NAME_PROMPT));
+  return msg(afterIntro(intro, tx('bot.name.offer', { name: escapeHtml(name) })), { reply_markup: { inline_keyboard: [
+    [{ text: tx(joining ? 'bot.name.join' : 'bot.name.continue', { name }), callback_data: 'reg:ok' }],
+    [{ text: tx('bot.name.edit'), callback_data: 'reg:edit' }],
   ] } });
 }
 
@@ -91,41 +91,36 @@ async function buildMenu(ctx, user, settings) {
   const finishedCount = results.length - active.length;
   const items = active.slice(0, 5);
 
-  const lines = ['🎄 <b>Тайный Санта</b>', ''];
+  const lines = [tx('bot.menu.title'), ''];
   if (!items.length) {
-    lines.push(user.is_admin
-      ? 'Идущих событий у тебя нет. Создай событие в приложении — там появится пригласительная ссылка.'
-      : openBot(ctx.env)
-        ? 'Сейчас ты не участвуешь ни в одном идущем событии. Создай свою комнату в приложении или попроси пригласительную ссылку на событие.'
-        : 'Сейчас ты не участвуешь ни в одном идущем событии. Попроси пригласительную ссылку на событие.');
+    lines.push(tx(user.is_admin ? 'bot.menu.noEventsAdmin' : openBot(ctx.env) ? 'bot.menu.noEventsOpen' : 'bot.menu.noEvents'));
   } else {
-    lines.push('Твои события:');
+    lines.push(tx('bot.menu.events'));
     for (const ev of items) {
-      const letter = ev.wishlist.trim() ? 'письмо ✅' : 'письмо пустое ✏️';
-      const draw = !ev.draw_done ? 'жеребьёвка впереди' : ev.has_ward ? 'подопечный назначен 🎁' : 'ждёт добавления в жеребьёвку';
-      const company = titles ? ` (${escapeHtml(titles.get(ev.company_id) ?? '')})` : '';
-      lines.push(`• ${q(ev)}${company} — ${letter}, ${draw}`);
+      const letter = tx(ev.wishlist.trim() ? 'bot.menu.letterFilled' : 'bot.menu.letterEmpty');
+      const draw = tx(!ev.draw_done ? 'bot.menu.drawAhead' : ev.has_ward ? 'bot.menu.wardAssigned' : 'bot.menu.awaitingInsert');
+      lines.push(titles
+        ? tx('bot.menu.eventInRoom', { title: q(ev), room: escapeHtml(titles.get(ev.company_id) ?? ''), letter, draw })
+        : tx('bot.menu.event', { title: q(ev), letter, draw }));
     }
   }
-  if (finishedCount) lines.push('', `📚 Завершённых событий: ${finishedCount} — их история в приложении.`);
+  if (finishedCount) lines.push('', tx('bot.menu.finished', { n: finishedCount }));
   if (user.is_admin) {
     const owner = Number(settings.owner_id || 0) === user.tg_id;
     // 051: назначенный владелец компании
     const companyOwner = !owner && [...(await ctx.companies()).values()].some((c) => c.owner_id === user.tg_id);
-    lines.push('', owner
-      ? '👑 Ты владелец бота — события и администраторы в приложении.'
-      : companyOwner ? '👑 Ты владелец — события и администраторы в приложении.' : '🛠 Ты администратор — события в приложении.');
+    lines.push('', tx(owner ? 'bot.menu.botOwner' : companyOwner ? 'bot.menu.owner' : 'bot.menu.admin'));
   }
   const kb = [[openAppButton(settings)]];
   for (const ev of items.slice(0, 3)) {
     // shortTitle не разрывает эмодзи: кнопка с половинкой эмодзи сломала бы всё меню (009, FR-914)
     const row = [];
-    if (ev.has_ward) row.push({ text: `💬 Подопечному · ${shortTitle(ev.title)}`, callback_data: `msg:ward:${ev.id}` });
-    if (ev.has_santa) row.push({ text: `💬 Санте · ${shortTitle(ev.title)}`, callback_data: `msg:santa:${ev.id}` });
+    if (ev.has_ward) row.push({ text: tx('bot.menu.toWard', { title: shortTitle(ev.title) }), callback_data: `msg:ward:${ev.id}` });
+    if (ev.has_santa) row.push({ text: tx('bot.menu.toSanta', { title: shortTitle(ev.title) }), callback_data: `msg:santa:${ev.id}` });
     if (row.length) kb.push(row);
   }
-  kb.push([{ text: '🔔 Уведомления', callback_data: 'notify' }]);
-  return { text: lines.join('\n'), parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } };
+  kb.push([{ text: tx('bot.menu.notify'), callback_data: 'notify' }]);
+  return { text: tjoin('\n', lines), parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } };
 }
 
 // ---------- сообщение боту ----------
@@ -134,20 +129,21 @@ async function buildMenu(ctx, user, settings) {
 // одним пакетом (019); c.user обновляется вместе с ctx.me, когда запись перечитана (reload).
 async function openChat(env, m) {
   const db = env.DB;
-  const call = tgApi(env);
   const from = m.from;
   const ctx = await openContext(env, from.id);
+  const call = tgApi(env, ctx.lang); // ответы — на языке человека (060)
   const settings = await ctx.settings();
   const c = {
     env, db, ctx, from, settings,
     text: (m.text || '').trim(),
     user: ctx.me,
-    reply: (payload) => call('sendMessage', { chat_id: from.id, ...(typeof payload === 'string' ? msg(payload) : payload) }),
+    // payload — текст (строка или отложенный, 060) или сообщение целиком
+    reply: (payload) => call('sendMessage', { chat_id: from.id, ...(isText(payload) ? msg(payload) : payload) }),
     sendMenu: async () => c.reply(await buildMenu(ctx, c.user, settings)),
     menuIfRegistered: () => (c.user?.registered ? c.sendMenu() : undefined),
-    writeLetter: (text, ev) => ({ ...msg(text), ...appKeyboard(settings, '✏️ Написать письмо', { event: ev.id }) }),
+    writeLetter: (text, ev) => ({ ...msg(text), ...appKeyboard(settings, tx('common.writeLetterButton'), { event: ev.id }) }),
     // joining — по умолчанию по ожиданию имени: name:<эвент>:<код> — после пригласительной ссылки
-    askName: (intro = '', joining = c.user?.pending.startsWith('name:')) => c.reply(nameOffer(from, intro, joining)),
+    askName: (intro = null, joining = c.user?.pending.startsWith('name:')) => c.reply(nameOffer(from, intro, joining)),
     setPending: (pending) => updateUser(db, from.id, { pending }),
     async reload() {
       c.user = ctx.me = await getUser(db, from.id);
@@ -188,7 +184,7 @@ export async function handleUpdate(update, env) {
 async function replyJoin(c, ev, status) {
   switch (status) {
     case 'joined':
-      await c.reply(c.writeLetter(`🎄 Ты в событии ${q(ev)}! Открой приложение и напиши письмо своему Тайному Санте.`, ev));
+      await c.reply(c.writeLetter(tx('bot.invite.joined', { title: q(ev) }), ev));
       return true;
     case 'closed':
       await c.reply(registrationClosed(ev));
@@ -197,13 +193,13 @@ async function replyJoin(c, ev, status) {
       await c.reply(REMOVED(ev));
       return false;
     case 'request_pending':
-      await c.reply(`⏳ Заявка на участие в событии ${q(ev)} уже отправлена — ждём решения.`);
+      await c.reply(tx('bot.invite.requestPending', { title: q(ev) }));
       return false;
     case 'request_rejected':
       await c.reply(requestRejected(ev));
       return false;
     default:
-      await c.reply(`⏳ Заявка на участие в событии ${q(ev)} отправлена. Я напишу, когда её рассмотрят.`);
+      await c.reply(tx('bot.invite.requestSent', { title: q(ev) }));
       return false;
   }
 }
@@ -225,15 +221,15 @@ async function onStart(c) {
 // Человек без ссылки и без имени (052): в закрытом боте — прежний ответ; в открытом — ожидание имени и просьба имени
 // (047), после имени — меню, своя компания — в приложении
 async function onStranger(c) {
-  if (!openBot(c.env)) return c.reply(CLOSED_BOT);
+  if (!openBot(c.env)) return c.reply(tx('bot.closedBot'));
   await (c.user ? c.setPending('name') : createUser(c.db, c.from.id, c.from.username, { pending: 'name' }));
-  return c.askName('🎄 Привет! Это бот для игры в Тайного Санту.\n\n', false);
+  return c.askName(tx('bot.hello'), false);
 }
 
 async function onOwnerLink(c) {
   const { env, db, ctx, from, settings } = c;
   if (!(await claimOwnerLink(env))) {
-    await c.reply('Ссылка владельца уже использована. Чтобы получить новую — смени ADMIN_SECRET и снова открой страницу настройки.');
+    await c.reply(tx('bot.ownerLink.used'));
     return c.menuIfRegistered();
   }
   const prevOwnerId = await ctx.botOwnerId();
@@ -248,9 +244,9 @@ async function onOwnerLink(c) {
   await c.reload();
   if (!c.user.registered) {
     await c.setPending('name');
-    return c.askName('👑 Ты — владелец бота «Тайный Санта»: создаёшь события и назначаешь администраторов.\n\n', false);
+    return c.askName(tx('bot.ownerLink.hello'), false);
   }
-  await c.reply('👑 Теперь ты владелец бота: события и администраторы — в приложении.');
+  await c.reply(tx('bot.ownerLink.done'));
   return c.sendMenu();
 }
 
@@ -258,9 +254,9 @@ async function onOwnerLink(c) {
 // имени (ожидание name_own:<компания>:<код>), если код к тому времени тот же
 const OWNER_LINK_REPLIES = {
   gone: OWNER_LINK_GONE,
-  bot: 'Ты владелец бота — эту комнату и так ведёшь ты.',
-  already: 'Ты уже владелец.',
-  owner: NEW_COMPANY_OWNER + ' Всё — в приложении.',
+  bot: tx('bot.roomLink.bot'),
+  already: tx('bot.roomLink.already'),
+  owner: tx('bot.roomLink.owner', { greeting: NEW_COMPANY_OWNER }),
 };
 async function onCompanyOwnerLink(c, code) {
   const { db, ctx, from } = c;
@@ -277,7 +273,7 @@ async function onCompanyOwnerLink(c, code) {
   if (!company) return c.reply(OWNER_LINK_GONE);
   const pending = `name_own:${company.id}:${code}`;
   await (c.user ? c.setPending(pending) : createUser(db, from.id, from.username, { pending }));
-  return c.askName(NEW_COMPANY_OWNER + '\n\n', false);
+  return c.askName(NEW_COMPANY_OWNER, false);
 }
 
 // Запись участника и компания события одним пакетом (055): новичок ещё не человек компании — ctx.in не читает её отдельно
@@ -296,7 +292,7 @@ async function onInvite(c, code) {
   if (user?.registered) {
     // Участник открыл ссылку снова — даже после жеребьёвки и закрытия регистрации (009, FR-921)
     if (member) {
-      await c.reply(`🎄 Ты уже участвуешь в событии ${q(ev)}.`);
+      await c.reply(tx('bot.invite.member', { title: q(ev) }));
       return c.sendMenu();
     }
     if (await replyJoin(c, ev, await joinByInvite(await ctx.in(ev.company_id), ev, user))) return c.sendMenu();
@@ -315,19 +311,19 @@ async function onInvite(c, code) {
   ]);
   // Без одобрения человек сразу виден организатору в списке (ещё без имени)
   if (!member && !ev.approval) await db.batch([addMemberStmt(db, ev, from.id), clearRemovedStmt(db, ev.id, from.id)]);
-  return c.askName(`🎄 Привет! Это бот для игры в Тайного Санту, ${q(ev)}.\n\n`, true);
+  return c.askName(tx('bot.helloEvent', { title: q(ev) }), true);
 }
 
 async function onCancel(c) {
   if (!c.user.registered) return c.askName();
   await c.setPending('');
-  return c.reply('Отменено.');
+  return c.reply(tx('bot.cancelled'));
 }
 
 // ---------- ввод имени при регистрации ----------
 async function onName(c) {
   const name = oneLine(c.text);
-  if (!nameOk(name)) return c.reply('Напиши, пожалуйста, имя обычным текстом (до 40 символов).');
+  if (!nameOk(name)) return c.reply(tx('bot.name.rule'));
   if (!(await signUp(c, name))) return c.reply(NAME_SAVED);
 }
 
@@ -347,15 +343,15 @@ async function signUp(c, name, saved = async () => {}) {
   if (!(await register(ctx, name, username, member ? ev : null))) return false;
   await saved();
   c.user = c.ctx.me = { ...c.user, name, username, registered: 1, pending: '' };
-  const hello = `Приятно познакомиться, ${escapeHtml(name)}! 🎉`;
+  const hello = tx('bot.niceToMeet', { name: escapeHtml(name) });
   if (!ev) {
-    if (eid) await c.reply(hello + '\n\n' + STALE_INVITE);
-    else await c.reply(hello + (c.user.is_admin ? '\n\nСоздай первое событие в приложении — там появится пригласительная ссылка.' : ''));
+    if (eid) await c.reply(afterIntro(hello, STALE_INVITE));
+    else await c.reply(c.user.is_admin ? afterIntro(hello, tx('bot.createFirstEvent')) : hello);
   } else if (member) {
-    await c.reply(c.writeLetter(`${hello}\n\nТеперь открой приложение и напиши письмо своему Тайному Санте в событии ${q(ev)}: что хочешь получить, что любишь, размеры, чего точно не надо.`, ev));
+    await c.reply(c.writeLetter(afterIntro(hello, tx('bot.writeLetterFirst', { title: q(ev) })), ev));
   } else if (ev.invite_code !== code) {
     // Не участник (заявка, удалили до имени, сменили ссылку) — вступление как по ссылке (009, FR-922)
-    await c.reply(hello + '\n\n' + STALE_INVITE);
+    await c.reply(afterIntro(hello, STALE_INVITE));
   } else {
     await c.reply(hello);
     const status = await joinByInvite(ctx, ev, c.user);
@@ -376,9 +372,7 @@ async function signUpOwner(c, name, code, saved) {
     c.ctx.forgetUsers();
     await c.reload();
   }
-  await c.reply(`Приятно познакомиться, ${escapeHtml(name)}! 🎉\n\n` + (owner
-    ? 'Создай первое событие в приложении — там появится пригласительная ссылка.'
-    : 'Ссылка владельца уже использована или отозвана. Попроси новую.'));
+  await c.reply(afterIntro(tx('bot.niceToMeet', { name: escapeHtml(name) }), tx(owner ? 'bot.createFirstEvent' : 'bot.roomLink.gone')));
   await c.sendMenu();
   return true;
 }
@@ -396,14 +390,14 @@ async function onChatReply(c, mode) {
     return c.reply(REPLY_EXPIRED);
   }
   if (text.length > MAX_CHARS) {
-    return c.reply(`❌ Слишком длинно: ${text.length} символов, максимум ${MAX_CHARS}. Отправь покороче или /cancel.`);
+    return c.reply(tx('bot.reply.tooLong', { n: text.length, max: MAX_CHARS }));
   }
   const ev = await getEvent(db, mode.event);
   await c.setPending('');
-  if (!ev) return c.reply('❌ Событие не найдено.');
+  if (!ev) return c.reply(failed(EVENT_NOT_FOUND));
   const res = await sendChatMessage(await ctx.in(ev.company_id), ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: mode.other });
-  if (res.ok) return c.reply(toWard ? '✅ Отправлено подопечному от «Тайного Санты».' : '✅ Отправлено твоему Санте.');
-  return c.reply(res.pairChanged ? res.error : '❌ ' + res.error);
+  if (res.ok) return c.reply(tx(toWard ? 'bot.reply.toWardSent' : 'bot.reply.toSantaSent'));
+  return c.reply(res.pairChanged ? res.error : failed(res.error));
 }
 
 // ---------- ответ в обращение к организатору (012) ----------
@@ -414,39 +408,37 @@ async function onSupportReply(c, mode) {
   if (expired(mode.since)) return c.reply(REPLY_EXPIRED);
   if (mode.who === 'u') {
     const ev = await getEvent(db, mode.id);
-    if (!ev || !(await getMember(db, ev.id, from.id))) return c.reply('❌ Ты не участвуешь в этом событии.');
+    if (!ev || !(await getMember(db, ev.id, from.id))) return c.reply(failed(NOT_MEMBER));
     const res = await sendFromUser(await ctx.in(ev.company_id), ev, text);
-    return c.reply(res.ok ? '✅ Сообщение отправлено. Ответ придёт сюда.' : '❌ ' + res.error);
+    return c.reply(res.ok ? tx('bot.support.sent') : failed(res.error));
   }
-  const ADMINS_ONLY = '❌ Отвечать на обращения могут владелец и администраторы.';
+  const ADMINS_ONLY = tx('bot.support.adminsOnly');
   if (!c.user.is_admin) return c.reply(ADMINS_ONLY);
   const t = await threadById(db, mode.id);
   const ev = t ? await getEvent(db, t.event_id) : null;
-  if (!ev) return c.reply('❌ ' + THREAD_NOT_FOUND);
+  if (!ev) return c.reply(failed(THREAD_NOT_FOUND));
   // Права — в компании события (050): тот же отказ
   const company = await ctx.in(ev.company_id);
   if (!company?.me.is_admin) return c.reply(ADMINS_ONLY);
   const res = await sendFromAdmin(company, ev, Number(mode.id), text);
-  return c.reply(res.ok ? '✅ Отправлено участнику.' : `❌ ${res.error} Сообщение не отправлено.`);
+  return c.reply(res.ok ? tx('bot.support.answered') : tx('bot.support.notSent', { error: res.error }));
 }
 
 // ---------- нажатие кнопки ----------
 
-const NOTIFY_LABELS = {
-  sound: '🔔 Со звуком',
-  silent: '🔕 Без звука',
-  off: '🚫 Не присылать',
-};
+// Режимы уведомлений; подписи — bot.notify.mode.<режим>
+const NOTIFY_MODES = ['sound', 'silent', 'off'];
+const notifyLabel = (mode) => tx('bot.notify.mode.' + mode);
 
 async function handleCallback(cq, env) {
   // Кнопки регистрации (047) нажимает человек без имени — до проверки «зарегистрирован»
   if (SIGNUP_BUTTON.test(cq.data || '')) return onSignupButton(cq, env);
   const db = env.DB;
-  const call = tgApi(env);
   const from = cq.from;
-  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   // Пользователь, настройки, его компании и владелец бота — одним пакетом (050: вместо одного чтения пользователя)
   const ctx = await openContext(env, from.id);
+  const call = tgApi(env, ctx.lang); // ответы — на языке человека (060)
+  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const user = ctx.me;
   if (user?.blocked_at) await updateUser(db, from.id, { blocked_at: 0 }); // 006, FR-609
   if (!user || !user.registered) return answer(NOT_REGISTERED);
@@ -462,7 +454,7 @@ async function handleCallback(cq, env) {
     // Режим ответа включён: подсказка, что и как написать
     async prompt(text) {
       await answer();
-      return k.send(msg(text + REPLY_HINT));
+      return k.send(msg(tjoin('\n', [text, REPLY_HINT])));
     },
   };
   for (const [pattern, handler] of BUTTONS) {
@@ -476,14 +468,14 @@ async function handleCallback(cq, env) {
 // ответ на нажатие — ровно один
 const SIGNUP_BUTTON = /^reg:(ok|edit)$/;
 async function onSignupButton(cq, env) {
-  const call = tgApi(env);
-  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   const c = await openChat(env, { from: cq.from });
+  const call = tgApi(env, c.ctx.lang);
+  const answer = (text) => call('answerCallbackQuery', { callback_query_id: cq.id, ...(text ? { text } : {}) });
   if (!c.user) return answer(NOT_REGISTERED);
   if (c.user.registered) return answer(NAME_SAVED);
   if (cq.data === 'reg:edit') {
     await answer();
-    return c.reply(NAME_ASK);
+    return c.reply(tx('bot.name.ask'));
   }
   // Имя из Telegram — в момент нажатия; стало неподходящим — прежний вопрос
   const name = telegramName(cq.from);
@@ -506,17 +498,17 @@ async function onReplyButton(k, [, side, eventId]) {
   const { db, from } = k;
   const toWard = side === 'ward';
   const ev = await getEvent(db, eventId);
-  if (!ev) return k.refuse('Событие не найдено.');
+  if (!ev) return k.refuse(EVENT_NOT_FOUND);
   const p = toWard ? await pairOfSanta(db, ev.id, from.id) : await pairOfWard(db, ev.id, from.id);
-  if (!p) return k.refuse(toWard ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.');
+  if (!p) return k.refuse(tx(toWard ? 'chat.noWard' : 'chat.noSanta'));
   if (!chatWritable(ev)) return k.refuse(CHAT_READ_ONLY);
   // Режим ответа помнит собеседника и время нажатия (только на сервере): msg_<сторона>:<эвент>:<собеседник>:<мс>
   await k.setPending(replyPending(side, ev.id, toWard ? p.ward : p.santa));
   // 040: маска пары — Санте как «от чьего имени», подопечному — как он знает своего Санту
-  const mask = maskLabel(p.mask);
-  return k.prompt(toWard
-    ? `✍️ Напиши сообщение подопечному (${q(ev)}) — я передам его <b>анонимно</b>, от имени «Тайного Санты${mask ? ' · ' + mask : ''}».`
-    : `✍️ Напиши сообщение своему Санте${mask ? ` «${mask}»` : ''} (${q(ev)}) — я передам его. Санта знает, кто ты, а ты его — нет.`);
+  const mask = maskLabel(p.mask, k.ctx.t);
+  const title = q(ev);
+  if (toWard) return k.prompt(mask ? tx('bot.reply.toWardMasked', { title, mask }) : tx('bot.reply.toWard', { title }));
+  return k.prompt(mask ? tx('bot.reply.toSantaMasked', { title, mask }) : tx('bot.reply.toSanta', { title }));
 }
 
 // ---------- обращения к организатору (012) ----------
@@ -530,7 +522,7 @@ async function onSupportButton(k, [, kind, id]) {
   // Права — в компании события (050): тот же отказ
   const company = await k.ctx.in(ev.company_id);
   if (!company?.me.is_admin) return k.refuse(ADMIN_ONLY);
-  const name = escapeHtml((await getUser(db, t.user_id))?.name || 'участник');
+  const name = escapeHtml((await getUser(db, t.user_id))?.name || tx('bot.support.participant'));
   return kind === 'take' ? onSupportTake(k, company, t, ev, name) : onSupportAnswer(k, t, ev, name);
 }
 
@@ -538,11 +530,11 @@ async function onSupportButton(k, [, kind, id]) {
 async function onSupportAsk(k, eventId) {
   const { db, ctx, from } = k;
   const ev = await getEvent(db, eventId);
-  if (!ev || !(await getMember(db, ev.id, from.id))) return k.refuse('Ты не участвуешь в этом событии.');
+  if (!ev || !(await getMember(db, ev.id, from.id))) return k.refuse(NOT_MEMBER);
   if (!chatWritable(ev)) return k.refuse(SUPPORT_READ_ONLY);
   if (!supportAvailable(await (await ctx.in(ev.company_id)).users(), from.id)) return k.refuse(NO_SUPPORT_RECIPIENTS);
   await k.setPending(supportPending('u', ev.id));
-  return k.prompt(`✍️ Напиши сообщение по событию (${q(ev)}) — я передам его. Не пиши, кто твой подопечный.`);
+  return k.prompt(tx('bot.support.ask', { title: q(ev) }));
 }
 
 // Админ: «🙋 Взять»
@@ -550,11 +542,11 @@ async function onSupportTake(k, ctx, t, ev, name) {
   const settings = await ctx.settings();
   const r = await take(ctx, ev, t.id);
   if (!r.ok) return k.refuse(r.error);
-  await k.answer('🙋 Обращение твоё');
-  return k.send(msg(`🙋 Обращение <b>${name}</b> (${q(ev)}) теперь ведёшь ты. Ответь кнопкой ниже или в приложении.`, {
+  await k.answer(tx('bot.support.takenAnswer'));
+  return k.send(msg(tx('bot.support.taken', { name, title: q(ev) }), {
     reply_markup: { inline_keyboard: [[
-      { text: '↩️ Ответить', callback_data: `sup:a:${t.id}` },
-      openAppButton(settings, '💬 Открыть', { event: ev.id, support: t.id }),
+      { text: tx('common.replyButton'), callback_data: `sup:a:${t.id}` },
+      openAppButton(settings, tx('support.openButton'), { event: ev.id, support: t.id }),
     ]] },
   }));
 }
@@ -564,10 +556,12 @@ async function onSupportAnswer(k, t, ev, name) {
   const blocks = replyBlocks(t, k.user, ev);
   if (blocks.closed) return k.refuse(THREAD_CLOSED);
   if (blocks.own) return k.refuse(OWN_THREAD);
-  if (blocks.other) return k.refuse(`Обращение ведёт ${(await getUser(k.db, t.assignee))?.name || 'другой человек'}.`);
+  if (blocks.other) {
+    return k.refuse(tx('support.ledBy', { name: (await getUser(k.db, t.assignee))?.name || tx('bot.support.someoneElse') }));
+  }
   if (blocks.readOnly) return k.refuse(SUPPORT_READ_ONLY);
   await k.setPending(supportPending('a', t.id));
-  return k.prompt(`✍️ Напиши ответ <b>${name}</b> (обращение, ${q(ev)}).` + (t.assignee ? '' : ' Ответив, ты возьмёшь обращение себе.'));
+  return k.prompt(tx(t.assignee ? 'bot.support.answer' : 'bot.support.answerTake', { name, title: q(ev) }));
 }
 
 // Решение по заявке на вступление (008): кнопки в сообщении админу
@@ -576,22 +570,23 @@ async function onRequestButton(k, [, id, decision]) {
   if (!k.user.is_admin) return k.answer(ADMIN_ONLY);
   const r = await decideRequest(k.ctx, Number(id), k.from.id, approve);
   if (!r.ok) return k.answer(r.error);
-  await k.answer(approve ? '✅ Принято' : '❌ Отклонено');
-  return k.send(msg(`${approve ? '✅ Заявка принята' : '❌ Заявка отклонена'}: <b>${escapeHtml(r.name)}</b>, ${q(r.ev)}.`));
+  await k.answer(tx(approve ? 'bot.request.approvedAnswer' : 'bot.request.rejectedAnswer'));
+  return k.send(msg(tx(approve ? 'bot.request.approved' : 'bot.request.rejected', { name: escapeHtml(r.name), title: q(r.ev) })));
 }
 
 async function onNotifyButton(k) {
   await k.answer();
+  const mode = NOTIFY_MODES.includes(k.user.notify_mode) ? k.user.notify_mode : 'sound';
   return k.send(msg(
-    `Уведомления о том, что подопечный изменил письмо (во всех событиях).\nСейчас: <b>${NOTIFY_LABELS[k.user.notify_mode] || NOTIFY_LABELS.sound}</b>`,
-    { reply_markup: { inline_keyboard: [Object.entries(NOTIFY_LABELS).map(([key, label]) => ({ text: label, callback_data: 'nm:' + key }))] } }
+    tx('bot.notify.title', { mode: notifyLabel(mode) }),
+    { reply_markup: { inline_keyboard: [NOTIFY_MODES.map((key) => ({ text: notifyLabel(key), callback_data: 'nm:' + key }))] } }
   ));
 }
 
 async function onNotifyMode(k, [, mode]) {
-  if (!NOTIFY_LABELS[mode]) return k.answer();
+  if (!NOTIFY_MODES.includes(mode)) return k.answer();
   await updateUser(k.db, k.from.id, { notify_mode: mode });
-  return k.answer('Сохранено: ' + NOTIFY_LABELS[mode]);
+  return k.answer(tx('bot.notify.saved', { mode: notifyLabel(mode) }));
 }
 
 // Вид кнопки (callback_data) → обработчик; первый подошедший

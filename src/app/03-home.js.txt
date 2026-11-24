@@ -18,16 +18,16 @@
     roster: null, rosterOpen: null, // 037: участники на «Инфо»; rosterOpen — id события, где список раскрыт
     looks: { postcards: [], masks: [] }, // наборы открыток и масок — с сервера (me)
     companies: [], companyId: null, company: null, botOwner: false, open: false, create: null,
+    lang: 'ru', textsVersion: '', // 060: язык и версия словаря приложения (ответ me)
   };
   const main = document.getElementById('main');
   const heroTitle = document.getElementById('heroTitle');
   const heroSub = document.getElementById('heroSub');
   const heroBack = document.getElementById('heroBack');
-  const UNSAVED = 'Письмо или адрес не сохранены. Уйти без сохранения?';
   // Уход с события или вкладки (058): черновик письма — сохранить сразу, спросить — только о том, что само не сохранится
   async function mayLeave() {
     if (saveLetterNow) saveLetterNow();
-    if (state.dirty === true && !(await confirmBox(UNSAVED))) return false;
+    if (state.dirty === true && !(await confirmBox(t('app.home.unsaved')))) return false;
     if (state.dirty) setDirty(false);
     return true;
   }
@@ -54,7 +54,9 @@
   }
 
   async function reloadMe() {
-    const d = await api('me');
+    // Словарь — только если у приложения его нет или он другой (060); до любого построения экрана
+    const d = await api('me', { texts: state.textsVersion || undefined });
+    setTexts(d);
     if (!d.registered) return d;
     state.me = d.me;
     state.botOwner = !!d.me.is_owner;
@@ -96,14 +98,14 @@
     return d;
   }
 
-  function showLoader() { main.replaceChildren(h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), 'Загрузка…')); }
+  function showLoader() { main.replaceChildren(h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), t('app.boot.loading'))); }
   // retry — повтор именно неудавшейся загрузки (009); на экране эвента — ещё выход к списку
   function showError(e, retry) {
-    const again = h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => (retry || render)() }, 'Попробовать снова');
+    const again = h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => (retry || render)() }, t('app.boot.retry'));
     const home = state.view === 'event' && state.me
-      ? h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => { setDirty(false); goHome(); } }, 'К списку событий')
+      ? h('button', { class: 'ds-btn ds-btn--secondary ds-empty__action', onclick: () => { setDirty(false); goHome(); } }, t('app.home.toEvents'))
       : null;
-    main.replaceChildren(ui.empty('⚠️', 'Не получилось загрузить', e.message, [again, home]));
+    main.replaceChildren(ui.empty('⚠️', t('app.boot.loadFailed'), e.message, [again, home]));
   }
   // Асинхронный экран («Подопечный», «Управление»; 026): отказ при построении — экран ошибки с повтором, а не вечный
   // загрузчик, откуда бы экран ни вызвали (render, закрытие шторки, перестройка панели); для покинутого экрана — ничего
@@ -207,9 +209,9 @@
   try { if (tg && ver('6.1')) tg.BackButton.onClick(() => (sheetEl ? requestCloseSheet() : goBack())); } catch (e) {}
 
   function eventRow(e) {
-    const chips = [e.status === 'finished' ? ui.chip('завершён') : ui.chip('идёт', 'success')];
+    const chips = [e.status === 'finished' ? ui.chip(t('app.home.finished')) : ui.chip(t('app.home.active'), 'success')];
     if (e.event_date) chips.push(ui.chip('🎁 ' + fmtDate(e.event_date)));
-    if (!e.member) chips.push(ui.chip('ты не участвуешь'));
+    if (!e.member) chips.push(ui.chip(t('app.home.notMember')));
     return h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openEvent(e.id) },
       h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, e.title), h('div', { class: 'ds-chips' }, chips)),
       e.unread ? h('span', { class: 'ds-badge' }, String(e.unread)) : null,
@@ -222,7 +224,7 @@
     const many = state.companies.length >= 2;
     heroBack.hidden = !withList();
     heroTitle.textContent = companyTitle();
-    const greet = () => { heroSub.textContent = 'Привет, ' + me.name + '!'; };
+    const greet = () => { heroSub.textContent = t('app.home.greet', { name: me.name }); };
     greet();
     // Разделы с именами людей (039): после смены своего имени перечитываются на месте
     const people = [];
@@ -234,40 +236,38 @@
     const nodes = [];
     // 051, R9: владелец бота в чужой компании — гость
     if (state.company && state.company.role === 'guest') {
-      nodes.push(h('div', { class: 'ds-notice ds-text-sm' }, 'Ты здесь как владелец бота: в списках комнаты тебя нет, уведомления её ' +
-        'администраторам тебе не приходят. Твои изменения записываются в журнал комнаты.'));
+      nodes.push(h('div', { class: 'ds-notice ds-text-sm' }, t('app.home.guest')));
     }
-    nodes.push(ui.section('Мои события'));
+    nodes.push(ui.section(t('app.home.myEvents')));
     if (mine.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, mine.map(eventRow)));
-    else nodes.push(ui.hint(me.is_admin
-      ? 'Ты пока не участвуешь ни в одном событии. Создай событие или вступи в существующее («Управление» → «Я участвую»).'
-      : 'Ты пока не участвуешь ни в одном событии. Попроси пригласительную ссылку на событие.', 'ds-hint--inset'));
+    else nodes.push(ui.hint(t(me.is_admin ? 'app.home.noEvents.admin' : 'app.home.noEvents.member'), 'ds-hint--inset'));
 
     if (me.is_admin) {
-      if (others.length) nodes.push(ui.section('Другие события'), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
-      const create = ui.btn('🎄 Создать', 'festive', 'ds-btn--block');
+      if (others.length) nodes.push(ui.section(t('app.home.otherEvents')), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
+      const create = ui.btn(t('app.home.create.button'), 'festive', 'ds-btn--block');
       create.addEventListener('click', () => {
-        const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: `Например: Новый год ${new Date().getFullYear() + 1} — семья` });
+        const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: t('app.home.create.placeholder', { year: new Date().getFullYear() + 1 }) });
         // Образец (007): параметры и исключения прошлого эвента, по желанию — приглашение его участников
-        const from = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Без образца — с чистого листа'),
-          ...events.map((e) => h('option', { value: e.id }, 'По образцу: ' + e.title)));
+        const from = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.home.create.noTemplate')),
+          ...events.map((e) => h('option', { value: e.id }, t('app.home.create.fromTemplate', { title: e.title }))));
         const invite = h('input', { type: 'checkbox', checked: true, disabled: true });
-        const inviteRow = h('label', { class: 'ds-check' }, invite, 'Пригласить участников образца');
+        const inviteRow = h('label', { class: 'ds-check' }, invite, t('app.home.create.invite'));
         from.addEventListener('change', () => { invite.disabled = !from.value; });
-        const ok = ui.btn('Создать', '', 'ds-btn--block');
+        const ok = ui.btn(t('app.core.create'), '', 'ds-btn--block');
         ok.addEventListener('click', () => busy(ok, async () => {
-          if (!title.value.trim()) return toast('Напиши название');
+          if (!title.value.trim()) return toast(t('app.core.needTitle'));
           const r = await capi('admin.events.create', { title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked });
           closeSheet();
-          toast(r.invited ? `🎄 Событие создано, приглашения: ${r.invited}` : r.invite_error ? '🎄 Событие создано. ' + r.invite_error : '🎄 Событие создано');
+          toast(r.invited ? t('app.home.create.doneInvited', { count: r.invited })
+            : r.invite_error ? t('app.home.create.doneInviteError', { error: r.invite_error }) : t('app.home.create.done'));
           await reloadMe();
           await openEvent(r.event.id, 'admin');
         }));
-        const sheet = [ui.hint('У события будут свои участники, пригласительная ссылка, письма и жеребьёвка. Можно вести несколько событий одновременно.'), clearable(title, 'Название события')];
+        const sheet = [ui.hint(t('app.home.create.hint')), clearable(title, t('app.home.create.name'))];
         if (events.length) {
-          sheet.push(from, inviteRow, ui.hint('Из образца копируются бюджет, место, заметки, правила жеребьёвки и исключения. Даты — нет.'));
+          sheet.push(from, inviteRow, ui.hint(t('app.home.create.templateHint')));
         }
-        openSheet('Новое событие', [...sheet, ok]);
+        openSheet(t('app.home.create.title'), [...sheet, ok]);
       });
       nodes.push(h('div', { class: 'ds-card' }, create));
       for (const section of [renderFamiliesSection(), renderAdminsSection()]) {
@@ -292,80 +292,80 @@
       greet();
       for (const load of people) load();
     };
-    const editName = ui.btn('✏️ Изменить имя', 'secondary', 'ds-btn--block');
+    const editName = ui.btn(t('app.home.profile.editName'), 'secondary', 'ds-btn--block');
     editName.addEventListener('click', () => openNameSheet(profileChanged));
 
     // Уведомления — общие для всех эвентов
-    const modes = [['sound', '🔔 Звук'], ['silent', '🔕 Тихо'], ['off', '🚫 Выкл']];
+    const modes = [['sound', t('app.home.notify.sound')], ['silent', t('app.home.notify.silent')], ['off', t('app.home.notify.off')]];
     const seg = h('div', { class: 'ds-segmented' });
     const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
       class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
-      onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast('Сохранено'); }),
+      onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast(t('app.core.saved')); }),
     }, label)));
     draw();
-    return [ui.section('Профиль'), ui.card(nameText, editName), ui.section('Уведомления'),
-      ui.card(ui.hint('Когда подопечный меняет письмо (в любом событии), бот сообщит об этом — без имени и подробностей.'), seg)];
+    return [ui.section(t('app.home.profile.title')), ui.card(nameText, editName), ui.section(t('app.home.notify.title')),
+      ui.card(ui.hint(t('app.home.notify.hint')), seg)];
   }
 
   // Шторка «Твоё имя» (035): правило — как при регистрации (до 40 символов, пробелы схлопывает сервер); saved(имя из
   // ответа сервера)
   function openNameSheet(saved) {
     const input = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: state.me.name, autocomplete: 'off' });
-    const save = ui.btn('Сохранить', '', 'ds-btn--block');
+    const save = ui.btn(t('app.core.save'), '', 'ds-btn--block');
     save.addEventListener('click', () => busy(save, async () => {
-      if (!input.value.trim()) return toast('Напиши имя');
+      if (!input.value.trim()) return toast(t('app.home.name.empty'));
       const r = await api('name.set', { name: input.value });
       state.me.name = r.name;
       closeSheet();
-      toast('Имя сохранено');
+      toast(t('app.home.name.saved'));
       saved(r.name);
     }));
-    openSheet('Твоё имя', [ui.hint('Имя одно во всех событиях. Его видят владелец, администраторы и твой Санта, а при раскрытии — твой подопечный.'), clearable(input, 'Твоё имя'), save]);
+    openSheet(t('app.home.name.title'), [ui.hint(t('app.home.name.hint')), clearable(input, t('app.home.name.title')), save]);
   }
 
   // Раздел «Семьи» (008): постоянные исключения для всех эвентов. → { box, load }: повторный load заменяет содержимое по
   // ответу, без загрузчика (039)
   function renderFamiliesSection() {
-    const box = h('div', {}, ui.section('Семьи'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
+    const box = h('div', {}, ui.section(t('app.home.families.title')), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
     const load = () => capi('admin.families').then((d) => {
       const list = h('div', { class: 'ds-card ds-card--flush' });
-      if (!d.families.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, 'Семей пока нет.'));
+      if (!d.families.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.home.families.empty')));
       for (const f of d.families) {
         list.append(h('div', { class: 'ds-list-item' },
           h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, f.name), ui.hint(f.members.map((m) => m.name).join(', '))),
-          h('button', { class: 'ds-icon-btn', title: 'Изменить семью', onclick: () => openFamily(d, f) }, '✏️')));
+          h('button', { class: 'ds-icon-btn', title: t('app.home.families.edit'), onclick: () => openFamily(d, f) }, '✏️')));
       }
-      const add = ui.btn('Новая семья', 'secondary', 'ds-btn--block');
+      const add = ui.btn(t('app.home.families.new'), 'secondary', 'ds-btn--block');
       add.addEventListener('click', () => openFamily(d, null));
-      box.replaceChildren(ui.section('Семьи'), list,
-        ui.card(ui.hint('Члены одной семьи не дарят друг другу ни в одном событии (если в событии включено «Учитывать семьи»). Один человек — одна семья.'), add));
-    }).catch((e) => box.replaceChildren(ui.section('Семьи'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
+      box.replaceChildren(ui.section(t('app.home.families.title')), list,
+        ui.card(ui.hint(t('app.home.families.hint')), add));
+    }).catch((e) => box.replaceChildren(ui.section(t('app.home.families.title')), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
     function openFamily(d, f) {
-      const name = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: f ? f.name : '', placeholder: 'Например: Ивановы' });
+      const name = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: f ? f.name : '', placeholder: t('app.home.families.placeholder') });
       const free = d.users.filter((u) => !u.family_id || (f && u.family_id === f.id));
       const boxes = free.map((u) => {
         const c = h('input', { type: 'checkbox', checked: !!f && u.family_id === f.id });
         c.dataset.id = u.id;
         return [c, h('div', { class: 'ds-row' }, h('label', { class: 'ds-check' }, c, u.name))];
       });
-      const save = ui.btn('Сохранить', '', 'ds-btn--block');
+      const save = ui.btn(t('app.core.save'), '', 'ds-btn--block');
       save.addEventListener('click', () => busy(save, async () => {
         const members = boxes.filter(([c]) => c.checked).map(([c]) => +c.dataset.id);
         await capi('admin.family.save', { id: f ? f.id : undefined, name: name.value, members });
         closeSheet();
-        toast('Семья сохранена');
+        toast(t('app.home.families.saved'));
         await load();
       }));
-      const items = [clearable(name, 'Название семьи'), ui.hint('Кто в семье (люди из других семей здесь не показаны):'), ...boxes.map(([, l]) => l), save];
+      const items = [clearable(name, t('app.home.families.name')), ui.hint(t('app.home.families.members')), ...boxes.map(([, l]) => l), save];
       if (f) {
-        const del = ui.btn('🗑 Удалить семью', 'danger', 'ds-btn--block');
+        const del = ui.btn(t('app.home.families.delete'), 'danger', 'ds-btn--block');
         del.addEventListener('click', async () => {
-          if (!(await confirmBox(`Удалить семью «${f.name}»? Уже проведённые жеребьёвки не изменятся.`))) return;
-          busy(del, async () => { await capi('admin.family.delete', { id: f.id }); closeSheet(); toast('Семья удалена'); await load(); });
+          if (!(await confirmBox(t('app.home.families.deleteConfirm', { name: f.name })))) return;
+          busy(del, async () => { await capi('admin.family.delete', { id: f.id }); closeSheet(); toast(t('app.home.families.deleted')); await load(); });
         });
         items.push(del);
       }
-      openSheet(f ? 'Семья' : 'Новая семья', items);
+      openSheet(t(f ? 'app.home.families.family' : 'app.home.families.new'), items);
     }
     load();
     return { box, load };
@@ -373,13 +373,13 @@
 
   // Раздел «Владелец и администраторы» (002): люди и права компании открытого экрана. → { box, load }, как у «Семей»
   function renderAdminsSection() {
-    const box = h('div', {}, ui.section('Владелец и администраторы'), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
+    const box = h('div', {}, ui.section(t('app.home.admins.title')), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
     // 👑 (051): владелец компании передаёт свои права; владелец бота делает человека владельцем компании
     const makeOwner = async (u, btns) => {
       if (!(await confirmBox(state.botOwner
-        ? `Сделать «${u.name}» владельцем этой комнаты? Он(а) сможет всё, что владелец: администраторы, сброс и удаление событий, служебный просмотр пар. Ты останешься владельцем бота и сможешь вернуть комнату себе.`
-        : `Передать права владельца «${u.name}»? Ты останешься администратором, но назначать и снимать администраторов сможет только новый владелец.`))) return;
-      busy(btns, async () => { await capi('admin.owner.transfer', { id: u.id }); toast('👑 Права владельца переданы'); await goHome(); });
+        ? t('app.home.admins.makeOwnerConfirm', { name: u.name })
+        : t('app.home.admins.transferConfirm', { name: u.name })))) return;
+      busy(btns, async () => { await capi('admin.owner.transfer', { id: u.id }); toast(t('app.home.admins.transferred')); await goHome(); });
     };
     const load = () => capi('admin.users').then((d) => {
       const me = state.me;
@@ -389,48 +389,48 @@
         const actions = h('div', { class: 'ds-row ds-row--tight' });
         if (me.is_owner && !u.is_owner) {
           actions.append(
-            h('button', { class: 'ds-icon-btn', title: 'Передать права владельца', onclick: () => makeOwner(u, [...actions.children]) }, '👑'),
-            h('button', { class: 'ds-icon-btn', title: 'Снять права администратора', onclick: async () => {
-              if (!(await confirmBox(`Снять права администратора с «${u.name}»?`))) return;
-              busy([...actions.children], async () => { await capi('admin.role.revoke', { id: u.id }); toast('Права администратора сняты'); await goHome(); });
+            h('button', { class: 'ds-icon-btn', title: t('app.home.admins.transfer'), onclick: () => makeOwner(u, [...actions.children]) }, '👑'),
+            h('button', { class: 'ds-icon-btn', title: t('app.home.admins.revoke'), onclick: async () => {
+              if (!(await confirmBox(t('app.home.admins.revokeConfirm', { name: u.name })))) return;
+              busy([...actions.children], async () => { await capi('admin.role.revoke', { id: u.id }); toast(t('app.home.admins.revoked')); await goHome(); });
             } }, '✕'));
         }
         list.append(h('div', { class: 'ds-list-item' },
           h('div', { class: 'ds-grow' },
-            h('div', { class: 'ds-list-item__title' }, u.name || 'без имени', u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, '  (ты)') : null),
-            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip('👑 владелец') : ui.chip('🛠 администратор'))),
+            h('div', { class: 'ds-list-item__title' }, u.name || t('app.core.noName'), u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, t('app.home.you')) : null),
+            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip(t('app.core.role.owner')) : ui.chip(t('app.core.role.admin')))),
           actions));
       }
-      const parts = [ui.section('Владелец и администраторы'), list];
+      const parts = [ui.section(t('app.home.admins.title')), list];
       if (me.is_owner) {
         const candidates = d.users.filter((u) => !u.is_admin);
         if (candidates.length) {
-          const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Кого назначить…'), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
-          const grant = ui.btn('🛠 Назначить администратором', 'secondary', 'ds-btn--block');
+          const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.home.admins.grantPick')), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
+          const grant = ui.btn(t('app.home.admins.grant'), 'secondary', 'ds-btn--block');
           grant.addEventListener('click', async () => {
             const u = candidates.find((x) => String(x.id) === sel.value);
-            if (!u) return toast('Выбери человека');
-            if (!(await confirmBox(`Назначить «${u.name}» администратором? Он(а) сможет создавать и вести события. Пары сможет открыть только владелец в служебном просмотре.`))) return;
-            busy(grant, async () => { await capi('admin.role.grant', { id: u.id }); toast('Администратор назначен'); await goHome(); });
+            if (!u) return toast(t('app.core.pickPerson'));
+            if (!(await confirmBox(t('app.home.admins.grantConfirm', { name: u.name })))) return;
+            busy(grant, async () => { await capi('admin.role.grant', { id: u.id }); toast(t('app.home.admins.granted')); await goHome(); });
           });
-          parts.push(ui.card(ui.hint('Администраторы создают и ведут события. Назначать, снимать администраторов и передавать права владельца (👑) можешь только ты.'), sel, grant));
+          parts.push(ui.card(ui.hint(t('app.home.admins.ownerHint')), sel, grant));
           // Владельцем можно сделать и не администратора (051)
-          const pick = h('select', { class: 'ds-input' }, h('option', { value: '' }, 'Кого сделать владельцем…'), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
-          const crown = ui.btn('👑 Сделать владельцем', 'secondary', 'ds-btn--block');
+          const pick = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.home.admins.ownerPick')), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
+          const crown = ui.btn(t('app.home.admins.makeOwner'), 'secondary', 'ds-btn--block');
           crown.addEventListener('click', () => {
             const u = candidates.find((x) => String(x.id) === pick.value);
-            return u ? makeOwner(u, crown) : toast('Выбери человека');
+            return u ? makeOwner(u, crown) : toast(t('app.core.pickPerson'));
           });
           parts.push(ui.card(pick, crown));
         }
       } else {
-        parts.push(ui.hint(`Назначать и снимать администраторов может только владелец${d.owner_name ? ' — ' + d.owner_name : ''}.`, 'ds-hint--inset'));
+        parts.push(ui.hint(d.owner_name ? t('app.home.admins.onlyOwnerNamed', { name: d.owner_name }) : t('app.home.admins.onlyOwner'), 'ds-hint--inset'));
       }
-      const log = ui.btn('📜 Журнал действий', 'secondary', 'ds-btn--block');
+      const log = ui.btn(t('app.core.auditLog'), 'secondary', 'ds-btn--block');
       log.addEventListener('click', () => openAudit(null));
-      parts.push(ui.card(ui.hint('Роли, перенос участия, удалённые события — кто и когда.'), log));
+      parts.push(ui.card(ui.hint(t('app.home.admins.logHint')), log));
       box.replaceChildren(...parts);
-    }).catch((e) => box.replaceChildren(ui.section('Владелец и администраторы'), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
+    }).catch((e) => box.replaceChildren(ui.section(t('app.home.admins.title')), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
     load();
     return { box, load };
   }
