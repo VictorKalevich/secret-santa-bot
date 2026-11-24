@@ -1759,6 +1759,138 @@ addEventListener('message', (e) => {
     else console.log('✔ открытый бот: незнакомец — «Компании», создание и экран компании со «‹»; по ссылке — «‹» к «Создать компанию»; лимит; удаление своей пустой');
   }
 
+  // 053: «Нравится бот?» на «Инфо» — только в открытом боте, сразу под «Нужна помощь?» (или на его месте), перед «Как это
+  // работает»; кнопка — openLink без запросов к Worker (заглушка SDK: скрипт Telegram на страницах прогона заблокирован)
+  async function checkDonate() {
+    const problems = [];
+    const DONATE = 'https://dalink.to/trivial_no';
+    const CARD = ['☕', 'Поддержать проект',
+      'Бот полностью бесплатный. Если он оказался вам полезен, вы можете поддержать его развитие и дальнейшее улучшение.',
+      '❤️ Поддержать через DonationAlerts', 'Любая сумма имеет значение. Спасибо!'];
+    const info = async (base, what, user, event, { dark = false, width = 390 } = {}) => {
+      const page = await openPage(what, { viewport: { width, height: 844 }, deviceScaleFactor: 2 });
+      await page.addInitScript((vars) => {
+        window.__links = [];
+        window.Telegram = { WebApp: {
+          initData: '', isVerticalSwipesEnabled: true, ready() {}, expand() {}, isVersionAtLeast: () => false,
+          disableVerticalSwipes() {}, enableVerticalSwipes() {}, openLink(url) { window.__links.push(url); },
+        } };
+        document.addEventListener('DOMContentLoaded', () => {
+          for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
+        });
+      }, dark ? DARK : LIGHT);
+      await page.goto(`${base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
+      await page.waitForSelector('.ds-tabs:not([hidden])');
+      await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
+      await page.locator('#main .ds-section-title', { hasText: 'Как это работает' }).waitFor({ timeout: 5000 });
+      return page;
+    };
+    const titles = (page) => page.locator('#main .ds-section-title').allTextContents();
+    // Блок на месте и полный; before — заголовок раздела прямо над ним (или null — не проверять)
+    const placed = async (page, what, before) => {
+      const t = await titles(page);
+      const i = t.indexOf('Нравится бот?');
+      if (i < 0) return problems.push(`${what}: нет «Нравится бот?» (разделы: ${t.join(' · ')})`);
+      if (t[i + 1] !== 'Как это работает') problems.push(`${what}: после «Нравится бот?» — «${t[i + 1]}»`);
+      if (before && t[i - 1] !== before) problems.push(`${what}: перед «Нравится бот?» — «${t[i - 1]}», ожидалось «${before}»`);
+      const card = await page.locator('#main .ds-donate').evaluate((el) => [...el.children].map((c) => c.textContent));
+      if (JSON.stringify(card) !== JSON.stringify(CARD)) problems.push(`${what}: карточка ${JSON.stringify(card)}`);
+    };
+    const press = async (page, what) => {
+      const api = [];
+      page.on('request', (r) => { if (r.url().includes('/api/')) api.push(r.url()); });
+      await page.locator('#main .ds-btn--donate').click();
+      await page.waitForTimeout(300);
+      const links = await page.evaluate(() => window.__links);
+      if (JSON.stringify(links) !== JSON.stringify([DONATE])) problems.push(`${what}: openLink — ${JSON.stringify(links)}`);
+      if (api.length) problems.push(`${what}: нажатие отправило запросы ${api.join(', ')}`);
+    };
+    const colors = async (page, what) => {
+      const c = await page.locator('#main .ds-btn--donate').evaluate((b) => [getComputedStyle(b).backgroundColor, getComputedStyle(b).color]);
+      if (c[0] !== 'rgb(237, 130, 36)' || c[1] !== 'rgb(255, 255, 255)') problems.push(`${what}: кнопка ${c.join(' / ')}`);
+    };
+    const snap = (page, name) => page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, OUT)), fullPage: true });
+
+    const o = await startWorld({ vars: { OPEN_BOT: '1' } });
+    try {
+      await o.setup();
+      const [lena, kolya] = [{ id: 270, name: 'Лена', username: 'lena' }, { id: 271, name: 'Коля', username: 'kolya' }];
+      await o.say(lena, '/start');
+      await o.say(lena, lena.name);
+      await o.api(lena, 'company.create', { name: 'Ленина компания' });
+      const L = o.query("SELECT id FROM companies WHERE name = 'Ленина компания'")[0]?.id;
+      if (!L) throw new Error('компания Лены не создана');
+      const ev = (await o.api(lena, 'admin.events.create', { company: L, title: 'Ёлка у Лены' })).event.id;
+      const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(lena, 'admin.state', { event: ev })).settings.invite_link)[1];
+      await o.say(kolya, '/start ' + code);
+      await o.say(kolya, kolya.name);
+
+      for (const dark of [false, true]) {
+        const what = `поддержка: участник${dark ? ' (тёмная)' : ''}`;
+        const page = await info(o.base, what, kolya, ev, { dark });
+        try {
+          await placed(page, what, 'Нужна помощь?');
+          await colors(page, what);
+          await checkColors(page, what);
+          await page.locator('#main .ds-donate').scrollIntoViewIfNeeded();
+          await snap(page, dark ? '53-donate-dark' : '53-donate');
+          if (!dark) await press(page, what);
+        } finally {
+          await page.close();
+        }
+      }
+
+      const narrow = await info(o.base, 'поддержка: 320', kolya, ev, { width: 320 });
+      try {
+        const fit = await narrow.evaluate(() => {
+          const b = document.querySelector('#main .ds-btn--donate');
+          return { page: document.documentElement.scrollWidth <= window.innerWidth, button: b.scrollWidth <= b.clientWidth };
+        });
+        if (!fit.page) problems.push('320: горизонтальная прокрутка страницы');
+        if (!fit.button) problems.push('320: подпись кнопки обрезана');
+        await narrow.locator('#main .ds-donate').scrollIntoViewIfNeeded();
+        await snap(narrow, '53-donate-320');
+      } finally {
+        await narrow.close();
+      }
+
+      const own = await info(o.base, 'поддержка: владелец-организатор', lena, ev);
+      try {
+        await placed(own, 'владелец-организатор', null);
+      } finally {
+        await own.close();
+      }
+
+      await o.api(lena, 'admin.event.finish', { event: ev });
+      const done = await info(o.base, 'поддержка: завершённое', kolya, ev);
+      try {
+        await placed(done, 'завершённое', null);
+        await press(done, 'завершённое');
+      } finally {
+        await done.close();
+      }
+    } catch (e) {
+      problems.push(e.message.split('\n')[0]);
+    } finally {
+      await o.stop();
+    }
+
+    // Закрытый бот (основной мир): блока нет ни у участника, ни у организатора
+    for (const [who, user] of [['участник', people[0]], ['организатор', admin]]) {
+      const page = await info(w.base, `поддержка: закрытый бот, ${who}`, user, A);
+      try {
+        if ((await titles(page)).includes('Нравится бот?') || (await page.locator('.ds-donate, .ds-btn--donate').count())) {
+          problems.push(`закрытый бот, ${who}: есть «Нравится бот?»`);
+        }
+      } finally {
+        await page.close();
+      }
+    }
+
+    if (problems.length) colorProblems.push(...problems.map((x) => 'поддержка проекта (053): ' + x));
+    else console.log('✔ поддержка проекта: в открытом боте — под «Нужна помощь?», перед «Как это работает», у организатора и в завершённом; кнопка DonationAlerts в обеих темах, openLink без запросов, 320 точек; в закрытом боте блока нет');
+  }
+
   // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await openPage(name + (dark ? ' (тёмная)' : ''), { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -1893,6 +2025,7 @@ addEventListener('message', (e) => {
   await checkCsp();
   await checkCompanies();
   await checkOpenBot();
+  await checkDonate();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));
   else console.log(`✔ CSP (032): ни одного нарушения политики на ${pagesOpened} страницах прогона`);
   console.log('Скриншоты сохранены в test-results/');

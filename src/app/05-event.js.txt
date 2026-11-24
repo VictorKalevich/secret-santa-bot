@@ -480,6 +480,20 @@
     } }, h('div', { class: 'ds-grow' }, title), role, h('span', { class: 'ds-list-item__chevron' }, '›'));
   }
 
+  // 053: поддержка проекта — только в открытом боте (specs/053-donate-block/contracts/donate-block.md)
+  const DONATE_URL = 'https://dalink.to/trivial_no';
+  function donateSection() {
+    if (!state.open) return [];
+    const give = ui.btn('❤️ Поддержать через DonationAlerts', 'donate', 'ds-btn--block');
+    give.addEventListener('click', () => openWebLink(DONATE_URL));
+    return [ui.section('Нравится бот?'), h('div', { class: 'ds-card ds-donate' },
+      h('div', { class: 'ds-donate__icon', 'aria-hidden': 'true' }, '☕'),
+      h('div', { class: 'ds-donate__title' }, 'Поддержать проект'),
+      h('div', { class: 'ds-donate__text' }, 'Бот полностью бесплатный. Если он оказался вам полезен, вы можете поддержать его развитие и дальнейшее улучшение.'),
+      give,
+      h('div', { class: 'ds-donate__note' }, 'Любая сумма имеет значение. Спасибо!'))];
+  }
+
   function renderInfo() {
     const g = state.ev;
     const rows = [];
@@ -521,6 +535,7 @@
         btn));
     }
     if (!state.member) nodes.push(ui.hint('Ты не участвуешь в этом событии — тебе доступны вкладки «Инфо» и «Управление».', 'ds-hint--inset'));
+    nodes.push(...donateSection());
     nodes.push(
       ui.section('Как это работает'),
       h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
