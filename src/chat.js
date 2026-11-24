@@ -2,6 +2,7 @@
 
 import { pairOfSanta, pairOfWard, enqueueIfStmt } from './db.js';
 import { msg, q, escapeHtml, shortTitle, appUrl, cleanText, CHAT_READ_ONLY } from './format.js';
+import { tx } from './i18n/index.js';
 import { chatWritable } from './status.js';
 import { no } from './result.js';
 import { maskLabel } from './looks.js';
@@ -10,7 +11,7 @@ import { maskLabel } from './looks.js';
 // 96 оставляем под заголовок уведомления (003, FR-309).
 export const MAX_CHARS = 4000;
 // Отказ «слишком длинно» для письма, переписки и обращений (019: один текст)
-export const tooLong = (n) => `Слишком длинно: ${n} символов, максимум ${MAX_CHARS} (лимит сообщения Telegram).`;
+export const tooLong = (n) => tx('chat.tooLong', { n, max: MAX_CHARS });
 
 // mask — маска пары (040): Санте — своя, подопечному — его Санты
 export async function chatPair(db, eventId, userId, withWhom) {
@@ -25,7 +26,7 @@ export async function chatPair(db, eventId, userId, withWhom) {
 // «Твой Тайный Санта «🐉 Дракон»» — так подопечный видит Санту в сообщениях бота (040); без маски — как раньше
 export const santaTitle = (mask) => {
   const label = maskLabel(mask);
-  return label ? `Твой Тайный Санта «${label}»` : 'Твой Тайный Санта';
+  return label ? tx('chat.santaTitleMask', { mask: label }) : tx('chat.santaTitle');
 };
 
 function chatButtons(settings, ev, recipientSide) {
@@ -33,13 +34,13 @@ function chatButtons(settings, ev, recipientSide) {
   const replyTo = recipientSide === 'ward' ? 'santa' : 'ward';
   return {
     inline_keyboard: [[
-      { text: '↩️ Ответить', callback_data: `msg:${replyTo}:${ev.id}` },
-      { text: '💬 Вся переписка', web_app: { url: appUrl(settings, { event: ev.id, chat: replyTo }) } },
+      { text: tx('chat.replyButton'), callback_data: `msg:${replyTo}:${ev.id}` },
+      { text: tx('chat.historyButton'), web_app: { url: appUrl(settings, { event: ev.id, chat: replyTo }) } },
     ]],
   };
 }
 
-const PAIR_CHANGED = '🔄 Пара изменилась после нажатия «Ответить» — сообщение не отправлено. Нажми «↩️ Ответить» ещё раз.';
+const PAIR_CHANGED = tx('chat.pairChangedReply');
 
 // Сохранить сообщение в переписке и поставить уведомление получателю в очередь.
 // expectOther — собеседник, которому человек собирался ответить (режим ответа в чате бота, 009): если пара с тех пор
@@ -47,22 +48,22 @@ const PAIR_CHANGED = '🔄 Пара изменилась после нажати
 export async function sendChatMessage(ctx, ev, fromId, to, rawText, { expectOther = 0 } = {}) {
   const db = ctx.db;
   const text = cleanText(rawText);
-  if (!text) return no('Пустое сообщение.');
+  if (!text) return no(tx('chat.empty'));
   if (text.length > MAX_CHARS) {
     return no(tooLong(text.length));
   }
   if (!chatWritable(ev)) return no(CHAT_READ_ONLY);
   const pair = await chatPair(db, ev.id, fromId, to);
-  if (!pair) return no(to === 'ward' ? 'У тебя пока нет подопечного.' : 'Жеребьёвка для тебя ещё не проведена.');
+  if (!pair) return no(tx(to === 'ward' ? 'chat.noWard' : 'chat.noSanta'));
   if (expectOther && pair.other !== expectOther) return { ...no(PAIR_CHANGED), pairChanged: true };
   const settings = await ctx.settings();
   const now = Date.now();
   // Заголовок + текст до MAX_CHARS всегда помещаются в одно сообщение Telegram: название эвента сокращаем (и с самой
   // длинной маской, 040, — тест mask)
-  const t = q({ title: shortTitle(ev.title) });
-  const header = pair.me === 'santa'
-    ? `💬 <b>${santaTitle(pair.mask)} (${t}) пишет:</b>`
-    : `💬 <b>Тебе пишет твой подопечный (${t}):</b>`;
+  const title = q({ title: shortTitle(ev.title) });
+  const notice = pair.me === 'santa'
+    ? tx('chat.fromSanta', { santa: santaTitle(pair.mask), title, text: escapeHtml(text) })
+    : tx('chat.fromWard', { title, text: escapeHtml(text) });
   // Пара могла смениться (удаление или вписывание участника) между проверкой и записью: тогда ничего не пишем
   const pairAlive = 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND santa = ? AND ward = ?)';
   const alive = [ev.id, pair.santa, pair.ward];
@@ -72,12 +73,12 @@ export async function sendChatMessage(ctx, ev, fromId, to, rawText, { expectOthe
     // Отвечая, человек видел сообщения собеседника — помечаем их прочитанными
     db.prepare('UPDATE messages SET read_at = ? WHERE event_id = ? AND santa = ? AND ward = ? AND sender != ? AND read_at = 0')
       .bind(now, ev.id, pair.santa, pair.ward, pair.me),
-    enqueueIfStmt(db, pair.other, msg(header + '\n\n' + escapeHtml(text), {
+    enqueueIfStmt(db, pair.other, msg(notice, {
       reply_markup: chatButtons(settings, ev, pair.me === 'santa' ? 'ward' : 'santa'),
     }), pairAlive, ...alive),
   ]);
   const row = inserted.results[0];
-  if (!row) return { ...no(expectOther ? PAIR_CHANGED : 'Пара изменилась — обнови экран.'), pairChanged: true };
+  if (!row) return { ...no(expectOther ? PAIR_CHANGED : tx('chat.pairChanged')), pairChanged: true };
   return { ok: true, message: { id: row.id, mine: true, text, created_at: row.created_at } };
 }
 

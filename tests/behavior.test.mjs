@@ -10,7 +10,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { APP } from './support/app-source.mjs';
 import { fixedRefusal } from '../src/constraints.js';
-import { t, DEFAULT_LANG } from '../src/i18n/index.js';
+import { t, render, DEFAULT_LANG } from '../src/i18n/index.js';
 
 // 060: один текст — один ключ словаря приложения; его же берут API и бот
 const CHAT_READ_ONLY = t(DEFAULT_LANG, 'app.sheet.chatReadOnly');
@@ -196,7 +196,8 @@ describe('заявка в завершённом событии: отклони�
 describe('закреплённые пары: отказ проигравшему — текст обычной проверки (031, US1)', () => {
   const NAMES = { 1: 'Аня', 2: 'Боря', 3: 'Вера', 4: 'Гена' };
   const name = (id) => NAMES[id];
-  const refusal = (ev, fixed, links) => fixedRefusal(ev, fixed, links, name)?.error ?? null;
+  // 060: отказ модуля — отложенный текст, собирается на языке ответа
+  const refusal = (ev, fixed, links) => render(fixedRefusal(ev, fixed, links, name)?.error ?? null, DEFAULT_LANG);
   const SANTA_TAKEN = 'У «Аня» уже есть закреплённый подопечный — сначала убери ту пару.';
 
   it('занят Санта, занят подопечный, встречная при кольцевой — те же тексты; свободно — нет отказа', () => {

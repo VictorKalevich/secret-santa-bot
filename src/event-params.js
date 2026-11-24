@@ -5,7 +5,7 @@
 //   kind — 'text' (обрезается до max символов), 'date' (YYYY-MM-DD или ''), 'flag' (0/1);
 //   default — значение нового и сброшенного события;
 //   template — копируется из события-образца (даты — нет, 007);
-//   beforeDraw — меняется только до жеребьёвки: текст отказа;
+//   beforeDraw — меняется только до жеребьёвки: ключ текста отказа (060, src/i18n/ru/event-params.js);
 //   own — у параметра своё действие (admin.ring, admin.avoid_previous): общим сохранением не меняется.
 // Порядок строк — порядок проверок сохранения (при двух причинах отказа отвечает первая).
 import { ISO_DATE } from './format.js';
@@ -18,11 +18,11 @@ export const EVENT_PARAMS = {
   event_date: { kind: 'date', default: '' },
   deadline: { kind: 'date', default: '' },
   // Расписание (007, FR-702)
-  draw_auto_date: { kind: 'date', default: '', beforeDraw: 'Дату автожеребьёвки после жеребьёвки не задать.' },
+  draw_auto_date: { kind: 'date', default: '', beforeDraw: 'eventParams.drawAutoAfterDraw' },
   delivery_on: { kind: 'flag', default: 0, template: true }, // 008
   approval: { kind: 'flag', default: 0, template: true },
   rejoin: { kind: 'flag', default: 1, template: true }, // 010
-  families_on: { kind: 'flag', default: 1, template: true, beforeDraw: 'После жеребьёвки правило семей не изменить.' },
+  families_on: { kind: 'flag', default: 1, template: true, beforeDraw: 'eventParams.familiesAfterDraw' },
   reveal_auto: { kind: 'flag', default: 0, template: true },
   finish_auto: { kind: 'flag', default: 0, template: true },
   ring: { kind: 'flag', default: 1, template: true, own: true },
