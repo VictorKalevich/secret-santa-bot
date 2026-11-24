@@ -293,9 +293,9 @@ export function confirmProblems(text) {
 const ONCE = [
   ['поле ответа (ds-composer__input) — только composerParts', /ds-composer__input/g],
   ['разбор взаимных пар правил — только rulePairs', /\.giver === \w+\.receiver && \w+\.receiver === \w+\.giver/g],
-  ['флажок «и наоборот» — только ruleForm', /'и наоборот \(в обе стороны\)'/g],
-  ['проверка «Выбери двух людей» — только ruleForm', /'Выбери двух людей'/g],
-  ['проверка «Нужны два разных человека» — только ruleForm', /'Нужны два разных человека'/g],
+  ['флажок «и наоборот» — только ruleForm', /\bt\('app\.admin\.rules\.mutual'\)/g],
+  ['проверка «Выбери двух людей» — только ruleForm', /\bt\('app\.admin\.rules\.pickTwo'\)/g],
+  ['проверка «Нужны два разных человека» — только ruleForm', /\bt\('app\.admin\.rules\.different'\)/g],
   ['шторка удаления со словом («Будет удалено без возможности восстановления») — только typedSheet', /'Будет удалено без возможности восстановления:'/g],
 ];
 export function copies(text) {
@@ -450,8 +450,8 @@ test('от противного 7: вторая копия поля ответа
     "  const tb = ui.textarea({ class: 'ds-input ds-composer__input' });",
     "  const m1 = rows.some((x) => x.giver === e.receiver && x.receiver === e.giver);",
     "  const m2 = rows.some((x) => x.giver === f.receiver && x.receiver === f.giver);",
-    "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');",
-    "  h('label', {}, box, 'и наоборот (в обе стороны)'); toast('Выбери двух людей'); toast('Нужны два разных человека');",
+    "  h('label', {}, box, t('app.admin.rules.mutual')); toast(t('app.admin.rules.pickTwo')); toast(t('app.admin.rules.different'));",
+    "  h('label', {}, box, t('app.admin.rules.mutual')); toast(t('app.admin.rules.pickTwo')); toast(t('app.admin.rules.different'));",
     "  h('input', { placeholder: `Введи слово ${word}` }); h('b', {}, 'Будет удалено без возможности восстановления:');",
     "  h('input', { placeholder: `Введи слово ВЫЙТИ` }); h('b', {}, 'Будет удалено без возможности восстановления:');");
   assert.deepEqual(at(copies(bad)), [2, 4, 6, 6, 6, 8]);
