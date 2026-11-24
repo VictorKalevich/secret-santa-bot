@@ -2,12 +2,7 @@
 // В текстах для людей — «комната» (059)
 export default {
   // Роль человека в строке комнаты
-  'app.companies.role.owner': '👑 владелец',
-  'app.companies.role.admin': '🛠 администратор',
-  'app.companies.role.member': 'участник',
-  'app.companies.role.guest': '👁 владелец бота',
   // Экран «Комнаты»
-  'app.companies.hello': 'Привет, {name}!',
   'app.companies.title': 'Комнаты',
   'app.companies.empty': 'Комнат пока нет. Создай свою — или попроси пригласительную ссылку на событие.',
   'app.companies.emptyBotOwner': 'Комнат пока нет.',
@@ -25,13 +20,10 @@ export default {
   'app.companies.label.shared': 'Это название видят все люди комнаты.',
   'app.companies.label.botOwner': 'Название комнаты видишь только ты — владелец бота.',
   'app.companies.label.own': 'Это название видишь только ты.',
-  'app.companies.label.save': 'Сохранить',
   'app.companies.label.saved': 'Название сохранено',
-  'app.companies.nameRequired': 'Напиши название',
   // Новая комната
   'app.companies.new.title': 'Новая комната',
   'app.companies.new.placeholder': 'Например: Работа',
-  'app.companies.new.create': 'Создать',
   'app.companies.new.done': '🚪 Комната создана',
   'app.companies.new.hintOwn': 'Ты станешь владельцем комнаты: создаёшь события, приглашаешь людей, назначаешь администраторов. Название увидят все люди комнаты.',
   'app.companies.new.hintBot': 'У комнаты свои люди, события, семьи и администраторы. Её можно вести самому или отдать владельцу по ссылке.',
@@ -48,9 +40,6 @@ export default {
   'app.companies.link.hint': 'Ссылка одноразовая: кто первым перейдёт по ней, станет владельцем комнаты и сможет открывать пары её событий. Отправляй её лично.',
   'app.companies.link.active': 'Ссылка действует. Показать её ещё раз нельзя — можно создать новую.',
   'app.companies.link.copy': '📋 Скопировать',
-  'app.companies.link.copied': 'Ссылка скопирована',
-  'app.companies.link.copyByHand': 'Выдели и скопируй ссылку',
-  'app.companies.link.share': '📤 Отправить в чат',
   'app.companies.link.shareText': '👑 Ссылка владельца в «Тайном Санте»: открой её, чтобы вести свою комнату.',
   'app.companies.link.create': 'Создать ссылку',
   'app.companies.link.renew': 'Создать новую',
@@ -70,7 +59,6 @@ export default {
   'app.companies.botOwner.title': 'Права владельца бота',
   'app.companies.botOwner.hint': 'Владелец бота один. Передать права можно человеку из комнат, которые ведёшь ты.',
   'app.companies.botOwner.choose': 'Кому передать…',
-  'app.companies.botOwner.pick': 'Выбери человека',
   'app.companies.botOwner.confirm': 'Передать права владельца бота «{name}»? Он(а) будет создавать и удалять комнаты и назначать их владельцев. Ты останешься администратором своих комнат.',
   'app.companies.botOwner.done': '👑 Права владельца бота переданы',
 };

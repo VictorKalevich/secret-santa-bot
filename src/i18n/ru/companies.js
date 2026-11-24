@@ -8,7 +8,6 @@ export default {
   'companies.labelRule': 'Название — до 40 символов.',
   'companies.hasEvents': 'В комнате есть события — сначала удали их.',
   'companies.ownDelete': 'Удалить комнату может только её владелец.',
-  'companies.setupFirst': 'Сначала открой страницу настройки /setup (см. README).',
   'companies.alreadyOwner': 'Он(а) уже владелец.',
   // Ссылка владельца комнаты (бот: /start own_<код>)
   'companies.ownerLinkGone': 'Эта ссылка владельца уже использована или отозвана. Попроси новую.',

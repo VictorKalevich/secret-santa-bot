@@ -164,7 +164,6 @@ export default {
   'app.event.support.ask': '💬 Задать вопрос',
   'app.event.support.threads': '💬 Обращения',
   'app.event.support.ledBy': 'Твоё обращение ведёт {name}.',
-  'app.event.support.waiting': 'Обращение отправлено и ждёт ответа.',
   // «Как это работает»
   'app.event.how.title': 'Как это работает',
   'app.event.how.letter': 'Напиши письмо Санте — его увидит тот, кто будет дарить тебе подарок.',

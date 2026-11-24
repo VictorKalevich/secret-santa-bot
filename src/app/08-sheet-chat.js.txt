@@ -215,7 +215,7 @@
     let live = null;
     const shown = new Set();
     // 040: маска пары — подопечному в заголовке, Санте в подсказке; сначала из экрана события, затем из каждого ответа
-    const title = h('span', {}, withWhom === 'ward' ? t('app.sheet.chat.withWard') : t('app.sheet.chat.yourSanta'));
+    const title = h('span', {}, withWhom === 'ward' ? t('app.event.chat.wardTitle') : t('app.sheet.chat.yourSanta'));
     const note = ui.hint(withWhom === 'ward' ? '' : t('app.sheet.chat.santaKnows'));
     const showMask = (mask) => {
       if (withWhom === 'ward') note.textContent = t('app.sheet.chat.youAre', { santa: maskedSanta(mask) });

@@ -17,7 +17,7 @@
 
   // Имя в списке участников служебного просмотра и обмена: без имени — «без имени», своё — с «(ты)»
   function vaultName(u, meId) {
-    const name = u.name || t('app.vault.noName');
+    const name = u.name || t('app.core.noName');
     return u.id === meId ? t('app.vault.nameYou', { name }) : name;
   }
 
@@ -57,7 +57,7 @@
   // Карточка участника в служебном просмотре: подопечный, Санта, письмо, адрес, переписка с датами
   function vaultPerson(r, s) {
     const rows = [
-      [t('app.vault.person.gives'), r.ward ? r.ward.name : (s.draw_done ? t('app.vault.person.notInDraw') : t('app.vault.person.noDraw'))],
+      [t('app.vault.person.gives'), r.ward ? r.ward.name : (s.draw_done ? t('app.admin.members.notInDraw') : t('app.vault.person.noDraw'))],
       [t('app.vault.person.santa'), r.santa ? r.santa.name : (s.draw_done ? t('app.vault.person.noSanta') : t('app.vault.person.noDraw'))],
       ...('gift_sent' in r ? [[t('app.vault.person.shipping'), r.gift_sent ? t('app.vault.person.giftSent') : t('app.vault.person.notMarked')]] : []),
     ];
@@ -73,11 +73,11 @@
       ui.section(r.person.name),
       h('div', { class: 'ds-card' }, h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
       ui.section(t('app.vault.person.letter')),
-      r.wishlist.trim() ? h('div', { class: 'ds-card ds-letter' }, r.wishlist) : h('div', { class: 'ds-card ds-text-muted' }, t('app.vault.person.letterEmpty')),
+      r.wishlist.trim() ? h('div', { class: 'ds-card ds-letter' }, r.wishlist) : h('div', { class: 'ds-card ds-text-muted' }, t('app.admin.member.letterEmpty')),
       ...('delivery' in r ? [ui.section(t('app.vault.person.address')),
-        r.delivery.trim() ? h('div', { class: 'ds-card ds-letter' }, r.delivery) : h('div', { class: 'ds-card ds-text-muted' }, t('app.vault.person.addressEmpty'))] : []),
-      ...chat(t('app.vault.person.chatSanta'), r.chat_with_santa, 'ward', r.santa ? t('app.vault.person.santaNamed', { name: r.santa.name }) : t('app.vault.person.santa')),
-      ...chat(t('app.sheet.chat.withWard'), r.chat_with_ward, 'santa', r.ward ? t('app.vault.person.wardNamed', { name: r.ward.name }) : t('app.vault.person.ward')),
+        r.delivery.trim() ? h('div', { class: 'ds-card ds-letter' }, r.delivery) : h('div', { class: 'ds-card ds-text-muted' }, t('app.event.delivery.none'))] : []),
+      ...chat(t('app.event.chat.santaTitle'), r.chat_with_santa, 'ward', r.santa ? t('app.vault.person.santaNamed', { name: r.santa.name }) : t('app.vault.person.santa')),
+      ...chat(t('app.event.chat.wardTitle'), r.chat_with_ward, 'santa', r.ward ? t('app.vault.person.wardNamed', { name: r.ward.name }) : t('app.vault.person.ward')),
     ];
   }
 

@@ -5,12 +5,7 @@ export default {
   // Экран ошибки на событии — выход к списку
   'app.home.toEvents': 'К списку событий',
   // Общие подписи (и на экране события)
-  'app.home.save': 'Сохранить',
-  'app.home.saved': 'Сохранено',
-  'app.home.noName': 'без имени',
   'app.home.you': '  (ты)',
-  'app.home.role.owner': '👑 владелец',
-  'app.home.role.admin': '🛠 администратор',
   // Состояние события: метки в списке; «идёт» — и строка «Статус» на «Инфо»
   'app.home.finished': 'завершён',
   'app.home.active': 'идёт',
@@ -32,8 +27,6 @@ export default {
   'app.home.create.fromTemplate': 'По образцу: {title}',
   'app.home.create.invite': 'Пригласить участников образца',
   'app.home.create.templateHint': 'Из образца копируются бюджет, место, заметки, правила жеребьёвки и исключения. Даты — нет.',
-  'app.home.create.ok': 'Создать',
-  'app.home.create.needTitle': 'Напиши название',
   'app.home.create.done': '🎄 Событие создано',
   'app.home.create.doneInvited': '🎄 Событие создано, приглашения: {count}',
   'app.home.create.doneInviteError': '🎄 Событие создано. {error}',
@@ -80,9 +73,7 @@ export default {
   'app.home.admins.ownerHint': 'Администраторы создают и ведут события. Назначать, снимать администраторов и передавать права владельца (👑) можешь только ты.',
   'app.home.admins.ownerPick': 'Кого сделать владельцем…',
   'app.home.admins.makeOwner': '👑 Сделать владельцем',
-  'app.home.admins.pickPerson': 'Выбери человека',
   'app.home.admins.onlyOwner': 'Назначать и снимать администраторов может только владелец.',
   'app.home.admins.onlyOwnerNamed': 'Назначать и снимать администраторов может только владелец — {name}.',
-  'app.home.admins.log': '📜 Журнал действий',
   'app.home.admins.logHint': 'Роли, перенос участия, удалённые события — кто и когда.',
 };

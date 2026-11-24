@@ -34,7 +34,7 @@ function chatButtons(settings, ev, recipientSide) {
   const replyTo = recipientSide === 'ward' ? 'santa' : 'ward';
   return {
     inline_keyboard: [[
-      { text: tx('chat.replyButton'), callback_data: `msg:${replyTo}:${ev.id}` },
+      { text: tx('common.replyButton'), callback_data: `msg:${replyTo}:${ev.id}` },
       { text: tx('chat.historyButton'), web_app: { url: appUrl(settings, { event: ev.id, chat: replyTo }) } },
     ]],
   };

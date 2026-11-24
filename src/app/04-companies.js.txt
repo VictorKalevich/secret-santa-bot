@@ -9,7 +9,7 @@
     const me = state.me;
     heroBack.hidden = true;
     heroTitle.textContent = t('app.boot.title');
-    const greet = () => { heroSub.textContent = t('app.companies.hello', { name: me.name }); };
+    const greet = () => { heroSub.textContent = t('app.home.greet', { name: me.name }); };
     greet();
     document.getElementById('tabs').hidden = true;
     const nodes = [ui.section(t('app.companies.title'))];
@@ -35,7 +35,7 @@
     return h('div', { class: 'ds-list-item' + (link ? ' ds-list-item--link' : ''), role: link ? 'button' : null, onclick: link ? () => openCompany(c.id) : null },
       h('div', { class: 'ds-grow' },
         h('div', { class: 'ds-list-item__title' }, c.title),
-        h('div', { class: 'ds-chips' }, ui.chip(t('app.companies.role.' + c.role))),
+        h('div', { class: 'ds-chips' }, ui.chip(t('app.core.role.' + c.role))),
         ui.hint(about)),
       link && c.unread ? h('span', { class: 'ds-badge' }, String(c.unread)) : null,
       h('div', { class: 'ds-row ds-row--tight' },
@@ -51,9 +51,9 @@
   function openLabelSheet(c) {
     const common = state.botOwner || c.rename;
     const input = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: c.named || c.rename ? c.title : '', placeholder: c.title, autocomplete: 'off' });
-    const save = ui.btn(t('app.companies.label.save'), '', 'ds-btn--block');
+    const save = ui.btn(t('app.core.save'), '', 'ds-btn--block');
     save.addEventListener('click', () => busy(save, async () => {
-      if (common && !input.value.trim()) return toast(t('app.companies.nameRequired'));
+      if (common && !input.value.trim()) return toast(t('app.core.needTitle'));
       const r = await api('company.label.set', { company: c.id, label: input.value });
       c.title = r.title;
       c.named = state.botOwner || (!c.rename && !!input.value.trim());
@@ -92,9 +92,9 @@
   function openCreateCompany() {
     const own = !state.botOwner;
     const name = h('input', { class: 'ds-input', type: 'text', maxlength: 40, placeholder: t('app.companies.new.placeholder'), autocomplete: 'off' });
-    const ok = ui.btn(t('app.companies.new.create'), '', 'ds-btn--block');
+    const ok = ui.btn(t('app.core.create'), '', 'ds-btn--block');
     ok.addEventListener('click', () => busy(ok, async () => {
-      if (!name.value.trim()) return toast(t('app.companies.nameRequired'));
+      if (!name.value.trim()) return toast(t('app.core.needTitle'));
       const r = await api(own ? 'company.create' : 'bot.company.create', { name: name.value });
       closeSheet();
       toast(t('app.companies.new.done'));
@@ -159,10 +159,10 @@
         const input = h('input', { class: 'ds-input', type: 'text', value: link, readonly: true });
         const copy = ui.btn(t('app.companies.link.copy'), 'secondary', 'ds-btn--sm');
         copy.addEventListener('click', async () => {
-          try { await navigator.clipboard.writeText(link); toast(t('app.companies.link.copied')); }
-          catch (e) { input.select(); toast(t('app.companies.link.copyByHand')); }
+          try { await navigator.clipboard.writeText(link); toast(t('app.core.link.copied')); }
+          catch (e) { input.select(); toast(t('app.core.link.copyByHand')); }
         });
-        const share = ui.btn(t('app.companies.link.share'), 'secondary', 'ds-btn--sm');
+        const share = ui.btn(t('app.core.link.share'), 'secondary', 'ds-btn--sm');
         share.addEventListener('click', () => shareLink(link, t('app.companies.link.shareText')));
         shown.push(input, h('div', { class: 'ds-row' }, copy, share));
       } else if (c.link) shown.push(ui.hint(t('app.companies.link.active')));
@@ -199,7 +199,7 @@
       const go = ui.btn(t('app.companies.botOwner.pass'), 'danger', 'ds-btn--block');
       go.addEventListener('click', async () => {
         const u = people.find((x) => String(x.id) === sel.value);
-        if (!u) return toast(t('app.companies.botOwner.pick'));
+        if (!u) return toast(t('app.core.pickPerson'));
         if (!(await confirmBox(t('app.companies.botOwner.confirm', { name: u.name })))) return;
         busy(go, async () => {
           await api('bot.owner.transfer', { id: u.id });

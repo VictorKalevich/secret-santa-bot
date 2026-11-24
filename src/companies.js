@@ -18,7 +18,7 @@ const NAME_RULE = tx('companies.nameRule');
 const LABEL_RULE = tx('companies.labelRule');
 const HAS_EVENTS = tx('companies.hasEvents');
 const OWN_DELETE = tx('companies.ownDelete');
-const SETUP_FIRST = tx('companies.setupFirst');
+const SETUP_FIRST = tx('events.setupFirst');
 // Двойное нажатие «Создать» (опора — запись журнала бота, как у рассылок 024)
 const REPEAT_MS = 60 * 1000;
 const RECENT_CREATE = `NOT EXISTS (SELECT 1 FROM audit WHERE company_id = 0 AND event_id = 0 AND action = 'company.create'

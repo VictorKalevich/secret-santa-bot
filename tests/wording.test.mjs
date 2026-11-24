@@ -111,6 +111,7 @@ const BOT_OWNER_ALWAYS = [
   // 060: формы ownerWord и отказы только владельцу бота — в словарях (прежде собирались кодом)
   ['src/format.js', "'common.botOwner."],
   ['src/app/02-core.js.txt', "'app.core.botOwner."],
+  ['src/app/02-core.js.txt', "'app.core.role.guest'"], // роль «гость» — всегда владелец бота без строки в комнате
   ['src/api.js', "'api.botOwner."],
   ['src/api.js', "'api.botOnly'"],
 ];

@@ -14,12 +14,9 @@ export default {
   // Адрес доставки (008)
   'participant.noDelivery': 'В этом событии адрес доставки не нужен.',
   'participant.deliveryClosed': 'Событие завершено: адрес теперь только для чтения.',
-  'participant.deliveryTooLong': 'Слишком длинно: {n} символов, максимум {max}.',
   // Пара: подопечный, Санта, отметки подарка
-  'participant.noWard': 'У тебя пока нет подопечного.',
   'participant.noSanta': 'У тебя пока нет Санты.',
   'participant.unmarkSentFirst': 'Сначала сними отметку об отправке.',
   // Санте: подопечный получил подарок
   'participant.giftReceived': '🎉 Твой подопечный в событии {title} получил подарок! Спасибо, Санта 🎅',
-  'participant.openButton': '🎁 Открыть',
 };

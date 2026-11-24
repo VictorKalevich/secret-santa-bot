@@ -3,7 +3,6 @@
 export default {
   // Общее: владелец сам играет; имя в списке участников
   'app.vault.youPlay': 'Ты участник этого события. ',
-  'app.vault.noName': 'без имени',
   'app.vault.nameYou': '{name} (ты)',
   // Служебный просмотр: вход словом
   'app.vault.title': '🔐 Служебный просмотр',
@@ -25,17 +24,13 @@ export default {
   // Карточка участника
   'app.vault.person.gives': 'Дарит',
   'app.vault.person.santa': 'Санта',
-  'app.vault.person.notInDraw': 'не в жеребьёвке',
   'app.vault.person.noDraw': 'жеребьёвки ещё не было',
   'app.vault.person.noSanta': 'нет',
   'app.vault.person.shipping': 'Отправка',
   'app.vault.person.giftSent': 'Подарок отправлен',
   'app.vault.person.notMarked': 'Не отмечена',
   'app.vault.person.letter': 'Письмо Санте',
-  'app.vault.person.letterEmpty': 'Письмо пустое.',
   'app.vault.person.address': 'Адрес доставки',
-  'app.vault.person.addressEmpty': 'Адрес не указан.',
-  'app.vault.person.chatSanta': 'Переписка с Сантой',
   'app.vault.person.santaNamed': 'Санта ({name})',
   'app.vault.person.ward': 'Подопечный',
   'app.vault.person.wardNamed': 'Подопечный ({name})',

@@ -39,7 +39,7 @@ function previousPairs(results, ids) {
 // ---------- жеребьёвка ----------
 
 function describeProblem(p, byId, w) {
-  const name = (id) => byId[id]?.name || tx('pairs.someone');
+  const name = (id) => byId[id]?.name || tx('db.someone');
   switch (p.type) {
     case 'too_few': return tx('pairs.reason.too_few');
     case 'ring_too_few': return tx('pairs.reason.ring_too_few');
@@ -266,7 +266,7 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
   });
   const { members, rows, ownEx, chats, fixed } = read;
   const u = members.find((x) => x.user_id === userId);
-  if (!u || !u.registered) return no(tx('pairs.memberNotFound'));
+  if (!u || !u.registered) return no(tx('membership.memberNotFound'));
   const famEx = familyExclusions(ev, members.map((m) => m.user_id), read.families);
   if (rows.some((p) => p.santa === userId)) return no(tx('pairs.alreadyInDraw'));
   const talked = new Set(chats.map((m) => `${m.santa}:${m.ward}`));

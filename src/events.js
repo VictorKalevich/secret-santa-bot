@@ -215,7 +215,7 @@ export async function remindUnfilled(ctx, ev, actor = 0, extra = []) {
     : tx('events.remindUnfilled', { title: q(ev) });
   const letters = people.map((u) => [u.user_id, msg(
     text,
-    appKeyboard(settings, tx('events.remindUnfilledButton'), { event: ev.id })
+    appKeyboard(settings, tx('common.writeLetterButton'), { event: ev.id })
   )]);
   return sendReminder(ctx, ev, { actor, action: 'remind.unfilled', letters, extra });
 }
@@ -245,7 +245,7 @@ export async function announce(ctx, ev, actor, rawText) {
   if (isFinished(ev)) return no(tx('events.announceFinished'));
   const text = cleanText(rawText);
   if (!text) return no(tx('events.announceEmpty'));
-  if (text.length > ANNOUNCE_MAX) return no(tx('events.announceTooLong', { n: text.length, max: ANNOUNCE_MAX }));
+  if (text.length > ANNOUNCE_MAX) return no(tx('common.tooLong', { n: text.length, max: ANNOUNCE_MAX }));
   const { settings, people } = await ctx.read({ people: participantIdsQuery(db, ev.id), settings: true });
   const now = Date.now();
   // Повтор (024): то же объявление в событии за минуту не рассылается; другой текст — уходит. Опора — само объявление,

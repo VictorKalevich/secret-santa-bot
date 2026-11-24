@@ -230,7 +230,7 @@ export async function transferAccount(ctx, fromId, toId, actorId = 0) {
   // Атомарно (018): всё — только пока старая запись существует, она удаляется последней. Второй из двух одновременных
   // переносов ничего не меняет и не рассылает (иначе он удалил бы участие, только что перенесённое первым).
   const fromExists = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ?)', fromId);
-  fromExists.enqueue(toId, msg(tx('roles.transfer.toNew'), appKeyboard(settings, tx('roles.transfer.openButton'))));
+  fromExists.enqueue(toId, msg(tx('roles.transfer.toNew'), appKeyboard(settings, tx('events.openButton'))));
   // Перенос не должен быть незаметным (006, FR-602): прежний аккаунт и остальные админы узнают о нём
   fromExists.enqueue(fromId, msg(tx('roles.transfer.toOld', { to: escapeHtml(displayName(to)) })));
   const notice = adminNotice(tx('roles.transfer.notice', {

@@ -345,7 +345,7 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
       ev.draw_done
         ? tx('membership.approvedAfterDraw', { title: q(ev), owner: ctx.ownerWord() })
         : tx('membership.approved', { title: q(ev) }),
-      appKeyboard(settings, tx('membership.writeLetterButton'), { event: ev.id }))
+      appKeyboard(settings, tx('common.writeLetterButton'), { event: ev.id }))
     : msg(requestRejected(ev)));
   for (const a of adminRecipients(users, [actor, req.user_id])) {
     p.enqueue(a.tg_id, msg(

@@ -2,8 +2,6 @@
 export default {
   // Общие: человек без имени, кнопка сохранения, метка Санты без открытого подопечного («Участники» и шторка обмена),
   // итог ручного напоминания
-  'app.admin.noName': 'без имени',
-  'app.admin.save': 'Сохранить',
   'app.admin.unseen': '👀 не открыл подопечного',
   'app.admin.remindSent': 'Напоминание отправлено: {n}',
 
@@ -14,9 +12,6 @@ export default {
   'app.admin.invite.regHint': 'Закрыта — новых участников нет: ни по ссылке, ни по заявке, ни по приглашению (кроме «Я участвую»). Закрывается сама после жеребьёвки.',
   'app.admin.invite.noLink': 'Ссылки ещё нет: владелец бота должен один раз открыть /setup (см. README)',
   'app.admin.invite.copy': '📋 Копировать',
-  'app.admin.invite.share': '📤 Отправить в чат',
-  'app.admin.invite.copied': 'Ссылка скопирована',
-  'app.admin.invite.copyManually': 'Выдели и скопируй ссылку',
   'app.admin.invite.regen': '🔄 Новая ссылка',
   'app.admin.invite.regenConfirm': 'Создать новую ссылку? Старая перестанет работать (уже вступивших это не затронет).',
   'app.admin.invite.regenDone': 'Ссылка обновлена',
@@ -63,7 +58,6 @@ export default {
   'app.admin.inviteFrom.allHere': 'Все уже здесь 👍',
 
   // Обращения участников
-  'app.admin.support.title': 'Обращения',
   'app.admin.support.titleCount': 'Обращения · {n}',
   'app.admin.support.hint': 'Участники отправляют обращения из вкладки «Инфо». Переписку взятого обращения видят тот, кто его ведёт, и владелец.',
   'app.admin.support.empty': 'Обращений пока нет.',
@@ -115,7 +109,6 @@ export default {
   // Участники: список, отметки, вписывание, напоминание
   'app.admin.members.title': 'Участники · {n}',
   'app.admin.members.letters': 'Письма написали {filled} из {total}. Письмо участника открывается только через «⋯» → «Открыть письмо».',
-  'app.admin.members.empty': 'Пока никого нет.',
   'app.admin.members.registering': 'регистрируется…',
   'app.admin.members.letter': '✉️ письмо есть',
   'app.admin.members.noLetter': '✉️ письма нет',
@@ -127,8 +120,6 @@ export default {
   'app.admin.members.address': '📍 адрес указан',
   'app.admin.members.noAddress': '📍 адреса нет',
   'app.admin.members.blocked': '🚫 не получает сообщения',
-  'app.admin.members.owner': '👑 владелец',
-  'app.admin.members.admin': '🛠 администратор',
   'app.admin.members.actions': 'Действия с участником',
   'app.admin.members.insert': 'Вписать в жеребьёвку',
   'app.admin.members.insertConfirm': 'Вписать «{name}» в жеребьёвку? Подопечный сменится у одного Санты: у того, кто его ещё не открыл, а если таких нет — у того, чей подарок не готов. Бот его предупредит.',
@@ -244,12 +235,10 @@ export default {
   'app.admin.params.finishAuto': 'Завершить через 3 дня после вручения',
   'app.admin.params.noDate': '⚠️ Авто-раскрытие и автозавершение сработают, только когда указана дата вручения.',
   'app.admin.params.autoHint': 'Автодействия бот выполняет в час ежедневных напоминаний. Если автожеребьёвка не получится, бот напишет владельцу и администраторам.',
-  'app.admin.params.saved': 'Сохранено',
 
   // Журнал, управление жеребьёвкой, служебный просмотр
   'app.admin.log.title': 'Журнал',
   'app.admin.log.hint': 'Действия владельца, администраторов и бота в этом событии.',
-  'app.admin.log.open': '📜 Журнал действий',
   'app.admin.swap.title': 'Управление жеребьёвкой',
   'app.admin.swap.hint': 'Только для {owner.gen}: поменять подопечных у двух участников. Кто кому дарит, не видно и здесь.',
   'app.admin.swap.open': '🔀 Открыть управление жеребьёвкой',

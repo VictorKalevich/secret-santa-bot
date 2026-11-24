@@ -54,7 +54,7 @@
   });
 
   // Заголовок строки списка: имя и @username (заявки, удалённые, участники)
-  const personTitle = (u) => h('div', { class: 'ds-list-item__title' }, u.name || t('app.admin.noName'), u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null);
+  const personTitle = (u) => h('div', { class: 'ds-list-item__title' }, u.name || t('app.core.noName'), u.username ? h('span', { class: 'ds-hint ds-text-regular' }, '  @' + u.username) : null);
   // Санта не открыл подопечного — «Участники» и шторка обмена (049)
   const unseenChip = () => ui.chip(t('app.admin.unseen'), 'warning');
 
@@ -69,12 +69,12 @@
     });
     const linkInput = h('input', { class: 'ds-input', type: 'text', value: s.invite_link || t('app.admin.invite.noLink'), readonly: true });
     const copyBtn = ui.btn(t('app.admin.invite.copy'), 'secondary', 'ds-btn--sm');
-    const shareBtn = ui.btn(t('app.admin.invite.share'), 'secondary', 'ds-btn--sm');
+    const shareBtn = ui.btn(t('app.core.link.share'), 'secondary', 'ds-btn--sm');
     // Без ссылки копировать и пересылать нечего (009)
     copyBtn.disabled = shareBtn.disabled = !s.invite_link;
     copyBtn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(s.invite_link); toast(t('app.admin.invite.copied')); }
-      catch (e) { linkInput.select(); toast(t('app.admin.invite.copyManually')); }
+      try { await navigator.clipboard.writeText(s.invite_link); toast(t('app.core.link.copied')); }
+      catch (e) { linkInput.select(); toast(t('app.core.link.copyByHand')); }
     });
     shareBtn.addEventListener('click', () => shareInvite(s.invite_link, s.title));
     const regenBtn = ui.btn(t('app.admin.invite.regen'), 'danger', 'ds-btn--sm');
@@ -208,14 +208,14 @@
         : th.assignee === me.id ? ui.chip(t('app.admin.support.mine'), 'success') : ui.chip(t('app.admin.support.ledBy', { name: th.assignee_name }));
       list.append(h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openSupportThread(th.id, evId, again) },
         h('div', { class: 'ds-grow' },
-          h('div', { class: 'ds-list-item__title' }, th.name || t('app.admin.noName')),
+          h('div', { class: 'ds-list-item__title' }, th.name || t('app.core.noName')),
           h('div', { class: 'ds-chips' }, chip),
           ui.hint(fmtTime(th.last_at))),
         th.unread ? h('span', { class: 'ds-badge' }, String(th.unread)) : null,
         h('span', { class: 'ds-list-item__chevron' }, '›')));
     }
     return [
-      ui.section(openCount ? t('app.admin.support.titleCount', { n: openCount }) : t('app.admin.support.title')),
+      ui.section(openCount ? t('app.admin.support.titleCount', { n: openCount }) : t('app.sheet.support.title')),
       ui.hint(t('app.admin.support.hint'), 'ds-hint--inset'),
       list,
     ];
@@ -270,7 +270,7 @@
       const r = ui.btn(t('app.admin.member.rename'), 'secondary', 'ds-btn--block');
       if (canRename) r.addEventListener('click', () => {
         const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
-        const ok = ui.btn(t('app.admin.save'), '', 'ds-btn--block');
+        const ok = ui.btn(t('app.core.save'), '', 'ds-btn--block');
         ok.addEventListener('click', () => busy(ok, async () => { await capi('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast(t('app.admin.member.renamed')); await refresh(); }));
         openSheet(t('app.admin.member.nameTitle'), [ui.hint(t('app.admin.member.nameHint')), clearable(inp, t('app.admin.member.nameTitle')), ok]);
       });
@@ -285,7 +285,7 @@
       const b = ui.btn(t('app.admin.member.remove'), 'danger', 'ds-btn--block');
       b.addEventListener('click', async () => {
         const tail = s.draw_done && u.in_draw ? t('app.admin.member.removeRedraw') : '';
-        if (!(await confirmBox(t('app.admin.member.removeConfirm', { name: u.name || t('app.admin.noName'), title: s.title, tail })))) return;
+        if (!(await confirmBox(t('app.admin.member.removeConfirm', { name: u.name || t('app.core.noName'), title: s.title, tail })))) return;
         busy(b, async () => { await xapi('admin.remove', { id: u.id }); closeSheet(); toast(t('app.admin.member.removed')); await again(); });
       });
       items.push(b);
@@ -297,7 +297,7 @@
       ? (assigned ? t('app.admin.member.adminHintAssigned') : t('app.admin.member.adminHint'))
       : (assigned ? t('app.admin.member.transferBotOwner') : t('app.admin.member.transferOwner'))));
     else if (!state.botOwner && u.registered) items.push(ui.hint(t('app.admin.member.transferBotOwner')));
-    openSheet(u.name || t('app.admin.noName'), [
+    openSheet(u.name || t('app.core.noName'), [
       h('div', {}, u.username ? ui.hint('@' + u.username) : null, h('div', { class: 'ds-chips' }, chips)),
       ...(items.length ? items : [ui.hint(t('app.admin.member.noActions'))]),
     ]);
@@ -323,7 +323,7 @@
     const { s, users, players, me, done, xapi, again } = p;
     const filled = players.filter((u) => u.has_wishlist).length;
     const list = h('div', { class: 'ds-card ds-card--flush' });
-    if (!users.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.admin.members.empty')));
+    if (!users.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.event.people.empty')));
     for (const u of users) {
       const chips = [];
       if (!u.registered) chips.push(ui.chip(t('app.admin.members.registering')));
@@ -340,8 +340,8 @@
       if (u.has_delivery === true) chips.push(ui.chip(t('app.admin.members.address'), 'success'));
       else if (u.has_delivery === false && u.registered) chips.push(ui.chip(t('app.admin.members.noAddress'), 'warning'));
       if (u.blocked) chips.push(ui.chip(t('app.admin.members.blocked'), 'warning'));
-      if (u.is_owner) chips.push(ui.chip(t('app.admin.members.owner')));
-      else if (u.is_admin) chips.push(ui.chip(t('app.admin.members.admin')));
+      if (u.is_owner) chips.push(ui.chip(t('app.core.role.owner')));
+      else if (u.is_admin) chips.push(ui.chip(t('app.core.role.admin')));
       const actions = h('div', { class: 'ds-row ds-row--tight' },
         h('button', { class: 'ds-icon-btn', title: t('app.admin.members.actions'), onclick: () => adminMemberMenu(p, u, chips.map((c) => c.cloneNode(true))) }, '⋯'));
       list.append(h('div', { class: 'ds-list-item' },
@@ -632,7 +632,7 @@
       reveal_auto: h('input', { type: 'checkbox', checked: val('reveal_auto') }),
       finish_auto: h('input', { type: 'checkbox', checked: val('finish_auto') }),
     };
-    const saveGame = ui.btn(t('app.admin.save'), '', 'ds-btn--block');
+    const saveGame = ui.btn(t('app.core.save'), '', 'ds-btn--block');
     // Авто-раскрытие и автозавершение считаются от даты вручения: без неё не сработают (009)
     const noDate = ui.hint(t('app.admin.params.noDate'));
     const values = () => ({
@@ -656,7 +656,7 @@
       await refresh({ quiet: true });
       if (!live()) return;
       haptic('success');
-      toast(t('app.admin.params.saved'));
+      toast(t('app.core.saved'));
     }));
     return [
       ui.section(t('app.admin.params.title')),
@@ -683,7 +683,7 @@
 
   // --- журнал (007): по эвенту, доступен и для завершённого
   function adminLog(p) {
-    const logBtn = ui.btn(t('app.admin.log.open'), 'secondary', 'ds-btn--block');
+    const logBtn = ui.btn(t('app.core.auditLog'), 'secondary', 'ds-btn--block');
     logBtn.addEventListener('click', () => openAudit(p.evId));
     return [ui.section(t('app.admin.log.title')), ui.card(ui.hint(t('app.admin.log.hint')), logBtn)];
   }

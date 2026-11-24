@@ -26,18 +26,18 @@ const named = (u) => escapeHtml(displayName(u));
 
 function checkText(raw) {
   const text = cleanText(raw);
-  if (!text) return { error: tx('support.empty') };
+  if (!text) return { error: tx('chat.empty') };
   if (text.length > MAX_CHARS) return { error: tooLong(text.length) };
   return { text };
 }
 
 // Кнопки уведомлений: участнику — ответ «в эвент», админу — взять или ответить в обращение
 const userKeyboard = (settings, ev) => ({ inline_keyboard: [[
-  { text: tx('support.replyButton'), callback_data: `sup:u:${ev.id}` },
+  { text: tx('common.replyButton'), callback_data: `sup:u:${ev.id}` },
   openAppButton(settings, tx('support.openButton'), { event: ev.id, support: 'my' }),
 ]] });
 const adminKeyboard = (settings, ev, id, take) => ({ inline_keyboard: [[
-  take ? { text: tx('support.takeButton'), callback_data: `sup:take:${id}` } : { text: tx('support.replyButton'), callback_data: `sup:a:${id}` },
+  take ? { text: tx('support.takeButton'), callback_data: `sup:take:${id}` } : { text: tx('common.replyButton'), callback_data: `sup:a:${id}` },
   openAppButton(settings, tx('support.openButton'), { event: ev.id, support: id }),
 ]] });
 

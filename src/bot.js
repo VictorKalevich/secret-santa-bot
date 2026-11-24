@@ -141,7 +141,7 @@ async function openChat(env, m) {
     reply: (payload) => call('sendMessage', { chat_id: from.id, ...(isText(payload) ? msg(payload) : payload) }),
     sendMenu: async () => c.reply(await buildMenu(ctx, c.user, settings)),
     menuIfRegistered: () => (c.user?.registered ? c.sendMenu() : undefined),
-    writeLetter: (text, ev) => ({ ...msg(text), ...appKeyboard(settings, tx('bot.writeLetterButton'), { event: ev.id }) }),
+    writeLetter: (text, ev) => ({ ...msg(text), ...appKeyboard(settings, tx('common.writeLetterButton'), { event: ev.id }) }),
     // joining — по умолчанию по ожиданию имени: name:<эвент>:<код> — после пригласительной ссылки
     askName: (intro = null, joining = c.user?.pending.startsWith('name:')) => c.reply(nameOffer(from, intro, joining)),
     setPending: (pending) => updateUser(db, from.id, { pending }),
@@ -500,7 +500,7 @@ async function onReplyButton(k, [, side, eventId]) {
   const ev = await getEvent(db, eventId);
   if (!ev) return k.refuse(EVENT_NOT_FOUND);
   const p = toWard ? await pairOfSanta(db, ev.id, from.id) : await pairOfWard(db, ev.id, from.id);
-  if (!p) return k.refuse(tx(toWard ? 'bot.reply.noWard' : 'bot.reply.noSanta'));
+  if (!p) return k.refuse(tx(toWard ? 'chat.noWard' : 'chat.noSanta'));
   if (!chatWritable(ev)) return k.refuse(CHAT_READ_ONLY);
   // Режим ответа помнит собеседника и время нажатия (только на сервере): msg_<сторона>:<эвент>:<собеседник>:<мс>
   await k.setPending(replyPending(side, ev.id, toWard ? p.ward : p.santa));
@@ -545,8 +545,8 @@ async function onSupportTake(k, ctx, t, ev, name) {
   await k.answer(tx('bot.support.takenAnswer'));
   return k.send(msg(tx('bot.support.taken', { name, title: q(ev) }), {
     reply_markup: { inline_keyboard: [[
-      { text: tx('bot.replyButton'), callback_data: `sup:a:${t.id}` },
-      openAppButton(settings, tx('bot.support.openButton'), { event: ev.id, support: t.id }),
+      { text: tx('common.replyButton'), callback_data: `sup:a:${t.id}` },
+      openAppButton(settings, tx('support.openButton'), { event: ev.id, support: t.id }),
     ]] },
   }));
 }
@@ -557,7 +557,7 @@ async function onSupportAnswer(k, t, ev, name) {
   if (blocks.closed) return k.refuse(THREAD_CLOSED);
   if (blocks.own) return k.refuse(OWN_THREAD);
   if (blocks.other) {
-    return k.refuse(tx('bot.support.ledBy', { name: (await getUser(k.db, t.assignee))?.name || tx('bot.support.someoneElse') }));
+    return k.refuse(tx('support.ledBy', { name: (await getUser(k.db, t.assignee))?.name || tx('bot.support.someoneElse') }));
   }
   if (blocks.readOnly) return k.refuse(SUPPORT_READ_ONLY);
   await k.setPending(supportPending('a', t.id));

@@ -213,7 +213,7 @@ export async function saveDelivery(ctx, ev, member, raw) {
   if (!ev.delivery_on) return no(tx('participant.noDelivery'));
   if (isFinished(ev)) return no(tx('participant.deliveryClosed'));
   const text = cleanText(raw);
-  if (text.length > DELIVERY_MAX) return no(tx('participant.deliveryTooLong', { n: text.length, max: DELIVERY_MAX }));
+  if (text.length > DELIVERY_MAX) return no(tx('common.tooLong', { n: text.length, max: DELIVERY_MAX }));
   if (text === member.delivery) return { ok: true, updated_at: member.delivery_updated_at };
   const now = Date.now();
   await ctx.db.prepare(`UPDATE members SET delivery = ?, delivery_updated_at = ?, ${NOTIFY_MARK} WHERE event_id = ? AND user_id = ?`)
@@ -224,7 +224,7 @@ export async function saveDelivery(ctx, ev, member, raw) {
 // 040: маска Санты в переписке — у пары, пока событие идёт (завершённое отсекает конвейер API) и тайна не раскрыта: её
 // уже назвало сообщение о раскрытии. Без сообщений и журнала; условие «не раскрыта» — в самой записи (гонка с раскрытием)
 const MASK_REVEALED = tx('participant.maskRevealed');
-const NO_WARD = tx('participant.noWard');
+const NO_WARD = tx('chat.noWard');
 export async function setMask(ctx, ev, raw) {
   const mask = validMask(raw);
   if (mask === null) return no(tx('participant.noMask'));
@@ -288,7 +288,7 @@ export async function setGiftReceived(ctx, ev, received) {
     const settings = await ctx.settings();
     a.enqueue(pair.santa, msg(
       tx('participant.giftReceived', { title: q(ev) }),
-      appKeyboard(settings, tx('participant.openButton'), { event: ev.id })
+      appKeyboard(settings, tx('events.openButton'), { event: ev.id })
     ));
   }
   a.claim(db.prepare(

@@ -13,6 +13,5 @@ export default {
   // Сообщение собеседнику: {santa} — chat.santaTitle*, {title} — название события, {text} — текст сообщения
   'chat.fromSanta': '💬 <b>{santa} ({title}) пишет:</b>\n\n{text}',
   'chat.fromWard': '💬 <b>Тебе пишет твой подопечный ({title}):</b>\n\n{text}',
-  'chat.replyButton': '↩️ Ответить',
   'chat.historyButton': '💬 Вся переписка',
 };

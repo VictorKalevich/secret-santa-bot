@@ -95,7 +95,7 @@
         value: m.wishlist,
       });
       const counter = h('span', { class: 'ds-counter' });
-      const saveBtn = ui.btn(t('app.home.save'), '', 'ds-btn--block');
+      const saveBtn = ui.btn(t('app.core.save'), '', 'ds-btn--block');
       const status = h('span', { class: 'ds-hint' });
       const update = () => {
         const n = ta.value.length;
@@ -510,7 +510,7 @@
     const mine = u.id === state.me.id;
     const title = personTitle(u);
     if (mine) title.append(h('span', { class: 'ds-hint ds-text-regular' }, t('app.home.you')));
-    const role = u.role === 'owner' ? ui.chip(t('app.home.role.owner')) : u.role === 'admin' ? ui.chip(t('app.home.role.admin')) : null;
+    const role = u.role === 'owner' ? ui.chip(t('app.core.role.owner')) : u.role === 'admin' ? ui.chip(t('app.core.role.admin')) : null;
     if (!state.ev.contacts_on || !u.username || mine) return h('div', { class: 'ds-list-item' }, h('div', { class: 'ds-grow' }, title), role);
     return h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: async () => {
       if (await confirmBox(t('app.event.people.openChat', { name: u.name }))) openTgLink('https://t.me/' + encodeURIComponent(u.username));
@@ -566,7 +566,7 @@
       if (sup.unread) btn.append(h('span', { class: 'ds-badge' }, String(sup.unread)));
       btn.addEventListener('click', () => openSupport());
       const status = sup.open
-        ? (sup.assignee_name ? t('app.event.support.ledBy', { name: sup.assignee_name }) : t('app.event.support.waiting')) : '';
+        ? (sup.assignee_name ? t('app.event.support.ledBy', { name: sup.assignee_name }) : t('app.sheet.support.sent')) : '';
       nodes.push(ui.section(t('app.event.support.section')), ui.card(
         ui.hint(t('app.event.support.hint')),
         status ? h('div', { class: 'ds-text-sm' }, status) : null,

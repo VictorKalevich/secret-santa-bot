@@ -13,7 +13,6 @@ export default {
   'app.sheet.noMessages': 'Сообщений нет.',
   // Переписка Санты и подопечного (003, маска — 040)
   'app.sheet.chat.placeholder': 'Сообщение…',
-  'app.sheet.chat.withWard': 'Переписка с подопечным',
   'app.sheet.chat.yourSanta': 'Твой Тайный Санта',
   'app.sheet.chat.yourMasked': 'Твой {santa}',
   'app.sheet.chat.santaKnows': 'Санта знает, кто ты, а ты его — нет.',

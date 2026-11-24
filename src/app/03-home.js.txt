@@ -253,9 +253,9 @@
         const invite = h('input', { type: 'checkbox', checked: true, disabled: true });
         const inviteRow = h('label', { class: 'ds-check' }, invite, t('app.home.create.invite'));
         from.addEventListener('change', () => { invite.disabled = !from.value; });
-        const ok = ui.btn(t('app.home.create.ok'), '', 'ds-btn--block');
+        const ok = ui.btn(t('app.core.create'), '', 'ds-btn--block');
         ok.addEventListener('click', () => busy(ok, async () => {
-          if (!title.value.trim()) return toast(t('app.home.create.needTitle'));
+          if (!title.value.trim()) return toast(t('app.core.needTitle'));
           const r = await capi('admin.events.create', { title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked });
           closeSheet();
           toast(r.invited ? t('app.home.create.doneInvited', { count: r.invited })
@@ -300,7 +300,7 @@
     const seg = h('div', { class: 'ds-segmented' });
     const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
       class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
-      onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast(t('app.home.saved')); }),
+      onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast(t('app.core.saved')); }),
     }, label)));
     draw();
     return [ui.section(t('app.home.profile.title')), ui.card(nameText, editName), ui.section(t('app.home.notify.title')),
@@ -311,7 +311,7 @@
   // ответа сервера)
   function openNameSheet(saved) {
     const input = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: state.me.name, autocomplete: 'off' });
-    const save = ui.btn(t('app.home.save'), '', 'ds-btn--block');
+    const save = ui.btn(t('app.core.save'), '', 'ds-btn--block');
     save.addEventListener('click', () => busy(save, async () => {
       if (!input.value.trim()) return toast(t('app.home.name.empty'));
       const r = await api('name.set', { name: input.value });
@@ -348,7 +348,7 @@
         c.dataset.id = u.id;
         return [c, h('div', { class: 'ds-row' }, h('label', { class: 'ds-check' }, c, u.name))];
       });
-      const save = ui.btn(t('app.home.save'), '', 'ds-btn--block');
+      const save = ui.btn(t('app.core.save'), '', 'ds-btn--block');
       save.addEventListener('click', () => busy(save, async () => {
         const members = boxes.filter(([c]) => c.checked).map(([c]) => +c.dataset.id);
         await capi('admin.family.save', { id: f ? f.id : undefined, name: name.value, members });
@@ -397,8 +397,8 @@
         }
         list.append(h('div', { class: 'ds-list-item' },
           h('div', { class: 'ds-grow' },
-            h('div', { class: 'ds-list-item__title' }, u.name || t('app.home.noName'), u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, t('app.home.you')) : null),
-            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip(t('app.home.role.owner')) : ui.chip(t('app.home.role.admin')))),
+            h('div', { class: 'ds-list-item__title' }, u.name || t('app.core.noName'), u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, t('app.home.you')) : null),
+            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip(t('app.core.role.owner')) : ui.chip(t('app.core.role.admin')))),
           actions));
       }
       const parts = [ui.section(t('app.home.admins.title')), list];
@@ -409,7 +409,7 @@
           const grant = ui.btn(t('app.home.admins.grant'), 'secondary', 'ds-btn--block');
           grant.addEventListener('click', async () => {
             const u = candidates.find((x) => String(x.id) === sel.value);
-            if (!u) return toast(t('app.home.admins.pickPerson'));
+            if (!u) return toast(t('app.core.pickPerson'));
             if (!(await confirmBox(t('app.home.admins.grantConfirm', { name: u.name })))) return;
             busy(grant, async () => { await capi('admin.role.grant', { id: u.id }); toast(t('app.home.admins.granted')); await goHome(); });
           });
@@ -419,14 +419,14 @@
           const crown = ui.btn(t('app.home.admins.makeOwner'), 'secondary', 'ds-btn--block');
           crown.addEventListener('click', () => {
             const u = candidates.find((x) => String(x.id) === pick.value);
-            return u ? makeOwner(u, crown) : toast(t('app.home.admins.pickPerson'));
+            return u ? makeOwner(u, crown) : toast(t('app.core.pickPerson'));
           });
           parts.push(ui.card(pick, crown));
         }
       } else {
         parts.push(ui.hint(d.owner_name ? t('app.home.admins.onlyOwnerNamed', { name: d.owner_name }) : t('app.home.admins.onlyOwner'), 'ds-hint--inset'));
       }
-      const log = ui.btn(t('app.home.admins.log'), 'secondary', 'ds-btn--block');
+      const log = ui.btn(t('app.core.auditLog'), 'secondary', 'ds-btn--block');
       log.addEventListener('click', () => openAudit(null));
       parts.push(ui.card(ui.hint(t('app.home.admins.logHint')), log));
       box.replaceChildren(...parts);

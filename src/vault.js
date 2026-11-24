@@ -63,7 +63,7 @@ export async function vaultPerson(ctx, ev, id, actor) {
 export async function vaultPairs(ctx, ev, actor) {
   const db = ctx.db;
   const { rows, members } = await ctx.read({ rows: pairLinksQuery(db, ev.id), members: drawMembersQuery(db, ev.id) });
-  await auditStmt(db, ev.id, actor, 'vault.pairs', tx('vault.pairsAudit', { n: rows.length })).run();
+  await auditStmt(db, ev.id, actor, 'vault.pairs', tx('events.auditText.pairs', { n: rows.length })).run();
   const byId = Object.fromEntries(members.map((m) => [m.user_id, m]));
   // Человек без имени и username — отложенный текст (060): порядок — по имени на языке ответа
   const santaName = (p) => String(render(p.santa.name, ctx.lang));

@@ -6,7 +6,6 @@ export default {
   'support.closed': 'Обращение уже закрыто.',
   'support.notFound': 'Обращение не найдено.',
   'support.ownThread': 'Это твоё обращение — его может взять кто-то другой.',
-  'support.empty': 'Пустое сообщение.',
   'support.sendFailed': 'Не получилось отправить — попробуй ещё раз.',
   'support.noOpen': 'Открытого обращения нет.',
   'support.hidden': 'Обращение ведёт {name} — переписку видят он(а) и владелец.',
@@ -21,7 +20,6 @@ export default {
   // Ответственный без имени (счётчики экрана события)
   'support.assigneeFallback': 'ответственный',
   // Кнопки под уведомлениями
-  'support.replyButton': '↩️ Ответить',
   'support.openButton': '💬 Открыть',
   'support.takeButton': '🙋 Взять',
   // Кто ответил или закрыл — участнику ({role})
