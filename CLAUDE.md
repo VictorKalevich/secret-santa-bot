@@ -134,13 +134,39 @@ npm run test:all     # npm test и e2e подряд (перед слиянием
 npm run bench:draw   # замер жеребьёвки 50–200 человек (шаги 2, 4, 5 рефакторинга; в npm test не входит)
 npm run screenshots  # визуальная проверка UI → test-results/
 npm run dev          # локальный Worker
-npm run deploy       # выкат в Cloudflare
+npm run deploy       # выкат первого бота
 npm run deploy:second  # выкат второго бота (окружение `second`, свой аккаунт Cloudflare — README, «Второй бот»)
 ```
 
-Окружения Wrangler: верхний уровень `wrangler.toml` — первый бот, `[env.second]` — второй (свои `account_id`, база
-`secret-santa-db-2`, секреты; `vars` и `d1_databases` не наследуются — дублируются). Все команды Wrangler для второго
-бота — с `--env second`.
+## Боты: выкат, откат, копия, миграции
+
+Один код — два бота, окружения Wrangler в `wrangler.toml` (`vars` и `d1_databases` не наследуются — дублируются в
+`[env.second]`). Владелец называет бота словами из второго столбца. Не ясно, о каком боте речь, — спроси, сам не
+выбирай. «Оба» — сначала второй, проверка, потом первый.
+
+| Бот | Как называет владелец | Wrangler | Worker | База D1 | Аккаунт Cloudflare |
+|---|---|---|---|---|---|
+| @SantaFamilyBot | первый, основной, старый, семейный, SantaFamily | без `--env` (верх файла) | `secret-santa-bot` | `secret-santa-db` | `account_id` наверху |
+| @PlaySecretSantaBot | второй, новый, Play | `--env second` | `secret-santa-bot-2` | `secret-santa-db-2` | `account_id` в `[env.second]` |
+
+База, секреты, лимиты и история версий у ботов раздельные — команда для одного бота другого не трогает. Имя базы —
+`database_name` в `wrangler.toml` (после восстановления из файла оно другое). Без `--env` Wrangler пишет «Multiple
+environments are defined…» — для первого бота это нормально (в Bash-инструменте — `--env=""`). Команды ниже: `<env>` —
+`--env second` или ничего, `<db>` — база бота; дата в имени файла — `$(Get-Date -Format yyyy-MM-dd-HHmm)` (PowerShell)
+или `$(date +%Y-%m-%d-%H%M)` (Bash).
+
+| Просьба | Что делать |
+|---|---|
+| «выкати …» | `npx wrangler deployments list <env>` — запомнить текущий Version ID (точка отката); `npx wrangler d1 migrations list <db> <env> --remote`; есть новые — копия базы и миграции (порядок «миграция ↔ выкат» — README «Обновление бота» и `quickstart.md` фичи); `npm run deploy` / `npm run deploy:second`; после — `/app` по адресу из вывода выката отвечает 200; назвать новый и прежний Version ID |
+| «откати …» (код) | `npx wrangler rollback <Version ID> <env> -m "откат"` на прежнюю версию из `deployments list`; база не меняется. Без `-y`: на «The following secrets have changed since version …» — не соглашаться (вернулись бы старые `BOT_TOKEN`/`ADMIN_SECRET`), брать версию после последней смены секретов |
+| «сделай копию базы …» | `npx wrangler d1 export <db> <env> --remote --output "backup-<db>-<дата>.sql"` в папке проекта (`*.sql` в git не попадает); в файле пары и письма — никуда не отправлять и не читать вслух |
+| «миграция / примени миграции …» | `migrations list` → копия базы → `npx wrangler d1 migrations apply <db> <env> --remote` → `SELECT value FROM settings WHERE key = 'schema'` = `REQUIRED_SCHEMA`. Новая миграция в коде — в обе базы, каждой своей командой |
+| «откати базу … на <время>» | Time Travel, ≤ 7 дней: `npx wrangler d1 time-travel info <db> <env> --timestamp="…+03:00"`, затем `restore` — только после явного «да» владельца (откатывается вся база бота); закладку «до» из ответа — владельцу. Старше 7 дней — README «Восстановить из файла» |
+| «логи …» | `npx wrangler tail <env>` |
+
+Секреты (`BOT_TOKEN`, `ADMIN_SECRET`) вводит только владелец в своём PowerShell (`npx wrangler secret put <ИМЯ> <env>`),
+не в чат. `secret put` меняет последнюю версию Worker: если после выката заливалась версия без выката (`versions
+upload`), сначала выкати бота заново. У второго бота `preview_urls = false`.
 
 ## Структура
 

@@ -256,9 +256,55 @@ git те же, а у второго бота свой Worker, своя база 
 
 **Дальше** каждая команда из этого README для второго бота — с `--env second` и базой `secret-santa-db-2` вместо
 `secret-santa-db`: `npm run deploy:second` вместо `npm run deploy`, копия базы, миграции, `deployments list`,
-`rollback`, `secret put`. Команды без `--env` относятся к первому боту; Wrangler при этом пишет «Multiple environments
-are defined…» — это предупреждение, для первого бота так и должно быть. Настройки `[vars]` у второго бота свои
-(`[env.second.vars]`): поменяли наверху — поменяйте и там.
+`rollback`, `secret put` (шпаргалка — [ниже](#команды-для-каждого-бота)). Команды без `--env` относятся к первому
+боту; Wrangler при этом пишет «Multiple environments are defined…» — это предупреждение, для первого бота так и должно
+быть. Настройки `[vars]` у второго бота свои (`[env.second.vars]`): поменяли наверху — поменяйте и там.
+
+### Команды для каждого бота
+
+У каждого бота свой Worker, своя база, свои секреты и своя история версий: команда для одного бота другого не трогает.
+
+| | Первый бот | Второй бот |
+|---|---|---|
+| Окружение Wrangler | без `--env` (верх `wrangler.toml`) | `--env second` (`[env.second]`) |
+| Worker | `secret-santa-bot` | `secret-santa-bot-2` |
+| База D1 | `secret-santa-db` | `secret-santa-db-2` |
+| Выкат | `npm run deploy` | `npm run deploy:second` |
+
+Первый бот:
+
+```powershell
+npm run deploy                                               # выкатить код
+npx wrangler deployments list                                # версии: запишите Version ID текущей — точка отката
+npx wrangler rollback <Version ID> -m "откат"                # откатить код (база не меняется)
+npx wrangler d1 migrations list secret-santa-db --remote     # есть ли новые миграции
+npx wrangler d1 migrations apply secret-santa-db --remote    # применить их (перед этим — копия базы)
+npx wrangler d1 export secret-santa-db --remote --output "backup-secret-santa-db-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
+npx wrangler d1 time-travel restore secret-santa-db --timestamp="2026-12-20T18:00:00+03:00"   # вся база — на момент
+npx wrangler tail                                            # логи в реальном времени
+```
+
+Второй бот:
+
+```powershell
+npm run deploy:second
+npx wrangler deployments list --env second
+npx wrangler rollback <Version ID> --env second -m "откат"
+npx wrangler d1 migrations list secret-santa-db-2 --env second --remote
+npx wrangler d1 migrations apply secret-santa-db-2 --env second --remote
+npx wrangler d1 export secret-santa-db-2 --env second --remote --output "backup-secret-santa-db-2-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
+npx wrangler d1 time-travel restore secret-santa-db-2 --env second --timestamp="2026-12-20T18:00:00+03:00"
+npx wrangler tail --env second
+```
+
+- **Миграции** применяются к каждой базе отдельно. Новый код без своей миграции пишет «База не подготовлена» — порядок
+  «миграция ↔ выкат» для конкретного обновления описан в [«Обновлении бота»](#обновление-бота).
+- **Обновить оба бота:** сначала второй, проверить его в Telegram, затем первый.
+- **Откат кода** базу не меняет. Если Wrangler при откате пишет «The following secrets have changed since version …»,
+  ответьте `n`: у той версии прежние секреты, и бот вернулся бы к старому токену или паролю. Выберите версию, выкаченную
+  после последней смены секретов.
+- **Откат базы** (`time-travel restore`) возвращает всю базу одного бота — всё, что сделано после того момента, пропадёт;
+  база другого бота не меняется. Сначала прочитайте [«Резервную копию и восстановление»](#резервная-копия-и-восстановление).
 
 ---
 
@@ -649,7 +695,7 @@ npm install
 npx wrangler deployments list                               # запишите Version ID текущей версии — к ней откат
 npx wrangler d1 migrations list secret-santa-db --remote    # есть ли новые миграции
 # если есть — копия базы и миграции (для 0014 см. порядок ниже):
-npx wrangler d1 export secret-santa-db --remote --output "backup-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
+npx wrangler d1 export secret-santa-db --remote --output "backup-secret-santa-db-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
 npx wrangler d1 migrations apply secret-santa-db --remote
 npm run deploy
 ```
@@ -683,7 +729,7 @@ Wrangler пропускает. Миграция `0008_unread_index.sql` — то
 
 ```powershell
 npx wrangler deployments list                                # запишите Version ID — точка отката
-npx wrangler d1 export secret-santa-db --remote --output "backup-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
+npx wrangler d1 export secret-santa-db --remote --output "backup-secret-santa-db-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
 npx wrangler d1 migrations apply secret-santa-db --remote    # 0015_companies.sql, схема 17
 npm run deploy
 npx wrangler d1 execute secret-santa-db --remote --file tools/companies-reconcile.sql   # сверка
@@ -738,10 +784,11 @@ npx wrangler rollback <Version ID прежней версии> -m "откат"
 В PowerShell в папке проекта:
 
 ```powershell
-npx wrangler d1 export secret-santa-db --remote --output "backup-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
+npx wrangler d1 export secret-santa-db --remote --output "backup-secret-santa-db-$(Get-Date -Format yyyy-MM-dd-HHmm).sql"
 ```
 
-- Появится файл вида `backup-2026-12-01-1800.sql` (дата и время в имени). Спросит подтверждение — ответьте `y`.
+- Появится файл вида `backup-secret-santa-db-2026-12-01-1800.sql` (имя базы, дата и время). Спросит подтверждение —
+  ответьте `y`.
 - Пока идёт выгрузка (обычно несколько секунд), база занята: бот в это время может не ответить — повторите действие.
 - Когда делать: перед обновлением бота с новыми миграциями; раз в неделю, пока идёт событие, если хотите страховку дольше
   7 дней; после завершения события — на память.
@@ -785,30 +832,34 @@ npx wrangler d1 export secret-santa-db --remote --output "backup-$(Get-Date -For
 1. Создайте новую базу:
 
    ```powershell
-   npx wrangler d1 create secret-santa-db-2
+   npx wrangler d1 create secret-santa-db-restored
    ```
 
    Предложит сам добавить настройки — откажитесь. Скопируйте из ответа `database_id`.
 2. В `wrangler.toml`, в разделе `[[d1_databases]]`, замените две строки (`binding = "DB"` не трогайте):
 
    ```toml
-   database_name = "secret-santa-db-2"
+   database_name = "secret-santa-db-restored"
    database_id = "<database_id из шага 1>"
    ```
 
 3. Загрузите копию (подставьте имя своего файла), подтвердите `y`:
 
    ```powershell
-   npx wrangler d1 execute secret-santa-db-2 --remote --file "backup-2026-12-01-1800.sql"
+   npx wrangler d1 execute secret-santa-db-restored --remote --file "backup-secret-santa-db-2026-12-01-1800.sql"
    ```
 
    Миграции заново применять не нужно: копия помнит, какие уже применены. Если копия сделана до обновления с новыми
-   миграциями — примените их: `npx wrangler d1 migrations apply secret-santa-db-2 --remote`.
+   миграциями — примените их: `npx wrangler d1 migrations apply secret-santa-db-restored --remote`.
 4. Опубликуйте бота: `npm run deploy`. Откройте бота и проверьте, что события на месте. `/setup` повторять не нужно:
    адрес бота и секреты не менялись.
-5. Дальше во всех командах этого README пишите `secret-santa-db-2` вместо `secret-santa-db`.
+5. Дальше во всех командах этого README пишите `secret-santa-db-restored` вместо `secret-santa-db`.
 6. Старую базу удалите, только когда убедитесь, что всё работает: `npx wrangler d1 delete secret-santa-db`.
    Удаление необратимо — вместе с базой пропадает и её 7-дневная история.
+
+Второй бот восстанавливается так же: в каждой команде `--env second`, новая база — `secret-santa-db-2-restored`,
+строки меняются в разделе `[[env.second.d1_databases]]`, выкат — `npm run deploy:second`, старая база —
+`secret-santa-db-2`. Имя `secret-santa-db-2` для новой базы первого бота не берите — так называется база второго.
 
 После любого восстановления бот продолжает с того состояния: напоминания и сообщения, которые после этого момента уже
 ушли, могут прийти ещё раз. Если бот пишет «База не подготовлена» — база старее кода: примените миграции (команда из
