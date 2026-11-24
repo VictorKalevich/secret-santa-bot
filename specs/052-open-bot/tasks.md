@@ -135,7 +135,7 @@
 - [X] T025 `CLAUDE.md`: строка 052 в таблице фич; жёсткое правило 10 — общее название; `migrations/` — 0016, схема 18;
   `src/companies.js` — `openBot`, `createOwnCompany`; тесты `open-bot`, `checkOpenBot`; `docs/todo.md` — пункт «видимые
   компании» сверить с итогом.
-- [ ] T026 `npm run test:all` и `npm run screenshots` зелёные; задачи отмечены; коммиты по этапам.
+- [X] T026 `npm run test:all` и `npm run screenshots` зелёные; задачи отмечены; коммиты по этапам.
 
 ## Зависимости
 
