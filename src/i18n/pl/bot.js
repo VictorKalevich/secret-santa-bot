@@ -4,7 +4,7 @@ export default {
   'bot.name.prompt': 'Jak masz na imię? Napisz imię (i, jeśli trzeba, nazwisko) — tak zobaczą Cię Twój Mikołaj, właściciel i administratorzy.',
   'bot.name.offer': 'Imię w grze — <b>{name}</b>, jak w Telegramie. Zobaczą je Twój Mikołaj, właściciel i administratorzy. Chcesz inne — naciśnij „✏️ Zmień imię” albo po prostu je napisz.',
   'bot.name.ask': '✏️ Napisz imię (i, jeśli trzeba, nazwisko) w jednej wiadomości — do 40 znaków. Tak zobaczą Cię Twój Mikołaj, właściciel i administratorzy.',
-  'bot.name.saved': 'Imię jest już zapisane. Zmienić je można w aplikacji: „Profil” → „✏️ Zmień imię”.',
+  'bot.name.saved': 'Imię jest już zapisane. Zmienić je można w aplikacji: „⚙️ Ustawienia” → „Profil” → „✏️ Zmień imię”.',
   'bot.name.rule': 'Napisz, proszę, imię zwykłym tekstem (do 40 znaków).',
   'bot.name.join': '✅ Dołącz jako {name}',
   'bot.name.continue': '✅ Kontynuuj jako {name}',

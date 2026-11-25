@@ -5,7 +5,7 @@ export default {
   'bot.name.prompt': 'Wie heißt du? Schreib deinen Namen (und bei Bedarf den Nachnamen) – so sehen dich dein Wichtel, der Inhaber und die Admins.',
   'bot.name.offer': 'Dein Name im Spiel: <b>{name}</b>, wie in Telegram. Ihn sehen dein Wichtel, der Inhaber und die Admins. Lieber einen anderen? Tippe auf «✏️ Name ändern» oder schreib ihn einfach.',
   'bot.name.ask': '✏️ Schreib deinen Namen (und bei Bedarf den Nachnamen) in einer Nachricht – bis zu 40 Zeichen. So sehen dich dein Wichtel, der Inhaber und die Admins.',
-  'bot.name.saved': 'Dein Name ist schon gespeichert. Ändern kannst du ihn in der App: «Profil» → «✏️ Name ändern».',
+  'bot.name.saved': 'Dein Name ist schon gespeichert. Ändern kannst du ihn in der App: «⚙️ Einstellungen» → «Profil» → «✏️ Name ändern».',
   'bot.name.rule': 'Bitte schreib deinen Namen als normalen Text (bis zu 40 Zeichen).',
   'bot.name.join': '✅ Mitmachen als {name}',
   'bot.name.continue': '✅ Weiter als {name}',

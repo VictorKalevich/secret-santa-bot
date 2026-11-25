@@ -5,7 +5,7 @@ export default {
   'bot.name.prompt': "Comment t'appelles-tu ? Écris ton nom (prénom, et nom de famille si besoin) — c'est ainsi que te verront ton Père Noël, le propriétaire et les administrateurs.",
   'bot.name.offer': "Ton nom dans le jeu : <b>{name}</b>, comme sur Telegram. Ton Père Noël, le propriétaire et les administrateurs le verront. Tu en veux un autre ? Appuie sur « ✏️ Modifier le nom » ou écris-le simplement.",
   'bot.name.ask': "✏️ Écris ton nom (prénom, et nom de famille si besoin) en un seul message — 40 caractères max. C'est ainsi que te verront ton Père Noël, le propriétaire et les administrateurs.",
-  'bot.name.saved': "Ton nom est déjà enregistré. Tu peux le changer dans l'appli : « Profil » → « ✏️ Modifier le nom ».",
+  'bot.name.saved': "Ton nom est déjà enregistré. Tu peux le changer dans l'appli : « ⚙️ Réglages » → « Profil » → « ✏️ Modifier le nom ».",
   'bot.name.rule': "Écris ton nom en texte simple, s'il te plaît (40 caractères max).",
   'bot.name.join': "✅ Participer en tant que {name}",
   'bot.name.continue': "✅ Continuer en tant que {name}",

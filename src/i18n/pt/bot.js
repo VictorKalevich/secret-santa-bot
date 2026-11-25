@@ -5,7 +5,7 @@ export default {
   'bot.name.prompt': 'Qual é o seu nome? Escreva seu nome (e, se precisar, o sobrenome) — é assim que seu Papai Noel, o dono e os administradores vão ver você.',
   'bot.name.offer': 'Seu nome no jogo é <b>{name}</b>, como no Telegram. Seu Papai Noel, o dono e os administradores vão vê-lo. Quer outro? Toque em “✏️ Mudar nome” ou simplesmente escreva o nome.',
   'bot.name.ask': '✏️ Escreva seu nome (e, se precisar, o sobrenome) em uma mensagem — até 40 caracteres. É assim que seu Papai Noel, o dono e os administradores vão ver você.',
-  'bot.name.saved': 'O nome já foi salvo. Dá para mudar no app: “Perfil” → “✏️ Mudar nome”.',
+  'bot.name.saved': 'O nome já foi salvo. Dá para mudar no app: “⚙️ Ajustes” → “Perfil” → “✏️ Mudar nome”.',
   'bot.name.rule': 'Por favor, escreva o nome em texto simples (até 40 caracteres).',
   'bot.name.join': '✅ Participar como {name}',
   'bot.name.continue': '✅ Continuar como {name}',

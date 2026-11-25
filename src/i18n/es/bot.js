@@ -4,7 +4,7 @@ export default {
   'bot.name.prompt': '¿Cómo te llamas? Escribe tu nombre (y tu apellido, si hace falta): así te verán tu Santa, el propietario y los administradores.',
   'bot.name.offer': 'Tu nombre en el juego será <b>{name}</b>, como en Telegram. Lo verán tu Santa, el propietario y los administradores. Si prefieres otro, pulsa «✏️ Cambiar nombre» o simplemente escríbelo.',
   'bot.name.ask': '✏️ Escribe tu nombre (y tu apellido, si hace falta) en un solo mensaje, hasta 40 caracteres. Así te verán tu Santa, el propietario y los administradores.',
-  'bot.name.saved': 'Tu nombre ya está guardado. Puedes cambiarlo en la app: «Perfil» → «✏️ Cambiar nombre».',
+  'bot.name.saved': 'Tu nombre ya está guardado. Puedes cambiarlo en la app: «⚙️ Configuración» → «Perfil» → «✏️ Cambiar nombre».',
   'bot.name.rule': 'Escribe tu nombre como texto normal, por favor (hasta 40 caracteres).',
   'bot.name.join': '✅ Participar como {name}',
   'bot.name.continue': '✅ Continuar como {name}',

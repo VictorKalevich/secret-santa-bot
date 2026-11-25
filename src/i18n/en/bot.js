@@ -5,7 +5,7 @@ export default {
   'bot.name.prompt': 'What’s your name? Send your name (and last name, if needed) — this is how your Santa, the owner and admins will see you.',
   'bot.name.offer': 'Your name in the game is <b>{name}</b>, as in Telegram. Your Santa, the owner and admins will see it. Want a different one? Tap “✏️ Change name” or just type it.',
   'bot.name.ask': '✏️ Send your name (and last name, if needed) in one message — up to 40 characters. This is how your Santa, the owner and admins will see you.',
-  'bot.name.saved': 'Your name is already saved. You can change it in the app: “Profile” → “✏️ Change name”.',
+  'bot.name.saved': 'Your name is already saved. You can change it in the app: “⚙️ Settings” → “Profile” → “✏️ Change name”.',
   'bot.name.rule': 'Please send your name as plain text (up to 40 characters).',
   'bot.name.join': '✅ Join as {name}',
   'bot.name.continue': '✅ Continue as {name}',

@@ -700,7 +700,7 @@ describe('атомарность: выход из события и своё и�
 
 describe('атомарность: регистрация в боте (047)', () => {
   const newcomer = { id: 700, name: 'Новичок', username: 'novice' };
-  const NAME_SAVED = 'Имя уже сохранено. Сменить его можно в приложении: «Профиль» → «✏️ Изменить имя».';
+  const NAME_SAVED = 'Имя уже сохранено. Сменить его можно в приложении: «⚙️ Настройки» → «Профиль» → «✏️ Изменить имя».';
   const named = (z) => z.w.query('SELECT name, registered FROM users WHERE tg_id = ?', newcomer.id)[0];
   const answers = (z, from) => z.w.calls.slice(from).filter((c) => c.method === 'answerCallbackQuery').map((c) => c.params.text ?? '');
 

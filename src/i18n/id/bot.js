@@ -5,7 +5,7 @@ export default {
   'bot.name.prompt': 'Siapa namamu? Tulis namamu (dan nama belakang kalau perlu) — nama ini akan dilihat Santa-mu, pemilik, dan admin.',
   'bot.name.offer': 'Nama dalam permainan — <b>{name}</b>, seperti di Telegram. Nama ini akan dilihat Santa-mu, pemilik, dan admin. Mau nama lain? Tekan «✏️ Ubah nama» atau langsung tulis namanya.',
   'bot.name.ask': '✏️ Tulis namamu (dan nama belakang kalau perlu) dalam satu pesan — maksimal 40 karakter. Nama ini akan dilihat Santa-mu, pemilik, dan admin.',
-  'bot.name.saved': 'Nama sudah disimpan. Kamu bisa mengubahnya di aplikasi: «Profil» → «✏️ Ubah nama».',
+  'bot.name.saved': 'Nama sudah disimpan. Kamu bisa mengubahnya di aplikasi: «⚙️ Pengaturan» → «Profil» → «✏️ Ubah nama».',
   'bot.name.rule': 'Tolong tulis nama sebagai teks biasa (maksimal 40 karakter).',
   'bot.name.join': '✅ Ikut sebagai {name}',
   'bot.name.continue': '✅ Lanjut sebagai {name}',

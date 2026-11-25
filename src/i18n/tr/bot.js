@@ -3,7 +3,7 @@ export default {
   'bot.name.prompt': "Adın ne? İsmini (gerekirse soyadını da) yaz — Noel Baba'n, sahip ve yöneticiler seni bu isimle görecek.",
   'bot.name.offer': "Oyundaki ismin Telegram'daki gibi: <b>{name}</b>. Bunu Noel Baba'n, sahip ve yöneticiler görecek. Başka bir isim istersen «✏️ İsmi değiştir» düğmesine bas ya da ismini yaz.",
   'bot.name.ask': "✏️ İsmini (gerekirse soyadını da) tek mesajla yaz — en fazla 40 karakter. Noel Baba'n, sahip ve yöneticiler seni bu isimle görecek.",
-  'bot.name.saved': "İsim zaten kaydedildi. Uygulamadan değiştirebilirsin: «Profil» → «✏️ İsmi değiştir».",
+  'bot.name.saved': "İsim zaten kaydedildi. Uygulamadan değiştirebilirsin: «⚙️ Ayarlar» → «Profil» → «✏️ İsmi değiştir».",
   'bot.name.rule': "Lütfen ismini düz metin olarak yaz (en fazla 40 karakter).",
   'bot.name.join': "✅ {name} olarak katıl",
   'bot.name.continue': "✅ {name} olarak devam et",
