@@ -4,6 +4,7 @@ export default {
   'app.boot.title': 'Amigo Secreto',
   'app.boot.loading': 'Carregando…',
   'app.boot.back': 'Todos os eventos',
+  'app.boot.settings': 'Ajustes',
   'app.boot.noTelegram.title': 'Abra pelo Telegram',
   'app.boot.noTelegram.text': 'Este app funciona dentro do Telegram. Abra a conversa com o bot e toque no botão “🎁 Amigo Secreto”.',
   'app.boot.nameFirst.title': 'Primeiro, diga seu nome',

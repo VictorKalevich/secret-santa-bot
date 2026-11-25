@@ -4,6 +4,7 @@ export default {
   'app.boot.title': "Père Noël secret",
   'app.boot.loading': "Chargement…",
   'app.boot.back': "Tous les événements",
+  'app.boot.settings': 'Réglages',
   'app.boot.noTelegram.title': "Ouvre-la dans Telegram",
   'app.boot.noTelegram.text': "Cette appli fonctionne dans Telegram. Ouvre la discussion avec le bot et appuie sur le bouton « 🎁 Père Noël ».",
   'app.boot.nameFirst.title': "Présente-toi d'abord",

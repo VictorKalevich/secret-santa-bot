@@ -3,6 +3,7 @@ export default {
   'app.boot.title': 'Secret Santa',
   'app.boot.loading': 'Memuat…',
   'app.boot.back': 'Semua acara',
+  'app.boot.settings': 'Pengaturan',
   'app.boot.noTelegram.title': 'Buka lewat Telegram',
   'app.boot.noTelegram.text': 'Aplikasi ini berjalan di dalam Telegram. Buka chat dengan bot dan tekan tombol «🎁 Santa».',
   'app.boot.nameFirst.title': 'Kenalkan dirimu dulu',

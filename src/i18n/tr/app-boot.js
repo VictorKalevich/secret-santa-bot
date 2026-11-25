@@ -3,6 +3,7 @@ export default {
   'app.boot.title': "Gizli Noel Baba",
   'app.boot.loading': "Yükleniyor…",
   'app.boot.back': "Tüm etkinlikler",
+  'app.boot.settings': 'Ayarlar',
   'app.boot.noTelegram.title': "Telegram üzerinden aç",
   'app.boot.noTelegram.text': "Bu uygulama Telegram içinde çalışır. Bot sohbetini aç ve «🎁 Noel Baba» düğmesine bas.",
   'app.boot.nameFirst.title': "Önce kendini tanıt",

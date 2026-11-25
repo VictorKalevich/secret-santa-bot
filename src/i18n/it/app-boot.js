@@ -4,6 +4,7 @@ export default {
   'app.boot.title': "Babbo Natale segreto",
   'app.boot.loading': "Caricamento…",
   'app.boot.back': "Tutti gli eventi",
+  'app.boot.settings': 'Impostazioni',
   'app.boot.noTelegram.title': "Apri da Telegram",
   'app.boot.noTelegram.text': "Questa app funziona dentro Telegram. Apri la chat con il bot e tocca il pulsante «🎁 Babbo Natale».",
   'app.boot.nameFirst.title': "Prima dicci come ti chiami",

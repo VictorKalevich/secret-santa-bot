@@ -4,6 +4,7 @@ export default {
   'app.boot.title': 'Тайный Санта',
   'app.boot.loading': 'Загрузка…',
   'app.boot.back': 'Все события',
+  'app.boot.settings': 'Настройки',
   'app.boot.noTelegram.title': 'Открой через Telegram',
   'app.boot.noTelegram.text': 'Это приложение работает внутри Telegram. Открой чат с ботом и нажми кнопку «🎁 Санта».',
   'app.boot.nameFirst.title': 'Сначала назови себя',

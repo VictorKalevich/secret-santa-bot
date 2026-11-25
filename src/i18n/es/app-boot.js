@@ -3,6 +3,7 @@ export default {
   'app.boot.title': 'Amigo Secreto',
   'app.boot.loading': 'Cargando…',
   'app.boot.back': 'Todos los eventos',
+  'app.boot.settings': 'Configuración',
   'app.boot.noTelegram.title': 'Ábrela desde Telegram',
   'app.boot.noTelegram.text': 'Esta app funciona dentro de Telegram. Abre el chat con el bot y pulsa el botón «🎁 Santa».',
   'app.boot.nameFirst.title': 'Primero dinos tu nombre',

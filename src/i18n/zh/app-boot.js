@@ -4,6 +4,7 @@ export default {
   'app.boot.title': '神秘圣诞老人',
   'app.boot.loading': '加载中…',
   'app.boot.back': '全部活动',
+  'app.boot.settings': '设置',
   'app.boot.noTelegram.title': '请在 Telegram 中打开',
   'app.boot.noTelegram.text': '这个应用在 Telegram 内运行。请打开与机器人的聊天，点击“🎁 圣诞老人”按钮。',
   'app.boot.nameFirst.title': '请先告诉我们你的名字',

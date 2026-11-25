@@ -3,6 +3,7 @@ export default {
   'app.boot.title': 'Secret Santa',
   'app.boot.loading': 'Loading…',
   'app.boot.back': 'All events',
+  'app.boot.settings': 'Settings',
   'app.boot.noTelegram.title': 'Open in Telegram',
   'app.boot.noTelegram.text': 'This app works inside Telegram. Open the chat with the bot and tap the “🎁 Santa” button.',
   'app.boot.nameFirst.title': 'Tell us your name first',

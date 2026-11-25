@@ -4,6 +4,7 @@ export default {
   'app.boot.title': 'Wichteln',
   'app.boot.loading': 'Wird geladen…',
   'app.boot.back': 'Alle Runden',
+  'app.boot.settings': 'Einstellungen',
   'app.boot.noTelegram.title': 'Über Telegram öffnen',
   'app.boot.noTelegram.text': 'Diese App läuft in Telegram. Öffne den Chat mit dem Bot und tippe auf «🎁 Wichteln».',
   'app.boot.nameFirst.title': 'Stell dich zuerst vor',

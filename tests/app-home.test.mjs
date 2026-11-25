@@ -1,7 +1,8 @@
 // 063 (контракт specs/063-events-without-rooms/contracts/events-without-rooms.md, раздел 6): главный экран «Мои события» —
 // правила по склейке. «Создать событие» — только в нижней панели и только при state.create; «Идут» — по дате вручения
 // (без даты — в конце, при равных — новые первыми), «Завершённые» — свёрнутый ds-details; права события
-// (state.me.is_admin, is_owner) пишет только enterEvent; экрана комнат нет — ни частей, ни действий компаний, ни capi.
+// (state.me.is_admin, is_owner) пишет только enterEvent; экрана комнат нет — ни частей, ни действий компаний, ни capi;
+// оболочка (shellTexts) до ответа me берёт только ключи app.boot.*.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { APP, PARTS, where, code, topBlock, ownerOf } from './support/app-source.mjs';
@@ -46,9 +47,11 @@ function rules(src) {
     settings: ['personalSections', 'botOwnerSections', 'adminOrganizers', "'app.settings."].filter((x) => home.includes(x))
       .concat(/heroAction\.hidden = false/.test(home) ? [] : ['⚙️ не показана'])
       .concat(/addEventListener\('click', \(\) => goSettings\(\)\)/.test(src) ? [] : ['⚙️ не ведёт в «Настройки»']),
+    // Оболочку подписывает start() до ответа me — словаря ещё нет, только набор app.boot.* в странице
+    boot: (body(src, 'shellTexts').match(/\bt\('[^']+'/g) || ['нет shellTexts']).filter((k) => !k.startsWith("t('app.boot.")),
   };
 }
-const CLEAN = { bar: [], finished: [], roles: [], rooms: [], settings: [] };
+const CLEAN = { bar: [], finished: [], roles: [], rooms: [], settings: [], boot: [] };
 
 const ev = (id, extra = {}) => ({ id, status: 'active', event_date: '', finished_at: 0, ...extra });
 const ids = (list) => list.map((e) => e.id);
@@ -86,6 +89,7 @@ test('от противного (063): каждое правило находи�
   assert.deepEqual(broken(spoil('    main.replaceChildren(...nodes);\n  }\n\n  // Шторка «Новое событие»',
     '    main.replaceChildren(...nodes, ...personalSections(0, () => {}));\n  }\n\n  // Шторка «Новое событие»')), ['settings']);
   assert.deepEqual(broken(spoil('    heroAction.hidden = false;\n', '')), ['settings']);
+  assert.deepEqual(broken(spoil("heroAction.title = t('app.boot.settings')", "heroAction.title = t('app.settings.title')")), ['boot']);
   // Сортировка: без даты — не в конце
   const flat = spoil('a.event_date ? -1 : b.event_date ? 1 : 0', 'a.event_date ? 1 : b.event_date ? -1 : 0');
   assert.notDeepEqual(ids(homeListsOf(flat)([ev(1), ev(2, { event_date: '2026-12-31' })]).active), [2, 1]);

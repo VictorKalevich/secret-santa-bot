@@ -3,6 +3,7 @@ export default {
   'app.boot.title': 'Tajemniczy Mikołaj',
   'app.boot.loading': 'Ładowanie…',
   'app.boot.back': 'Wszystkie wydarzenia',
+  'app.boot.settings': 'Ustawienia',
   'app.boot.noTelegram.title': 'Otwórz przez Telegram',
   'app.boot.noTelegram.text': 'Ta aplikacja działa wewnątrz Telegrama. Otwórz czat z botem i naciśnij przycisk „🎁 Mikołaj”.',
   'app.boot.nameFirst.title': 'Najpierw się przedstaw',
