@@ -93,7 +93,7 @@
 
 - **Сфера записи** — событие (число) или `BOT_LOG`; `{ company }` убирается. Новые записи пишут `company_id = 0`.
 - **Журнал бота** = все записи с `event_id = 0`: туда попадают и прежние общие записи комнат — история.
-  `bot.audit` читает `WHERE event_id = 0` (индекс `audit_bot (id) WHERE event_id = 0`).
+  `bot.audit` читает `WHERE event_id = 0` (063: по прежнему индексу `audit_event (event_id, id)` — отдельный `audit_bot` не понадобился).
 - **Куда пишется**: `role.grant`, `role.revoke`, `event.owner` (новый код — передача владения) — журнал события;
   `event.create` — и журнал события, и журнал бота («<название>»); `event.delete`, `transfer`, `rename` (владелец бота),
   `owner.transfer`, `owner.link`, `creator.grant`, `creator.revoke` — журнал бота. `name.set` журнал не пишет.

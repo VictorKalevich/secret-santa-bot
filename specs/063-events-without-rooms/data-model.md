@@ -10,7 +10,7 @@
 | `event_creations (event_id, user_id, created_at)` | ключ `event_id` | факт создания события (лимит, R5) |
 
 Индексы: `event_admins_user (user_id)`, `event_creations_user (user_id, created_at)`, `events_owner (owner_id,
-created_at)`, `audit_bot (id) WHERE event_id = 0`.
+created_at)`. Журнал бота (`event_id = 0`) читается по прежнему индексу `audit_event (event_id, id)` (0003) — своего не нужно.
 
 Заполнение (порядок важен — организаторы до владельца не зависят):
 
@@ -32,13 +32,14 @@ created_at)`, `audit_bot (id) WHERE event_id = 0`.
 - **E3.** У каждого события, созданного после миграции, есть строка `event_creations`; строки не удаляются.
 - **E4.** Новые строки `events` и `audit` — с `company_id = 0`.
 
-Тест `event-owners` проверяет E1–E4 после каждого шага сценария (как `invariants` в 050).
+Тесты `event-owners`, `event-create`, `bot-owner`, `rights`, `atomic` проверяют E1–E4 после своих сценариев (`invariants`,
+`tests/support/events.mjs`; как в 050).
 
 ## REGISTRY
 
 - `events.people` — `{ created_by: ACTOR, owner_id: ACTOR }` (перенос переносит владение).
-- `event_admins` — `{ event: 'event_id', people: { user_id: MEMBER }, onEventDelete: 'delete', onLeave: 'keep',
-  onTransfer: 'dedupe' }` — уход из участия права не снимает (их снимает владелец).
+- `event_admins` — `{ event: 'event_id', people: { user_id: MEMBER }, onEventDelete: 'delete', onReset: 'keep',
+  onLeave: 'keep', onTransfer: 'dedupe' }` — уход из участия права не снимает (их снимает владелец).
 - `event_creations` — `{ event: 'event_id', people: { user_id: ACTOR }, onEventDelete: 'keep', onTransfer: 'update' }`.
 - `users.transferBefore` — ещё `can_create = MAX(...)`.
 - `companies`, `company_members` — без использования кодом; `onCompanyDelete` и `companyDataDeleteStmts` убираются,
@@ -65,7 +66,7 @@ created_at)`, `audit_bot (id) WHERE event_id = 0`.
 - **Снятие** (по прежнему состоянию «строка есть», не владелец): обращения снова ничьи, сообщения, журнал → удаление
   строки (захват) → `adminFlagStmt`.
 - **Передача владения** (по прежнему владельцу): строка `event_admins` нового → сообщения, журнал `event.owner` →
-  `owner_id` (захват) → `adminFlagStmt` обоих.
+  `owner_id` (захват) → `adminFlagStmt` нового (прежний остаётся организатором).
 - **Удаление события**: прежний пакет + журнал бота `event.delete` (вместо общего журнала комнаты) + `adminFlagStmt`
   организаторов (после удаления строк `event_admins`).
 - **Разрешение на создание** (`bot.creator.set`, по прежнему значению): сообщение, журнал бота → `can_create` (захват).
