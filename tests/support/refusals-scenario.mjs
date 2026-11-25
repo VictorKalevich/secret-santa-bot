@@ -70,7 +70,7 @@ export async function runRefusals() {
   await w.say(boss, boss.name);
   let n = 0;
   // Компания 1 — явно: после 051 у владельца бота их две
-  const create = async (title) => (await w.api(boss, 'admin.events.create', { title, company: 1 })).event.id;
+  const create = async (title) => (await w.api(boss, 'event.create', { participate: false, title, company: 1 })).event.id;
   const fresh = () => create('Свежее ' + ++n);
   const join = async (ev, users) => {
     const link = (await w.api(boss, 'admin.state', { event: ev })).settings.invite_link;
@@ -305,7 +305,7 @@ async function openRefusals(cases) {
   await record('delete-not-visible', borya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
   o.sql(`INSERT INTO company_members (company_id, user_id, is_admin, joined_at) VALUES (${X}, ${borya.id}, 1, 1)`);
   await record('delete-not-owner', borya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
-  await o.api(anya, 'admin.events.create', { company: X, title: 'Ёлка' });
+  await o.api(anya, 'event.create', { participate: false, company: X, title: 'Ёлка' });
   await record('delete-has-events', anya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
   await record('delete-own', anya, 'company.delete', { company: Y, confirm: 'УДАЛИТЬ' });
   await record('create-after-delete', anya, 'company.create', { name: 'Третья' });

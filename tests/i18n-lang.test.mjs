@@ -82,7 +82,7 @@ describe('псевдоязык у одного человека (US3)', () => {
     await w.say(boss, boss.name);
     // Язык ставится до первого сообщения: в шаге 1 его ставят только тесты (шаг 2 — язык Telegram и выбор человека)
     w.query("INSERT INTO users (tg_id, lang, created_at) VALUES (?, ?, ?)", anna.id, PSEUDO, Date.now());
-    E = (await w.api(boss, 'admin.events.create', { title: 'Party' })).event.id;
+    E = (await w.api(boss, 'event.create', { participate: false, title: 'Party' })).event.id;
     const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: E })).settings.invite_link)[1];
     for (const u of [anna, bob, carl, dina]) {
       await say(u, '/start ' + code);

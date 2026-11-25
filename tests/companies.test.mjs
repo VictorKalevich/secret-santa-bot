@@ -113,7 +113,7 @@ async function twoCompanies() {
     }
   };
   z.event = async (company, title, people = []) => {
-    const id = (await w.api(boss, 'admin.events.create', { title, company })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title, company })).event.id;
     await z.join(id, people);
     return id;
   };
@@ -228,7 +228,7 @@ describe('компании: две компании не видят друг д�
       const audit = await z.w.api(s.adm, 'admin.audit', { company: s.company });
       assert.ok(audit.entries.some((e) => e.action === 'role.grant' && e.details === s.adm.name), 'свои записи есть');
       leaks('admin.audit', audit);
-      const template = await z.w.api(s.adm, 'admin.events.create', { title: 'По чужому образцу', from: o.ev, company: s.company }, true);
+      const template = await z.w.api(s.adm, 'event.create', { participate: false, title: 'По чужому образцу', from: o.ev, company: s.company }, true);
       assert.deepEqual([template.status, template.data.error], [400, 'Образец не найден.']);
       const invite = await z.w.api(s.adm, 'admin.event.invite_from', { event: s.ev, from: o.ev }, true);
       assert.deepEqual([invite.status, invite.data.error], [400, 'Выбери другое событие.']);

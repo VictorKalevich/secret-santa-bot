@@ -6,7 +6,7 @@ export async function shipmentWorld() {
   const [admin, santa] = people;
   await w.say(admin, '/start ' + (await w.setup()).adminCode);
   await w.say(admin, admin.name);
-  const event = (await w.api(admin, 'admin.events.create', { title: 'Доставка' })).event.id;
+  const event = (await w.api(admin, 'event.create', { participate: false, title: 'Доставка' })).event.id;
   const call = (who, action, body) => w.api(who, action, { event, ...body });
   const invite = (await call(admin, 'admin.state')).settings.invite_link.split('start=')[1];
   await call(admin, 'admin.participate', { on: true });

@@ -1,9 +1,9 @@
-// Панель организатора (019): admin.state — состояние события одним ответом, письмо участника для админа, список
-// пользователей. Здесь нет ни пар, ни текстов писем и адресов — только статусы (Конституция, принцип I).
-// 050: всё — в пределах компании контекста (люди, права, другие события, семьи).
+// Панель организатора (019): admin.state — состояние события одним ответом, письмо участника для админа,
+// переименование. Здесь нет ни пар, ни текстов писем и адресов — только статусы (Конституция, принцип I).
+// 063: люди и права — в пределах события контекста; другие события — где вызывающий организатор.
 
 import {
-  panelMembersQuery, panelPairsQuery, exclusionsQuery, companyEventsQuery, fixedPairsQuery, getUser, getMember, auditStmt,
+  panelMembersQuery, panelPairsQuery, exclusionsQuery, organizerEventsQuery, fixedPairsQuery, getUser, getMember, auditStmt, BOT_LOG,
 } from './db.js';
 import { inviteLink, displayName } from './format.js';
 import { atomic } from './claim.js';
@@ -15,14 +15,15 @@ import { tx, tjoin } from './i18n/index.js';
 
 export async function adminState(ctx, ev) {
   const { db, me } = ctx;
-  const [ownerId, isOwner, settings] = await Promise.all([ctx.ownerId(), ctx.isOwner(), ctx.settings()]);
+  const [ownerId, isOwner, settings, botOwner] = await Promise.all([ctx.ownerId(), ctx.isOwner(), ctx.settings(), ctx.isBotOwner()]);
   // Всё состояние — одним пакетом чтений (019). Тексты писем, адреса и увиденные письма не читаются: «письмо есть»,
   // «адрес указан» и «открыл подопечного» считаются в базе
   const r = await ctx.read({
     members: panelMembersQuery(db, ev.id),
     pairs: panelPairsQuery(db, ev.id),
     exclusions: exclusionsQuery(db, ev.id),
-    events: companyEventsQuery(db, ev.company_id),
+    // Владельцу бота — ещё события владельца этого события (образцы и «Из какого события…»)
+    events: organizerEventsQuery(db, me.tg_id, botOwner ? ev.owner_id : 0),
     cancelable: cancelableQuery(db, ev),
     requests: db.prepare(
       `SELECT r.id, r.user_id, r.created_at, u.name, u.username FROM join_requests r JOIN users u ON u.tg_id = r.user_id
@@ -75,6 +76,8 @@ export async function adminState(ctx, ev) {
     // 014: у админа поля нет вовсе (Конституция, принцип I)
     ...(fixed ? { fixed: fixed.filter((f) => memberIds.has(f.giver) && memberIds.has(f.receiver)) } : {}),
     me_member: members.some((m) => m.user_id === me.tg_id),
+    // 063: владелец и администраторы события — владелец первым, остальные по имени
+    organizers: organizersView(users, ownerId),
     other_events: events.filter((e) => e.id !== ev.id).map((e) => ({ id: e.id, title: e.title, status: e.status })),
     settings: {
       ...publicEvent(ev),
@@ -100,28 +103,22 @@ export async function memberLetter(ctx, ev, rawId) {
   return { ok: true, name: u.name, wishlist: m.wishlist, card: m.card, updated_at: m.wishlist_updated_at };
 }
 
-// Человек состоит больше чем в одной компании (051, FR-5116): его имя меняет он сам или владелец бота
-export const companyCountQuery = (db, userId) => db.prepare('SELECT COUNT(*) AS n FROM company_members WHERE user_id = ?').bind(userId);
-
-// admin.users: зарегистрированные люди компании (без гостя) и её владелец
-export async function usersList(ctx) {
-  const [all, ownerId] = await Promise.all([ctx.users(), ctx.ownerId()]);
-  const users = all.filter((u) => u.registered && !u.guest);
-  return {
-    users: users.map((u) => ({ id: u.tg_id, name: u.name, username: u.username, is_admin: !!u.is_admin, is_owner: u.tg_id === ownerId })),
-    owner_id: ownerId,
-    owner_name: users.find((u) => u.tg_id === ownerId)?.name || '',
-  };
+// Организаторы события (зарегистрированные, без гостя): { id, name, username, owner }
+function organizersView(users, ownerId) {
+  return users
+    .filter((u) => u.is_admin && u.registered && !u.guest)
+    .map((u) => ({ id: u.tg_id, name: u.name, username: u.username, owner: u.tg_id === ownerId }))
+    .sort((x, y) => Number(y.owner) - Number(x.owner) || x.name.localeCompare(y.name));
 }
 
-// Переименование (025): запись общего журнала «старое → новое» — только при настоящем изменении. По прежнему
-// состоянию (020): запись — пока имя другое, само имя — последним (захват). Второй вызов с тем же именем ничего не
-// пишет и тоже успех: имя уже такое, какое просили. Права и длину проверяет строка admin.rename. companies — в чьи общие
-// журналы запись (050): организатор — компания вызова, сам человек — каждая его компания; пакет и условие — общие.
-export async function renameUser(ctx, target, name, actor, companies) {
+// Переименование (025): запись «старое → новое» — только при настоящем изменении. По прежнему состоянию (020): запись —
+// пока имя другое, само имя — последним (захват). Второй вызов с тем же именем ничего не пишет и тоже успех: имя уже
+// такое, какое просили. Права и длину проверяет строка действия. 063: журнал бота — только у переименования владельцем
+// бота (log); своё имя (name.set) журналы не пишет
+export async function renameUser(ctx, target, name, actor, log) {
   if (target.name === name) return;
   const a = atomic(ctx.db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND name IS NOT ?)', target.tg_id, name);
-  for (const id of companies) a.audit({ company: id }, actor, 'rename', tjoin(' → ', [displayName(target), name]));
+  if (log) a.audit(BOT_LOG, actor, 'rename', tjoin(' → ', [displayName(target), name]));
   a.claim(a.where('UPDATE users SET name = ? WHERE tg_id = ?', name, target.tg_id));
   await a.run();
 }

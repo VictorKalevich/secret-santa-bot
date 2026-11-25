@@ -42,13 +42,13 @@ async function world() {
     if (!known) await w.say(u, u.name);
   };
   const create = async (title, people) => {
-    const id = (await w.api(boss, 'admin.events.create', { title })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title })).event.id;
     const code = await invite(id);
     for (const u of people) await join(u, code);
     return id;
   };
   const E = await create('Проверка', [adm, anya, borya, vera]);
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: E, id: adm.id });
   return { w, E, create, invite, join };
 }
 const records = (w, action, ev = null) => (ev === null
@@ -86,7 +86,8 @@ describe('служебный просмотр: слово ОТКРЫТЬ про�
 
   it('админ со словом — прежний отказ по правам; нет события — 404', async () => {
     const r = await w.api(adm, 'admin.vault.pairs', { event: E, confirm: 'ОТКРЫТЬ' }, true);
-    assert.deepEqual([r.status, r.data.error], [403, 'Служебный просмотр доступен только владельцу бота.']);
+    // 063: у события свой владелец (создатель) — «владельцу»
+    assert.deepEqual([r.status, r.data.error], [403, 'Служебный просмотр доступен только владельцу.']);
     const missing = await w.api(boss, 'admin.vault.person', { event: 999999, id: anya.id }, true);
     assert.deepEqual([missing.status, missing.data.error], [404, 'Событие не найдено.']);
   });
@@ -133,31 +134,37 @@ describe('перенос участия: «кто сделал» — у ново
   });
 });
 
+// 063: переименовывает только владелец бота, запись — в журнале бота
 describe('переименование — запись журнала при настоящем изменении (025, US3)', () => {
   let w;
   before(async () => ({ w } = await world()));
 
   it('смена имени — одна запись «старое → новое» от переименовавшего', async () => {
-    await w.api(adm, 'admin.rename', { id: anya.id, name: 'Анна' });
+    await w.api(boss, 'admin.rename', { id: anya.id, name: 'Анна' });
     const rows = records(w, 'rename', 0);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].details, 'Аня → Анна');
-    const entry = (await w.api(boss, 'admin.audit')).entries.find((e) => e.action === 'rename');
-    assert.equal(entry.actor_name, adm.name);
+    const entry = (await w.api(boss, 'bot.audit')).entries.find((e) => e.action === 'rename');
+    assert.equal(entry.actor_name, boss.name);
   });
 
   it('то же имя (и с лишними пробелами) — успех без записи', async () => {
-    await w.api(adm, 'admin.rename', { id: anya.id, name: 'Анна' });
-    await w.api(adm, 'admin.rename', { id: anya.id, name: '  Анна ' });
+    await w.api(boss, 'admin.rename', { id: anya.id, name: 'Анна' });
+    await w.api(boss, 'admin.rename', { id: anya.id, name: '  Анна ' });
     assert.equal(records(w, 'rename', 0).length, 1);
     assert.equal(w.query('SELECT name FROM users WHERE tg_id = ?', anya.id)[0].name, 'Анна');
   });
 
   it('себя — тоже с записью', async () => {
-    await w.api(adm, 'admin.rename', { id: adm.id, name: 'Админ Петров' });
+    await w.api(boss, 'admin.rename', { id: boss.id, name: 'Владелец Петров' });
     const rows = records(w, 'rename', 0);
     assert.equal(rows.length, 2);
-    assert.deepEqual([rows[1].actor, rows[1].details], [adm.id, 'Админ → Админ Петров']);
+    assert.deepEqual([rows[1].actor, rows[1].details], [boss.id, 'Владелец → Владелец Петров']);
+  });
+
+  it('организатор события — отказ', async () => {
+    const r = await w.api(adm, 'admin.rename', { id: anya.id, name: 'Аннушка' }, true);
+    assert.deepEqual([r.status, r.data.error], [403, 'Переименовать человека может только владелец бота.']);
   });
 });
 
@@ -166,7 +173,7 @@ describe('заявка в завершённом событии: отклони�
     const { w, E, invite, join } = await world();
     await w.say(adm2, '/start ' + (await invite(E)));
     await w.say(adm2, adm2.name);
-    await w.api(boss, 'admin.role.grant', { id: adm2.id });
+    await w.api(boss, 'admin.role.grant', { event: E, id: adm2.id });
     await w.api(boss, 'admin.game', { event: E, approval: true });
     await join(gena, await invite(E));
     const req = (await w.api(boss, 'admin.state', { event: E })).requests.find((r) => r.user_id === gena.id);

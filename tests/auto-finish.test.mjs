@@ -1,6 +1,6 @@
 // 056 (specs/056-auto-finish-stale/, контракт contracts/auto-finish.md): автозавершение брошенных событий в открытом боте.
 // Правила А (дата вручения прошла 7 дней назад), Г (без даты, без жеребьёвки, никого, кроме владельца и администраторов,
-// 23 дня от создания), Б (без даты, 113 дней) → предупреждение администраторам компании, через 7 дней — обычное
+// 23 дня от создания), Б (без даты, 113 дней) → предупреждение администраторам события, через 7 дней — обычное
 // завершение; перестало подходить — отметка снимается; закрытый бот — как раньше; ежедневный шаг читает участников только
 // у кандидатов Г и по индексам, обычная минута — 3 запроса.
 import { describe, it, test, before, after } from 'node:test';
@@ -29,20 +29,26 @@ const KEEP_AGE = 'Если событие ещё нужно — укажи да�
 const WHY_EMPTY = 'В него пока никто не вступил, кроме владельца и администраторов.';
 const WHY_AGE = 'У него нет даты вручения, а создано оно больше трёх месяцев назад.';
 
-// Мир: владелец бота; в открытом — Аня создаёт свою компанию, Боря — её администратор; в закрытом — компания 1 владельца бота
+// Мир: владелец бота; в открытом — события создаёт Аня, Боря — администратор каждого её события (063: прежде —
+// администратор её комнаты), сам не участвует; в закрытом — события владельца бота
 async function world(open = true) {
   const w = await startWorld({ open });
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const z = { w, lead: open ? org : boss, company: 1 };
+  const z = { w, lead: open ? org : boss };
   z.join = async (u, id) => {
     const known = w.query('SELECT registered FROM users WHERE tg_id = ?', u.id)[0]?.registered;
     await w.say(u, '/start ' + inviteOf(await w.api(z.lead, 'admin.state', { event: id })));
     if (!known) await w.say(u, u.name);
   };
   z.event = async (title, members = []) => {
-    const id = (await w.api(z.lead, 'admin.events.create', { company: z.company, title })).event.id;
+    const id = (await w.api(z.lead, 'event.create', { participate: false, title })).event.id;
+    if (open) {
+      await z.join(adm, id);
+      await w.api(org, 'admin.role.grant', { event: id, id: adm.id });
+      await w.api(adm, 'admin.participate', { event: id, on: false });
+    }
     for (const u of members) await z.join(u, id);
     return id;
   };
@@ -64,9 +70,7 @@ async function world(open = true) {
   if (open) {
     await w.say(org, '/start');
     await w.say(org, org.name);
-    z.company = (await w.api(org, 'company.create', { name: 'Семья' })).company;
-    const first = await z.event('Знакомство', [adm]);
-    await w.api(org, 'admin.role.grant', { id: adm.id });
+    const first = await z.event('Знакомство');
     z.set(first, { event_date: local(60) }); // будущая дата — правила его не трогают
   }
   return z;
@@ -130,7 +134,7 @@ describe('056: открытый бот', () => {
     await z.daily();
     const text = WARN('Ёлка', local(7), `Дата вручения (${formatDate(local(-7))}) уже прошла.`, KEEP_DATE);
     for (const u of [org, adm]) assert.deepEqual(z.warns(u, 'Ёлка'), [text], u.name);
-    for (const u of [boss, ...people.slice(0, 2)]) assert.equal(z.warns(u, 'Ёлка').length, 0, `${u.name}: не администратор компании`);
+    for (const u of [boss, ...people.slice(0, 2)]) assert.equal(z.warns(u, 'Ёлка').length, 0, `${u.name}: не администратор события`);
     const sent = w.calls.find((c) => c.method === 'sendMessage' && c.params.chat_id === org.id && c.params.text === text);
     const button = sent.params.reply_markup.inline_keyboard[0][0];
     assert.equal(button.text, '⚙️ Открыть событие');
@@ -295,7 +299,7 @@ test('056: ежедневный шаг — участники только у к
   // 057: только не проверенные сегодня — поиском по индексу events_unchecked
   assert.ok(plan.some((d) => /^SEARCH events USING (?:COVERING )?INDEX events_unchecked \(checked_on<\?\)/.test(d)), plan.join(' | '));
   assert.ok(plan.some((d) => /^SEARCH m USING (?:COVERING )?INDEX \w+ \(event_id=\?/.test(d)), plan.join(' | '));
-  assert.ok(plan.some((d) => /^SEARCH cm USING (?:COVERING )?INDEX \w+ \(company_id=\? AND user_id=\?\)/.test(d)), plan.join(' | '));
+  assert.ok(plan.some((d) => /^SEARCH a USING (?:COVERING )?INDEX \w+ \(event_id=\? AND user_id=\?\)/.test(d)), plan.join(' | '));
   assert.equal(z.warns(org, 'План').length, 1, 'кандидат Г обработан');
 
   // Подзапрос считается только у кандидатов: в закрытом боте и у проверенных сегодня — -1

@@ -16,7 +16,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 
 ## Phase 1: Setup (данные)
 
-- [ ] T001 Миграция `migrations/0024_events_without_rooms.sql` по `data-model.md`: комментарий (063: применять до выката
+- [X] T001 Миграция `migrations/0024_events_without_rooms.sql` по `data-model.md`: комментарий (063: применять до выката
   кода, прежний код со схемой 24 работает; после выката — `tools/rooms-reconcile.sql`; таблицы комнат остаются ради
   отката); `ALTER TABLE events ADD COLUMN owner_id INTEGER NOT NULL DEFAULT 0`; `ALTER TABLE users ADD COLUMN can_create
   INTEGER NOT NULL DEFAULT 0`; `CREATE TABLE event_admins (event_id, user_id, created_at, PRIMARY KEY (event_id,
@@ -28,11 +28,11 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
   `events.created_at`) для каждого события, включая завершённые; 3) `event_creations` — `INSERT OR IGNORE … SELECT id,
   created_by, created_at FROM events WHERE created_by != 0`; 4) `users.can_create = 1` — администраторам комнат и
   назначенным владельцам комнат; 5) `settings.schema = 24`
-- [ ] T002 `tools/rooms-reconcile.sql`: комментарий (сверка после выката 063 и после возврата к 063 с прежнего кода;
+- [X] T002 `tools/rooms-reconcile.sql`: комментарий (сверка после выката 063 и после возврата к 063 с прежнего кода;
   идемпотентна; события, созданные прежним кодом между миграцией и выкатом — `owner_id = 0 AND company_id != 0`);
   операторы 1–4 миграции, ограниченные такими событиями (и `event_creations` — для всех, `INSERT OR IGNORE`), без
   версии схемы
-- [ ] T003 `src/db.js`: `REQUIRED_SCHEMA = 24`; `REGISTRY`: `events.people` — `{ created_by: ACTOR, owner_id: ACTOR }`,
+- [X] T003 `src/db.js`: `REQUIRED_SCHEMA = 24`; `REGISTRY`: `events.people` — `{ created_by: ACTOR, owner_id: ACTOR }`,
   новые `event_admins` (`event: 'event_id'`, `people: { user_id: MEMBER }`, `onEventDelete: 'delete'`, `onLeave: 'keep'`,
   `onTransfer: 'dedupe'`) и `event_creations` (`event: 'event_id'`, `people: { user_id: ACTOR }`, `onEventDelete:
   'keep'`, `onTransfer: 'update'`); `users.transferBefore` — ещё `can_create` (MAX); убрать `onCompanyDelete` у всех
@@ -44,68 +44,68 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 **Цель**: контекст события вместо контекста компании, конвейер API без компаний, все модули работают от события;
 приложение ещё прежнее по виду. Блокирует все истории.
 
-- [ ] T004 `src/db.js` — запросы людей события: `eventUsersQuery(db, eventId)` — участники ∪ организаторы события
+- [X] T004 `src/db.js` — запросы людей события: `eventUsersQuery(db, eventId)` — участники ∪ организаторы события
   (`event_admins`), поле `is_admin` — строка организатора; владелец бота без строки — гость (`guest: true, is_admin: 0`),
   как `companyUsersQuery` в 050; `eventUsersFrom` вместо `companyUsersFrom`; `EVENT_ADMIN` вместо `COMPANY_ADMIN` в
   `panelMembersQuery` и `peopleQuery` (`EXISTS (SELECT 1 FROM event_admins …)`); удалить `companiesQuery`,
   `companyQuery`, `myCompaniesQuery`, `companyUsersQuery`, `companyEventsQuery`, `joinCompanyStmt`
-- [ ] T005 `src/db.js` — `adminFlagStmt(db, userId)`: `is_admin = EXISTS (event_admins по человеку) OR владелец бота
+- [X] T005 `src/db.js` — `adminFlagStmt(db, userId)`: `is_admin = EXISTS (event_admins по человеку) OR владелец бота
   (settings.owner_id)`; `myEventsQuery` — участник ∪ организатор, с ролью (`owner` по `events.owner_id`, `admin` — строка
   `event_admins`, иначе `member`), по индексам; `eventsQuery` — без `company_id`
-- [ ] T006 `src/db.js` — журнал: `auditSphere` — число (событие) или `BOT_LOG`, `{ company }` — ошибка; все вставки
+- [X] T006 `src/db.js` — журнал: `auditSphere` — число (событие) или `BOT_LOG`, `{ company }` — ошибка; все вставки
   `audit` пишут `company_id = 0` явно (умолчание колонки — 1); `getAudit(db, sphere, …)` — событие или `BOT_LOG` (`WHERE
   event_id = 0`, индекс `audit_bot`); прямые `INSERT INTO audit` в модулях (`src/events.js`) — через `auditStmt` или с
   `company_id = 0`
-- [ ] T007 `src/context.js`: убрать `companies()`, `company()`, `mine()`, `soleCompany()`, `in()`, `bindCompany`, чтения
+- [X] T007 `src/context.js`: убрать `companies()`, `company()`, `mine()`, `soleCompany()`, `in()`, `bindCompany`, чтения
   компаний из первого пакета `openContext` (`me`, `settings`, запись владельца бота — как были); новый `ctx.at(ev)` —
   привязанный контекст события (один на событие за вызов): `event`, `me.is_admin` (организатор этого события или владелец
   бота), `users()` (`eventUsersQuery`), `ownerId()` (`ev.owner_id || botOwnerId()`), `isOwner()` (владелец события или
   владелец бота), `ownerWord()` (`owner_id = 0` → «владелец бота»), `read({ users })`; у общего контекста `users()`,
   `ownerId()`, `isOwner()`, `ownerWord()` — ошибка «контекст без события»; `forgetUsers()` — сброс кэша людей событий
-- [ ] T008 Новый `src/creation.js`: `openBot(env)` (перенос из `companies.js`, единственное чтение `OPEN_BOT`),
+- [X] T008 Новый `src/creation.js`: `openBot(env)` (перенос из `companies.js`, единственное чтение `OPEN_BOT`),
   `LIMIT_EVENTS = 10`, `LIMIT_MS = 365 * 86400000`, `canCreate(ctx)` (владелец бота; открытый бот — любой
   зарегистрированный; закрытый — `can_create = 1`), `creationsQuery(db, userId, since)` (счёт и `MIN(created_at)` окна),
   `createView(ctx)` → `{ bot: true }` | `{ left, limit, next }` | `null`, условие вставки `createGuard(ctx, now)` (SQL и
   параметры: разрешение в закрытом боте, лимит — кроме владельца бота)
-- [ ] T009 `src/api.js` — конвейер: убрать признак `company`, `ctx.in`, «Выбери комнату.»; с событием — `ctx.at(ev)`;
+- [X] T009 `src/api.js` — конвейер: убрать признак `company`, `ctx.in`, «Выбери комнату.»; с событием — `ctx.at(ev)`;
   организатор другого события: участник этого события — 403 `ADMIN_ONLY`, иначе 404; действие без события с ролью
   `OWNER` и `bot: true` — `ctx.isBotOwner()`, иначе 403 текстом `owner`; импорт `openBot` — из `src/creation.js`
-- [ ] T010 `src/participant.js`: `menuEvents` — без `company_id`; `homeView` — без `companies`, `events[].company`;
+- [X] T010 `src/participant.js`: `menuEvents` — без `company_id`; `homeView` — без `companies`, `events[].company`;
   события с `role`, `create` — `createView`; `eventView` — без `event.company`, `event.role` (`owner` | `admin` | `member`
   | `guest`); `rosterView` — организаторы и роли по событию (`ctx.at(ev).users()`), импорты из `companies.js` убрать
-- [ ] T011 `src/panel.js`: `adminState` — `users[].is_admin` по событию, `organizers` (владелец первым, остальные по
+- [X] T011 `src/panel.js`: `adminState` — `users[].is_admin` по событию, `organizers` (владелец первым, остальные по
   имени), `other_events` — события, где вызывающий организатор (владелец бота — ещё события владельца этого события),
   без текущего; `settings.owner_id`; удалить `companyCountQuery`; `usersList` — только для `bot.people` (или удалить, если
   не нужен); `renameUser(ctx, target, name, actor)` — журнал бота `rename` при изменении
-- [ ] T012 `src/support.js`: `supportCountsQuery` — число организаторов события по `event_admins`; `supportUnreadQuery` —
+- [X] T012 `src/support.js`: `supportCountsQuery` — число организаторов события по `event_admins`; `supportUnreadQuery` —
   ничьи в событиях, где он организатор; `returnThreadsStmts(db, settings, users, adminId, eventId, guard)` — по событию
-- [ ] T013 `src/membership.js`: без `joinCompanyStmt` (строки вступления, заявок, «Я участвую», возврата); `decideRequest`
+- [X] T013 `src/membership.js`: без `joinCompanyStmt` (строки вступления, заявок, «Я участвую», возврата); `decideRequest`
   — `ctx.at(ev)` вместо `ctx.in(req.company_id)`; `leaveEvent` — получатели по организаторам события
-- [ ] T014 `src/pairs.js`: `previousPairsQuery` — `WHERE e.owner_id = ? AND p.event_id != ? AND e.created_at <= ?`
+- [X] T014 `src/pairs.js`: `previousPairsQuery` — `WHERE e.owner_id = ? AND p.event_id != ? AND e.created_at <= ?`
   (параметр — `ev.owner_id`), правило выбора прежнее (R7)
-- [ ] T015 `src/stale.js`: `dailyEventsQuery` — `outsiders` без `company_members`: участники, кроме организаторов
+- [X] T015 `src/stale.js`: `dailyEventsQuery` — `outsiders` без `company_members`: участники, кроме организаторов
   события (`event_admins`) и владельца бота; `warnStale` — получатели `adminRecipients` из `ctx.at(ev).users()`;
   `src/cron.js` — `ctx.at(ev)` вместо `inCompany`, `openBot` из `src/creation.js`
-- [ ] T016 `src/events.js`: `deleteEvent` — журнал бота `event.delete` (`«<название>», участников: <n>`) вместо `{ company
+- [X] T016 `src/events.js`: `deleteEvent` — журнал бота `event.delete` (`«<название>», участников: <n>`) вместо `{ company
   }`, после удаления строк `event_admins` — `adminFlagStmt` организаторов; приглашение из события и прочие пути — через
   `ctx.at(ev)`; `resetEvent` не трогает `event_admins`, `owner_id`, `event_creations`
-- [ ] T017 `src/roles.js`: `resolveOwner` — запасной поиск владельца бота по организаторам событий с `owner_id = 0` (не по
+- [X] T017 `src/roles.js`: `resolveOwner` — запасной поиск владельца бота по организаторам событий с `owner_id = 0` (не по
   компаниям); `setOwner` — без `companies`/`company_members` (журнал бота, флаги); `transferBotOwnership` — цель любой
   зарегистрированный, кроме себя; `transferAccount` — без компаний: проверка цели по общему признаку `is_admin` и
   владельцу бота, сообщения — организаторам событий старой записи, журнал бота `transfer`; `grantAdmin`/`revokeAdmin` —
   через `event_admins` (подробно — US3)
-- [ ] T018 `src/bot.js`: `ctx.at(ev)` вместо `ctx.in(ev.company_id)` везде; `onInvite`/`memberWithCompany` — без
+- [X] T018 `src/bot.js`: `ctx.at(ev)` вместо `ctx.in(ev.company_id)` везде; `onInvite`/`memberWithCompany` — без
   `joinCompanyStmt` и чтения компании; меню — без `menuCompanyTitles` и `bot.menu.eventInRoom`; `/start own_…` и
   `name_own:…` — US4 (T047)
-- [ ] T019 Удалить `src/companies.js`; `src/i18n/ru/companies.js` → ключи, ещё нужные (журнал бота, `botAudit`), — в
+- [X] T019 Удалить `src/companies.js`; `src/i18n/ru/companies.js` → ключи, ещё нужные (журнал бота, `botAudit`), — в
   `src/i18n/ru/bot-owner.js` (новая область `botOwner`, строка в `AREAS` `ru/index.js`); прочие ключи компаний — удалить;
   `src/api.js` — убрать строки `company.label.set`, `company.create`, `company.delete`, `bot.company.create`,
   `bot.company.link`, `bot.company.delete`, `admin.users`
-- [ ] T020 `tests/support/companies.mjs` → `tests/support/events.mjs`: помощники «два владельца, организаторы, гость»
+- [X] T020 `tests/support/companies.mjs` → `tests/support/events.mjs`: помощники «два владельца, организаторы, гость»
   (`addOwner`, `grant`, `invariants` E1–E4 по `data-model.md`); `tests/support/world.mjs` — без компании 1 в начальных
   данных сценариев (события создаются владельцем); `tests/support/queries-scenario.mjs`,
   `tests/support/refusals-scenario.mjs` — события без `company`
-- [ ] T021 Прогон `npm test`: поправить тесты, падающие только из-за удалённых полей (`company`, `companies`) и запросов;
+- [X] T021 Прогон `npm test`: поправить тесты, падающие только из-за удалённых полей (`company`, `companies`) и запросов;
   тесты компаний (`companies`, `companies-manage`, `open-bot`, `app-companies`) — пометить к замене в US1–US6 (до замены —
   убрать из `package.json`, вернуть новыми файлами)
 
@@ -170,7 +170,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
   через 365 суток — снова можно, удалённые и переданные считаются, владелец бота без лимита; закрытый бот — без
   разрешения отказ, с разрешением можно; незнакомец открытого бота — имя → создание; `me.create` во всех случаях; «от
   противного» (условие лимита убрано — тест падает)
-- [ ] T036 [US2] `tests/atomic.test.mjs`: два создания у границы лимита (9 создано) в обоих порядках — одно событие,
+- [X] T036 [US2] `tests/atomic.test.mjs`: два создания у границы лимита (9 создано) в обоих порядках — одно событие,
   второму отказ лимита; создание ↔ снятие разрешения — один результат
 
 ## Phase 5: User Story 3 — владелец и организаторы события (P1)
@@ -199,11 +199,11 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 - [ ] T041 [US3] `tests/event-owners.test.mjs` — права: организатор А не видит событие Б того же владельца (404; участник Б
   — 403), назначение только участника, снятие не владельца, передача владения (роли, сообщения, журнал), снятие
   возвращает обращения, событие пропадает из списка снятого неучастника; инварианты E1–E4 после каждого шага
-- [ ] T042 [US3] `tests/rights.test.mjs`: роли — владелец бота, владелец события, организатор события, организатор
+- [X] T042 [US3] `tests/rights.test.mjs`: роли — владелец бота, владелец события, организатор события, организатор
   другого события, участник; список `admin.*` — из `ACTIONS`; «владелец бота ⊇ владелец события ⊇ организатор»;
   организатор другого события — 404/403 на каждом действии (SC-004); `admin.rename`/`admin.transfer` — только владелец
   бота
-- [ ] T043 [US3] `tests/atomic.test.mjs`: назначение ×2, снятие ×2, назначение ↔ снятие, передача владения ×2 (одному и
+- [X] T043 [US3] `tests/atomic.test.mjs`: назначение ×2, снятие ×2, назначение ↔ снятие, передача владения ×2 (одному и
   разным) — один результат, одна запись журнала, одно сообщение; убрать случаи компаний (050–052)
 - [ ] T044 [US3] Замена `tests/companies.test.mjs` и `tests/companies-manage.test.mjs` на проверки событий в
   `tests/event-owners.test.mjs` (статические правила: права не из `users.is_admin` в SQL модулей, кроме разрешённых мест;

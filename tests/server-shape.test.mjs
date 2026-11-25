@@ -47,7 +47,7 @@ describe('029: параметры события', () => {
     await w.say(boss, '/start ' + s.adminCode);
     await w.say(boss, boss.name);
     columns = w.query('PRAGMA table_info(events)');
-    A = (await w.api(boss, 'admin.events.create', { title: 'Образец' })).event.id;
+    A = (await w.api(boss, 'event.create', { participate: false, title: 'Образец' })).event.id;
     // Каждый параметр — не по умолчанию: общим сохранением, параметры со своим действием — своим
     const body = Object.fromEntries(Object.entries(EVENT_PARAMS).filter(([, p]) => !p.own).map(([k, p]) => [k, changed(p)]));
     await w.api(boss, 'admin.game', { event: A, ...body });
@@ -91,10 +91,10 @@ describe('029: параметры события', () => {
   });
 
   it('событие по образцу: копируемые параметры — образца, остальные — по умолчанию', async () => {
-    const B = (await w.api(boss, 'admin.events.create', { title: 'По образцу', from: A })).event.id;
+    const B = (await w.api(boss, 'event.create', { participate: false, title: 'По образцу', from: A })).event.id;
     const a = row(A), b = row(B);
     for (const [k, p] of Object.entries(EVENT_PARAMS)) assert.equal(b[k], p.template ? a[k] : p.default, k);
-    const C = (await w.api(boss, 'admin.events.create', { title: 'С чистого листа' })).event.id;
+    const C = (await w.api(boss, 'event.create', { participate: false, title: 'С чистого листа' })).event.id;
     const c = row(C);
     for (const [k, p] of Object.entries(EVENT_PARAMS)) assert.equal(c[k], p.default, k);
   });

@@ -26,7 +26,7 @@ const NOT_IN_DRAW = 'Участник не в жеребьёвке.';
 const STALE = 'Пары уже изменились — открой обмен заново.';
 const SELF = 'Этих двоих поменять нельзя — выбери другую пару.';
 const CHANGED = 'Правила жеребьёвки для этого обмена изменились — проверь ещё раз.';
-const OWNER_ONLY = 'Менять подопечных после жеребьёвки может только владелец бота.';
+const OWNER_ONLY = 'Менять подопечных после жеребьёвки может только владелец.'; // 063: владелец события
 const CLOSED = 'Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление).';
 const SANTA_NOTE = 'Владелец изменил жеребьёвку';
 // 060: SWAP_RULES — ключи словаря; текст правила в ответе — на языке вызывающего
@@ -40,13 +40,13 @@ async function world() {
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const ev = (await w.api(boss, 'admin.events.create', { title: 'Обмен' })).event.id;
+  const ev = (await w.api(boss, 'event.create', { participate: false, title: 'Обмен' })).event.id;
   const code = inviteOf(await w.api(boss, 'admin.state', { event: ev }));
   for (const u of [adm, p1, p2, p3, p4, p5]) {
     await w.say(u, '/start ' + code);
     await w.say(u, u.name);
   }
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: ev, id: adm.id });
   await w.api(boss, 'admin.draw', { event: ev });
   setPairs(w, ev, CYCLE.map((id, i) => [id, CYCLE[(i + 1) % CYCLE.length]]));
   const pairs = () => new Map(w.query('SELECT santa, ward FROM pairs WHERE event_id = ?', ev).map((r) => [r.santa, r.ward]));
@@ -217,7 +217,7 @@ describe('обмен вопреки правилам (US2) и невозможн
     assert.deepEqual(await rulesOf(p1, p4), ['exclusion'], 'закреплённая пара, которая и так не действовала, — не нарушение');
     z.w.sql(`DELETE FROM fixed_pairs WHERE event_id = ${z.ev}`);
 
-    const prev = (await z.w.api(boss, 'admin.events.create', { title: 'Прошлое' })).event.id;
+    const prev = (await z.w.api(boss, 'event.create', { participate: false, title: 'Прошлое' })).event.id;
     z.w.sql(`UPDATE events SET created_at = 1 WHERE id = ${prev}`);
     z.w.sql(`INSERT INTO pairs (event_id, santa, ward) VALUES (${prev}, ${p1.id}, ${p5.id})`);
     assert.deepEqual(await rulesOf(p1, p4), ['exclusion', 'history']);
@@ -301,7 +301,7 @@ describe('отказы и права', () => {
   });
 
   it('жеребьёвка не проведена, тайна раскрыта, событие завершено', async () => {
-    const fresh = (await z.w.api(boss, 'admin.events.create', { title: 'Без жеребьёвки' })).event.id;
+    const fresh = (await z.w.api(boss, 'event.create', { participate: false, title: 'Без жеребьёвки' })).event.id;
     for (const action of ['admin.draw.swap.check', 'admin.draw.swap']) {
       const r = await z.w.api(boss, action, { event: fresh, a: p1.id, b: p4.id }, true);
       assert.deepEqual([r.status, r.data.error], [400, NO_DRAW], action);

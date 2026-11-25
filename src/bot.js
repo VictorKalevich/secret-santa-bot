@@ -1,10 +1,10 @@
 // Обработка сообщений в чате с ботом (webhook от Telegram).
 // 029: у каждой команды и каждого вида кнопки — свой обработчик; запросов к базе здесь нет (чтения — функциями модулей).
-// 050: обработчик, который нашёл событие, дальше работает с контекстом компании события (ctx.in(ev.company_id)).
+// 063: обработчик, который нашёл событие, дальше работает с контекстом события (ctx.at(ev)).
 
 import {
-  getUser, createUser, createUserStmt, updateUser, updateUserStmt, pairOfSanta, pairOfWard, getEvent, getEventByInvite, getMember,
-  memberQuery, addMemberStmt, clearRemovedStmt, joinCompanyStmt,
+  getUser, createUser, updateUser, pairOfSanta, pairOfWard, getEvent, getEventByInvite, getMember,
+  addMemberStmt, clearRemovedStmt,
 } from './db.js';
 import { tgApi } from './telegram.js';
 import {
@@ -24,7 +24,7 @@ import {
   CLOSED as THREAD_CLOSED, NOT_FOUND as THREAD_NOT_FOUND, OWN_THREAD, NO_SUPPORT_RECIPIENTS,
 } from './support.js';
 import { menuEvents } from './participant.js';
-import { claimCompanyOwner, companyByOwnerCode, menuCompanyTitles, openBot, NEW_COMPANY_OWNER, OWNER_LINK_GONE } from './companies.js';
+import { canCreate, openBot } from './creation.js';
 
 const NAME_PROMPT = tx('bot.name.prompt');
 const NAME_SAVED = tx('bot.name.saved');
@@ -40,6 +40,8 @@ const afterIntro = (intro, text) => (intro ? tjoin('\n\n', [intro, text]) : text
 // Отказ в чате — с «❌»; событие не нашлось — тот же текст, что у API
 const failed = (error) => tx('bot.reply.failed', { error });
 const EVENT_NOT_FOUND = tx('api.noEvent');
+// Ссылка владельца комнаты (051) больше не действует (063)
+const OWN_LINK_GONE = tx('bot.ownLink.gone');
 
 // ---------- режим ответа (pending): сборка и разбор в одном месте (019) ----------
 // В переписку: msg_<ward|santa>:<эвент>:<собеседник>:<время нажатия>; старый формат (до 009) — без двух последних
@@ -83,35 +85,27 @@ function nameOffer(from, intro, joining) {
   ] } });
 }
 
-// Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913). 051: у
-// человека с двумя и более видимыми компаниями рядом с событием — название компании (компании — из первого пакета вызова)
+// Меню: идущие эвенты человека с кнопками переписки. Один запрос к базе на любое число эвентов (009, FR-913)
 async function buildMenu(ctx, user, settings) {
   const results = await menuEvents(ctx.db, user.tg_id);
-  const titles = await menuCompanyTitles(ctx, user.tg_id, new Set(results.map((e) => e.company_id)));
   const active = results.filter((e) => e.status === 'active');
   const finishedCount = results.length - active.length;
   const items = active.slice(0, 5);
 
   const lines = [tx('bot.menu.title'), ''];
   if (!items.length) {
-    lines.push(tx(user.is_admin ? 'bot.menu.noEventsAdmin' : openBot(ctx.env) ? 'bot.menu.noEventsOpen' : 'bot.menu.noEvents'));
+    lines.push(tx((await canCreate(ctx)) ? 'bot.menu.noEventsCreate' : 'bot.menu.noEvents'));
   } else {
     lines.push(tx('bot.menu.events'));
     for (const ev of items) {
       const letter = tx(ev.wishlist.trim() ? 'bot.menu.letterFilled' : 'bot.menu.letterEmpty');
       const draw = tx(!ev.draw_done ? 'bot.menu.drawAhead' : ev.has_ward ? 'bot.menu.wardAssigned' : 'bot.menu.awaitingInsert');
-      lines.push(titles
-        ? tx('bot.menu.eventInRoom', { title: q(ev), room: escapeHtml(titles.get(ev.company_id) ?? ''), letter, draw })
-        : tx('bot.menu.event', { title: q(ev), letter, draw }));
+      lines.push(tx('bot.menu.event', { title: q(ev), letter, draw }));
     }
   }
   if (finishedCount) lines.push('', tx('bot.menu.finished', { n: finishedCount }));
-  if (user.is_admin) {
-    const owner = Number(settings.owner_id || 0) === user.tg_id;
-    // 051: назначенный владелец компании
-    const companyOwner = !owner && [...(await ctx.companies()).values()].some((c) => c.owner_id === user.tg_id);
-    lines.push('', tx(owner ? 'bot.menu.botOwner' : companyOwner ? 'bot.menu.owner' : 'bot.menu.admin'));
-  }
+  // 063: строка роли — только у владельца бота (права остальных — свои в каждом событии)
+  if (user.is_admin && Number(settings.owner_id || 0) === user.tg_id) lines.push('', tx('bot.menu.botOwner'));
   const kb = [[openAppButton(settings)]];
   for (const ev of items.slice(0, 3)) {
     // shortTitle не разрывает эмодзи: кнопка с половинкой эмодзи сломала бы всё меню (009, FR-914)
@@ -216,15 +210,16 @@ async function onStart(c) {
   if (payload.startsWith('adm_') && payload === (await ownerLinkCode(c.env))) return onOwnerLink(c);
   // Пригласительная ссылка эвента (005; 009 — единая логика с вводом имени)
   if (payload.startsWith('inv_')) return onInvite(c, payload.slice(4));
-  // Ссылка владельца компании (051)
-  if (payload.startsWith('own_')) return onCompanyOwnerLink(c, payload.slice(4));
+  // Ссылка владельца комнаты (051) больше не действует (063): ответ, дальше — как /start без ссылки (незнакомцу
+  // закрытого бота — только прежний ответ)
+  if (payload.startsWith('own_') && (c.user || openBot(c.env))) await c.reply(OWN_LINK_GONE);
   if (c.user?.registered) return c.sendMenu();
   if (c.user && c.user.pending.startsWith('name')) return c.askName();
   return onStranger(c);
 }
 
 // Человек без ссылки и без имени (052): в закрытом боте — прежний ответ; в открытом — ожидание имени и просьба имени
-// (047), после имени — меню, своя компания — в приложении
+// (047), после имени — меню, своё событие — в приложении
 async function onStranger(c) {
   if (!openBot(c.env)) return c.reply(tx('bot.closedBot'));
   await (c.user ? c.setPending('name') : createUser(c.db, c.from.id, c.from.username, { pending: 'name', tg_lang: c.ctx.telegramLang }));
@@ -255,37 +250,6 @@ async function onOwnerLink(c) {
   return c.sendMenu();
 }
 
-// Ссылка владельца компании (051, контракт — раздел 4): зарегистрированный становится владельцем сразу, новый — после
-// имени (ожидание name_own:<компания>:<код>), если код к тому времени тот же
-const OWNER_LINK_REPLIES = {
-  gone: OWNER_LINK_GONE,
-  bot: tx('bot.roomLink.bot'),
-  already: tx('bot.roomLink.already'),
-  owner: tx('bot.roomLink.owner', { greeting: NEW_COMPANY_OWNER }),
-};
-async function onCompanyOwnerLink(c, code) {
-  const { db, ctx, from } = c;
-  if (c.user?.registered) {
-    const status = await claimCompanyOwner(ctx, code, c.user);
-    await c.reply(OWNER_LINK_REPLIES[status]);
-    if (status === 'owner') {
-      ctx.forgetUsers(); // права и компании изменились — меню читает их заново
-      await c.reload();
-    }
-    return c.sendMenu();
-  }
-  const company = await companyByOwnerCode(db, code);
-  if (!company) return c.reply(OWNER_LINK_GONE);
-  const pending = `name_own:${company.id}:${code}`;
-  await (c.user ? c.setPending(pending) : createUser(db, from.id, from.username, { pending, tg_lang: ctx.telegramLang }));
-  return c.askName(NEW_COMPANY_OWNER, false);
-}
-
-// Запись участника и компания события одним пакетом (055): новичок ещё не человек компании — ctx.in не читает её отдельно
-async function memberWithCompany(ctx, ev, userId) {
-  return (await ctx.read({ member: memberQuery(ctx.db, ev.id, userId), inCompany: ev.company_id })).member[0] ?? null;
-}
-
 async function onInvite(c, code) {
   const { db, ctx, from, user } = c;
   const ev = await getEventByInvite(db, code);
@@ -293,14 +257,14 @@ async function onInvite(c, code) {
     await c.reply(STALE_INVITE);
     return c.menuIfRegistered();
   }
-  const member = user ? await memberWithCompany(ctx, ev, from.id) : null;
+  const member = user ? await getMember(db, ev.id, from.id) : null;
   if (user?.registered) {
     // Участник открыл ссылку снова — даже после жеребьёвки и закрытия регистрации (009, FR-921)
     if (member) {
       await c.reply(tx('bot.invite.member', { title: q(ev) }));
       return c.sendMenu();
     }
-    if (await replyJoin(c, ev, await joinByInvite(await ctx.in(ev.company_id), ev, user))) return c.sendMenu();
+    if (await replyJoin(c, ev, await joinByInvite(await ctx.at(ev), ev, user))) return c.sendMenu();
     return;
   }
   // Ещё без имени: сначала имя, вступление — после него (joinByInvite). Код ссылки запоминаем, чтобы после имени
@@ -309,11 +273,7 @@ async function onInvite(c, code) {
   // Удалили ещё до ввода имени, а возврат запрещён (010): не добавляем и имя не спрашиваем
   if (!member && user && (await rejoinBlocked(db, ev, from.id))) return c.reply(REMOVED(ev));
   const pending = `name:${ev.id}:${code}`;
-  // Человек компании события (050) — тем же пакетом, что запись или ожидание имени
-  await db.batch([
-    user ? updateUserStmt(db, from.id, { pending }) : createUserStmt(db, from.id, from.username, { pending, tg_lang: ctx.telegramLang }),
-    joinCompanyStmt(db, ev.company_id, from.id),
-  ]);
+  await (user ? c.setPending(pending) : createUser(db, from.id, from.username, { pending, tg_lang: ctx.telegramLang }));
   // Без одобрения человек сразу виден организатору в списке (ещё без имени)
   if (!member && !ev.approval) await db.batch([addMemberStmt(db, ev, from.id), clearRemovedStmt(db, ev.id, from.id)]);
   return c.askName(tx('bot.helloEvent', { title: q(ev) }), true);
@@ -337,21 +297,22 @@ async function onName(c) {
 // ничего не отправлено
 async function signUp(c, name, saved = async () => {}) {
   const { db, from } = c;
-  const own = OWNER_PENDING.exec(c.user.pending);
-  if (own) return signUpOwner(c, name, own[1], saved);
-  const [, eid, code] = c.user.pending.split(':');
-  const ev = Number(eid) ? await getEvent(db, eid) : null;
-  const member = ev ? await memberWithCompany(c.ctx, ev, from.id) : null;
+  const [kind, eid, code] = c.user.pending.split(':');
+  // name_own:… — ожидание имени после ссылки владельца комнаты (051): регистрация без события и без прав (063)
+  const ownLink = kind === 'name_own';
+  const ev = !ownLink && Number(eid) ? await getEvent(db, eid) : null;
+  const member = ev ? await getMember(db, ev.id, from.id) : null;
   const username = from.username || '';
-  const ctx = (ev && (await c.ctx.in(ev.company_id))) || c.ctx;
+  const ctx = ev ? await c.ctx.at(ev) : c.ctx;
   // Уже участник (вступил до имени) — организаторам «присоединяется» в том же пакете, что и имя
   if (!(await register(ctx, name, username, member ? ev : null))) return false;
   await saved();
   c.user = c.ctx.me = { ...c.user, name, username, registered: 1, pending: '' };
   const hello = tx('bot.niceToMeet', { name: escapeHtml(name) });
   if (!ev) {
-    if (eid) await c.reply(afterIntro(hello, STALE_INVITE));
-    else await c.reply(c.user.is_admin ? afterIntro(hello, tx('bot.createFirstEvent')) : hello);
+    if (ownLink) await c.reply(afterIntro(hello, OWN_LINK_GONE));
+    else if (eid) await c.reply(afterIntro(hello, STALE_INVITE));
+    else await c.reply((await canCreate(c.ctx)) ? afterIntro(hello, tx('bot.createFirstEvent')) : hello);
   } else if (member) {
     await c.reply(c.writeLetter(afterIntro(hello, tx('bot.writeLetterFirst', { title: q(ev) })), ev));
   } else if (ev.invite_code !== code) {
@@ -362,22 +323,6 @@ async function signUp(c, name, saved = async () => {}) {
     const status = await joinByInvite(ctx, ev, c.user);
     if (!(await replyJoin(c, ev, status)) && status !== 'closed' && status !== 'removed') return true;
   }
-  await c.sendMenu();
-  return true;
-}
-
-// После ссылки владельца компании (051): имя, затем права — если код ссылки всё ещё тот же
-const OWNER_PENDING = /^name_own:\d+:([a-z0-9]+)$/;
-async function signUpOwner(c, name, code, saved) {
-  if (!(await register(c.ctx, name, c.from.username || ''))) return false;
-  await saved();
-  c.user = c.ctx.me = { ...c.user, name, username: c.from.username || '', registered: 1, pending: '' };
-  const owner = (await claimCompanyOwner(c.ctx, code, c.user)) === 'owner';
-  if (owner) {
-    c.ctx.forgetUsers();
-    await c.reload();
-  }
-  await c.reply(afterIntro(tx('bot.niceToMeet', { name: escapeHtml(name) }), tx(owner ? 'bot.createFirstEvent' : 'bot.roomLink.gone')));
   await c.sendMenu();
   return true;
 }
@@ -400,7 +345,7 @@ async function onChatReply(c, mode) {
   const ev = await getEvent(db, mode.event);
   await c.setPending('');
   if (!ev) return c.reply(failed(EVENT_NOT_FOUND));
-  const res = await sendChatMessage(await ctx.in(ev.company_id), ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: mode.other });
+  const res = await sendChatMessage(await ctx.at(ev), ev, from.id, toWard ? 'ward' : 'santa', text, { expectOther: mode.other });
   if (res.ok) return c.reply(tx(toWard ? 'bot.reply.toWardSent' : 'bot.reply.toSantaSent'));
   return c.reply(res.pairChanged ? res.error : failed(res.error));
 }
@@ -414,7 +359,7 @@ async function onSupportReply(c, mode) {
   if (mode.who === 'u') {
     const ev = await getEvent(db, mode.id);
     if (!ev || !(await getMember(db, ev.id, from.id))) return c.reply(failed(NOT_MEMBER));
-    const res = await sendFromUser(await ctx.in(ev.company_id), ev, text);
+    const res = await sendFromUser(await ctx.at(ev), ev, text);
     return c.reply(res.ok ? tx('bot.support.sent') : failed(res.error));
   }
   const ADMINS_ONLY = tx('bot.support.adminsOnly');
@@ -422,10 +367,10 @@ async function onSupportReply(c, mode) {
   const t = await threadById(db, mode.id);
   const ev = t ? await getEvent(db, t.event_id) : null;
   if (!ev) return c.reply(failed(THREAD_NOT_FOUND));
-  // Права — в компании события (050): тот же отказ
-  const company = await ctx.in(ev.company_id);
-  if (!company?.me.is_admin) return c.reply(ADMINS_ONLY);
-  const res = await sendFromAdmin(company, ev, Number(mode.id), text);
+  // Права — в событии (063): тот же отказ
+  const inEvent = await ctx.at(ev);
+  if (!inEvent.me.is_admin) return c.reply(ADMINS_ONLY);
+  const res = await sendFromAdmin(inEvent, ev, Number(mode.id), text);
   return c.reply(res.ok ? tx('bot.support.answered') : tx('bot.support.notSent', { error: res.error }));
 }
 
@@ -443,7 +388,7 @@ async function handleCallback(cq, env) {
   if (lang) return onLanguageButton(cq, env, lang[1]);
   const db = env.DB;
   const from = cq.from;
-  // Пользователь, настройки, его компании и владелец бота — одним пакетом (050: вместо одного чтения пользователя);
+  // Пользователь, настройки, события, где он организатор, и владелец бота — одним пакетом (063);
   // 061: язык Telegram нажатия запоминается при изменении
   const ctx = await openContext(env, from.id, { telegramLang: telegramLanguage(from.language_code) });
   await syncLanguage(ctx);
@@ -551,11 +496,11 @@ async function onSupportButton(k, [, kind, id]) {
   const t = await threadById(db, id);
   const ev = t ? await getEvent(db, t.event_id) : null;
   if (!ev) return k.refuse(THREAD_NOT_FOUND);
-  // Права — в компании события (050): тот же отказ
-  const company = await k.ctx.in(ev.company_id);
-  if (!company?.me.is_admin) return k.refuse(ADMIN_ONLY);
+  // Права — в событии (063): тот же отказ
+  const inEvent = await k.ctx.at(ev);
+  if (!inEvent.me.is_admin) return k.refuse(ADMIN_ONLY);
   const name = escapeHtml((await getUser(db, t.user_id))?.name || tx('bot.support.participant'));
-  return kind === 'take' ? onSupportTake(k, company, t, ev, name) : onSupportAnswer(k, t, ev, name);
+  return kind === 'take' ? onSupportTake(k, inEvent, t, ev, name) : onSupportAnswer(k, t, ev, name);
 }
 
 // Участник: «↩️ Ответить» под ответом организатора
@@ -564,7 +509,7 @@ async function onSupportAsk(k, eventId) {
   const ev = await getEvent(db, eventId);
   if (!ev || !(await getMember(db, ev.id, from.id))) return k.refuse(NOT_MEMBER);
   if (!chatWritable(ev)) return k.refuse(SUPPORT_READ_ONLY);
-  if (!supportAvailable(await (await ctx.in(ev.company_id)).users(), from.id)) return k.refuse(NO_SUPPORT_RECIPIENTS);
+  if (!supportAvailable(await (await ctx.at(ev)).users(), from.id)) return k.refuse(NO_SUPPORT_RECIPIENTS);
   await k.setPending(supportPending('u', ev.id));
   return k.prompt(tx('bot.support.ask', { title: q(ev) }));
 }

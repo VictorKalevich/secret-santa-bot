@@ -7,7 +7,6 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
-import { addCompany } from './support/companies.mjs';
 import { APP } from './support/app-source.mjs';
 import { DICTIONARIES } from '../src/i18n/index.js';
 
@@ -42,7 +41,7 @@ async function bossWorld() {
     }
   };
   w.event = async (title, people, extra = {}) => {
-    const ev = (await w.api(boss, 'admin.events.create', { title, ...extra })).event.id;
+    const ev = (await w.api(boss, 'event.create', { participate: false, title, ...extra })).event.id;
     await w.join(ev, people);
     return ev;
   };
@@ -61,7 +60,8 @@ const both = (ev, a, b) => [`${ev}:${a.id}>${b.id}`, `${ev}:${b.id}>${a.id}`];
 // своё исключение Гоша → Аня; Y — без правила, Аня/Боря/Вика; Z — завершённое с правилом, Аня/Боря/Вика; W — после
 // жеребьёвки с правилом, Аня/Вика/Гоша, маски и переписка; V — с правилом и уже исключением Аня → Боря; комната 2 — своя
 // семья Аня/Дима и событие с правилом, где Аня, Боря, Дима. Семьи, правило и маски — строками, как их оставил прежний
-// код (в коде 062 действий для них нет; умолчание колонки «Учитывать семьи» — 1); версия схемы — 22.
+// код (в коде 062 действий для них нет; умолчание колонки «Учитывать семьи» — 1); версия схемы — 22. Комнаты событий —
+// тоже строками (063: новый код создаёт события вне комнат).
 async function world061() {
   const w = await bossWorld();
   const ev = {};
@@ -70,8 +70,8 @@ async function world061() {
   ev.Z = await w.event('Z', [anya, borya, vika]);
   ev.W = await w.event('W', [anya, vika, gosha]);
   ev.V = await w.event('V', [anya, borya]);
-  const c2 = addCompany(w, 'Вторая');
-  ev.C2 = await w.event('C2', [anya, borya, dima], { company: c2 });
+  const c2 = w.query("INSERT INTO companies (name, created_at) VALUES ('Вторая', 1) RETURNING id")[0].id;
+  ev.C2 = await w.event('C2', [anya, borya, dima]);
   await w.api(boss, 'admin.exclusion.add', { event: ev.X, giver: gosha.id, receiver: anya.id });
   await w.api(boss, 'admin.exclusion.add', { event: ev.V, giver: anya.id, receiver: borya.id });
   await w.api(boss, 'admin.draw', { event: ev.W });
@@ -82,6 +82,7 @@ async function world061() {
   w.sql(`INSERT INTO families (id, company_id, name, created_at) VALUES (1, 1, 'Семья', 1), (2, ${c2}, 'Своя', 1);
     INSERT INTO family_members (company_id, user_id, family_id) VALUES
       (1, ${anya.id}, 1), (1, ${borya.id}, 1), (1, ${vika.id}, 1), (${c2}, ${anya.id}, 2), (${c2}, ${dima.id}, 2);
+    UPDATE events SET company_id = CASE WHEN id = ${ev.C2} THEN ${c2} ELSE 1 END;
     UPDATE events SET families_on = CASE WHEN id = ${ev.Y} THEN 0 ELSE 1 END;
     UPDATE events SET status = 'finished' WHERE id = ${ev.Z};
     UPDATE pairs SET mask = 'dragon' WHERE event_id = ${ev.W};
@@ -247,11 +248,12 @@ describe('062: после переноса семьи не действуют', 
     assert.equal(w.query('SELECT families_on FROM events WHERE id = ?', E)[0].families_on, 0);
   });
 
+  // 063: прежние общие записи комнат — в журнале бота
   it('прежняя запись журнала семьи показывается текстом на языке смотрящего', async () => {
     const tx = { $t: 'membership.audit.familySave', $p: { name: 'Ивановы', people: { $j: ['Аня', 'Боря'], $s: ', ' } } };
     w.sql(`INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at)
       VALUES (0, 1, ${boss.id}, 'family.save', '«Ивановы»: Аня, Боря', '${JSON.stringify(tx)}', 1)`);
-    const entry = async (u) => (await w.api(u, 'admin.audit', { company: 1 })).entries.find((e) => e.action === 'family.save');
+    const entry = async (u) => (await w.api(u, 'bot.audit')).entries.find((e) => e.action === 'family.save');
     assert.equal((await entry(boss)).details, '«Ивановы»: Аня, Боря');
     assert.equal((await entry({ ...boss, language_code: 'en' })).details, '“Ивановы”: Аня, Боря');
   });

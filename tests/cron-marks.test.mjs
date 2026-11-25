@@ -34,7 +34,7 @@ async function drawnWorld() {
   await w.say(boss, '/start ' + (await w.setup()).adminCode);
   await w.say(boss, boss.name);
   const create = async (title, people) => {
-    const id = (await w.api(boss, 'admin.events.create', { title })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title })).event.id;
     const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: id })).settings.invite_link)[1];
     for (const u of people) {
       await w.say(u, '/start ' + code);
@@ -208,7 +208,7 @@ async function dailyWorld() {
   await w.say(boss, '/start ' + (await w.setup()).adminCode);
   await w.say(boss, boss.name);
   const create = async (title, list = []) => {
-    const id = (await w.api(boss, 'admin.events.create', { title })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title })).event.id;
     const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: id })).settings.invite_link)[1];
     for (const u of list) {
       await w.say(u, '/start ' + code);

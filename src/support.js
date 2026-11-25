@@ -408,13 +408,13 @@ export async function closeByAdmin(ctx, ev, id) {
 
 // ---------- счётчики ----------
 
-// Для event.get: участнику — есть ли кому писать (организаторы компании события, 050), открытое обращение,
+// Для event.get: участнику — есть ли кому писать (организаторы события кроме него, 063), открытое обращение,
 // непрочитанные ответы; админу — ничьи и непрочитанные во взятых им. Один запрос.
 export const supportCountsQuery = (db, ev, me) => db
     .prepare(
       `SELECT
-         (SELECT COUNT(*) FROM company_members cm JOIN users u ON u.tg_id = cm.user_id
-           WHERE cm.company_id = ?3 AND cm.is_admin = 1 AND u.registered = 1 AND cm.user_id != ?1) AS admins,
+         (SELECT COUNT(*) FROM event_admins a JOIN users u ON u.tg_id = a.user_id
+           WHERE a.event_id = ?2 AND u.registered = 1 AND a.user_id != ?1) AS admins,
          (SELECT COUNT(*) FROM support_messages m JOIN support_threads t ON t.id = m.thread_id
            WHERE t.event_id = ?2 AND t.user_id = ?1 AND m.from_admin = 1 AND m.read_at = 0) AS answers,
          (SELECT t.assignee FROM support_threads t WHERE t.event_id = ?2 AND t.user_id = ?1 AND t.status = 'open') AS assignee,
@@ -424,7 +424,7 @@ export const supportCountsQuery = (db, ev, me) => db
          (SELECT COUNT(*) FROM support_messages m JOIN support_threads t ON t.id = m.thread_id
            WHERE t.event_id = ?2 AND t.status = 'open' AND t.assignee = ?1 AND m.from_admin = 0 AND m.read_at = 0) AS fresh`
     )
-    .bind(me.tg_id, ev.id, ev.company_id);
+    .bind(me.tg_id, ev.id);
 
 export function supportCountsView(rows, { member, admin }) {
   const r = rows[0];
@@ -441,8 +441,8 @@ export function supportCountsView(rows, { member, admin }) {
   return out;
 }
 
-// Для «me»: непрочитанное по эвентам (ответы участнику; админу — ещё ничьи в событиях компаний, где он администратор
-// (050), и сообщения во взятых им)
+// Для «me»: непрочитанное по эвентам (ответы участнику; админу — ещё ничьи в событиях, где он организатор (063), и
+// сообщения во взятых им)
 export function supportUnreadQuery(db, me) {
   const parts = [
     `SELECT t.event_id, COUNT(*) AS n FROM support_messages m JOIN support_threads t ON t.id = m.thread_id
@@ -451,8 +451,7 @@ export function supportUnreadQuery(db, me) {
   if (me.is_admin) {
     parts.push(
       `SELECT event_id, COUNT(*) AS n FROM support_threads WHERE status = 'open' AND assignee = 0 AND user_id != ?1
-          AND event_id IN (SELECT e.id FROM events e JOIN company_members cm ON cm.company_id = e.company_id
-                            WHERE cm.user_id = ?1 AND cm.is_admin = 1)
+          AND event_id IN (SELECT event_id FROM event_admins WHERE user_id = ?1)
         GROUP BY event_id`,
       // t.assignee != 0 — по частичному индексу взятых открытых обращений support_threads_taken (055)
       `SELECT t.event_id, COUNT(*) AS n FROM support_messages m JOIN support_threads t ON t.id = m.thread_id
@@ -470,22 +469,22 @@ export function supportUnreadFrom(results) {
 
 // ---------- снятие прав админа (R9) ----------
 
-// Операторы: открытые обращения админа adminId в событиях компании companyId (050) снова ничьи; админам компании
-// (users — её люди) — «снова ничьё» с кнопкой «Взять», участнику — «снова ждёт ответа». Список обращений читается заранее.
+// Операторы: открытые обращения админа adminId в событии eventId (063) снова ничьи; организаторам события
+// (users — его люди) — «снова ничьё» с кнопкой «Взять», участнику — «снова ждёт ответа». Список обращений читается заранее.
 // guard — условие всех операторов (024: снятие прав — пока он админ); по умолчанию — без условия, как раньше
-export async function returnThreadsStmts(db, settings, users, adminId, companyId, [guard, ...args] = ['1']) {
+export async function returnThreadsStmts(db, settings, users, adminId, eventId, [guard, ...args] = ['1']) {
   const { results: threads } = await db
     .prepare(
       `SELECT t.id, t.event_id, t.user_id, e.title FROM support_threads t JOIN events e ON e.id = t.event_id
-        WHERE t.assignee = ? AND t.status = 'open' AND e.company_id = ?`
+        WHERE t.assignee = ? AND t.status = 'open' AND t.event_id = ?`
     )
-    .bind(adminId, companyId)
+    .bind(adminId, eventId)
     .all();
   if (!threads.length) return [];
   const stmts = [db.prepare(
     `UPDATE support_threads SET assignee = 0, taken_at = 0
-      WHERE assignee = ? AND status = 'open' AND event_id IN (SELECT id FROM events WHERE company_id = ?) AND (${guard})`
-  ).bind(adminId, companyId, ...args)];
+      WHERE assignee = ? AND status = 'open' AND event_id = ? AND (${guard})`
+  ).bind(adminId, eventId, ...args)];
   for (const t of threads) {
     const ev = { id: t.event_id, title: t.title };
     const author = users.find((u) => u.tg_id === t.user_id);

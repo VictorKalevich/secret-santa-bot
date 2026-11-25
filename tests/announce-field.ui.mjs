@@ -13,7 +13,7 @@ test('046: поле объявления после отправки возвр�
   const admin = { id: 950, name: 'Организатор' }, player = { id: 951, name: 'Участник' };
   await w.say(admin, '/start ' + (await w.setup()).adminCode);
   await w.say(admin, admin.name);
-  const event = (await w.api(admin, 'admin.events.create', { title: 'Объявления' })).event.id;
+  const event = (await w.api(admin, 'event.create', { participate: false, title: 'Объявления' })).event.id;
   const invite = (await w.api(admin, 'admin.state', { event })).settings.invite_link.split('start=')[1];
   await w.say(player, '/start ' + invite);
   await w.say(player, player.name);

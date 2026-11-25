@@ -103,8 +103,8 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     assert.equal(me.me.is_owner, true);
     assert.deepEqual(me.events, []);
 
-    assert.equal((await api(masha, 'admin.events.create', { title: 'Хак' }, true)).status, 403);
-    ev.A = (await api(owner, 'admin.events.create', { title: 'Семья 2026' })).event.id;
+    assert.equal((await api(masha, 'event.create', { participate: false, title: 'Хак' }, true)).status, 403);
+    ev.A = (await api(owner, 'event.create', { participate: false, title: 'Семья 2026' })).event.id;
     const st = await api(owner, 'admin.state', { event: ev.A });
     assert.equal(st.settings.ring, true, 'кольцевая по умолчанию включена');
     assert.equal(st.settings.registration_open, true);
@@ -248,7 +248,7 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
   });
 
   await t.test('005: параллельный эвент без кольцевой; изоляция', async () => {
-    ev.B = (await api(owner, 'admin.events.create', { title: 'Работа' })).event.id;
+    ev.B = (await api(owner, 'event.create', { participate: false, title: 'Работа' })).event.id;
     const code = await inviteOf(ev.B);
     await say(masha, '/start ' + code);
     assert.match(lastText(masha) + texts(masha).slice(-2).join(), /Ты в событии «Работа»/, 'зарегистрированный вступает без имени');
@@ -308,7 +308,7 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
   });
 
   await t.test('005: приглашение из прошлого эвента и «не повторять пары»', async () => {
-    ev.C = (await api(owner, 'admin.events.create', { title: 'Семья 2027' })).event.id;
+    ev.C = (await api(owner, 'event.create', { participate: false, title: 'Семья 2027' })).event.id;
     const inv = await api(owner, 'admin.event.invite_from', { event: ev.C, from: ev.A });
     assert.equal(inv.count, 7, 'пригласили всех участников прошлого эвента (без удалённого Ивана, со Светой)');
     await waitFor(() => texts(anya).some((x) => /Приглашение на событие «Семья 2027»/.test(x)), 'приглашение');
@@ -425,7 +425,7 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
   await t.test('006: двойная жеребьёвка, длинное название, раскрытие, мелочи', async () => {
     const longTitle = 'Новогодний обмен подарками отдела маркетинга и всех-всех друзей 2026 🎄🎄🎄🎄';
     assert.ok(longTitle.length >= 76 && longTitle.length <= 80, 'длина названия ' + longTitle.length);
-    ev.D = (await api(owner, 'admin.events.create', { title: longTitle })).event.id;
+    ev.D = (await api(owner, 'event.create', { participate: false, title: longTitle })).event.id;
     await api(owner, 'admin.participate', { event: ev.D, on: true });
     const crew = [owner, petya, anya, oleg];
     const code = await inviteOf(ev.D);
@@ -544,7 +544,7 @@ test('007: инструменты организатора', { timeout: 300000 }
       const s = await z.setup();
       await z.say(boss, '/start ' + s.adminCode);
       await z.say(boss, boss.name);
-      E1 = (await zapi(boss, 'admin.events.create', { title: 'Офис 2026' })).event.id;
+      E1 = (await zapi(boss, 'event.create', { participate: false, title: 'Офис 2026' })).event.id;
       await zapi(boss, 'admin.game', { event: E1, title: 'Офис 2026', budget: 'до 40 BYN', place: 'Переговорка', notes: 'Без алкоголя' });
       const code = await zInvite(E1);
       for (const u of crew) {
@@ -637,7 +637,7 @@ test('007: инструменты организатора', { timeout: 300000 }
     });
 
     await t.test('US2: автожеребьёвка не прошла — админам причина, дата снята', async () => {
-      E2 = (await zapi(boss, 'admin.events.create', { title: 'Пустой' })).event.id;
+      E2 = (await zapi(boss, 'event.create', { participate: false, title: 'Пустой' })).event.id;
       await zapi(boss, 'admin.participate', { event: E2, on: true });
       await zapi(boss, 'admin.game', { event: E2, title: 'Пустой', draw_auto_date: localIso(-1) });
       await z.cron();
@@ -650,8 +650,8 @@ test('007: инструменты организатора', { timeout: 300000 }
 
     await t.test('US5: эвент по образцу — параметры, исключения, приглашения', async () => {
       await zapi(boss, 'admin.game', { event: E1, title: 'Офис 2026', budget: 'до 40 BYN', place: 'Переговорка', notes: 'Без алкоголя', reveal_auto: true });
-      assert.equal((await zapi(boss, 'admin.events.create', { title: 'X', from: 99999 }, true)).data.error, 'Образец не найден.');
-      const r = await zapi(boss, 'admin.events.create', { title: 'Офис 2027', from: E1, invite: true });
+      assert.equal((await zapi(boss, 'event.create', { participate: false, title: 'X', from: 99999 }, true)).data.error, 'Образец не найден.');
+      const r = await zapi(boss, 'event.create', { participate: false, title: 'Офис 2027', from: E1, invite: true });
       const E3 = r.event.id;
       assert.equal(r.invited, crew.length);
       for (const u of crew) await waitFor(() => ztexts(u).some((x) => x.includes('Приглашение на событие «Офис 2027»')), 'приглашение');
@@ -734,7 +734,7 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
   const pairsSql = async (eid) => new Map((await z.query(`SELECT santa, ward FROM pairs WHERE event_id = ${eid}`)).map((r) => [r.santa, r.ward]));
   const noSecret = (obj, what) => assert.ok(!JSON.stringify(obj).includes('АДРЕС-СЕКРЕТ'), what + ': без адреса');
   const newEvent = async (title, people, game = {}) => {
-    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    const id = (await zapi(boss, 'event.create', { participate: false, title })).event.id;
     if (Object.keys(game).length) await zapi(boss, 'admin.game', { event: id, ...game });
     const code = await zInvite(id);
     for (const u of people) await z.say(u, '/start ' + code);
@@ -747,7 +747,7 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       const s = await z.setup();
       await z.say(boss, '/start ' + s.adminCode);
       await z.say(boss, boss.name);
-      E1 = (await zapi(boss, 'admin.events.create', { title: 'По почте' })).event.id;
+      E1 = (await zapi(boss, 'event.create', { participate: false, title: 'По почте' })).event.id;
       await zapi(boss, 'admin.game', { event: E1, delivery_on: true });
       const code = await zInvite(E1);
       for (const u of crew) { await z.say(u, '/start ' + code); await z.say(u, u.name); }
@@ -851,7 +851,7 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
     await t.test('US3: заявки — принять кнопкой в чате, отклонить в панели', async () => {
       const newbie = { id: 620, name: 'Новенький', username: 'newbie' };
       const stranger = { id: 621, name: 'Незнакомец', username: 'who' };
-      const E4 = (await zapi(boss, 'admin.events.create', { title: 'Закрытый клуб' })).event.id;
+      const E4 = (await zapi(boss, 'event.create', { participate: false, title: 'Закрытый клуб' })).event.id;
       await zapi(boss, 'admin.game', { event: E4, approval: true });
       const code = await zInvite(E4);
 
@@ -936,7 +936,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
     }
   };
   const newEvent = async (title, people, game = {}) => {
-    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    const id = (await zapi(boss, 'event.create', { participate: false, title })).event.id;
     if (Object.keys(game).length) await zapi(boss, 'admin.game', { event: id, ...game });
     const code = await zInvite(id);
     for (const u of people) await join(u, code);
@@ -997,7 +997,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
       // меню человека в пяти идущих эвентах и вступление в шестой — в пределах бюджета (проверка журнала в конце)
       await z.say(zhenya, '/start');
       assert.match(z.lastText(zhenya), /Твои события/);
-      E6 = (await zapi(boss, 'admin.events.create', { title: 'Шестой 🎄🎄 с длинным-предлинным названием, чтобы обрезать кнопки меню' })).event.id;
+      E6 = (await zapi(boss, 'event.create', { participate: false, title: 'Шестой 🎄🎄 с длинным-предлинным названием, чтобы обрезать кнопки меню' })).event.id;
       await z.say(zhenya, '/start ' + (await zInvite(E6)));
       assert.match(z.lastText(zhenya), /Твои события/);
     });
@@ -1061,7 +1061,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
 
       // новичка удалили до ввода имени и закрыли регистрацию: «закрыта», админу — никакого «присоединяется»
       const nina = { id: 710, name: 'Нина', username: 'nina' };
-      const E7 = (await zapi(boss, 'admin.events.create', { title: 'Открытый' })).event.id;
+      const E7 = (await zapi(boss, 'event.create', { participate: false, title: 'Открытый' })).event.id;
       await z.say(nina, '/start ' + (await zInvite(E7)));
       assert.match(z.lastText(nina), /Имя в игре — <b>Нина<\/b>/);
       await zapi(boss, 'admin.remove', { event: E7, id: nina.id });
@@ -1173,7 +1173,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
     }
   };
   const newEvent = async (title, people, game = {}) => {
-    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    const id = (await zapi(boss, 'event.create', { participate: false, title })).event.id;
     if (Object.keys(game).length) await zapi(boss, 'admin.game', { event: id, ...game });
     const code = await zInvite(id);
     for (const u of people) await join(u, code);
@@ -1317,7 +1317,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       assert.equal(actions.length, 45, `найдено действий: ${actions.length}`);
       // Минимальное тело: без слов подтверждения и без людей — опасные действия получают отказ по данным, а не по правам
       const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
-      const P1 = (await zapi(boss, 'admin.events.create', { title: 'Права владельца' })).event.id;
+      const P1 = (await zapi(boss, 'event.create', { participate: false, title: 'Права владельца' })).event.id;
       const denied = [];
       for (const a of actions) {
         const r = await zapi(boss, a, body(P1), true);
@@ -1325,7 +1325,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       }
       assert.deepEqual(denied, [], 'владельцу ни одного отказа по правам');
       // Проверка не пустая: обычный админ получает отказ на действия владельца
-      const P2 = (await zapi(boss, 'admin.events.create', { title: 'Права админа' })).event.id;
+      const P2 = (await zapi(boss, 'event.create', { participate: false, title: 'Права админа' })).event.id;
       const deniedAdmin = [];
       for (const a of actions) {
         const r = await zapi(helper, a, body(P2), true);
@@ -1431,7 +1431,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
 
       // эвент по образцу копирует настройку
       await zapi(helper, 'admin.game', { event: J, rejoin: false });
-      const J2 = (await zapi(boss, 'admin.events.create', { title: 'Возврат-2', from: J })).event.id;
+      const J2 = (await zapi(boss, 'event.create', { participate: false, title: 'Возврат-2', from: J })).event.id;
       assert.equal((await zapi(boss, 'admin.state', { event: J2 })).settings.rejoin, false);
     });
 
@@ -1465,7 +1465,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
       const denied = [];
       for (const a of actions) {
-        const ev = (await zapi(chief, 'admin.events.create', { title: 'Права ' + a })).event.id;
+        const ev = (await zapi(chief, 'event.create', { participate: false, title: 'Права ' + a })).event.id;
         const r = await zapi(chief, a, body(ev), true);
         if (r.status === 403) denied.push(a);
       }
@@ -1507,7 +1507,7 @@ test('012: вписывание по группам, принудительна�
     }
   };
   const newEvent = async (title, people) => {
-    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    const id = (await zapi(boss, 'event.create', { participate: false, title })).event.id;
     const code = await zInvite(id);
     for (const u of people) await join(u, code);
     return id;
@@ -1803,7 +1803,7 @@ test('014: закреплённые пары владельца', { timeout: 400
     }
   };
   const newEvent = async (title, people) => {
-    const id = (await zapi(boss, 'admin.events.create', { title })).event.id;
+    const id = (await zapi(boss, 'event.create', { participate: false, title })).event.id;
     const code = await zInvite(id);
     for (const u of people) await join(u, code);
     return id;
@@ -1932,7 +1932,7 @@ test('014: закреплённые пары владельца', { timeout: 400
       await zapi(boss, 'admin.draw.cancel', { event: C });
       assert.equal(await fixedCount(C), 1, 'отмена сохраняет');
       await zapi(boss, 'admin.fixed.add', { event: C, giver: borya.id, receiver: dasha.id }); // снова можно менять
-      const copy = (await zapi(boss, 'admin.events.create', { title: 'Копия-014', from: C })).event.id;
+      const copy = (await zapi(boss, 'event.create', { participate: false, title: 'Копия-014', from: C })).event.id;
       assert.equal(await fixedCount(copy), 0, 'образец не копирует');
       await zapi(boss, 'admin.reset.full', { event: C, confirm: 'СБРОС' });
       assert.equal(await fixedCount(C), 0, 'сброс удаляет');

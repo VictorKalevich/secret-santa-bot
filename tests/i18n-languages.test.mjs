@@ -45,7 +45,7 @@ async function bossWorld(opts) {
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const E = (await w.api(boss, 'admin.events.create', { title: 'Party' })).event.id;
+  const E = (await w.api(boss, 'event.create', { participate: false, title: 'Party' })).event.id;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: E })).settings.invite_link)[1];
   return { w, E, code };
 }

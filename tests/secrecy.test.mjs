@@ -72,12 +72,12 @@ before(async () => {
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  E1 = (await w.api(boss, 'admin.events.create', { title: 'Тайна' })).event.id;
+  E1 = (await w.api(boss, 'event.create', { participate: false, title: 'Тайна' })).event.id;
   await w.api(boss, 'admin.game', { event: E1, delivery_on: true, budget: '50 р.' });
   const code1 = inviteOf(await w.api(boss, 'admin.state', { event: E1 }));
   for (const u of [adm, adm2, ...people]) await join(w, u, code1);
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
-  await w.api(boss, 'admin.role.grant', { id: adm2.id });
+  await w.api(boss, 'admin.role.grant', { event: E1, id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: E1, id: adm2.id });
   // Организаторы не участвуют: их собственные пары по замыслу видны им в ward.get, а не в ответах админа
   await w.api(adm, 'admin.participate', { event: E1, on: false });
   await w.api(adm2, 'admin.participate', { event: E1, on: false });
@@ -102,10 +102,13 @@ before(async () => {
   await w.api(people[6], 'support.send', { event: E1, text: 'Вопрос организатору: метка обращения S7Q.' });
   thread = w.query('SELECT id FROM support_threads WHERE event_id = ?', E1)[0].id;
   // Второе событие тех же людей: «не повторять прошлые пары» — пары E1 входят в его проверку жеребьёвки
-  E2 = (await w.api(boss, 'admin.events.create', { title: 'Тайна 2' })).event.id;
+  E2 = (await w.api(boss, 'event.create', { participate: false, title: 'Тайна 2' })).event.id;
   await w.api(boss, 'admin.avoid_previous', { event: E2, on: true });
   const code2 = inviteOf(await w.api(boss, 'admin.state', { event: E2 }));
-  for (const u of [...people, outsider]) await join(w, u, code2);
+  for (const u of [adm, ...people, outsider]) await join(w, u, code2);
+  // 063: администратор — свой в каждом событии
+  await w.api(boss, 'admin.role.grant', { event: E2, id: adm.id });
+  await w.api(adm, 'admin.participate', { event: E2, on: false });
   for (const u of people.slice(0, 3)) await w.api(u, 'wishlist.save', { event: E2, text: 'Второе письмо: метка E2Q.' });
 });
 
@@ -117,8 +120,6 @@ async function views() {
       ['admin.state E1', 'admin.state', { event: E1 }],
       ['admin.state E2', 'admin.state', { event: E2 }],
       ['admin.audit E1', 'admin.audit', { event: E1 }],
-      ['admin.audit', 'admin.audit', {}],
-      ['admin.users', 'admin.users', {}],
       ['event.get E1', 'event.get', { event: E1 }],
       ['event.get E2', 'event.get', { event: E2 }],
       ['me', 'me', {}],
@@ -214,11 +215,11 @@ test('тайна: сообщения участникам — без имени 
   const s = await z.setup();
   await z.say(boss, '/start ' + s.adminCode);
   await z.say(boss, boss.name);
-  const F = (await z.api(boss, 'admin.events.create', { title: 'Рассылки' })).event.id;
+  const F = (await z.api(boss, 'event.create', { participate: false, title: 'Рассылки' })).event.id;
   await z.api(boss, 'admin.game', { event: F, delivery_on: true });
   const code = inviteOf(await z.api(boss, 'admin.state', { event: F }));
   for (const u of [adm, ...people]) await join(z, u, code);
-  await z.api(boss, 'admin.role.grant', { id: adm.id });
+  await z.api(boss, 'admin.role.grant', { event: F, id: adm.id });
   await z.api(adm, 'admin.participate', { event: F, on: false });
   for (const [i, u] of people.entries()) {
     if (i === 7) continue; // пустое письмо — для напоминания

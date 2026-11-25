@@ -17,7 +17,7 @@ async function ownerWorld() {
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const ev = (await w.api(boss, 'admin.events.create', { title: 'Проверка' })).event;
+  const ev = (await w.api(boss, 'event.create', { participate: false, title: 'Проверка' })).event;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: ev.id })).settings.invite_link)[1];
   return { w, ev, code };
 }

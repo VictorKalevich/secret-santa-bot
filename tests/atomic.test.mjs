@@ -1,6 +1,6 @@
 // Одновременные вызовы с навязанным чередованием (016, FR-1609): два вызова сначала оба читают, затем пишут
 // (world.together) или чужой вызов встаёт точно перед записью (world.beforeWrite).
-// 71 проверка «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
+// 66 проверок «один результат»: три — дефекты, исправленные в шаге 3 (018), две — в шаге 5 (020: «подарок получен» в
 // одну миллисекунду, исключение ×2), пять — двойное нажатие одним человеком в одну миллисекунду (sameMoment: захват
 // узнаётся по прежнему состоянию, а не по времени, 020), десять — закреплённые пары (023: журнал — только при изменении;
 // 031: из спорящих закреплений сохраняется одно, второму — отказ обычной проверки, взаимная — целиком или никак; там же
@@ -9,16 +9,16 @@
 // изменении (новая семья ×2 и сохранение семьи — 024 и 034 — ушли вместе с семьями в 062); четыре — выход из события
 // и своё имя (035: выход ×2, выход ↔ жеребьёвка в обоих порядках, имя ×2); три — регистрация в боте (047: «Участвовать как …» ×2 в одну миллисекунду,
 // нажатие ↔ имя текстом в обоих порядках); три — обмен подопечных (048: ×2 в одну миллисекунду, обмен ↔ вписывание в
-// обоих порядках); одна — роли в двух компаниях (050: назначение в А и в Б одновременно, ×2 в одной компании в одну
-// миллисекунду); девять — компании (051: два перехода по ссылке владельца в одну миллисекунду, назначение ×2, «Вести самому»
-// ↔ передача и новая ссылка ↔ переход — в обоих порядках, удаление ×2 в одну миллисекунду, удаление ↔ создание события в
-// обоих порядках); четыре — своя компания в открытом боте (052: создание ×2 с тем же названием в одну миллисекунду, ×2 с
-// разными названиями у владельца одной — в обоих порядках, удаление ×2). После сценариев с ролями и переносом — инварианты компаний
-// (050, tests/support/companies.mjs). Известный дефект — todo с номером фичи, которая его чинит: фича снимает пометку; сейчас таких нет.
+// обоих порядках); пять — владелец и администраторы события (063: назначение в двух событиях одновременно и ×2 в одном
+// в одну миллисекунду, передача владения ×2 одному и разным, передача ↔ снятие того же администратора — в обоих порядках);
+// четыре — создание события (063: два создания у границы лимита и создание ↔ снятие разрешения — в обоих порядках). Случаи
+// компаний (050–052) ушли вместе с комнатами в 063. После сценариев с ролями, владением, созданием и переносом — инварианты
+// событий E1–E4 (tests/support/events.mjs). Известный дефект — todo с номером фичи, которая его чинит: фича снимает
+// пометку; сейчас таких нет.
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
-import { addCompany, invariants } from './support/companies.mjs';
+import { invariants } from './support/events.mjs';
 
 after(restoreFetch);
 
@@ -37,14 +37,14 @@ async function world({ draw = false, n = 6, approval = false } = {}) {
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const ev = (await w.api(boss, 'admin.events.create', { title: 'Атомарность' })).event;
+  const ev = (await w.api(boss, 'event.create', { participate: false, title: 'Атомарность' })).event;
   const code = inviteOf(await w.api(boss, 'admin.state', { event: ev.id }));
   for (const u of [adm, adm2, ...people]) {
     await w.say(u, '/start ' + code);
     await w.say(u, u.name);
   }
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
-  await w.api(boss, 'admin.role.grant', { id: adm2.id });
+  await w.api(boss, 'admin.role.grant', { event: ev.id, id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: ev.id, id: adm2.id });
   if (approval) await w.api(boss, 'admin.game', { event: ev.id, approval: true });
   if (draw) await w.api(boss, 'admin.draw', { event: ev.id });
   const sent = (u, sub) => w.texts(u).filter((t) => t.includes(sub)).length;
@@ -198,8 +198,8 @@ describe('атомарность: повторные нажатия (024)', () =
       assert.equal(z.audit('remind.unfilled'), 1);
     });
     it('admin.event.invite_from ×2 — одно приглашение каждому', async () => {
-      const B = (await z.w.api(boss, 'admin.events.create', { title: 'Второе' })).event.id;
-      const rs = await z.twice(adm, 'admin.event.invite_from', { event: B, from: z.ev.id }, once);
+      const B = (await z.w.api(boss, 'event.create', { participate: false, title: 'Второе' })).event.id;
+      const rs = await z.twice(boss, 'admin.event.invite_from', { event: B, from: z.ev.id }, once);
       assert.deepEqual(sorted(rs), [200, 400]);
       assert.equal(refusal(rs), 'Приглашения уже отправлены — повторить можно через минуту.');
       assert.equal(z.sent(z.people[0], 'Приглашение на событие'), 1);
@@ -207,16 +207,16 @@ describe('атомарность: повторные нажатия (024)', () =
     });
     it('admin.rename ×2 с одним именем — одна запись журнала (025)', async () => {
       const u = z.people[4];
-      const rs = await z.twice(adm, 'admin.rename', { id: u.id, name: 'Переименованный' }, once);
+      const rs = await z.twice(boss, 'admin.rename', { id: u.id, name: 'Переименованный' }, once);
       assert.deepEqual(statuses(rs), [200, 200], 'имя стало тем, что просили, — у обоих успех');
       assert.equal(z.w.query('SELECT name FROM users WHERE tg_id = ?', u.id)[0].name, 'Переименованный');
       assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'rename'")[0].n, 1);
     });
     it('admin.role.grant ×2 — одно уведомление', async () => {
-      const rs = await z.twice(boss, 'admin.role.grant', { id: z.people[2].id }, once);
+      const rs = await z.twice(boss, 'admin.role.grant', { event: z.ev.id, id: z.people[2].id }, once);
       assert.deepEqual(sorted(rs), [200, 400]);
       assert.equal(refusal(rs), 'Он(а) уже администратор.');
-      assert.equal(z.sent(z.people[2], 'назначил тебя администратором'), 1);
+      assert.equal(z.sent(z.people[2], 'Тебя назначили администратором'), 1);
       assert.equal(z.sent(adm, `${z.people[2].name}</b> теперь администратор`), 1, 'другому админу');
       assert.equal(z.audit('role.grant'), 3, 'два админа мира и этот');
     });
@@ -224,26 +224,25 @@ describe('атомарность: повторные нажатия (024)', () =
       await z.w.api(z.people[3], 'support.send', { event: z.ev.id, text: 'Помогите' });
       const th = z.w.query('SELECT id FROM support_threads')[0].id;
       await z.w.api(adm2, 'admin.support.take', { event: z.ev.id, thread: th });
-      const rs = await z.twice(boss, 'admin.role.revoke', { id: adm2.id }, once);
+      const rs = await z.twice(boss, 'admin.role.revoke', { event: z.ev.id, id: adm2.id }, once);
       assert.deepEqual(sorted(rs), [200, 400]);
       assert.equal(refusal(rs), 'Он(а) не администратор.');
-      assert.equal(z.sent(adm2, 'снял с тебя права'), 1);
+      assert.equal(z.sent(adm2, 'С тебя сняли права'), 1);
       assert.equal(z.sent(z.people[3], 'снова ждёт ответа'), 1);
       assert.equal(z.sent(adm, 'снова ничьё'), 1);
       assert.equal(z.audit('role.revoke'), 1);
       assert.equal(z.audit('support.return'), 1);
     });
-    // 051: права владельца бота передаёт bot.owner.transfer (прежний admin.owner.transfer); запись — в журнале компании и
-    // в журнале бота
+    // 051: права владельца бота передаёт bot.owner.transfer (прежний admin.owner.transfer); 063: запись — в журнале бота
     it('bot.owner.transfer ×2 — одна передача', async () => {
       const rs = await z.twice(boss, 'bot.owner.transfer', { id: adm.id }, once);
       assert.deepEqual(sorted(rs), [200, 400]);
       assert.equal(refusal(rs), 'Права владельца уже переданы.');
       assert.equal(z.sent(adm, 'Тебе переданы права владельца'), 1);
-      assert.equal(z.audit('owner.transfer'), 2);
-      assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'owner.transfer' AND company_id = 0")[0].n, 1);
+      assert.equal(z.audit('owner.transfer'), 1);
+      assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'owner.transfer' AND event_id = 0")[0].n, 1);
     });
-    it('после ролей и передачи владения инварианты компаний держатся (050)', () => {
+    it('после ролей и передачи владения инварианты событий держатся (063)', () => {
       assert.deepEqual(invariants(z.w), []);
     });
   });
@@ -401,7 +400,7 @@ describe('атомарность: «Я участвую» выкл ↔ жере�
     await z.w.api(adm, 'admin.participate', { event: z.ev.id, on: true });
     const rs = await z.w.together(pair(z), { writeOrder: [1, 0] });
     assert.deepEqual(statuses(rs), [400, 200], 'выход отказывает, жеребьёвка прошла');
-    assert.equal(rs[0].data.error, 'После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.');
+    assert.equal(rs[0].data.error, 'После жеребьёвки так нельзя. Попроси владельца вписать тебя.');
     assert.equal(z.orphans(), 0, 'пар с не-участником');
     assert.ok(z.w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, adm.id).length, 'админ остался участником');
     assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'participate' AND details = 'не участвует'")[0].n, 0, 'журнал «не участвует»');
@@ -553,35 +552,86 @@ describe('атомарность: перенос участия', () => {
     assert.ok(z.w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', z.ev.id, z.people[1].id).length, 'участие нового аккаунта есть');
     assert.equal(z.audit('transfer'), 1, 'записей журнала');
     assert.equal(z.sent(z.people[1], 'перенёс на этот аккаунт'), 1, 'уведомлений новому аккаунту');
-    assert.deepEqual(invariants(z.w), [], 'инварианты компаний (050)');
+    assert.deepEqual(invariants(z.w), [], 'инварианты событий (063)');
   });
 });
 
-describe('атомарность: роли в двух компаниях (050)', () => {
-  it('назначение в А и в Б одновременно — оба успешны; ×2 в одной компании в одну миллисекунду — один успех', async () => {
+// 063: организатор события — строка event_admins (назначение — вставка, снятие — удаление, по прежнему состоянию),
+// владение — events.owner_id по прежнему владельцу; новый владелец получает строку организатора в том же пакете
+describe('атомарность: владелец и администраторы события (063)', () => {
+  const once = { sameMoment: true };
+  const owner = (z, id = z.ev.id) => z.w.query('SELECT owner_id FROM events WHERE id = ?', id)[0].owner_id;
+  const organizers = (z, id = z.ev.id) => z.w.query('SELECT user_id FROM event_admins WHERE event_id = ? ORDER BY user_id', id).map((r) => r.user_id);
+  const refusal = (rs) => rs.find((r) => r.status === 400)?.data.error;
+
+  it('назначение в А и в Б одновременно — оба успешны; ×2 в одном событии в одну миллисекунду — один успех', async () => {
     const z = await world();
-    const B = addCompany(z.w, 'Б');
-    const evB = (await z.w.api(boss, 'admin.events.create', { title: 'Событие Б', company: B })).event;
+    const evB = (await z.w.api(boss, 'event.create', { participate: false, title: 'Событие Б' })).event;
     const codeB = inviteOf(await z.w.api(boss, 'admin.state', { event: evB.id }));
     const [x, y, admB] = z.people;
     for (const u of [x, y, admB]) await z.w.say(u, '/start ' + codeB);
-    await z.w.api(boss, 'admin.role.grant', { company: B, id: admB.id });
-    const both = await z.w.together([1, B].map((company) => () => z.w.api(boss, 'admin.role.grant', { company, id: x.id }, true)));
+    await z.w.api(boss, 'admin.role.grant', { event: evB.id, id: admB.id });
+    const both = await z.w.together([z.ev.id, evB.id].map((event) => () => z.w.api(boss, 'admin.role.grant', { event, id: x.id }, true)));
     assert.deepEqual(statuses(both), [200, 200]);
-    assert.deepEqual(z.w.query('SELECT company_id, is_admin FROM company_members WHERE user_id = ? ORDER BY company_id', x.id)
-      .map((r) => [r.company_id, r.is_admin]), [[1, 1], [B, 1]]);
+    assert.deepEqual(z.w.query('SELECT event_id FROM event_admins WHERE user_id = ? ORDER BY event_id', x.id).map((r) => r.event_id), [z.ev.id, evB.id]);
     assert.equal(z.w.query('SELECT is_admin FROM users WHERE tg_id = ?', x.id)[0].is_admin, 1);
-    assert.deepEqual(z.w.query("SELECT company_id FROM audit WHERE action = 'role.grant' AND details = ? ORDER BY company_id", x.name)
-      .map((r) => r.company_id), [1, B]);
+    assert.deepEqual(z.w.query("SELECT event_id FROM audit WHERE action = 'role.grant' AND details = ? ORDER BY event_id", x.name)
+      .map((r) => r.event_id), [z.ev.id, evB.id]);
     const notice = `${y.name}</b> теперь администратор`;
-    const rs = await z.twice(boss, 'admin.role.grant', { company: B, id: y.id }, { sameMoment: true });
+    const rs = await z.twice(boss, 'admin.role.grant', { event: evB.id, id: y.id }, once);
     assert.deepEqual(sorted(rs), [200, 400]);
-    assert.equal(z.sent(y, 'назначил тебя администратором'), 1);
+    assert.equal(refusal(rs), 'Он(а) уже администратор.');
+    assert.equal(z.sent(y, 'Тебя назначили администратором'), 1);
     assert.equal(z.sent(admB, notice), 1, 'администратору Б — одно');
     assert.equal(z.sent(adm, notice), 0, 'администратору А — ничего');
     assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'role.grant' AND details = ?", y.name)[0].n, 1);
-    assert.deepEqual(invariants(z.w, { guests: [B] }), []);
+    assert.deepEqual(invariants(z.w), []);
   });
+
+  it('admin.owner.transfer ×2 одному в одну миллисекунду — одна передача: одно сообщение каждому, одна запись', async () => {
+    const z = await world();
+    const p = z.people[0];
+    const rs = await z.twice(boss, 'admin.owner.transfer', { event: z.ev.id, id: p.id }, once);
+    assert.deepEqual(sorted(rs), [200, 400]);
+    assert.equal(refusal(rs), 'Владение уже передано.');
+    assert.equal(owner(z), p.id);
+    assert.ok(organizers(z).includes(p.id) && organizers(z).includes(boss.id), 'новый — организатор, прежний остался');
+    assert.equal(z.sent(p, 'Ты теперь владелец события'), 1);
+    assert.equal(z.sent(adm, `теперь — <b>${p.name}</b>`), 1, 'администратору — одно');
+    assert.equal(z.audit('event.owner'), 1);
+    assert.deepEqual(invariants(z.w), []);
+  });
+
+  it('передача владения двум разным одновременно — один новый владелец, второй не стал организатором', async () => {
+    const z = await world();
+    const [p, q] = z.people;
+    const rs = await z.w.together([p, q].map((u) => () => z.w.api(boss, 'admin.owner.transfer', { event: z.ev.id, id: u.id }, true)));
+    assert.deepEqual(statuses(rs), [200, 400]);
+    assert.equal(rs[1].data.error, 'Владение уже передано.');
+    assert.equal(owner(z), p.id);
+    assert.ok(!organizers(z).includes(q.id), 'проигравший — не организатор');
+    assert.equal(z.sent(q, 'Ты теперь владелец события'), 0);
+    assert.equal(z.audit('event.owner'), 1);
+    assert.deepEqual(invariants(z.w), []);
+  });
+
+  for (const [first, writeOrder] of [['передача', [0, 1]], ['снятие', [1, 0]]]) {
+    it(`передача владения администратору ↔ его снятие, первой пишет ${first} — он владелец и организатор`, async () => {
+      const z = await world();
+      const rs = await z.w.together([
+        () => z.w.api(boss, 'admin.owner.transfer', { event: z.ev.id, id: adm.id }, true),
+        () => z.w.api(boss, 'admin.role.revoke', { event: z.ev.id, id: adm.id }, true),
+      ], { writeOrder });
+      // Передача первой — снятие владельца невозможно; снятие первым — передача возвращает ему строку организатора
+      assert.deepEqual(statuses(rs), writeOrder[0] === 0 ? [200, 400] : [200, 200]);
+      if (writeOrder[0] === 0) assert.equal(rs[1].data.error, 'Нельзя снять права владельца. Сначала передай владение событием.');
+      assert.equal(owner(z), adm.id);
+      assert.ok(organizers(z).includes(adm.id));
+      assert.equal(z.audit('role.revoke'), writeOrder[0] === 0 ? 0 : 1);
+      assert.equal(z.audit('event.owner'), 1);
+      assert.deepEqual(invariants(z.w), []);
+    });
+  }
 });
 
 describe('атомарность: ссылка владельца и «подарок получен»', () => {
@@ -638,12 +688,13 @@ describe('атомарность: выход из события и своё и�
     assert.equal(z.audit('member.leave'), 0, 'записей журнала');
     assert.equal(z.sent(boss, 'выходит из события'), 0, 'сообщений');
   });
-  it('name.set ×2 с новым именем в одну миллисекунду — одна запись журнала', async () => {
+  // 063: своё имя журнал не пишет (журналы — событий и бота)
+  it('name.set ×2 с новым именем в одну миллисекунду — имя одно, журнала нет', async () => {
     const z = await world();
     const rs = await z.twice(z.people[0], 'name.set', { name: 'Игрок Первый' }, once);
     assert.deepEqual(statuses(rs), [200, 200]);
     assert.equal(z.w.query('SELECT name FROM users WHERE tg_id = ?', z.people[0].id)[0].name, 'Игрок Первый');
-    assert.equal(z.audit('rename'), 1, 'записей журнала');
+    assert.equal(z.audit('rename'), 0, 'записей журнала');
   });
 });
 
@@ -731,181 +782,64 @@ describe('атомарность: обмен подопечных (048)', () => 
   }
 });
 
-describe('атомарность: компании (051)', () => {
-  const GONE = 'Эта ссылка владельца уже использована или отозвана. Попроси новую.';
-  // Мир atomic и вторая компания «Клуб» с событием: игроки 1–4 — её люди
-  async function club() {
-    const z = await world();
-    z.C = (await z.w.api(boss, 'bot.company.create', { name: 'Клуб' })).company;
-    const ev = (await z.w.api(boss, 'admin.events.create', { company: z.C, title: 'Клубное' })).event.id;
-    const code = inviteOf(await z.w.api(boss, 'admin.state', { event: ev }));
-    for (const u of z.people.slice(0, 4)) await z.w.say(u, '/start ' + code);
-    z.owner = () => z.w.query('SELECT owner_id FROM companies WHERE id = ?', z.C)[0].owner_id;
-    z.code = () => z.w.query('SELECT owner_code FROM companies WHERE id = ?', z.C)[0].owner_code;
-    z.link = async () => /start=(own_[a-z0-9]+)/.exec((await z.w.api(boss, 'bot.company.link', { company: z.C, on: true })).link)[1];
-    return z;
+// 063: создание события — условие лимита и разрешения в пакете вставки (createGuard), проигравшему — отказ по свежему
+// состоянию (createRefusal)
+describe('атомарность: создание события (063)', () => {
+  const anya = { id: 801, name: 'Аня', username: 'anya' };
+  const LIMIT = /^За 12 месяцев можно создать не больше 10 событий\. Следующее — с /;
+  // Открытый бот: Аня — незнакомка, назвалась; закрытый: вступила по ссылке владельца бота, ей разрешено создавать
+  async function creator({ open }) {
+    const w = await startWorld({ open });
+    const s = await w.setup();
+    await w.say(boss, '/start ' + s.adminCode);
+    await w.say(boss, boss.name);
+    if (open) {
+      await w.say(anya, '/start');
+      await w.say(anya, anya.name);
+    } else {
+      const ev = (await w.api(boss, 'event.create', { participate: false, title: 'Вход' })).event;
+      await w.say(anya, '/start ' + inviteOf(await w.api(boss, 'admin.state', { event: ev.id })));
+      await w.say(anya, anya.name);
+      await w.api(boss, 'bot.creator.set', { id: anya.id, on: true });
+    }
+    const created = () => w.query('SELECT COUNT(*) AS n FROM events WHERE owner_id = ?', anya.id)[0].n;
+    const facts = () => w.query('SELECT COUNT(*) AS n FROM event_creations WHERE user_id = ?', anya.id)[0].n;
+    return { w, created, facts };
   }
 
-  it('два перехода по ссылке в одну миллисекунду (разные люди) — один владелец, одно сообщение владельцу бота', async () => {
-    const z = await club();
-    const [p, q] = z.people;
-    const code = await z.link();
-    await z.w.together([() => z.w.say(p, '/start ' + code), () => z.w.say(q, '/start ' + code)], { sameMoment: true });
-    assert.ok([p.id, q.id].includes(z.owner()));
-    const [won, lost] = z.owner() === p.id ? [p, q] : [q, p];
-    assert.equal(z.sent(boss, 'теперь владелец комнаты'), 1);
-    assert.equal(z.sent(won, '👑 Ты — владелец своей комнаты'), 1);
-    assert.equal(z.sent(lost, GONE), 1);
-    assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.owner' AND company_id = ?", z.C)[0].n, 1);
-    assert.deepEqual(invariants(z.w), []);
-  });
-
-  it('admin.owner.transfer ×2 в одну миллисекунду — одно назначение, одно сообщение, по записи в журналах', async () => {
-    const z = await club();
-    const [p] = z.people;
-    const rs = await z.twice(boss, 'admin.owner.transfer', { company: z.C, id: p.id }, { sameMoment: true });
-    assert.deepEqual(sorted(rs), [200, 400]);
-    assert.equal(rs.find((r) => r.status === 400).data.error, 'Права владельца уже переданы.');
-    assert.equal(z.owner(), p.id);
-    assert.equal(z.sent(p, '👑 Ты — владелец своей комнаты'), 1);
-    assert.equal(z.audit('company.owner'), 2, 'журнал компании и журнал бота');
-    assert.deepEqual(invariants(z.w), []);
-  });
-
-  for (const [first, writeOrder] of [['«Вести самому»', [0, 1]], ['передача', [1, 0]]]) {
-    it(`«Вести самому» ↔ передача владельцем компании, первым пишет ${first} — одна смена`, async () => {
-      const z = await club();
-      const [p, q] = z.people;
-      await z.w.api(boss, 'admin.owner.transfer', { company: z.C, id: p.id });
-      await z.w.api(p, 'admin.role.grant', { company: z.C, id: q.id });
-      const rs = await z.w.together([
-        () => z.w.api(boss, 'admin.owner.transfer', { company: z.C, id: boss.id }, true),
-        () => z.w.api(p, 'admin.owner.transfer', { company: z.C, id: q.id }, true),
-      ], { writeOrder });
-      assert.deepEqual(statuses(rs), writeOrder[0] === 0 ? [200, 400] : [400, 200]);
-      assert.equal(z.owner(), writeOrder[0] === 0 ? 0 : q.id);
-      assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.owner' AND company_id = ?", z.C)[0].n, 2);
-      assert.deepEqual(invariants(z.w), []);
+  for (const [first, writeOrder] of [['первое', [0, 1]], ['второе', [1, 0]]]) {
+    it(`у границы лимита (создано 9) два создания одновременно, первым пишет ${first} — одно событие, второму отказ лимита`, async () => {
+      const { w, created, facts } = await creator({ open: true });
+      for (let i = 1; i <= 9; i++) await w.api(anya, 'event.create', { participate: false, title: 'Событие ' + i });
+      const rs = await w.together(['А', 'Б'].map((title) => () => w.api(anya, 'event.create', { participate: false, title }, true)), { writeOrder });
+      const [won, lost] = [rs[writeOrder[0]], rs[writeOrder[1]]];
+      assert.equal(won.status, 200);
+      assert.equal(lost.status, 400);
+      assert.match(lost.data.error, LIMIT);
+      assert.deepEqual([created(), facts()], [10, 10]);
+      assert.equal(w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'event.create' AND event_id = 0")[0].n, 10, 'журнал бота');
+      assert.deepEqual(invariants(w), []);
     });
   }
 
-  for (const [first, writeOrder] of [['новая ссылка', [0, 1]], ['переход', [1, 0]]]) {
-    it(`новая ссылка ↔ переход по прежней, первым пишет ${first} — ссылка в ответе действует`, async () => {
-      const z = await club();
-      const [p] = z.people;
-      const old = await z.link();
-      const [made] = await z.w.together([
-        () => z.w.api(boss, 'bot.company.link', { company: z.C, on: true }, true),
-        () => z.w.say(p, '/start ' + old),
+  for (const [first, writeOrder] of [['создание', [0, 1]], ['снятие разрешения', [1, 0]]]) {
+    it(`закрытый бот: создание ↔ снятие разрешения, первым пишет ${first} — событие создано до снятия или отказ`, async () => {
+      const { w, created, facts } = await creator({ open: false });
+      const rs = await w.together([
+        () => w.api(anya, 'event.create', { participate: false, title: 'Успеть' }, true),
+        () => w.api(boss, 'bot.creator.set', { id: anya.id, on: false }, true),
       ], { writeOrder });
-      assert.equal(z.owner(), writeOrder[0] === 0 ? 0 : p.id);
-      assert.equal(z.sent(p, GONE), writeOrder[0] === 0 ? 1 : 0);
-      assert.ok(z.code(), 'ссылка действует');
-      assert.equal(made.data.link.endsWith('own_' + z.code()), true, 'владельцу бота — действующая ссылка');
-      assert.deepEqual(invariants(z.w), []);
-    });
-  }
-
-  // Пустая компания с администратором (событие было и удалено): люди и права остались, событий нет
-  async function emptyClub() {
-    const z = await club();
-    const [p] = z.people;
-    await z.w.api(boss, 'admin.role.grant', { company: z.C, id: p.id });
-    const ev = z.w.query('SELECT id FROM events WHERE company_id = ?', z.C)[0].id;
-    await z.w.api(boss, 'admin.event.delete', { event: ev, confirm: 'УДАЛИТЬ' });
-    z.left = () => z.w.query('SELECT COUNT(*) AS n FROM companies WHERE id = ?', z.C)[0].n;
-    return z;
-  }
-
-  it('bot.company.delete ×2 в одну миллисекунду — одно удаление, одно сообщение администратору, одна запись', async () => {
-    const z = await emptyClub();
-    const [p] = z.people;
-    const rs = await z.twice(boss, 'bot.company.delete', { company: z.C, confirm: 'УДАЛИТЬ' }, { sameMoment: true });
-    assert.deepEqual(sorted(rs), [200, 404]);
-    assert.equal(rs.find((r) => r.status === 404).data.error, 'Комната не найдена.');
-    assert.equal(z.left(), 0);
-    assert.equal(z.sent(p, 'Владелец бота удалил комнату'), 1);
-    assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 1);
-    assert.deepEqual(invariants(z.w), []);
-  });
-
-  for (const [first, writeOrder] of [['удаление', [0, 1]], ['создание события', [1, 0]]]) {
-    it(`удаление компании ↔ создание в ней события, первым пишет ${first} — или компании нет, или событие в ней`, async () => {
-      const z = await emptyClub();
-      const [p] = z.people;
-      const rs = await z.w.together([
-        () => z.w.api(boss, 'bot.company.delete', { company: z.C, confirm: 'УДАЛИТЬ' }, true),
-        () => z.w.api(p, 'admin.events.create', { company: z.C, title: 'Успеть' }, true),
-      ], { writeOrder });
+      assert.equal(rs[1].status, 200);
       if (writeOrder[0] === 0) {
-        assert.deepEqual(statuses(rs), [200, 404]);
-        assert.equal(rs[1].data.error, 'Комната не найдена.');
-        assert.equal(z.left(), 0);
-        assert.equal(z.sent(p, 'Владелец бота удалил комнату'), 1);
+        assert.equal(rs[0].status, 200);
+        assert.deepEqual([created(), facts()], [1, 1]);
       } else {
-        assert.deepEqual(statuses(rs), [400, 200]);
-        assert.equal(rs[0].data.error, 'В комнате есть события — сначала удали их.');
-        assert.equal(z.left(), 1);
-        assert.equal(z.sent(p, 'Владелец бота удалил комнату'), 0);
-        assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 0);
+        assert.equal(rs[0].status, 403);
+        assert.equal(rs[0].data.error, 'Создавать события в этом боте может владелец бота и те, кому он разрешил.');
+        assert.deepEqual([created(), facts()], [0, 0]);
       }
-      assert.equal(z.w.query('SELECT COUNT(*) AS n FROM events WHERE company_id NOT IN (SELECT id FROM companies)')[0].n, 0);
-      assert.deepEqual(invariants(z.w), []);
+      assert.equal(w.query('SELECT can_create FROM users WHERE tg_id = ?', anya.id)[0].can_create, 0);
+      assert.deepEqual(invariants(w), []);
     });
   }
-});
-
-describe('атомарность: своя компания в открытом боте (052)', () => {
-  const LIMIT = 'Вести можно не больше двух своих комнат — передай или удали одну из них.';
-  const anya = { id: 9401, name: 'Аня', username: 'anya' };
-  const vera = { id: 9402, name: 'Вера', username: 'vera' };
-  // Открытый бот: Аня пришла без ссылки
-  async function open() {
-    const w = await startWorld({ open: true });
-    await w.setup();
-    await w.say(anya, '/start');
-    await w.say(anya, anya.name);
-    const own = () => w.query('SELECT COUNT(*) AS n FROM companies WHERE owner_id = ?', anya.id)[0].n;
-    const created = () => w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.create'")[0].n;
-    const both = (bodies, opts) => w.together(bodies.map((b) => () => w.api(anya, 'company.create', b, true)), opts);
-    return { w, own, created, both };
-  }
-
-  it('company.create ×2 в одну миллисекунду с тем же названием — одна компания, одна запись журнала', async () => {
-    const z = await open();
-    const rs = await z.both([{ name: 'Своя' }, { name: 'Своя' }], { sameMoment: true });
-    assert.deepEqual(sorted(rs), [200, 400]);
-    assert.equal(rs.find((r) => r.status === 400).data.error, 'Комната с таким названием только что создана.');
-    assert.deepEqual([z.own(), z.created()], [1, 1]);
-    assert.deepEqual(invariants(z.w), []);
-  });
-
-  for (const writeOrder of [[0, 1], [1, 0]]) {
-    it(`у владельца одной: ×2 с разными названиями в одну миллисекунду, первой пишет ${writeOrder[0] + 1}-я — одна компания, второй — лимит`, async () => {
-      const z = await open();
-      await z.w.api(anya, 'company.create', { name: 'Первая' });
-      const rs = await z.both([{ name: 'Вторая' }, { name: 'Третья' }], { sameMoment: true, writeOrder });
-      assert.deepEqual(statuses(rs), writeOrder[0] === 0 ? [200, 400] : [400, 200]);
-      assert.equal(rs.find((r) => r.status === 400).data.error, LIMIT);
-      assert.deepEqual([z.own(), z.created()], [2, 2]);
-      assert.equal(z.w.query('SELECT COUNT(*) AS n FROM company_members WHERE user_id = ?', anya.id)[0].n, 2);
-      assert.deepEqual(invariants(z.w), []);
-    });
-  }
-
-  it('company.delete ×2 в одну миллисекунду — одно удаление, одно сообщение администратору, одна запись', async () => {
-    const z = await open();
-    const C = (await z.w.api(anya, 'company.create', { name: 'Пустая' })).company;
-    const ev = (await z.w.api(anya, 'admin.events.create', { company: C, title: 'Было' })).event.id;
-    await z.w.say(vera, '/start ' + inviteOf(await z.w.api(anya, 'admin.state', { event: ev })));
-    await z.w.say(vera, vera.name);
-    await z.w.api(anya, 'admin.role.grant', { company: C, id: vera.id });
-    await z.w.api(anya, 'admin.event.delete', { event: ev, confirm: 'УДАЛИТЬ' });
-    const rs = await z.w.together([1, 2].map(() => () => z.w.api(anya, 'company.delete', { company: C, confirm: 'УДАЛИТЬ' }, true)), { sameMoment: true });
-    assert.deepEqual(sorted(rs), [200, 404]);
-    assert.equal(z.own(), 0);
-    assert.equal(z.w.texts(vera).filter((t) => t.includes('Владелец удалил комнату')).length, 1);
-    assert.equal(z.w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'company.delete'")[0].n, 1);
-    assert.deepEqual(invariants(z.w), []);
-  });
 });

@@ -97,7 +97,6 @@ export const ADMIN_ONLY = tx('common.adminOnly');
 export const NO_DRAW = tx('common.noDraw');
 export const PAIRS_RACE = tx('common.pairsRace');
 export const NOT_MEMBER = tx('common.notMember');
-export const COMPANY_NOT_FOUND = tx('common.companyNotFound'); // 051: удаление компании и создание события в ней
 // 034: тот же текст показывает приложение — ключ словаря приложения
 export const CHAT_READ_ONLY = tx('app.sheet.chatReadOnly');
 export const SUPPORT_READ_ONLY = tx('app.sheet.supportReadOnly');

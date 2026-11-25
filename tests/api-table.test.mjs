@@ -1,4 +1,4 @@
-// Таблица действий API (019, FR-1909): у каждой строки — роль из списка, текст отказа владельца ровно у действий
+// Таблица действий API (019, FR-1909; 063 — без комнат): у каждой строки — роль из списка, текст отказа владельца ровно у действий
 // владельца, явное «что в завершённом событии» у действий события, слово подтверждения — парой, обработчик.
 // Строка без роли или без поля finished у действия события — ошибка с именем действия.
 import { test } from 'node:test';
@@ -16,10 +16,10 @@ function rowProblems(name, row) {
   const bot = name.startsWith('bot.');
   if (!ROLE_SET.has(row.role)) p.push(`${name}: роль не из списка (${row.role})`);
   else if (admin !== (row.role === ROLES.ADMIN || row.role === ROLES.OWNER)) p.push(`${name}: роль ${row.role} не для ${admin ? 'admin.*' : 'участника'}`);
-  // 051: действия владельца бота — bot.* с ролью BOT, без события и без компании конвейера
+  // 051: действия владельца бота — bot.* с ролью BOT, без события
   if (bot !== (row.role === ROLES.BOT)) p.push(`${name}: роль BOT — тогда и только тогда, когда имя bot.*`);
-  if (bot && (row.event !== undefined || row.company !== undefined)) p.push(`${name}: bot.* — без события и без company`);
-  // Признак bot у admin.* — «только владелец бота» после проверки владельца (admin.transfer)
+  if (bot && row.event !== undefined) p.push(`${name}: bot.* — без события`);
+  // Признак bot у admin.* — «только владелец бота» после проверки владельца (admin.transfer, admin.rename)
   if (row.bot !== undefined && !(row.bot === true && row.role === ROLES.OWNER)) p.push(`${name}: bot — только true и только у роли OWNER`);
   if ((row.role === ROLES.OWNER) !== filled(row.owner)) p.push(`${name}: текст отказа владельца — тогда и только тогда, когда роль OWNER`);
   if (row.event !== undefined && row.event !== true && row.event !== 'given') p.push(`${name}: event — true, 'given' или не задано`);
@@ -28,19 +28,17 @@ function rowProblems(name, row) {
     p.push(`${name}: confirm — пара «слово, текст отказа»`);
   }
   if (typeof row.run !== 'function') p.push(`${name}: нет обработчика`);
-  // 050: общее действие организатора (admin.* не только над событием) выполняется в компании — признак company
-  if (admin && row.event !== true && row.company !== true) p.push(`${name}: admin.* без event: true — нужен company: true`);
-  if (row.company !== undefined && !(admin && row.company === true && row.event !== true)) {
-    p.push(`${name}: company — только true и только у admin.* без event: true`);
-  }
+  // 063: admin.* — над событием; без события — только действие владельца бота (признак bot); комнат (company) нет
+  if (admin && row.event !== true && row.bot !== true) p.push(`${name}: admin.* без event: true — только с bot: true`);
+  if (row.company !== undefined) p.push(`${name}: company — комнат нет (063)`);
   return p;
 }
 
-test('таблица действий: 73 строки (23 действия участника, 45 admin.*, 5 bot.*), каждая — по правилам', () => {
+test('таблица действий: 69 строк (21 действие участника, 43 admin.*, 5 bot.*), каждая — по правилам', () => {
   const names = Object.keys(ACTIONS);
-  assert.equal(names.length, 73);
-  assert.equal(names.filter((a) => a.startsWith('admin.')).length, 45);
-  assert.deepEqual(names.filter((a) => a.startsWith('bot.')).sort(), ['bot.audit', 'bot.company.create', 'bot.company.delete', 'bot.company.link', 'bot.owner.transfer']);
+  assert.equal(names.length, 69);
+  assert.equal(names.filter((a) => a.startsWith('admin.')).length, 43);
+  assert.deepEqual(names.filter((a) => a.startsWith('bot.')).sort(), ['bot.audit', 'bot.creator.set', 'bot.events', 'bot.owner.transfer', 'bot.people']);
   assert.deepEqual(names.flatMap((n) => rowProblems(n, ACTIONS[n])), []);
 });
 
@@ -48,14 +46,13 @@ test('таблица действий: действия владельца и с
   const owner = Object.keys(ACTIONS).filter((a) => ACTIONS[a].role === ROLES.OWNER).sort();
   assert.deepEqual(owner, [
     'admin.draw.cancel.force', 'admin.draw.swap', 'admin.draw.swap.check', 'admin.event.delete', 'admin.fixed.add', 'admin.fixed.del', 'admin.insert', 'admin.owner.transfer',
-    'admin.reset.full', 'admin.role.grant', 'admin.role.revoke', 'admin.transfer', 'admin.vault.pairs', 'admin.vault.person',
+    'admin.rename', 'admin.reset.full', 'admin.role.grant', 'admin.role.revoke', 'admin.transfer', 'admin.vault.pairs', 'admin.vault.person',
   ]);
   const words = Object.fromEntries(Object.entries(ACTIONS).filter(([, r]) => r.confirm).map(([a, r]) => [a, t(DEFAULT_LANG, r.confirm[0])]));
-  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер; 035: выход из события — ВЫЙТИ; 051, 052: удаление компании
+  // 025: служебный просмотр — слово ОТКРЫТЬ проверяет и сервер; 035: выход из события — ВЫЙТИ
   assert.deepEqual(words, {
     'event.leave': 'ВЫЙТИ', 'admin.draw.cancel.force': 'ОТМЕНА', 'admin.event.delete': 'УДАЛИТЬ', 'admin.vault.person': 'ОТКРЫТЬ',
-    'admin.vault.pairs': 'ОТКРЫТЬ', 'admin.reset.full': 'СБРОС', 'bot.company.delete': 'УДАЛИТЬ',
-    'company.delete': 'УДАЛИТЬ',
+    'admin.vault.pairs': 'ОТКРЫТЬ', 'admin.reset.full': 'СБРОС',
   });
 });
 
@@ -67,14 +64,15 @@ test('таблица действий: «от противного» — стр�
   assert.match(rowProblems('admin.x', { ...row, confirm: ['СЛОВО'] }).join('\n'), /admin\.x: confirm/);
   assert.match(rowProblems('ward.x', { ...row }).join('\n'), /ward\.x: роль admin не для участника/);
   assert.match(rowProblems('admin.x', { ...row, run: undefined }).join('\n'), /admin\.x: нет обработчика/);
-  const common = ACTIONS['admin.users'];
-  assert.match(rowProblems('admin.x', { ...common, company: undefined }).join('\n'), /admin\.x: admin\.\* без event: true — нужен company/);
-  assert.match(rowProblems('admin.x', { ...row, company: true }).join('\n'), /admin\.x: company — только true/);
-  assert.match(rowProblems('ward.x', { ...ACTIONS['ward.get'], company: true }).join('\n'), /ward\.x: company — только true/);
+  const botOnly = ACTIONS['admin.rename'];
+  assert.match(rowProblems('admin.x', { ...botOnly, bot: undefined }).join('\n'), /admin\.x: admin\.\* без event: true — только с bot/);
+  assert.match(rowProblems('admin.x', { ...row, company: true }).join('\n'), /admin\.x: company — комнат нет/);
+  assert.match(rowProblems('ward.x', { ...ACTIONS['ward.get'], company: true }).join('\n'), /ward\.x: company — комнат нет/);
   // 051: роль BOT — только у bot.*, bot.* — без события; признак bot — только у OWNER
   assert.match(rowProblems('bot.x', { ...ACTIONS.me }).join('\n'), /bot\.x: роль BOT — тогда и только тогда/);
   assert.match(rowProblems('me.x', { ...ACTIONS.me, role: ROLES.BOT }).join('\n'), /me\.x: роль BOT — тогда и только тогда/);
   assert.match(rowProblems('bot.x', { ...ACTIONS.me, role: ROLES.BOT, event: true, finished: true }).join('\n'), /bot\.x: bot\.\* — без события/);
   assert.match(rowProblems('admin.x', { ...row, bot: true }).join('\n'), /admin\.x: bot — только true и только у роли OWNER/);
   assert.deepEqual(rowProblems('admin.transfer', ACTIONS['admin.transfer']), []);
+  assert.deepEqual(rowProblems('admin.rename', ACTIONS['admin.rename']), []);
 });

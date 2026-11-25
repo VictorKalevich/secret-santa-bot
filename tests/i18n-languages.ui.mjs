@@ -27,7 +27,7 @@ before(async () => {
   w.query("UPDATE companies SET name = 'Main' WHERE id = 1");
   await w.say(anna, '/start ' + s.adminCode);
   await w.say(anna, anna.name);
-  E = (await w.api(anna, 'admin.events.create', { company: 1, title: 'Party' })).event.id;
+  E = (await w.api(anna, 'event.create', { participate: false, company: 1, title: 'Party' })).event.id;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(anna, 'admin.state', { event: E })).settings.invite_link)[1];
   for (const u of [li, bob, carl]) { await w.say(u, '/start ' + code); await w.say(u, u.name); }
   await w.api(anna, 'admin.participate', { event: E, on: true });

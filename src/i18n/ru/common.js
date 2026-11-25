@@ -24,7 +24,6 @@ export default {
   'common.noDraw': 'Жеребьёвка ещё не проведена.',
   'common.pairsRace': 'Пары изменились одновременно с этим действием — попробуй ещё раз.',
   'common.notMember': 'Ты не участвуешь в этом событии.',
-  'common.companyNotFound': 'Комната не найдена.',
   // общие (060: одинаковый текст с одним смыслом — один ключ)
   'common.writeLetterButton': '✏️ Написать письмо',
   'common.replyButton': '↩️ Ответить',

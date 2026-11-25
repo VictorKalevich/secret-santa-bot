@@ -52,7 +52,7 @@ async function world(open) {
   };
   z.create = async (u, name) => (await z.ok(u, 'company.create', { name })).company;
   z.event = async (u, company, title, people = []) => {
-    const id = (await z.ok(u, 'admin.events.create', { company, title })).event.id;
+    const id = (await z.ok(u, 'event.create', { participate: false, company, title })).event.id;
     const code = inviteOf(await z.ok(u, 'admin.state', { event: id }));
     for (const p of people) {
       const known = w.query('SELECT registered FROM users WHERE tg_id = ?', p.id)[0]?.registered;
@@ -358,7 +358,7 @@ describe('052: открытый бот, владельца бота ещё не�
     }
     assert.equal(w.query("SELECT COUNT(*) AS n FROM settings WHERE key = 'owner_id' AND value != ''")[0].n, 0);
     const C = (await w.api(anya, 'company.create', { name: 'Без владельца бота' })).company;
-    const ev = (await w.api(anya, 'admin.events.create', { company: C, title: 'Ёлка' })).event.id;
+    const ev = (await w.api(anya, 'event.create', { participate: false, company: C, title: 'Ёлка' })).event.id;
     await w.say(vera, '/start ' + inviteOf(await w.api(anya, 'admin.state', { event: ev })));
     await w.say(vera, vera.name);
     await w.api(anya, 'admin.role.grant', { company: C, id: vera.id });

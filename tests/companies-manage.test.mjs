@@ -45,7 +45,7 @@ async function bossWorld() {
     }
   };
   z.event = async (company, title, people = []) => {
-    const id = (await w.api(boss, 'admin.events.create', { title, company })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title, company })).event.id;
     await z.join(id, people);
     return id;
   };
@@ -123,7 +123,7 @@ describe('051: создание компании (US1)', () => {
 
   it('новая компания без владельца: владелец бота в ней владелец — создаёт событие, получает «присоединяется»', async () => {
     const c = await newCompany(z.w, boss, 'Своя без владельца');
-    const ev = (await z.ok(boss, 'admin.events.create', { company: c, title: 'В новой' })).event.id;
+    const ev = (await z.ok(boss, 'event.create', { participate: false, company: c, title: 'В новой' })).event.id;
     assert.equal(z.w.query('SELECT company_id FROM events WHERE id = ?', ev)[0].company_id, c);
     const before = z.w.texts(boss).length;
     await z.join(ev, [person(1401, 'Новичок')]);
@@ -136,12 +136,12 @@ describe('051: создание компании (US1)', () => {
 
   it('событие в несуществующей компании — 404 «Комната не найдена.», ничего не записано', async () => {
     const before = z.w.query('SELECT COUNT(*) AS n FROM events')[0].n;
-    const r = await z.w.api(boss, 'admin.events.create', { company: 999, title: 'Никуда' }, true);
+    const r = await z.w.api(boss, 'event.create', { participate: false, company: 999, title: 'Никуда' }, true);
     assert.equal(r.status, 403, 'компании нет — конвейер: не организатор');
     // Компания удалена между проверкой конвейера и записью — условие пакета
     const c = await newCompany(z.w, boss, 'Исчезнет');
     z.w.beforeWrite('INSERT INTO events', () => z.w.sql(`DELETE FROM company_members WHERE company_id = ${c}; DELETE FROM companies WHERE id = ${c}`));
-    const gone = await z.w.api(boss, 'admin.events.create', { company: c, title: 'Не будет' }, true);
+    const gone = await z.w.api(boss, 'event.create', { participate: false, company: c, title: 'Не будет' }, true);
     assert.equal(gone.status, 404);
     assert.equal(gone.data.error, 'Комната не найдена.');
     assert.equal(z.w.query('SELECT COUNT(*) AS n FROM events')[0].n, before);
@@ -231,7 +231,7 @@ describe('051: владелец компании (US2)', () => {
     assert.equal((await z.api(y, 'admin.participate', { event: evC, on: true })).data.error,
       'После жеребьёвки так нельзя. Попроси владельца вписать тебя.');
     // Причина отказа жеребьёвки видна и администраторам: убрать закреплённые пары может владелец компании
-    const ev2 = (await z.ok(x, 'admin.events.create', { company: C, title: 'Второе событие клуба' })).event.id;
+    const ev2 = (await z.ok(x, 'event.create', { participate: false, company: C, title: 'Второе событие клуба' })).event.id;
     await z.join(ev2, [y, q, s]);
     await z.ok(x, 'admin.ring', { event: ev2, on: false });
     await z.ok(x, 'admin.fixed.add', { event: ev2, giver: y.id, receiver: q.id, mutual: true });

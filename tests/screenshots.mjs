@@ -90,8 +90,8 @@ try {
   const s = await w.setup();
   await w.say(admin, '/start ' + s.adminCode);
   await w.say(admin, admin.name);
-  const A = (await w.api(admin, 'admin.events.create', { title: 'Новый год 2026 — семья' })).event.id;
-  const B = (await w.api(admin, 'admin.events.create', { title: 'Офис' })).event.id;
+  const A = (await w.api(admin, 'event.create', { participate: false, title: 'Новый год 2026 — семья' })).event.id;
+  const B = (await w.api(admin, 'event.create', { participate: false, title: 'Офис' })).event.id;
   const inv = async (eid) => /start=(inv_[a-z0-9]+)/.exec((await w.api(admin, 'admin.state', { event: eid })).settings.invite_link)[1];
   await w.api(admin, 'admin.participate', { event: A, on: true });
   const codeA = await inv(A);
@@ -515,7 +515,7 @@ try {
     const loadFailed = (page) => page.locator('#main .ds-empty__title', { hasText: 'Не получилось загрузить' }).waitFor({ timeout: 3000 });
     const BROKEN = { contentType: 'application/json', body: '{"ok":true}' }; // «успех» без данных панели
 
-    const C = (await w.api(admin, 'admin.events.create', { title: 'Проверка' })).event.id;
+    const C = (await w.api(admin, 'event.create', { participate: false, title: 'Проверка' })).event.id;
     await w.api(admin, 'admin.participate', { event: C, on: true });
     await w.say(people[4], '/start ' + (await inv(C)));
 
@@ -784,10 +784,10 @@ addEventListener('message', (e) => {
     const problems = [];
     const timur = { id: 140, name: 'Тимур', username: 'timur' };
     const yulia = { id: 141, name: 'Юля', username: 'yulia' };
-    const L = (await w.api(admin, 'admin.events.create', { title: 'Выход' })).event.id;
+    const L = (await w.api(admin, 'event.create', { participate: false, title: 'Выход' })).event.id;
     const codeL = await inv(L);
     for (const p of [timur, yulia]) { await w.say(p, '/start ' + codeL); await w.say(p, p.name); }
-    const D = (await w.api(admin, 'admin.events.create', { title: 'Уже с жеребьёвкой' })).event.id;
+    const D = (await w.api(admin, 'event.create', { participate: false, title: 'Уже с жеребьёвкой' })).event.id;
     const codeD = await inv(D);
     for (const p of [timur, yulia]) await w.say(p, '/start ' + codeD);
     await w.api(admin, 'admin.participate', { event: D, on: true });
@@ -914,7 +914,7 @@ addEventListener('message', (e) => {
     const names = ['Вова', 'Галя', 'Евгений', 'Жанна', 'Зоя', 'Игорь', 'Лена', 'Нина'];
     const fresh = names.map((name, i) => ({ id: 150 + i, name, username: name === 'Лена' ? '' : 'u' + (150 + i) }));
     const [vova] = fresh;
-    const R = (await w.api(admin, 'admin.events.create', { title: 'Список участников' })).event.id;
+    const R = (await w.api(admin, 'event.create', { participate: false, title: 'Список участников' })).event.id;
     const codeR = await inv(R);
     for (const p of fresh) { await w.say(p, '/start ' + codeR); await w.say(p, p.name); }
     await w.api(admin, 'admin.participate', { event: R, on: true });
@@ -1023,7 +1023,7 @@ addEventListener('message', (e) => {
   async function checkLooks() {
     const problems = [];
     const [petr, rita, sveta] = [['Пётр', 'petr'], ['Рита', 'rita'], ['Света', 'sveta']].map(([name, username], i) => ({ id: 170 + i, name, username }));
-    const E = (await w.api(admin, 'admin.events.create', { title: 'Открытки' })).event.id;
+    const E = (await w.api(admin, 'event.create', { participate: false, title: 'Открытки' })).event.id;
     const code = await inv(E);
     for (const p of [petr, rita, sveta]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     await w.api(rita, 'wishlist.save', { event: E, text: LETTER('Рита') });
@@ -1116,7 +1116,7 @@ addEventListener('message', (e) => {
   async function checkNames() {
     const problems = [];
     const [gleb, liza, mila] = [['Глеб', 'gleb'], ['Лиза', 'liza'], ['Мила', 'mila']].map(([name, username], i) => ({ id: 180 + i, name, username }));
-    const E = (await w.api(admin, 'admin.events.create', { title: 'Имена' })).event.id;
+    const E = (await w.api(admin, 'event.create', { participate: false, title: 'Имена' })).event.id;
     const code = await inv(E);
     for (const p of [gleb, liza, mila]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     await w.api(admin, 'admin.role.grant', { id: gleb.id });
@@ -1199,7 +1199,7 @@ addEventListener('message', (e) => {
     const problems = [];
     const ppl = [['Тима', 'tima'], ['Уля', 'ulya'], ['Фёдор', 'fedor']].map(([name, username], i) => ({ id: 200 + i, name, username }));
     const [tima] = ppl;
-    const E = (await w.api(admin, 'admin.events.create', { title: 'Без масок' })).event.id;
+    const E = (await w.api(admin, 'event.create', { participate: false, title: 'Без масок' })).event.id;
     const code = await inv(E);
     for (const p of ppl) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     await w.api(admin, 'admin.draw', { event: E });
@@ -1246,7 +1246,7 @@ addEventListener('message', (e) => {
     const ppl = [['Арина', 'arina'], ['Борис', 'boris'], ['Вера', 'vera'], ['Дина', 'dina'], ['Ефим', 'efim']]
       .map(([name, username], i) => ({ id: 220 + i, name, username }));
     const [arina, boris, vera, dina, efim] = ppl;
-    const E = (await w.api(admin, 'admin.events.create', { title: 'Обмен' })).event.id;
+    const E = (await w.api(admin, 'event.create', { participate: false, title: 'Обмен' })).event.id;
     const code = await inv(E);
     for (const p of ppl) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     await w.api(admin, 'admin.participate', { event: E, on: true });
@@ -1357,7 +1357,7 @@ addEventListener('message', (e) => {
   async function checkKeyboard() {
     const problems = [];
     const [olya, pasha, roma] = [['Оля', 'olya'], ['Паша', 'pasha'], ['Рома', 'roma']].map(([name, username], i) => ({ id: 190 + i, name, username }));
-    const E = (await w.api(admin, 'admin.events.create', { title: 'Клавиатура' })).event.id;
+    const E = (await w.api(admin, 'event.create', { participate: false, title: 'Клавиатура' })).event.id;
     const code = await inv(E);
     for (const p of [olya, pasha, roma]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     // Фокус в поле field, касание цели target ([селектор, текст]) → остался ли фокус в поле
@@ -1502,8 +1502,8 @@ addEventListener('message', (e) => {
     const problems = [];
     const [nina, oleg] = [{ id: 240, name: 'Нина', username: 'nina' }, { id: 241, name: 'Олег К', username: 'olegk' }];
     // Два события в «Основной»: с одним приложение сразу открыло бы его, а не главный экран
-    const E = (await w.api(admin, 'admin.events.create', { title: 'Ёлка у Нины' })).event.id;
-    const E2 = (await w.api(admin, 'admin.events.create', { title: 'Ёлка у Олега' })).event.id;
+    const E = (await w.api(admin, 'event.create', { participate: false, title: 'Ёлка у Нины' })).event.id;
+    const E2 = (await w.api(admin, 'event.create', { participate: false, title: 'Ёлка у Олега' })).event.id;
     const code = await inv(E);
     for (const p of [nina, oleg]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     const code2 = await inv(E2);
@@ -1544,7 +1544,7 @@ addEventListener('message', (e) => {
     });
     const C = w.query("SELECT id FROM companies WHERE name = 'Работа'")[0]?.id;
     if (!C) { colorProblems.push('компании (051): компания не создана — дальше проверять нечего'); return; }
-    const EC = (await w.api(admin, 'admin.events.create', { company: C, title: 'Новогодний корпоратив' })).event.id;
+    const EC = (await w.api(admin, 'event.create', { participate: false, company: C, title: 'Новогодний корпоратив' })).event.id;
     const codeC = await inv(EC);
     for (const p of [nina, oleg]) await w.say(p, '/start ' + codeC);
 
@@ -1683,7 +1683,7 @@ addEventListener('message', (e) => {
 
       const Z = o.query("SELECT id FROM companies WHERE name = 'Комната Зои'")[0]?.id;
       if (!Z) throw new Error('компания Зои не создана');
-      const ev = (await o.api(zoya, 'admin.events.create', { company: Z, title: 'Ёлка у Зои' })).event.id;
+      const ev = (await o.api(zoya, 'event.create', { participate: false, company: Z, title: 'Ёлка у Зои' })).event.id;
       const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(zoya, 'admin.state', { event: ev })).settings.invite_link)[1];
       await o.say(petya, '/start ' + code);
       await o.say(petya, petya.name);
@@ -1785,7 +1785,7 @@ addEventListener('message', (e) => {
       await o.api(lena, 'company.create', { name: 'Комната Лены' });
       const L = o.query("SELECT id FROM companies WHERE name = 'Комната Лены'")[0]?.id;
       if (!L) throw new Error('компания Лены не создана');
-      const ev = (await o.api(lena, 'admin.events.create', { company: L, title: 'Ёлка у Лены' })).event.id;
+      const ev = (await o.api(lena, 'event.create', { participate: false, company: L, title: 'Ёлка у Лены' })).event.id;
       const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(lena, 'admin.state', { event: ev })).settings.invite_link)[1];
       await o.say(kolya, '/start ' + code);
       await o.say(kolya, kolya.name);

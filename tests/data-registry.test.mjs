@@ -8,7 +8,7 @@ import { startWorld, restoreFetch } from './support/world.mjs';
 import { seeded } from './support/draw-cases.mjs';
 import {
   REGISTRY, MEMBER, ACTOR, RECIPIENT, SELF, NOT_PERSON, columnsWith,
-  eventDataDeleteStmts, memberDataDeleteStmts, personTransferStmts, mergeMembership, companyDataDeleteStmts,
+  eventDataDeleteStmts, memberDataDeleteStmts, personTransferStmts, mergeMembership,
 } from '../src/db.js';
 
 const ROLES = new Set([MEMBER, ACTOR, RECIPIENT, SELF, NOT_PERSON]);
@@ -56,21 +56,19 @@ function registryGaps(sqlite, registry = REGISTRY) {
     if (columnsWith(spec, MEMBER, ACTOR).length && !['update', 'dedupe', 'merge'].includes(spec.onTransfer)) {
       gaps.push(`${table}: не задано onTransfer`);
     }
-    // 051: у каждой таблицы с компанией — что с ней при удалении компании (кроме самой строки компании — якоря)
-    if (spec.company && spec.anchor !== 'company' && !['delete', 'block'].includes(spec.onCompanyDelete)) {
-      gaps.push(`${table}: не задано onCompanyDelete`);
-    }
+    // 063: сброс события оставляет строку события — таблица события решает, стирать ли свои строки (умолчание — да)
+    if (spec.onReset !== undefined && (!spec.event || spec.onReset !== 'keep')) gaps.push(`${table}: onReset — только 'keep' у таблицы события`);
   }
   return gaps;
 }
 
 describe('список данных события и человека (тест схемы)', () => {
-  it('схема из миграций полностью описана: 19 таблиц, ни одного расхождения', () => {
+  it('схема из миграций полностью описана: 21 таблица, ни одного расхождения', () => {
     const db = createMigratedD1();
     assert.deepEqual(registryGaps(db.sqlite), []);
-    assert.equal(schemaOf(db.sqlite).size, 19);
-    assert.equal(Object.keys(REGISTRY).length, 19);
-    // 050: колонка компании описана у каждой таблицы, где она есть
+    assert.equal(schemaOf(db.sqlite).size, 21);
+    assert.equal(Object.keys(REGISTRY).length, 21);
+    // 050: колонка компании описана у каждой таблицы, где она есть (063: только описание — комнат нет, таблицы ради отката)
     const withCompany = [...schemaOf(db.sqlite)].filter(([, cols]) => cols.includes('company_id')).map(([t]) => t).sort();
     assert.deepEqual(withCompany, ['audit', 'company_members', 'events', 'families', 'family_members']);
     for (const t of withCompany) assert.equal(REGISTRY[t].company, 'company_id', t);
@@ -114,16 +112,13 @@ describe('список данных события и человека (тест
     assert.deepEqual(registryGaps(db.sqlite, copy).sort(), ['exclusions: не задано onLeave', 'pairs.helper — в списке, но нет в схеме']);
   });
 
-  it('051: удаление компании — решение у каждой таблицы с компанией; от противного — без решения', () => {
+  it('063: организаторы события переживают сброс, факты создания — и удаление; от противного — onReset не у таблицы события', () => {
     const db = createMigratedD1();
-    const decided = Object.entries(REGISTRY).filter(([, s]) => s.company).map(([t, s]) => [t, s.anchor === 'company' ? 'якорь' : s.onCompanyDelete]);
-    assert.deepEqual(Object.fromEntries(decided), {
-      companies: 'якорь', company_members: 'delete', events: 'block', audit: 'delete', families: 'delete', family_members: 'delete',
-    });
-    const copy = { ...REGISTRY, families: { ...REGISTRY.families, onCompanyDelete: undefined } };
-    assert.deepEqual(registryGaps(db.sqlite, copy), ['families: не задано onCompanyDelete']);
-    const bad = { ...REGISTRY, audit: { ...REGISTRY.audit, onCompanyDelete: 'keep' } };
-    assert.deepEqual(registryGaps(db.sqlite, bad), ['audit: не задано onCompanyDelete']);
+    const kept = Object.entries(REGISTRY).filter(([, s]) => s.onReset).map(([t, s]) => [t, s.onReset]);
+    assert.deepEqual(kept, [['event_admins', 'keep']]);
+    assert.equal(REGISTRY.event_creations.onEventDelete, 'keep');
+    const copy = { ...REGISTRY, settings: { ...REGISTRY.settings, onReset: 'keep' } };
+    assert.deepEqual(registryGaps(db.sqlite, copy), ["settings: onReset — только 'keep' у таблицы события"]);
   });
 });
 
@@ -255,46 +250,6 @@ test('050: перенос строк компаний — права больш�
   ]);
 });
 
-test('051: удаление компании — строки семей раньше семей, строка компании последней, условие у каждого оператора', () => {
-  const stmts = companyDataDeleteStmts(fakeDb, 5, GUARD, 'g');
-  assertGuarded(stmts);
-  assert.deepEqual(stmts.map((s) => s.sql.split(' AND (')[0]), [
-    'DELETE FROM family_members WHERE company_id = ?', 'DELETE FROM company_members WHERE company_id = ?',
-    'DELETE FROM audit WHERE company_id = ?', 'DELETE FROM families WHERE company_id = ?', 'DELETE FROM companies WHERE id = ?',
-  ]);
-  assert.ok(stmts.every((s) => s.args[0] === 5));
-  assert.match(companyDataDeleteStmts(fakeDb, 5).at(-1).sql, /^DELETE FROM companies WHERE id = \? AND \(1\)$/);
-});
-
-test('051: удаление компании на настоящей схеме — строк компании не остаётся, другая компания и журнал бота целы', async () => {
-  const db = createMigratedD1();
-  db.sqlite.exec("INSERT INTO companies (id, name) VALUES (2, 'Б')");
-  db.sqlite.exec("INSERT INTO users (tg_id, name, registered) VALUES (100, 'А', 1), (200, 'Б', 1)");
-  db.sqlite.exec('INSERT INTO company_members (company_id, user_id, is_admin) VALUES (1, 100, 1), (2, 100, 1), (2, 200, 0)');
-  db.sqlite.exec("INSERT INTO families (id, name, created_at, company_id) VALUES (1, 'С1', 0, 1), (2, 'С2', 0, 2)");
-  db.sqlite.exec('INSERT INTO family_members (company_id, user_id, family_id) VALUES (1, 100, 1), (2, 100, 2), (2, 200, 2)');
-  db.sqlite.exec(`INSERT INTO audit (event_id, company_id, actor, action, created_at) VALUES
-    (0, 1, 100, 'a', 0), (0, 2, 100, 'b', 0), (9, 2, 100, 'c', 0), (0, 0, 100, 'company.create', 0)`);
-  const counts = () => Object.fromEntries(Object.entries(REGISTRY).filter(([, s]) => s.company)
-    .map(([t, s]) => [t, db.sqlite.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE ${s.company} = 2`).get().n]));
-  // Условие ложно — ничего не удалено
-  await db.batch(companyDataDeleteStmts(db, 2, 'EXISTS (SELECT 1 FROM companies WHERE id = ?)', 99));
-  assert.deepEqual(counts(), { companies: 1, company_members: 2, events: 0, audit: 2, families: 1, family_members: 2 });
-  await db.batch(companyDataDeleteStmts(db, 2, 'EXISTS (SELECT 1 FROM companies WHERE id = ?)', 2));
-  assert.deepEqual(counts(), { companies: 0, company_members: 0, events: 0, audit: 0, families: 0, family_members: 0 });
-  assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM company_members WHERE company_id = 1').get().n, 1);
-  assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM family_members WHERE company_id = 1').get().n, 1);
-  assert.deepEqual(db.sqlite.prepare('SELECT action FROM audit ORDER BY id').all().map((r) => r.action), ['a', 'company.create']);
-  // От противного: таблица с компанией без решения — построитель отказывается
-  const saved = REGISTRY.families.onCompanyDelete;
-  REGISTRY.families.onCompanyDelete = undefined;
-  try {
-    assert.throws(() => companyDataDeleteStmts(db, 1), /REGISTRY\.families: не задано удаление компании/);
-  } finally {
-    REGISTRY.families.onCompanyDelete = saved;
-  }
-});
-
 // ---------- после действия не остаётся строк (US3) ----------
 // «Богатый мир»: событие A (адрес нужен, владелец участвует, жеребьёвка проведена), событие B (с одобрением заявок),
 // событие C (p1 удалён организатором). Поиск строк идёт по REGISTRY — все колонки события и человека (полноту списка
@@ -310,7 +265,8 @@ const [p1, p2, p3, p4, p5, p6] = P;
 const STAYS = ['outbox.chat_id'];
 // Ссылки «кто сделал» — с 025 переносятся вместе с человеком
 const ACTOR_COLUMNS = [
-  'announcements.author', 'audit.actor', 'companies.created_by', 'companies.owner_id', 'events.created_by', 'families.created_by', 'join_requests.decided_by',
+  'announcements.author', 'audit.actor', 'companies.created_by', 'companies.owner_id', 'events.created_by', 'events.owner_id',
+  'event_creations.user_id', 'families.created_by', 'join_requests.decided_by',
   'removed_members.removed_by', 'support_messages.sender', 'support_threads.assignee', 'support_threads.closed_by',
 ];
 
@@ -337,7 +293,7 @@ async function rich() {
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const create = async (title) => (await w.api(boss, 'admin.events.create', { title })).event.id;
+  const create = async (title) => (await w.api(boss, 'event.create', { participate: false, title })).event.id;
   const codeOf = async (id) => /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: id })).settings.invite_link)[1];
   const [A, B, C] = [await create('Альфа'), await create('Бета'), await create('Гамма')];
 
@@ -349,7 +305,9 @@ async function rich() {
     await w.say(u, '/start ' + codeA);
     await w.say(u, u.name);
   }
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: A, id: adm.id });
+  // 063: в B и C админ — организатор без участия, как после переноса комнаты (назначить через API можно только участника)
+  w.sql(`INSERT INTO event_admins (event_id, user_id, created_at) VALUES (${B}, ${adm.id}, 0), (${C}, ${adm.id}, 0)`);
 
   // B: с одобрением — новый аккаунт, p1 и p2 приняты, заявка p3 ждёт
   await w.api(boss, 'admin.game', { event: B, approval: true });
@@ -448,23 +406,24 @@ const kept = (rows, stays = [...STAYS, ...ACTOR_COLUMNS]) => Object.keys(rows).f
 describe('после действия не остаётся строк события и человека', () => {
   after(restoreFetch);
 
-  it('удаление события: остаётся только журнал события; другие события не затронуты', () => seededRun(async () => {
+  it('удаление события: остаются только журнал события и факт создания (063, лимит); другие события не затронуты', () => seededRun(async () => {
     const { w, A, B, C } = await rich();
     const others = [eventRows(w, A), eventRows(w, C)];
     assert.ok(Object.keys(eventRows(w, B)).length >= 5, 'в B были данные');
     await w.api(boss, 'admin.event.delete', { event: B, confirm: 'УДАЛИТЬ' });
-    assert.deepEqual(Object.keys(eventRows(w, B)), ['audit']);
+    assert.deepEqual(Object.keys(eventRows(w, B)).sort(), ['audit', 'event_creations']);
     assert.deepEqual(orphans(w), {});
     assert.deepEqual([eventRows(w, A), eventRows(w, C)], others);
     assert.equal(w.query("SELECT COUNT(*) AS n FROM audit WHERE event_id = 0 AND action = 'event.delete'")[0].n, 1);
   }));
 
-  it('полный сброс: строка события по умолчанию, участие владельца без письма и адреса, журнал', () => seededRun(async () => {
+  it('полный сброс: строка события по умолчанию, участие владельца без письма и адреса, журнал, организаторы (063)', () => seededRun(async () => {
     const { w, A, B, C } = await rich();
     const others = [eventRows(w, B), eventRows(w, C)];
     const code = w.query('SELECT invite_code FROM events WHERE id = ?', A)[0].invite_code;
     await w.api(boss, 'admin.reset.full', { event: A, confirm: 'СБРОС' });
-    assert.deepEqual(Object.keys(eventRows(w, A)).sort(), ['audit', 'events', 'members']);
+    assert.deepEqual(Object.keys(eventRows(w, A)).sort(), ['audit', 'event_admins', 'event_creations', 'events', 'members']);
+    assert.deepEqual(w.query('SELECT user_id FROM event_admins WHERE event_id = ? ORDER BY user_id', A).map((r) => r.user_id), [boss.id, adm.id]);
     assert.deepEqual(w.query('SELECT user_id, wishlist, wishlist_updated_at, delivery, delivery_updated_at FROM members WHERE event_id = ?', A),
       [{ user_id: boss.id, wishlist: '', wishlist_updated_at: 0, delivery: '', delivery_updated_at: 0 }]);
     const ev = w.query('SELECT * FROM events WHERE id = ?', A)[0];

@@ -30,11 +30,11 @@ async function world() {
     await w.say(u, '/start ' + code);
     if (!known) await w.say(u, u.name);
   };
-  const E = (await w.api(boss, 'admin.events.create', { title: 'Список' })).event.id;
+  const E = (await w.api(boss, 'event.create', { participate: false, title: 'Список' })).event.id;
   const code = await invite(E);
   for (const u of [vera, gena, anya, adm, borya, adm2]) await join(u, code);
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
-  await w.api(boss, 'admin.role.grant', { id: adm2.id });
+  await w.api(boss, 'admin.role.grant', { event: E, id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: E, id: adm2.id });
   await w.api(adm2, 'admin.participate', { event: E, on: false });
   await w.api(boss, 'admin.participate', { event: E, on: true });
   await w.say(stranger, '/start ' + code);
@@ -132,7 +132,7 @@ describe('участники могут писать друг другу (037, U
 
   it('образец копирует параметр, полный сброс возвращает «выключено»', async () => {
     const { w, E } = z;
-    const copy = (await w.api(boss, 'admin.events.create', { title: 'По образцу', from: E })).event;
+    const copy = (await w.api(boss, 'event.create', { participate: false, title: 'По образцу', from: E })).event;
     assert.equal(copy.contacts_on, true);
     await w.api(boss, 'admin.reset.full', { event: E, confirm: 'СБРОС' });
     assert.equal((await w.api(boss, 'admin.state', { event: E })).settings.contacts_on, false);
@@ -141,7 +141,7 @@ describe('участники могут писать друг другу (037, U
 
   it('выключили снова — @username пропадают', async () => {
     const { w } = z;
-    const F = (await w.api(boss, 'admin.events.create', { title: 'Вкл-выкл' })).event.id;
+    const F = (await w.api(boss, 'event.create', { participate: false, title: 'Вкл-выкл' })).event.id;
     await z.join(anya, await z.invite(F));
     await w.api(boss, 'admin.game', { event: F, contacts_on: true });
     assert.equal((await z.roster(anya, F)).people[0].username, 'anya');
@@ -165,7 +165,7 @@ describe('пригласить друга (037, US3)', () => {
 
   it('по одобрению — по той же ссылке приходит заявка, а не участие', async () => {
     const { w } = z;
-    const F = (await w.api(boss, 'admin.events.create', { title: 'С заявками' })).event.id;
+    const F = (await w.api(boss, 'event.create', { participate: false, title: 'С заявками' })).event.id;
     await z.join(anya, await z.invite(F));
     await w.api(boss, 'admin.game', { event: F, approval: true });
     const link = (await z.roster(anya, F)).invite_link;

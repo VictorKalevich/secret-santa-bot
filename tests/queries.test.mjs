@@ -1,7 +1,8 @@
 // Число запросов на действие (016, FR-1610; Конституция, принцип V — не больше 50 внешних запросов на вызов).
 // К базе — не больше базового замера (шаг 4 плана рефакторинга их сократил — числа ниже после 019, до него — в
 // git на 5d8cc0e: docs/refactoring/baseline.md, раздел 3; остальные фичи не добавляют; 047 — ввод имени без перечитывания
-// пользователя); к Telegram — ровно столько же (сообщения —
+// пользователя; 063 — событие действия читается первым пакетом контекста, на запрос меньше у каждого действия события); к
+// Telegram — ровно столько же (сообщения —
 // поведение). Посмотреть текущие числа и SQL: node tests/bench/queries.mjs [sql].
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,49 +35,49 @@ const BASELINE = {
   '/setup (POST)': [4, 42], // 061: профиль бота на 11 языках — сколько помещается в бюджет вызова, место — в settings
   'bot: /start adm_ (ссылка владельца)': [8, 1],
   'bot: ввод имени': [3, 2],
-  'admin.events.create': [3, 0],
-  'admin.state (пустое событие)': [4, 0],
+  'event.create': [2, 0],
+  'admin.state (пустое событие)': [2, 0],
   'bot: /start inv_ (новый человек)': [4, 1],
   'bot: имя после ссылки': [9, 3],
   'admin.role.grant': [6, 1],
-  'admin.participate (вкл)': [4, 0],
-  'wishlist.save': [4, 0],
+  'admin.participate (вкл)': [2, 0],
+  'wishlist.save': [3, 0],
   'me (участник)': [2, 0],
   'me (админ)': [2, 0],
-  'event.get (участник, до жеребьёвки)': [4, 0],
-  'admin.exclusion.add': [6, 0],
-  'admin.fixed.add': [6, 0],
-  'admin.game': [4, 0],
-  'admin.draw.check': [4, 0],
-  'admin.draw (14 человек)': [8, 14],
-  'admin.state (админ, после жеребьёвки)': [4, 0],
-  'admin.state (владелец)': [4, 0],
-  'ward.get (первый раз)': [7, 0],
-  'ward.get (повторно)': [6, 0],
-  'ward.gift': [4, 0],
-  'message.send': [8, 1],
-  'chat.get': [6, 0],
-  'ward.received': [8, 1],
-  'event.get (участник, после жеребьёвки)': [4, 0],
-  'support.send (новое обращение)': [9, 2],
-  'support.get': [4, 0],
-  'admin.support.take': [8, 2],
-  'admin.support.send': [8, 1],
-  'admin.support.get': [4, 0],
-  'admin.support.close': [8, 1],
-  'admin.announce (14 человек)': [8, 14],
-  'admin.remind.santas': [8, 13],
-  'admin.remove (после жеребьёвки)': [8, 2],
-  'admin.registration': [4, 0],
+  'event.get (участник, до жеребьёвки)': [3, 0],
+  'admin.exclusion.add': [5, 0],
+  'admin.fixed.add': [4, 0],
+  'admin.game': [2, 0],
+  'admin.draw.check': [2, 0],
+  'admin.draw (14 человек)': [6, 14],
+  'admin.state (админ, после жеребьёвки)': [2, 0],
+  'admin.state (владелец)': [2, 0],
+  'ward.get (первый раз)': [6, 0],
+  'ward.get (повторно)': [5, 0],
+  'ward.gift': [3, 0],
+  'message.send': [7, 1],
+  'chat.get': [5, 0],
+  'ward.received': [7, 1],
+  'event.get (участник, после жеребьёвки)': [3, 0],
+  'support.send (новое обращение)': [8, 2],
+  'support.get': [3, 0],
+  'admin.support.take': [7, 2],
+  'admin.support.send': [7, 1],
+  'admin.support.get': [2, 0],
+  'admin.support.close': [7, 1],
+  'admin.announce (14 человек)': [6, 14],
+  'admin.remind.santas': [6, 13],
+  'admin.remove (после жеребьёвки)': [7, 2],
+  'admin.registration': [2, 0],
   'bot: «Участвовать как …» (после ссылки)': [9, 5],
-  'admin.insert': [8, 2],
-  'admin.vault.pairs': [5, 0],
-  'admin.vault.person': [6, 0],
-  'admin.audit (событие)': [4, 0],
-  'admin.event.finish': [8, 14],
+  'admin.insert': [6, 2],
+  'admin.vault.pairs': [3, 0],
+  'admin.vault.person': [4, 0],
+  'admin.audit (событие)': [2, 0],
+  'admin.event.finish': [6, 14],
   'cron (обычная минута)': [3, 0],
-  'admin.events.create (по образцу + приглашения)': [9, 14],
-  'admin.event.delete': [8, 14],
+  'event.create (по образцу + приглашения)': [9, 14],
+  'admin.event.delete': [6, 14],
 };
 
 test('запросы: каждое действие сценария не тяжелее базового замера', async () => {
@@ -105,7 +106,7 @@ test('запросы: жеребьёвка на 40 человек вместе �
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const ev = (await w.api(boss, 'admin.events.create', { title: 'Большое' })).event.id;
+  const ev = (await w.api(boss, 'event.create', { participate: false, title: 'Большое' })).event.id;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: ev })).settings.invite_link)[1];
   const people = Array.from({ length: 40 }, (_, i) => ({ id: 1000 + i, name: 'Гость' + (i + 1), username: 'g' + (i + 1) }));
   for (const u of people) {

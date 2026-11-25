@@ -9,7 +9,7 @@ test('041: черновик личный, публикация явная, ус�
   const admin = { id: 101, name: 'Санта' }, author = { id: 102, name: 'Автор' };
   await w.say(admin, '/start ' + (await w.setup()).adminCode);
   await w.say(admin, admin.name);
-  const event = (await w.api(admin, 'admin.events.create', { title: 'Черновики' })).event.id;
+  const event = (await w.api(admin, 'event.create', { participate: false, title: 'Черновики' })).event.id;
   const call = (who, action, body) => w.api(who, action, { event, ...body });
   const mode = (on) => call(admin, 'admin.game', { letter_drafts: on });
   const mine = async () => (await call(author, 'event.get')).member;

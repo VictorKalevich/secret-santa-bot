@@ -8,13 +8,13 @@ import { isFinished } from './status.js';
 import { remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
 import { runDraw } from './pairs.js';
 import { makeContext } from './context.js';
-import { openBot } from './companies.js';
+import { openBot } from './creation.js';
 import { dailyEventsQuery, staleStep, warnStale } from './stale.js';
 
 // Шаги запуска независимы (009, FR-910): ошибка в одном не мешает остальным, а очередь сообщений отправляется
 // всегда — в пределах оставшегося бюджета запросов вызова (outbox.js).
 // Один контекст на запуск (019): настройки и пользователи читаются не больше раза и только если нужны. Действие над
-// событием — в контексте его компании (050, ctx.in): люди, организаторы и права — этой компании.
+// событием — в его контексте (063, ctx.at): люди, организаторы и права — этого события.
 export async function runScheduled(env) {
   const ctx = makeContext(env);
   await step('notify', () => notifyWishlistChanges(ctx));
@@ -95,25 +95,24 @@ async function dailyStep(ctx) {
   const { db, env } = ctx;
   const now = localDate(env);
   if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
-  // Идущие эвенты без отметки «на сегодня проверено» (057). Компании читает ctx.in только для действия — в обычную
-  // минуту их не читаем (054)
+  // Идущие эвенты без отметки «на сегодня проверено» (057). Людей события читает контекст только для действия — в
+  // обычную минуту их не читаем (054)
   const open = openBot(env);
   const { events: results } = await ctx.read({ events: dailyEventsQuery(db, { open, today: now.iso }) });
-  const inCompany = (ev) => ctx.in(ev.company_id);
   const autos = [];
   const reminders = [];
   const quiet = [];
   const cleared = [];
   for (const ev of results) {
     const due = dueAutoAction(ev, now.iso);
-    if (due) autos.push(async () => runAutoAction(await inCompany(ev), ev, due));
+    if (due) autos.push(async () => runAutoAction(await ctx.at(ev), ev, due));
     else if (ev.last_daily !== now.iso) {
       const stale = open ? staleStep(env, ev, now.iso) : null;
       const remind = dailyReminder(env, ev);
       // Отметка «сегодня сделано» — в одном batch с напоминанием: либо оба, либо ничего
-      if (stale?.act === 'finish') reminders.push(async () => finishEvent(await inCompany(ev), ev, 0));
-      else if (remind) reminders.push(async () => remind(await inCompany(ev), ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso, checked_on: now.iso })]));
-      else if (stale?.act === 'warn') reminders.push(async () => warnStale(await inCompany(ev), ev, stale, now.iso));
+      if (stale?.act === 'finish') reminders.push(async () => finishEvent(await ctx.at(ev), ev, 0));
+      else if (remind) reminders.push(async () => remind(await ctx.at(ev), ev, 0, [updateEventStmt(db, ev.id, { last_daily: now.iso, checked_on: now.iso })]));
+      else if (stale?.act === 'warn') reminders.push(async () => warnStale(await ctx.at(ev), ev, stale, now.iso));
       else (stale?.act === 'clear' ? cleared : quiet).push(ev.id);
     } else quiet.push(ev.id); // ежедневная часть сделана раньше, отметку сняли — автодействие не наступило
   }

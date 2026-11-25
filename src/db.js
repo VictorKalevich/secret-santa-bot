@@ -1,6 +1,6 @@
 // Работа с базой D1 (SQLite). Схема 17: эвенты с историей (005) + поля 006–008, 010, обращения 012, закреплённые пары 014,
 // «участники могут писать друг другу» 037, значок у имени и открытка письма 038, маска Санты 040, черновики писем 041, отправка 042,
-// компании 050 (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
+// компании 050 (с 063 не используются), владельцы и организаторы событий 063 (см. migrations/). Какие таблицы хранят событие и человека — один список REGISTRY в конце файла (018).
 
 import { EVENT_PARAMS, EVENT_STATE_RESET } from './event-params.js';
 import { render, t, DEFAULT_LANG } from './i18n/index.js';
@@ -8,7 +8,7 @@ import { render, t, DEFAULT_LANG } from './i18n/index.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 23;
+export const REQUIRED_SCHEMA = 24;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -97,61 +97,42 @@ export async function createUser(db, id, username, fields = {}) {
   await createUserStmt(db, id, username, fields).run();
 }
 
-// ---------- компании (050) ----------
+// ---------- люди события и права (063) ----------
 
-// Компании: название и признак «ссылка владельца действует» (051) — в ответы уходят только владельцу бота; самого кода
-// ссылки здесь нет. shared (052) — название общее: его видят и люди компании
-const COMPANY_COLS = (t) => `${t}.id, ${t}.owner_id, ${t}.name, ${t}.owner_code != '' AS link, ${t}.shared`;
-// Компании, которые знает вызывающий (055): свои — по его строкам компаний; все — только владельцу бота по настройке.
-// Условие второй ветки не зависит от строк компаний: SQLite проверяет его до чтения, остальным она не читает ни строки
-export const companiesQuery = (db, userId) => db.prepare(
-  `SELECT ${COMPANY_COLS('c')} FROM company_members cm JOIN companies c ON c.id = cm.company_id WHERE cm.user_id = ?1
-   UNION
-   SELECT ${COMPANY_COLS('a')} FROM companies a WHERE ?1 != 0 AND ?1 = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')`
-).bind(userId || 0);
-// Одна компания по номеру (055: компания не из прочитанных — ctx.company)
-export const companyQuery = (db, id) => db.prepare(`SELECT ${COMPANY_COLS('c')} FROM companies c WHERE c.id = ?`).bind(id);
-// Компании человека: права, своё название и время вступления (номер «Компания N», 051)
-export const myCompaniesQuery = (db, userId) =>
-  db.prepare('SELECT company_id, is_admin, label, joined_at FROM company_members WHERE user_id = ?').bind(userId);
+// События, где человек организатор (строки event_admins; владелец события — тоже, инвариант E1): первый пакет контекста
+export const organizerOfQuery = (db, userId) => db.prepare('SELECT event_id FROM event_admins WHERE user_id = ?').bind(userId || 0);
 // Запись владельца бота по настройке owner_id (действительна, если is_admin = 1 — resolveOwner)
 export const botOwnerQuery = (db) => db.prepare("SELECT * FROM users WHERE tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')");
-// Люди компании: строки users, is_admin — права в этой компании (company_admin), порядок — время регистрации. Владелец
-// бота без строки в компании — гость (guest = 1) с правами 0: его действия подписываются именем, но он не человек компании.
-// 055: от строк компании, а не проходом по всем людям бота
-export const companyUsersQuery = (db, companyId) => db.prepare(
-  `SELECT u.*, cm.is_admin AS company_admin, 0 AS guest
-     FROM company_members cm JOIN users u ON u.tg_id = cm.user_id
-    WHERE cm.company_id = ?1
+// Люди события: участники и организаторы (строки users), is_admin — организатор этого события (event_admin), порядок —
+// время регистрации. Владелец бота не человек события — гость (guest = 1) с правами 0: его действия подписываются
+// именем, но в списках и получателях сообщений организаторам его нет. От строк события, а не проходом по всем людям бота
+export const eventUsersQuery = (db, eventId) => db.prepare(
+  `SELECT u.*, EXISTS (SELECT 1 FROM event_admins a WHERE a.event_id = ?1 AND a.user_id = u.tg_id) AS event_admin, 0 AS guest
+     FROM users u
+    WHERE u.tg_id IN (SELECT user_id FROM members WHERE event_id = ?1 UNION SELECT user_id FROM event_admins WHERE event_id = ?1)
    UNION ALL
    SELECT u.*, 0, 1 FROM users u
     WHERE u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')
-      AND NOT EXISTS (SELECT 1 FROM company_members WHERE company_id = ?1 AND user_id = u.tg_id)
+      AND NOT EXISTS (SELECT 1 FROM members WHERE event_id = ?1 AND user_id = u.tg_id)
+      AND NOT EXISTS (SELECT 1 FROM event_admins WHERE event_id = ?1 AND user_id = u.tg_id)
    ORDER BY created_at, tg_id`
-).bind(companyId);
+).bind(eventId);
 
-export function companyUsersFrom(rows) {
-  return rows.map(({ company_admin, guest, ...u }) => (guest ? { ...u, is_admin: 0, guest: true } : { ...u, is_admin: company_admin }));
+// Организаторы события (номера)
+export const eventAdminIdsQuery = (db, eventId) => db.prepare('SELECT user_id FROM event_admins WHERE event_id = ?').bind(eventId);
+
+export function eventUsersFrom(rows) {
+  return rows.map(({ event_admin, guest, ...u }) => (guest ? { ...u, is_admin: 0, guest: true } : { ...u, is_admin: event_admin ? 1 : 0 }));
 }
 
-// Человек компании (050): строка появляется, когда бот принял человека по ссылке события компании; не удаляется
-export function joinCompanyStmt(db, companyId, userId, guard = '1', ...args) {
-  return db
-    .prepare(
-      `INSERT INTO company_members (company_id, user_id, is_admin, joined_at) SELECT ?, ?, 0, ? WHERE ${guard}
-       ON CONFLICT(company_id, user_id) DO NOTHING`
-    )
-    .bind(companyId, userId, Date.now(), ...args);
-}
-
-// Общий признак users.is_admin (050, инвариант I4): администратор хотя бы в одной компании или владелец бота. Пишет его
-// только этот оператор (и перенос — правилом MAX). Строки owner_id может не быть (открытый бот, владелец бота ещё не
-// открыл ссылку /setup): без COALESCE признак стал бы NULL
+// Общий признак users.is_admin (инвариант E2): организатор хотя бы одного события или владелец бота. Пишет его только
+// этот оператор (и перенос — правилом MAX). Строки owner_id может не быть (владелец бота ещё не открыл ссылку /setup):
+// без COALESCE признак стал бы NULL
 export function adminFlagStmt(db, userId) {
   return db
     .prepare(
       `UPDATE users SET is_admin = (
-         EXISTS (SELECT 1 FROM company_members WHERE user_id = users.tg_id AND is_admin = 1)
+         EXISTS (SELECT 1 FROM event_admins WHERE user_id = users.tg_id)
          OR tg_id = COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'), 0))
         WHERE tg_id = ?`
     )
@@ -174,17 +155,18 @@ export async function updateUser(db, id, fields) {
 // ---------- events ----------
 
 export const eventQuery = (db, id) => db.prepare('SELECT * FROM events WHERE id = ?').bind(Number(id) || 0);
-// Все события — только владельцу бота (главный экран); остальным — myEventsQuery
-export const eventsQuery = (db) => db.prepare('SELECT * FROM events ORDER BY created_at DESC');
-// События человека на главном экране (055): где он участник и компаний, где он администратор
+// События человека на главном экране (063): где он участник или организатор (владельцу бота — тоже только свои)
 export const myEventsQuery = (db, userId) => db.prepare(
-  `SELECT e.* FROM members m JOIN events e ON e.id = m.event_id WHERE m.user_id = ?1
-   UNION
-   SELECT e.* FROM company_members cm JOIN events e ON e.company_id = cm.company_id WHERE cm.user_id = ?1 AND cm.is_admin = 1
-   ORDER BY created_at DESC, id`
+  `SELECT e.* FROM events e
+    WHERE e.id IN (SELECT event_id FROM members WHERE user_id = ?1 UNION SELECT event_id FROM event_admins WHERE user_id = ?1)
+    ORDER BY e.created_at DESC, e.id`
 ).bind(userId);
-// События компании (050): «Из какого события…» в панели
-export const companyEventsQuery = (db, companyId) => db.prepare('SELECT * FROM events WHERE company_id = ? ORDER BY created_at DESC').bind(companyId);
+// Образцы и «Из какого события…» (063): события, где человек организатор, и (владельцу бота) события владельца ownerId
+export const organizerEventsQuery = (db, userId, ownerId = 0) => db.prepare(
+  `SELECT * FROM events
+    WHERE id IN (SELECT event_id FROM event_admins WHERE user_id = ?1 UNION SELECT id FROM events WHERE owner_id = ?2 AND ?2 != 0)
+    ORDER BY created_at DESC, id`
+).bind(userId, ownerId || 0);
 
 export async function getEvent(db, id) {
   return eventQuery(db, id).first();
@@ -231,9 +213,8 @@ export const BLANK_SQL = (col) => `(trim(${col}, char(${TRIM_CHARS.join(', ')}))
 // Те же FROM, WHERE и ORDER BY, что у прежней полной выборки участников (eventMembers до 019): порядок участников
 // (время вступления) и план запроса — прежние; участвуют в жеребьёвке и рассылках зарегистрированные (u.registered)
 const MEMBERS_OF = 'FROM members m JOIN users u ON u.tg_id = m.user_id WHERE m.event_id = ?';
-// Права участника в компании события (050) — вместо общего признака users.is_admin
-const COMPANY_ADMIN = `COALESCE((SELECT cm.is_admin FROM company_members cm JOIN events e ON e.id = m.event_id
-                                 WHERE cm.company_id = e.company_id AND cm.user_id = m.user_id), 0)`;
+// Участник — организатор события (063) — вместо общего признака users.is_admin
+const EVENT_ADMIN = 'EXISTS (SELECT 1 FROM event_admins a WHERE a.event_id = m.event_id AND a.user_id = m.user_id)';
 
 // Жеребьёвка и перестройка пар: без текстов писем и адресов — признак «письмо пустое» считается в базе
 export const drawMembersQuery = (db, eventId) => db.prepare(
@@ -244,7 +225,7 @@ export const drawMembersQuery = (db, eventId) => db.prepare(
 
 // Панель организатора: «письмо есть», «адрес указан» вместо текстов
 export const panelMembersQuery = (db, eventId) => db.prepare(
-  `SELECT m.user_id, u.name, u.username, u.registered, ${COMPANY_ADMIN} AS is_admin, u.blocked_at,
+  `SELECT m.user_id, u.name, u.username, u.registered, ${EVENT_ADMIN} AS is_admin, u.blocked_at,
           NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist, NOT ${BLANK_SQL('m.delivery')} AS has_delivery
      ${MEMBERS_OF} ORDER BY m.joined_at`
 ).bind(eventId);
@@ -257,7 +238,7 @@ export const unfilledIdsQuery = (db, eventId) =>
   db.prepare(`SELECT m.user_id ${MEMBERS_OF} AND u.registered = 1 AND ${BLANK_SQL('m.wishlist')} ORDER BY m.joined_at`).bind(eventId);
 // Список участников на «Инфо» (037): зарегистрированные, признак «письмо есть» — только для общего числа (людям не отдаётся)
 export const peopleQuery = (db, eventId) => db.prepare(
-  `SELECT m.user_id, u.name, u.username, ${COMPANY_ADMIN} AS is_admin, NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist
+  `SELECT m.user_id, u.name, u.username, ${EVENT_ADMIN} AS is_admin, NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist
      ${MEMBERS_OF} AND u.registered = 1`
 ).bind(eventId);
 
@@ -357,22 +338,16 @@ export function enqueueStmt(db, chatId, payload) {
 
 // ---------- журнал действий (007) ----------
 
-// Сфера записи журнала (050): число > 0 — событие (компания записи — компания события, подзапросом в операторе;
-// события уже нет — 0); { company: id } — общая запись компании (event_id = 0). Ноль и пустое значение — ошибка: общая
-// запись без компании попала бы мимо журналов компаний.
-// Журнал бота (051): компании и владелец бота — записи вне компаний (company_id = 0, event_id = 0); читает только владелец бота
+// Сфера записи журнала (063): число > 0 — событие; BOT_LOG — журнал бота (event_id = 0; его читает только владелец
+// бота, там же прежние общие записи комнат — история). Ноль и пустое значение — ошибка. Новые записи — с company_id = 0
+// (умолчание колонки — 1: иначе после отката на 062 запись попала бы в журнал комнаты №1)
 export const BOT_LOG = Object.freeze({ bot: true });
 
-function auditSphere(sphere) {
-  if (sphere === BOT_LOG) return { event: 0, company: '?', args: [0] };
-  if (sphere && typeof sphere === 'object') {
-    const company = Number(sphere.company) || 0;
-    if (!company) throw new Error('журнал: у общей записи не указана компания');
-    return { event: 0, company: '?', args: [company] };
-  }
+function auditEvent(sphere) {
+  if (sphere === BOT_LOG) return 0;
   const event = Number(sphere) || 0;
-  if (!event) throw new Error('журнал: сфера записи — событие или { company }');
-  return { event, company: 'COALESCE((SELECT company_id FROM events WHERE id = ?), 0)', args: [event] };
+  if (!event) throw new Error('журнал: сфера записи — событие или BOT_LOG');
+  return event;
 }
 
 // Подробность записи: details — на языке по умолчанию (как прежде; по нему же сверяются условия «уже записано»),
@@ -387,29 +362,26 @@ function auditDetails(details) {
 // Запись журнала — в том же batch, что и само действие. actor = 0 — бот. details — без пар и текстов писем; отложенный
 // текст (tx, 060) собирается на языке по умолчанию
 export function auditStmt(db, sphere, actor, action, details = '') {
-  const s = auditSphere(sphere);
   return db
-    .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at) VALUES (?, ${s.company}, ?, ?, ?, ?, ?)`)
-    .bind(s.event, ...s.args, actor || 0, action, ...auditDetails(details), Date.now());
+    .prepare('INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at) VALUES (?, 0, ?, ?, ?, ?, ?)')
+    .bind(auditEvent(sphere), actor || 0, action, ...auditDetails(details), Date.now());
 }
 
 // Подробности прежних записей журнала, которые код больше не пишет (062: семьи): запись с details_tx (061) показывается по
 // этим ключам на языке смотрящего — из словарей они не удаляются
 export const AUDIT_HISTORY = ['membership.audit.familySave', 'membership.audit.familyDelete'];
 
-// Последние записи: события (число), общие записи компании ({ company }) или журнал бота (BOT_LOG); t — переводчик
+// Последние записи: события (число) или журнал бота (BOT_LOG); t — переводчик
 // вызывающего (имя бота и безымянного; 061 — подробности новых записей на его языке, прежние — как записаны)
 export async function getAudit(db, sphere, t, limit = 100) {
-  const s = auditSphere(sphere);
-  const where = s.event ? 'a.event_id = ?1' : 'a.company_id = ?1 AND a.event_id = 0';
   const { results } = await db
     .prepare(
       `SELECT a.id, a.event_id, a.action, a.details, a.details_tx, a.created_at,
               CASE WHEN a.actor = 0 THEN ?3 ELSE COALESCE(NULLIF(u.name, ''), ?4) END AS actor_name
          FROM audit a LEFT JOIN users u ON u.tg_id = a.actor
-        WHERE ${where} ORDER BY a.id DESC LIMIT ?2`
+        WHERE a.event_id = ?1 ORDER BY a.id DESC LIMIT ?2`
     )
-    .bind(s.event || s.args[0], limit, t('db.bot'), t('db.someone'))
+    .bind(auditEvent(sphere), limit, t('db.bot'), t('db.someone'))
     .all();
   return results.map(({ details_tx: tx, ...r }) => (tx ? { ...r, details: String(render(JSON.parse(tx), t.lang)).slice(0, DETAILS_MAX) } : r));
 }
@@ -427,10 +399,9 @@ export const announcementsQuery = (db, eventId, author, limit = 20) => db
 
 // Запись журнала только при условии guard (как enqueueIfStmt) — для атомарных действий 006/007; сфера — как у auditStmt
 export function auditIfStmt(db, sphere, actor, action, details, guard, ...args) {
-  const s = auditSphere(sphere);
   return db
-    .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at) SELECT ?, ${s.company}, ?, ?, ?, ?, ? WHERE ${guard}`)
-    .bind(s.event, ...s.args, actor || 0, action, ...auditDetails(details), Date.now(), ...args);
+    .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at) SELECT ?, 0, ?, ?, ?, ?, ? WHERE ${guard}`)
+    .bind(auditEvent(sphere), actor || 0, action, ...auditDetails(details), Date.now(), ...args);
 }
 
 // ---------- данные события и человека (018) ----------
@@ -448,13 +419,12 @@ export const NOT_PERSON = 'not-person'; // имя похоже на челове
 // новая таблица или колонка с событием или человеком здесь не описана). Внешних ключей в схеме нет: удаление события,
 // сброс, удаление участника, выход админа из участия и перенос участия строятся только из этого списка (построители
 // ниже). Порядок ключей — порядок операторов: дочерняя таблица (via) раньше родителя; якорь действия — последним.
-//   event — колонка события; company — колонка компании (050); via — строки принадлежат событию или человеку через
-//   родителя (по его id);
+//   event — колонка события; company — колонка компании (050; с 063 только описание: комнаты не используются, таблицы
+//   ради отката); via — строки принадлежат событию или человеку через родителя (по его id);
 //   people — колонки человека и их роли; anchor — строка-опора действия ('event', 'member', 'person');
-//   onEventDelete — удаление события и сброс: 'delete' | 'keep';
+//   onEventDelete — удаление события и сброс: 'delete' | 'keep'; onReset: 'keep' — сброс (строка события остаётся) не
+//     трогает таблицу, хотя удаление события её удаляет (063: организаторы события);
 //   onLeave — уход участника из события: 'delete' | 'keep' | 'rebuild' (пары перестраивает applyPairsChange);
-//   onCompanyDelete (051) — удаление компании у таблиц с company: 'delete' | 'block' (компания с такими строками не
-//     удаляется — условие пакета); якорь 'company' — строка компании, удаляется последней;
 //   onTransfer — перенос: 'update' (конфликтов нет), 'dedupe' (UPDATE OR IGNORE, остатки старого — удалить),
 //     'merge' (участия: одно на событие); noSelf — строка «сам себе» недопустима;
 //   transferBefore/transferAfter — свои правила таблицы до и после переноса колонок (sql оканчивается условием WHERE).
@@ -465,19 +435,20 @@ export const REGISTRY = {
   users: {
     people: { tg_id: SELF },
     anchor: 'person',
-    // Права администратора у нового аккаунта объединяются
+    // Права администратора и разрешение создавать события (063) у нового аккаунта объединяются
     transferBefore: [{
-      sql: 'UPDATE users SET is_admin = MAX(is_admin, COALESCE((SELECT is_admin FROM users WHERE tg_id = ?), 0)) WHERE tg_id = ?',
-      args: (from, to) => [from, to],
+      sql: `UPDATE users SET is_admin = MAX(is_admin, COALESCE((SELECT is_admin FROM users WHERE tg_id = ?), 0)),
+             can_create = MAX(can_create, COALESCE((SELECT can_create FROM users WHERE tg_id = ?), 0)) WHERE tg_id = ?`,
+      args: (from, to) => [from, from, to],
     }],
   },
-  // 050: компании и их люди — не данные события: удаление события, сброс и уход участника их не трогают
-  companies: { company: 'id', people: { owner_id: ACTOR, created_by: ACTOR }, anchor: 'company', onTransfer: 'update' },
+  // 050: компании и их люди — не данные события. 063: код их не читает; перенос участия переносит строки, чтобы откат на
+  // 062 видел прежние права у нового аккаунта
+  companies: { company: 'id', people: { owner_id: ACTOR, created_by: ACTOR }, onTransfer: 'update' },
   // Если у нового аккаунта уже есть строка в компании — остаётся она (с его названием), права — большие из двух
   company_members: {
     company: 'company_id',
     people: { user_id: MEMBER },
-    onCompanyDelete: 'delete', // перед удалением — пересчёт users.is_admin её администраторам (deleteCompany)
     onTransfer: 'dedupe',
     transferBefore: [{
       sql: `UPDATE company_members SET is_admin = MAX(is_admin, COALESCE((SELECT c.is_admin FROM company_members c
@@ -485,8 +456,12 @@ export const REGISTRY = {
       args: (from, to) => [from, to],
     }],
   },
-  // 051: компанию с событиями не удалить — сначала удаляются события (со своими подтверждениями и рассылками)
-  events: { event: 'id', company: 'company_id', people: { created_by: ACTOR }, anchor: 'event', onCompanyDelete: 'block', onTransfer: 'update' },
+  // 063: владелец события переходит при переносе вместе с организаторством (event_admins) и счётом лимита (event_creations)
+  events: { event: 'id', company: 'company_id', people: { created_by: ACTOR, owner_id: ACTOR }, anchor: 'event', onTransfer: 'update' },
+  // 063: организаторы события (владелец — тоже, инвариант E1); уход из участия права не снимает — их снимает владелец
+  event_admins: { event: 'event_id', people: { user_id: MEMBER }, onEventDelete: 'delete', onReset: 'keep', onLeave: 'keep', onTransfer: 'dedupe' },
+  // 063: факты создания — для лимита «10 за 365 суток»: остаются после удаления события и сброса, переходят при переносе
+  event_creations: { event: 'event_id', people: { user_id: ACTOR }, onEventDelete: 'keep', onTransfer: 'update' },
   members: {
     event: 'event_id',
     people: { user_id: MEMBER },
@@ -509,9 +484,9 @@ export const REGISTRY = {
   // sender — сторона переписки ('santa'/'ward'), а не человек
   messages: { event: 'event_id', people: { santa: MEMBER, ward: MEMBER, sender: NOT_PERSON }, onEventDelete: 'delete', onLeave: 'delete', onTransfer: 'update' },
   announcements: { event: 'event_id', people: { author: ACTOR }, onEventDelete: 'delete', onTransfer: 'update' },
-  // Журнал события остаётся и после удаления события (007); event_id = 0 — общий журнал
-  // Удаление компании стирает её общий журнал и остатки журналов удалённых событий; журнал бота — company_id = 0 (051)
-  audit: { event: 'event_id', company: 'company_id', people: { actor: ACTOR }, onEventDelete: 'keep', onCompanyDelete: 'delete', onTransfer: 'update' },
+  // Журнал события остаётся и после удаления события (007); event_id = 0 — журнал бота (063; там же прежние общие записи
+  // комнат)
+  audit: { event: 'event_id', company: 'company_id', people: { actor: ACTOR }, onEventDelete: 'keep', onTransfer: 'update' },
   // Заявки — история: остаются, когда участник уходит (008)
   join_requests: { event: 'event_id', people: { user_id: MEMBER, decided_by: ACTOR }, onEventDelete: 'delete', onLeave: 'keep', onTransfer: 'dedupe' },
   removed_members: {
@@ -547,9 +522,9 @@ export const REGISTRY = {
   },
   // 008: семьи — общие для компании (050); если новый аккаунт уже в семье этой компании — остаётся его семья. 062: семьи
   // стали исключениями событий, таблицы пусты и кодом не пишутся — остаются в схеме ради отката (docs/todo.md)
-  families: { company: 'company_id', people: { created_by: ACTOR }, onCompanyDelete: 'delete', onTransfer: 'update' },
+  families: { company: 'company_id', people: { created_by: ACTOR }, onTransfer: 'update' },
   family_members: {
-    company: 'company_id', via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onCompanyDelete: 'delete', onTransfer: 'dedupe',
+    company: 'company_id', via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onTransfer: 'dedupe',
   },
   outbox: { people: { chat_id: RECIPIENT } },
 };
@@ -586,7 +561,7 @@ export function eventDataDeleteStmts(db, eventId, { keepMember = 0, keepEvent = 
       }
       continue;
     }
-    if (!spec.event || spec.onEventDelete !== 'delete') continue;
+    if (!spec.event || spec.onEventDelete !== 'delete' || (keepEvent && spec.onReset === 'keep')) continue;
     if (spec.anchor === 'member' && keepMember) {
       const [who] = columnsWith(spec, MEMBER);
       const fields = spec.personal.flatMap(([value, time, ...rest]) => [[value, ''], [time, 0], ...rest.map((f) => [f, ''])]);
@@ -621,19 +596,6 @@ export function memberDataDeleteStmts(db, eventId, userId, guard = '1', ...args)
     if (spec.anchor === 'member' || spec.onLeave === 'delete') {
       add(`DELETE FROM ${table} WHERE ${spec.event} = ? AND ${anyOf(who)}`, eventId, ...who.map(() => userId));
     }
-  }
-  return out;
-}
-
-// Удалить данные компании (051, удаление пустой компании): таблицы с onCompanyDelete 'delete' — дочерние (via) раньше
-// родителя, строка компании — последней (захват). Таблицы с 'block' не трогаются: их строки исключает условие пакета.
-// guard и args — как в enqueueIfStmt.
-export function companyDataDeleteStmts(db, companyId, guard = '1', ...args) {
-  const { out, add } = collector(db, guard, args);
-  const all = inOrder('company').filter(([, s]) => s.company);
-  for (const [table, spec] of [...all.filter(([, s]) => s.via), ...all.filter(([, s]) => !s.via)]) {
-    if (spec.anchor === 'company' || spec.onCompanyDelete === 'delete') add(`DELETE FROM ${table} WHERE ${spec.company} = ?`, companyId);
-    else if (spec.onCompanyDelete !== 'block') throw new Error(`REGISTRY.${table}: не задано удаление компании (onCompanyDelete)`);
   }
   return out;
 }

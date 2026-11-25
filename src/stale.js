@@ -30,8 +30,8 @@ export function staleStep(env, ev, today) {
 }
 
 // Идущие события ежедневного шага, ещё не проверенные сегодня (057: индекс events_unchecked, checked_on < сегодня), и
-// outsiders — сколько участников не организаторы компании события (её администраторы — в том числе владелец компании,
-// инвариант I3 (050/051), — и владелец бота). Считается только в открытом боте у кандидатов правила Г, ещё не
+// outsiders — сколько участников не организаторы события (063: строки event_admins, владелец — тоже, инвариант E1) и
+// не владелец бота. Считается только в открытом боте у кандидатов правила Г, ещё не
 // проверенных сегодня, иначе -1: CASE не вычисляет подзапрос, участники остальных событий не читаются. since — на день
 // раньше порога Г (точная проверка — по местным датам, staleReason)
 export const dailyEventsQuery = (db, { open, today, now = Date.now() }) => db.prepare(
@@ -39,8 +39,7 @@ export const dailyEventsQuery = (db, { open, today, now = Date.now() }) => db.pr
      THEN (SELECT COUNT(*) FROM members m
             WHERE m.event_id = events.id
               AND m.user_id != COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'), 0)
-              AND NOT EXISTS (SELECT 1 FROM company_members cm
-                               WHERE cm.company_id = events.company_id AND cm.user_id = m.user_id AND cm.is_admin = 1))
+              AND NOT EXISTS (SELECT 1 FROM event_admins a WHERE a.event_id = events.id AND a.user_id = m.user_id))
      ELSE -1 END AS outsiders
      FROM events WHERE status = 'active' AND checked_on < ?2`
 ).bind(open ? 1 : 0, today, now - (STALE.empty - 1) * DAY_MS);
@@ -52,7 +51,7 @@ const WHY = {
   age: () => tx('stale.why.age'),
 };
 
-// Предупреждение организаторам компании события (ctx — её контекст) по прежнему состоянию (020): сообщения и журнал —
+// Предупреждение организаторам события (ctx — его контекст) по прежнему состоянию (020): сообщения и журнал —
 // перед захватом, захват — отметка (с ней и «сегодня сделано», «на сегодня проверено» — 057); из одновременных запусков
 // отправляет один, завершённому событию — ничего
 export async function warnStale(ctx, ev, { reason, until }, today) {

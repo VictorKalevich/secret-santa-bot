@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { startWorld } from './world.mjs';
 import { seeded } from './draw-cases.mjs';
-import { invariants } from './companies.mjs';
+import { invariants } from './events.mjs';
 
 // Случайные числа сценария — с зерном (017): жеребьёвка и замена после удаления берут Math.random, и без зерна удаление
 // после жеребьёвки меняло то одну пару, то две (2 или 3 сообщения в Telegram) — тест падал примерно в 10% прогонов.
@@ -34,7 +34,7 @@ async function scenario() {
   assert.ok(s.adminCode, 'ссылка владельца на странице');
   await w.say(boss, '/start ' + s.adminCode); note('bot: /start adm_ (ссылка владельца)');
   await w.say(boss, 'Владелец'); note('bot: ввод имени');
-  const ev = (await w.api(boss, 'admin.events.create', { title: 'Новый год 🎄' })).event; note('admin.events.create');
+  const ev = (await w.api(boss, 'event.create', { participate: false, title: 'Новый год 🎄' })).event; note('event.create');
   let st = await w.api(boss, 'admin.state', { event: ev.id }); note('admin.state (пустое событие)');
   const code = inviteOf(st);
   for (const u of [adm, ...people]) {
@@ -43,7 +43,7 @@ async function scenario() {
     await w.say(u, u.name);
     if (u === people[0]) note('bot: имя после ссылки');
   }
-  await w.api(boss, 'admin.role.grant', { id: adm.id }); note('admin.role.grant');
+  await w.api(boss, 'admin.role.grant', { event: ev.id, id: adm.id }); note('admin.role.grant');
   await w.api(boss, 'admin.participate', { event: ev.id, on: true }); note('admin.participate (вкл)');
   for (const u of people) await w.api(u, 'wishlist.save', { event: ev.id, text: 'Хочу книгу. '.repeat(20) });
   note('wishlist.save');
@@ -91,9 +91,9 @@ async function scenario() {
   assert.deepEqual(two.map((r) => r.status).sort(), [200, 400], 'раскрытие: один из двух одновременных вызовов');
   await w.api(adm, 'admin.event.finish', { event: ev.id }); note('admin.event.finish');
   await w.cron(); note('cron (обычная минута)');
-  await w.api(boss, 'admin.events.create', { title: 'Второе', from: ev.id, invite: true }); note('admin.events.create (по образцу + приглашения)');
+  await w.api(boss, 'event.create', { participate: false, title: 'Второе', from: ev.id, invite: true }); note('event.create (по образцу + приглашения)');
   await w.api(boss, 'admin.event.delete', { event: ev.id, confirm: 'УДАЛИТЬ' }); note('admin.event.delete');
-  // 050: после всего сценария инварианты компаний держатся (data-model.md, I1–I6)
-  assert.deepEqual(invariants(w), [], 'инварианты компаний');
+  // 063: после всего сценария инварианты событий держатся (data-model.md, E1–E4)
+  assert.deepEqual(invariants(w), [], 'инварианты событий');
   return { rows, world: w, ms: performance.now() - t0 };
 }

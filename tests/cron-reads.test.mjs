@@ -1,6 +1,6 @@
 // 054 (specs/054-cron-active-reads/), 057 (specs/057-cron-marks/): минутная проверка (cron) читает только отметки —
 // правки, ждущие уведомления Санте (members.notify_at, индекс members_notify), и идущие события, ещё не проверенные
-// сегодня (events.checked_on, индекс events_unchecked); пары, участники, история, компании и люди не перебираются.
+// сегодня (events.checked_on, индекс events_unchecked); пары, участники, история и люди событий не перебираются.
 // Проверка — по планам SQLite всех операторов вызова cron (и внутри пакетов) на базе с историей; поведение — прежнее.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +18,8 @@ const cronStatements = (w) => statementsDuring(w, () => w.cron());
 
 const NOTIFY = /MAX\(w\.wishlist_updated_at, w\.delivery_updated_at\) AS upd/;
 const DAILY = /FROM events WHERE status = 'active' AND checked_on < \?2/;
-const COMPANIES = /\bFROM companies\b/;
+// Люди события (063: контекст события ctx.at — eventUsersQuery)
+const PEOPLE = /\bFROM event_admins WHERE event_id = \?1\b/;
 const plan = (w, sql) => w.DB.sqlite.prepare('EXPLAIN QUERY PLAN ' + sql).all().map((r) => r.detail);
 
 // История и два идущих события: H — завершённое с парами, A — идёт, до жеребьёвки, B — идёт, после жеребьёвки
@@ -30,7 +31,7 @@ async function historyWorld() {
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
   const event = async (title, people) => {
-    const id = (await w.api(boss, 'admin.events.create', { title })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title })).event.id;
     const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: id })).settings.invite_link)[1];
     for (const u of people) {
       await w.say(u, '/start ' + code);
@@ -59,7 +60,7 @@ test('cron на базе с историей: только отметки по �
     assert.ok(list.some((s) => DAILY.test(s)), `${what}: нет запроса ежедневного шага`);
     assert.deepEqual(list.flatMap((s) => fullScans(w.DB.sqlite, s).map((x) => `${x} ← ${s.slice(0, 90)}`)), [], what);
   }
-  assert.ok(!quiet.some((s) => COMPANIES.test(s)), 'обычная минута: компании не читаются');
+  assert.ok(!quiet.some((s) => PEOPLE.test(s)), 'обычная минута: люди событий не читаются');
   assert.equal(w.last.db, 3, 'обычная минута — три запроса, как до 054');
   // В обычную минуту оба запроса ничего не находят: отметок старше задержки нет, все события проверены сегодня
   const [notify, daily] = [quiet.find((s) => NOTIFY.test(s)), quiet.find((s) => DAILY.test(s))];
@@ -86,7 +87,7 @@ test('ежедневный шаг: только не проверенные се
   assert.match(steps[0], /^SEARCH events USING (?:COVERING )?INDEX events_unchecked \(checked_on<\?\)/, steps.join(' | '));
 });
 
-test('поведение прежнее: Санта получает «обновил письмо» один раз; автожеребьёвка — в контексте компании', async () => {
+test('поведение прежнее: Санта получает «обновил письмо» один раз; автожеребьёвка — в контексте события', async () => {
   const { w, boss, p, A, B, H } = await historyWorld();
   const santa = w.query('SELECT santa FROM pairs WHERE event_id = ? AND ward = ?', B, p[7].id)[0].santa;
   const notes = () => w.texts({ id: santa }).filter((t) => t.includes('обновил письмо') && t.includes('После жеребьёвки')).length;
@@ -102,12 +103,13 @@ test('поведение прежнее: Санта получает «обно�
   await w.cron();
   assert.equal(all(), fromHistory, 'история — без уведомлений');
   assert.equal(w.query('SELECT COUNT(*) AS n FROM members WHERE notify_at > 0')[0].n, 0, 'отметки истории сняты');
-  // Минута с действием: организатор задал автожеребьёвку после утренней проверки — компании читаются, жеребьёвка проведена
+  // Минута с действием: организатор задал автожеребьёвку после утренней проверки — жеребьёвка проведена в контексте события
+  // (063: привязка к событию ничего не читает), таблицы целиком не читаются
   const today = w.query('SELECT checked_on FROM events WHERE id = ?', A)[0].checked_on;
   await w.api(boss, 'admin.game', { event: A, draw_auto_date: today });
   const list = await cronStatements(w);
   assert.equal(w.query('SELECT draw_done FROM events WHERE id = ?', A)[0].draw_done, 1, 'автожеребьёвка');
-  assert.ok(list.some((s) => COMPANIES.test(s)), 'в минуту с действием компании читаются');
+  assert.deepEqual(list.flatMap((s) => fullScans(w.DB.sqlite, s).map((x) => `${x} ← ${s.slice(0, 90)}`)), [], 'минута с действием');
 });
 
 test('от противного (054, 057): прежние запросы и база без индексов 0020 находятся', async () => {

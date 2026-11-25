@@ -1,33 +1,28 @@
-// 055 (specs/055-api-indexed-reads/): вызовы обычных людей (не владельца бота) читают только своё — свои компании,
-// свои события, людей компании события, обращения и заявки своих событий — по индексам. Чужие люди, компании и события
-// бота не просматриваются, сколько бы их ни было. Проверка — по планам SQLite всех операторов каждого вызова (и внутри
-// пакетов) на базе с чужой историей; поведение — прежнее (остальные тесты).
+// 055 (specs/055-api-indexed-reads/), 063: вызовы обычных людей читают только своё — свои события, людей события,
+// обращения и заявки своих событий, свои факты создания — по индексам. Чужие люди и события бота не просматриваются,
+// сколько бы их ни было; владелец бота на главном экране тоже читает только свои события (063, решение владельца 1а).
+// Проверка — по планам SQLite всех операторов каждого вызова (и внутри пакетов) на базе с чужой историей; поведение —
+// прежнее (остальные тесты).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { fullScans, statementsDuring } from './support/plans.mjs';
-import { ownerCode } from './support/companies.mjs';
-import { companiesQuery } from '../src/db.js';
+import { organizerOfQuery } from '../src/db.js';
 
 after(restoreFetch);
 
-// Целиком — только служебные таблицы (настройки — десяток строк, очередь — неотправленные сообщения) и ветка «все
-// компании» первого пакета: её условие «вызывающий — владелец бота» не зависит от строк и проверяется до чтения (R2)
+// Целиком — только служебные таблицы (настройки — десяток строк, очередь — неотправленные сообщения)
 const SERVICE = ['settings', 'outbox'];
-const BOT_OWNER_BRANCH = "FROM companies a WHERE ?1 != 0 AND ?1 = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')";
-const INDEXES_0018 = ['companies_owner', 'support_threads_user', 'support_threads_taken', 'join_requests_event', 'families_company'];
+const INDEXES_0018 = ['support_threads_user', 'support_threads_taken', 'join_requests_event'];
+const INDEXES_0024 = ['event_admins_user', 'event_creations_user', 'events_owner'];
 
-function violations(sqlite, sql) {
-  const found = fullScans(sqlite, sql, { tables: SERVICE });
-  if (!sql.includes(BOT_OWNER_BRANCH)) return found;
-  return found.filter((x) => !/^companies: SCAN a$/.test(x));
-}
+const violations = (sqlite, sql) => fullScans(sqlite, sql, { tables: SERVICE });
 
 const person = (id, name) => ({ id, name, username: 'u' + id });
 const inviteOf = (st) => /start=(inv_[a-z0-9]+)/.exec(st.settings.invite_link)[1];
 
-// Открытый бот: владелец бота; чужая история — компания «Чужая» с завершённым событием (пары, переписка, обращение,
-// отклонённая заявка) и компания «Соседи»; своя компания «Своя» с событием — вызовы её людей проверяются
+// Открытый бот: владелец бота; чужая история — событие «Прошлое» Чужого (завершено: пары, переписка, обращение,
+// отклонённая заявка) и событие соседки; своё событие «Ёлка» Хозяйки — вызовы его людей проверяются
 async function historyWorld() {
   const w = await startWorld({ open: true });
   const boss = person(9501, 'Владелец');
@@ -40,8 +35,8 @@ async function historyWorld() {
     await w.say(u, '/start ' + code);
     if (!known) await w.say(u, u.name);
   };
-  const event = async (owner, company, title, people) => {
-    const id = (await w.api(owner, 'admin.events.create', { company, title })).event.id;
+  const event = async (owner, title, people) => {
+    const id = (await w.api(owner, 'event.create', { participate: false, title })).event.id;
     const code = inviteOf(await w.api(owner, 'admin.state', { event: id }));
     for (const u of people) await join(u, code);
     for (const u of people) await w.api(u, 'wishlist.save', { event: id, text: 'Хочу книгу' });
@@ -52,8 +47,7 @@ async function historyWorld() {
   const x = person(9510, 'Чужой');
   const f = Array.from({ length: 5 }, (_, i) => person(9520 + i, 'Сосед' + (i + 1)));
   await signUp(x);
-  const X = (await w.api(x, 'company.create', { name: 'Чужая' })).company;
-  const old = await event(x, X, 'Прошлое', f.slice(0, 4));
+  const old = await event(x, 'Прошлое', f.slice(0, 4));
   await w.api(x, 'admin.game', { event: old.id, approval: true });
   await join(f[4], old.code); // заявка
   const req = w.query('SELECT id FROM join_requests WHERE event_id = ? AND user_id = ?', old.id, f[4].id)[0].id;
@@ -64,29 +58,27 @@ async function historyWorld() {
   await w.api(x, 'admin.event.finish', { event: old.id });
   const y = person(9530, 'Соседка');
   await signUp(y);
-  const Y = (await w.api(y, 'company.create', { name: 'Соседи' })).company;
-  await event(y, Y, 'У соседей', [person(9531, 'Гость1'), person(9532, 'Гость2')]);
+  await event(y, 'У соседей', [person(9531, 'Гость1'), person(9532, 'Гость2')]);
 
-  // Своя компания: владелец компании o, организатор p[0], участники p[1], p[2]
+  // Своё событие: владелец o, администратор p[0], участники p[1], p[2]
   const o = person(9540, 'Хозяйка');
   const p = Array.from({ length: 3 }, (_, i) => person(9550 + i, 'Игрок' + (i + 1)));
   await signUp(o);
-  const O = (await w.api(o, 'company.create', { name: 'Своя' })).company;
-  const own = await event(o, O, 'Ёлка', p);
+  const own = await event(o, 'Ёлка', p);
   await w.api(o, 'admin.participate', { event: own.id, on: true });
   await w.api(o, 'wishlist.save', { event: own.id, text: 'Хочу шарф' });
-  await w.api(o, 'admin.role.grant', { company: O, id: p[0].id });
+  await w.api(o, 'admin.role.grant', { event: own.id, id: p[0].id });
   await w.cron();
-  return { w, boss, x, y, o, p, X, Y, O, own };
+  return { w, boss, x, y, o, p, own };
 }
 
-test('вызовы обычных людей на базе с чужой историей: только индексы, своё и служебные таблицы', async () => {
-  const { w, boss, o, p, O, Y, own } = await historyWorld();
+test('вызовы обычных людей и владельца бота на базе с чужой историей: только индексы, своё и служебные таблицы', async () => {
+  const { w, boss, o, p, own } = await historyWorld();
   const calls = [];
   const run = async (name, fn) => calls.push({ name, list: await statementsDuring(w, fn) });
   const api = (u, action, body = {}) => run(`${u.name} ${action}`, () => w.api(u, action, body));
 
-  for (const u of [o, ...p]) await api(u, 'me');
+  for (const u of [o, ...p, boss]) await api(u, 'me');
   await api(p[1], 'event.get', { event: own.id });
   await api(p[1], 'wishlist.save', { event: own.id, text: 'Хочу книгу и шарф' });
   await api(p[0], 'admin.state', { event: own.id });
@@ -101,6 +93,8 @@ test('вызовы обычных людей на базе с чужой ист�
   const r = person(9561, 'Поздний');
   await run('новичок: /start inv_', () => w.say(r, '/start ' + own.code));
   await run('новичок: имя после ссылки', () => w.say(r, r.name));
+  await api(o, 'admin.role.grant', { event: own.id, id: p[2].id });
+  await api(o, 'admin.role.revoke', { event: own.id, id: p[2].id });
   await api(p[0], 'admin.draw', { event: own.id });
   await api(p[1], 'ward.get', { event: own.id });
   await api(p[1], 'message.send', { event: own.id, to: 'ward', text: 'Привет!' });
@@ -114,39 +108,38 @@ test('вызовы обычных людей на базе с чужой ист�
   await api(p[0], 'me');
   await api(p[2], 'me');
   await run(`${p[1].name} /start (меню)`, () => w.say(p[1], '/start'));
-  await api(p[1], 'company.label.set', { company: O, label: 'Семья' });
   const n = person(9570, 'Основатель');
   await run('незнакомец: /start', () => w.say(n, '/start'));
   await run('незнакомец: имя', () => w.say(n, n.name));
-  await api(n, 'company.create', { name: 'Новая' });
+  await api(n, 'event.create', { title: 'Новое' });
   await api(n, 'me');
-  const { link } = await w.api(boss, 'bot.company.link', { company: Y, on: true });
-  await run('ссылка владельца компании own_', () => w.say(p[2], '/start ' + ownerCode(link)));
+  await run('прежняя ссылка владельца комнаты own_', () => w.say(p[2], '/start own_abc123'));
+  await api(o, 'admin.owner.transfer', { event: own.id, id: p[0].id });
   await api(p[2], 'me');
 
   const bad = calls.flatMap(({ name, list }) => list.flatMap((s) => violations(w.DB.sqlite, s).map((v) => `${name}: ${v} ← ${s.slice(0, 120)}`)));
   assert.deepEqual(bad, []);
 });
 
-test('первый пакет: компании вызывающего; все — только владельцу бота; без вызывающего — ни одной', async () => {
-  const { w, boss, o, p, x, O } = await historyWorld();
-  const ids = async (u) => (await companiesQuery(w.DB, u).all()).results.map((c) => c.id).sort((a, b) => a - b);
-  const all = w.query('SELECT id FROM companies ORDER BY id').map((c) => c.id);
-  assert.deepEqual(await ids(p[1].id), [O]);
-  assert.deepEqual(await ids(o.id), [O]);
-  assert.ok(!(await ids(x.id)).includes(O));
-  assert.deepEqual(await ids(boss.id), all);
+test('первый пакет: события, где вызывающий организатор; владелец бота на главном экране — только свои события', async () => {
+  const { w, boss, o, p, x, own } = await historyWorld();
+  const ids = async (u) => (await organizerOfQuery(w.DB, u).all()).results.map((r) => r.event_id);
+  assert.deepEqual(await ids(o.id), [own.id]);
+  assert.deepEqual(await ids(p[0].id), [own.id]);
+  assert.deepEqual(await ids(p[1].id), []);
+  assert.ok(!(await ids(x.id)).includes(own.id));
   assert.deepEqual(await ids(0), []);
-  // Владелец бота по-прежнему видит все компании, человек — только свою
-  assert.equal((await w.api(boss, 'me')).companies.length, all.length);
-  assert.deepEqual((await w.api(p[1], 'me')).companies.map((c) => c.id), [O]);
+  const roles = async (u) => (await w.api(u, 'me')).events.map((e) => [e.id, e.role]);
+  assert.deepEqual(await roles(o), [[own.id, 'owner']]);
+  assert.deepEqual(await roles(p[0]), [[own.id, 'admin']]);
+  assert.deepEqual(await roles(p[1]), [[own.id, 'member']]);
+  assert.deepEqual(await roles(boss), [], 'чужие события — только во «Всех событиях»');
 });
 
-test('от противного (055): прежние запросы и база без индексов 0018 находятся', async () => {
-  const { w, o, p, O, own } = await historyWorld();
+test('от противного (055, 063): прежние запросы и база без индексов 0018 и 0024 находятся', async () => {
+  const { w, o, p, own } = await historyWorld();
   const { sqlite } = w.DB;
   const OLD = {
-    companies: "SELECT id, owner_id, name, owner_code != '' AS link, shared FROM companies",
     users: `SELECT u.*, COALESCE(cm.is_admin, 0) AS company_admin, cm.user_id IS NULL AS guest
               FROM users u LEFT JOIN company_members cm ON cm.company_id = ? AND cm.user_id = u.tg_id
              WHERE cm.user_id IS NOT NULL OR u.tg_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')
@@ -162,10 +155,15 @@ test('от противного (055): прежние запросы и база
     ...(await statementsDuring(w, () => w.say(person(9599, 'Ещё'), '/start ' + own.code))),
     ...(await statementsDuring(w, () => w.say(person(9599, 'Ещё'), 'Ещё'))),
     ...(await statementsDuring(w, () => w.api(o, 'me'))),
+    ...(await statementsDuring(w, () => w.api(o, 'admin.draw', { event: own.id }))),
   ];
   assert.deepEqual(list.flatMap((s) => violations(sqlite, s)), [], 'с индексами — без полных просмотров');
-  for (const name of INDEXES_0018) sqlite.exec(`DROP INDEX ${name}`); // база, к которой 0018 ещё не применена
+  // База, к которой 0018 и 0024 ещё не применены
+  for (const name of [...INDEXES_0018, ...INDEXES_0024]) sqlite.exec(`DROP INDEX ${name}`);
   const scanned = new Set(list.flatMap((s) => violations(sqlite, s)).map((v) => v.split(':')[0]));
-  for (const table of ['support_threads', 'join_requests']) assert.ok(scanned.has(table), `без 0018: ${table}`);
+  // История пар без events_owner — проход по всем парам бота
+  for (const table of ['support_threads', 'join_requests', 'event_admins', 'event_creations', 'pairs']) {
+    assert.ok(scanned.has(table), `без индексов: ${table}`);
+  }
   await w.api(p[1], 'me'); // код от индексов не зависит
 });

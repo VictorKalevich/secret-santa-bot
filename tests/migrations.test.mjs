@@ -7,7 +7,6 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
 import { createMigratedD1, createD1 } from './support/d1-sqlite.mjs';
 import { unreadByEventQuery } from '../src/chat.js';
-import { addCompany, invariants } from './support/companies.mjs';
 
 after(restoreFetch);
 
@@ -46,13 +45,13 @@ async function filledWorld() {
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const E = (await w.api(boss, 'admin.events.create', { title: 'Миграция' })).event.id;
+  const E = (await w.api(boss, 'event.create', { participate: false, title: 'Миграция' })).event.id;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: E })).settings.invite_link)[1];
   for (const u of [adm, ...p]) {
     await w.say(u, '/start ' + code);
     await w.say(u, u.name);
   }
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: E, id: adm.id });
   for (const u of p) await w.api(u, 'wishlist.save', { event: E, text: 'Хочу книгу' });
   await w.api(adm, 'admin.ring', { event: E, on: false });
   await w.api(adm, 'admin.exclusion.add', { event: E, giver: p[0].id, receiver: p[1].id });
@@ -304,7 +303,7 @@ test('0016: только колонка companies.shared с умолчанием
 
 test('база с данными «до 0016»: у всех компаний shared = 0, остальные строки прежние, версия 18', async () => {
   const { w } = await filledWorld();
-  addCompany(w, 'Вторая');
+  w.sql("INSERT INTO companies (name, created_at) VALUES ('Вторая', 1)");
   w.sql("ALTER TABLE companies DROP COLUMN shared; UPDATE settings SET value = '17' WHERE key = 'schema'");
   const before = snapshot(w);
   w.sql(SQL16);
@@ -397,53 +396,6 @@ test('база с данными «до 0019»: у всех событий finis
   for (const t of Object.keys(before).filter((t) => !['events', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
   // от противного: колонка уже есть — повтор миграции падает (Wrangler применяет её один раз)
   assert.throws(() => w.sql(SQL19), /duplicate column name: finish_warned/);
-});
-
-// ---------- сверка компаний (050, tools/companies-reconcile.sql) ----------
-
-const RECONCILE = readFileSync(new URL('../tools/companies-reconcile.sql', import.meta.url), 'utf8');
-const reconcileStatements = RECONCILE.replace(/--[^\n]*/g, '').split(';').map((s) => s.trim()).filter(Boolean);
-const rights = (w) => w.query('SELECT company_id, user_id, is_admin FROM company_members ORDER BY company_id, user_id')
-  .map((r) => `${r.company_id}:${r.user_id}:${r.is_admin}`);
-
-test('сверка: четыре оператора, без версии схемы и без DELETE', () => {
-  assert.equal(reconcileStatements.length, 4);
-  assert.ok(reconcileStatements.every((s) => /^(INSERT|UPDATE)\b/.test(s)), 'только вставка и обновление');
-  assert.ok(!/schema/.test(RECONCILE.replace(/--[^\n]*/g, '')), 'версию схемы не трогает');
-});
-
-test('сверка: нарушенные I2, I5 и права, изменённые «прежним кодом», — исправлены; повтор ничего не меняет', async () => {
-  const { w } = await filledWorld();
-  assert.deepEqual(invariants(w), [], 'до нарушения');
-  // Прежний код: новый участник без строки компании (I5), ждущий имени по ссылке, заявка; владелец бота без строки (I2);
-  // назначение и снятие админа — только общим признаком
-  const E = w.query('SELECT id FROM events')[0].id;
-  w.sql(`DELETE FROM company_members WHERE user_id IN (100, 9001);
-    INSERT INTO users (tg_id, username, created_at, pending) VALUES (501, 'n', 1, 'name:${E}:inv_x'), (502, 'r', 1, '');
-    INSERT INTO join_requests (event_id, user_id, created_at) VALUES (${E}, 502, 1);
-    UPDATE users SET is_admin = 1 WHERE tg_id = 101;
-    UPDATE users SET is_admin = 0 WHERE tg_id = 9002;`);
-  const broken = invariants(w);
-  for (const code of ['I2', 'I4', 'I5']) assert.ok(broken.some((v) => v.startsWith(code + ':')), 'нарушено ' + code);
-  w.sql(RECONCILE);
-  assert.deepEqual(invariants(w), []);
-  const row = (id) => w.query('SELECT is_admin FROM company_members WHERE company_id = 1 AND user_id = ?', id)[0]?.is_admin;
-  assert.deepEqual([row(100), row(501), row(502), row(9001), row(101), row(9002)], [0, 0, 0, 1, 1, 0]);
-  const once = snapshot(w);
-  w.sql(RECONCILE);
-  assert.deepEqual(snapshot(w), once, 'повтор ничего не меняет');
-});
-
-test('сверка при двух компаниях: оператор 3 ничего не меняет — признак пересчитывается по строкам', async () => {
-  const { w } = await filledWorld();
-  addCompany(w, 'Вторая');
-  w.sql(`INSERT INTO company_members (company_id, user_id, is_admin) VALUES (2, 9001, 1);
-    UPDATE users SET is_admin = 1 WHERE tg_id = 101;`);
-  const before = rights(w);
-  w.sql(RECONCILE);
-  assert.deepEqual(rights(w), before, 'строки компаний прежние');
-  assert.equal(w.query('SELECT is_admin FROM users WHERE tg_id = 101')[0].is_admin, 0, 'признак — по строкам');
-  assert.deepEqual(invariants(w), []);
 });
 
 // ---------- 057: миграция 0020 и сверка tools/notify-reconcile.sql (specs/057-cron-marks/) ----------

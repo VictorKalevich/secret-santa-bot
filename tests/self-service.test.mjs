@@ -35,13 +35,13 @@ async function world() {
     if (!known) await w.say(u, u.name);
   };
   const create = async (title, people) => {
-    const id = (await w.api(boss, 'admin.events.create', { title })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title })).event.id;
     const code = await invite(id);
     for (const u of people) await join(u, code);
     return id;
   };
   const E = await create('Проверка', [adm, anya, borya, vera]);
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: E, id: adm.id });
   const leave = (u, event = E, confirm = 'ВЫЙТИ') => w.api(u, 'event.leave', { event, confirm }, true);
   const member = (u, event = E) => w.query('SELECT 1 FROM members WHERE event_id = ? AND user_id = ?', event, u.id).length === 1;
   // Сообщения «… выходит из события» человеку u (вызовы sendMessage целиком)
@@ -196,23 +196,20 @@ describe('своё имя (035, US3)', () => {
   const renames = () => z.w.query("SELECT * FROM audit WHERE event_id = 0 AND action = 'rename'");
   before(async () => { z = await world(); });
 
-  it('новое имя — пробелы схлопнуты, ответ { name }, одна запись журнала от самого человека, сообщений нет', async () => {
+  // 063: журнала комнат нет — своё имя журнал не пишет
+  it('новое имя — пробелы схлопнуты, ответ { name }, журнал не пишется, сообщений нет', async () => {
     const r = await rename(vera, '  Вера   Петрова ');
     assert.equal(r.status, 200);
     assert.deepEqual(r.data, { ok: true, name: 'Вера Петрова' });
     assert.equal(z.w.last.tg, 0, 'сообщений нет');
     assert.equal(nameOf(vera), 'Вера Петрова');
-    const rec = renames();
-    assert.equal(rec.length, 1);
-    assert.equal(rec[0].actor, vera.id);
-    assert.equal(rec[0].details, 'Вера → Вера Петрова');
-    assert.equal((await z.w.api(boss, 'admin.users')).users.find((u) => u.id === vera.id).name, 'Вера Петрова');
+    assert.equal(renames().length, 0);
   });
 
   it('то же имя — успех без записи', async () => {
     const r = await rename(vera, 'Вера Петрова');
     assert.equal(r.status, 200);
-    assert.equal(renames().length, 1);
+    assert.equal(renames().length, 0);
   });
 
   it('пустое, из пробелов и длиннее 40 символов — отказ, имя прежнее; ровно 40 — можно', async () => {

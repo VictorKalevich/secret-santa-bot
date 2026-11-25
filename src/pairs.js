@@ -13,14 +13,15 @@ import { isFinished } from './status.js';
 import { no } from './result.js';
 
 // Пары прошлого эвента с наибольшим числом пар среди этих людей; при равенстве — последнего
-// (для «не повторять пары», FR-510). Так параллельный эвент другой группы не подменяет «свой». Только эвенты той же
-// компании (050, R12): иначе пары соседней компании влияли бы на жеребьёвку и выдавали бы себя предупреждением обмена.
+// (для «не повторять пары», FR-510). Так параллельный эвент другой группы не подменяет «свой». Только эвенты того же
+// владельца (063, R7): иначе пары чужих событий влияли бы на жеребьёвку и выдавали бы себя предупреждением обмена;
+// свои прошлые пары владелец и так может открыть служебным просмотром. Индекс events_owner.
 const previousPairsQuery = (db, ev) => db
   .prepare(
     `SELECT p.event_id, p.santa, p.ward FROM pairs p JOIN events e ON e.id = p.event_id
-      WHERE e.company_id = ? AND p.event_id != ? AND e.created_at <= ? ORDER BY e.created_at DESC, e.id DESC`
+      WHERE e.owner_id = ? AND p.event_id != ? AND e.created_at <= ? ORDER BY e.created_at DESC, e.id DESC`
   )
-  .bind(ev.company_id, ev.id, ev.created_at);
+  .bind(ev.owner_id, ev.id, ev.created_at);
 
 function previousPairs(results, ids) {
   const set = new Set(ids);

@@ -396,7 +396,7 @@ describe('семейства ключей — по источнику кодов
     ['app.vault.audit.', auditCodes],
     ['pairs.reason.', () => [...src('src/draw.js').matchAll(/type: '([a-z_]+)'/g)].map((m) => m[1])],
     ['pairs.swapRule.', () => Object.keys(SWAP_RULES)],
-    ['app.core.role.', () => [...src('src/companies.js').matchAll(/'(owner|admin|member|guest)'/g)].map((m) => m[1])],
+    ['app.core.role.', () => [...src('src/participant.js').matchAll(/'(owner|admin|member|guest)'/g)].map((m) => m[1])],
     ['bot.notify.mode.', () => JSON.parse(/const NOTIFY_MODES = (\[[^\]]*\])/.exec(src('src/bot.js'))[1].replace(/'/g, '"'))],
     ['stale.keep.', () => Object.keys(staleWhy())],
     ['stale.logged.', () => Object.keys(staleWhy())],

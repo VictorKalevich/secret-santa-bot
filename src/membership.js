@@ -1,9 +1,8 @@
-// Участие в эвентах (008): заявки на вступление с одобрением. 050: человек, которого бот принял по ссылке события, — человек
-// компании события (joinCompanyStmt в том же пакете, что вступление или заявка).
+// Участие в эвентах (008): заявки на вступление с одобрением, вступление по ссылке, «Я участвую», выход.
 
 import {
-  getEvent, addMemberStmt, enqueueStmt, auditStmt, clearRemovedStmt, isRemoved, joinCompanyStmt,
-  memberDataDeleteStmts, eventQuery, memberQuery,
+  getEvent, addMemberStmt, enqueueStmt, auditStmt, clearRemovedStmt, isRemoved,
+  memberDataDeleteStmts, eventQuery, memberQuery, userQuery,
 } from './db.js';
 import {
   msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, NOT_MEMBER, ADMIN_ONLY,
@@ -15,7 +14,7 @@ import { no } from './result.js';
 
 // ---------- участие админа и возврат удалённых (019: из api.js) ----------
 
-// 051: в компании с назначенным владельцем — «владельца», в компании владельца бота — прежний текст (ownerWord)
+// 051: в событии с владельцем — «владельца», в событии владельца бота — прежний текст (ownerWord)
 const AFTER_DRAW = (w) => tx('membership.afterDraw', { owner: w });
 
 // «Я участвую» админа: вход и выход — только до жеребьёвки (вписывает после неё только владелец, 012)
@@ -24,7 +23,7 @@ export async function participate(ctx, ev, on, actor) {
   if (ev.draw_done) return no(AFTER_DRAW(ctx.ownerWord()));
   if (on) {
     await db.batch([
-      joinCompanyStmt(db, ev.company_id, actor), addMemberStmt(db, ev, actor), clearRemovedStmt(db, ev.id, actor),
+      addMemberStmt(db, ev, actor), clearRemovedStmt(db, ev.id, actor),
       auditStmt(db, ev.id, actor, 'participate', tx('membership.audit.isParticipant')),
     ]);
     return { ok: true };
@@ -73,8 +72,9 @@ export async function allowRemoved(ctx, ev, rawId, actor) {
   const id = Number(rawId) || 0;
   const row = await db.prepare('SELECT 1 FROM removed_members WHERE event_id = ? AND user_id = ?').bind(ev.id, id).first();
   if (!row) return no(tx('membership.notRemoved'));
-  const users = await ctx.users();
-  await db.batch([clearRemovedStmt(db, ev.id, id), auditStmt(db, ev.id, actor, 'member.allow', displayName(users.find((u) => u.tg_id === id)))]);
+  // Удалённый — уже не человек события: его запись — отдельно
+  const { person } = await ctx.read({ person: userQuery(db, id) });
+  await db.batch([clearRemovedStmt(db, ev.id, id), auditStmt(db, ev.id, actor, 'member.allow', displayName(person[0]))]);
   return { ok: true };
 }
 
@@ -109,7 +109,6 @@ export async function register(ctx, name, username, ev = null) {
   const { db, me } = ctx;
   const fresh = atomic(db, 'EXISTS (SELECT 1 FROM users WHERE tg_id = ? AND registered = 0)', me.tg_id);
   if (ev) {
-    fresh.add(joinCompanyStmt(db, ev.company_id, me.tg_id, ...fresh.guard));
     const member = fresh.and('EXISTS (SELECT 1 FROM members WHERE event_id = ? AND user_id = ?)', ev.id, me.tg_id);
     for (const a of adminRecipients(await ctx.users(), [me.tg_id])) member.enqueue(a.tg_id, joinedNotice({ ...me, name }, ev));
   }
@@ -122,11 +121,10 @@ export async function joinByInvite(ctx, ev, user) {
   const db = ctx.db;
   if (isFinished(ev) || !ev.registration_open) return 'closed';
   if (await rejoinBlocked(db, ev, user.tg_id)) return 'removed';
-  // 008: эвент с одобрением — вместо участия заявка (организаторы компании события вступают сами, 050)
+  // 008: эвент с одобрением — вместо участия заявка (организаторы события вступают сами)
   if (ev.approval && !ctx.me.is_admin) return requestJoin(ctx, ev, user);
   const users = await ctx.users();
   await db.batch([
-    joinCompanyStmt(db, ev.company_id, user.tg_id),
     addMemberStmt(db, ev, user.tg_id),
     clearRemovedStmt(db, ev.id, user.tg_id), // вернулся — больше не в списке удалённых (010)
     ...joinedNoticeStmts(db, users, user, ev),
@@ -143,13 +141,10 @@ async function requestJoin(ctx, ev, user) {
     .bind(ev.id, user.tg_id, now - REJECT_PAUSE_MS)
     .first();
   if (rejected) return 'request_rejected';
-  // Заявка и строка человека компании — одним пакетом (050)
-  const [, inserted] = await db.batch([
-    joinCompanyStmt(db, ev.company_id, user.tg_id),
-    db.prepare("INSERT OR IGNORE INTO join_requests (event_id, user_id, status, created_at) VALUES (?, ?, 'pending', ?) RETURNING id")
-      .bind(ev.id, user.tg_id, now),
-  ]);
-  const row = inserted.results?.[0];
+  const row = await db
+    .prepare("INSERT OR IGNORE INTO join_requests (event_id, user_id, status, created_at) VALUES (?, ?, 'pending', ?) RETURNING id")
+    .bind(ev.id, user.tg_id, now)
+    .first();
   if (!row) return 'request_pending';
   const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
   const admins = adminRecipients(users, [user.tg_id]);
@@ -172,29 +167,26 @@ async function requestJoin(ctx, ev, user) {
 const DECIDED = tx('membership.requestDecided');
 
 // Решение по заявке — один раз (research R4): повторное нажатие или второй админ ничего не меняют
-// inEvent — решение из панели события: заявка должна быть заявкой этого события. Решает организатор компании события
-// (050: кнопка в чате — сначала общий признак у бота, здесь — права в компании; отказ тот же)
+// inEvent — решение из панели события: заявка должна быть заявкой этого события. Решает организатор события (063:
+// кнопка в чате — сначала общий признак у бота, здесь — права в событии; отказ тот же)
 export async function decideRequest(ctx, id, actor, approve, { inEvent = null } = {}) {
   const db = ctx.db;
-  const req = await db
-    .prepare('SELECT r.*, e.company_id FROM join_requests r LEFT JOIN events e ON e.id = r.event_id WHERE r.id = ?')
-    .bind(Number(id) || 0)
-    .first();
+  const req = await db.prepare('SELECT * FROM join_requests WHERE id = ?').bind(Number(id) || 0).first();
   if (!req || (inEvent && req.event_id !== inEvent.id)) return no(tx('membership.requestNotFound'));
-  if (req.company_id !== null) {
-    ctx = await ctx.in(req.company_id);
-    if (!ctx?.me?.is_admin) return no(ADMIN_ONLY);
+  const ev = inEvent || (await getEvent(db, req.event_id));
+  if (ev) {
+    ctx = await ctx.at(ev);
+    if (!ctx.me?.is_admin) return no(ADMIN_ONLY);
   }
   if (req.status !== 'pending') return no(DECIDED);
-  const ev = await getEvent(db, req.event_id);
   if (!ev) return no(tx('api.noEvent'));
   if (approve && isFinished(ev)) return no(tx('membership.approveFinished'));
   // Закрытая регистрация — значит никто (010, FR-1016): заявка ждёт открытия, отклонить можно
   const closed = tx('membership.approveClosed', { title: ev.title });
   if (approve && !ev.registration_open) return no(closed);
-  const [settings, users] = await Promise.all([ctx.settings(), ctx.users()]);
-  const person = users.find((u) => u.tg_id === req.user_id);
-  const by = users.find((u) => u.tg_id === actor);
+  // Заявитель — ещё не человек события: его запись — тем же пакетом
+  const { users, settings, person: [person] } = await ctx.read({ person: userQuery(db, req.user_id), users: true, settings: true });
+  const by = users.find((u) => u.tg_id === actor) ?? ctx.me;
   const status = approve ? 'approved' : 'rejected';
   // По прежнему состоянию (020): участие, сообщения и журнал — пока заявка ждёт решения, а чтобы принять, — ещё и пока
   // регистрация открыта и событие идёт (её могли закрыть в эту же секунду); само решение — последним, с тем же условием.
@@ -202,7 +194,7 @@ export async function decideRequest(ctx, id, actor, approve, { inEvent = null } 
   const pending = atomic(db, "EXISTS (SELECT 1 FROM join_requests WHERE id = ? AND status = 'pending')", req.id);
   const p = approve ? pending.and("EXISTS (SELECT 1 FROM events WHERE id = ? AND registration_open = 1 AND status = 'active')", ev.id) : pending;
   if (approve) {
-    p.add(joinCompanyStmt(db, ev.company_id, req.user_id, ...p.guard), addMemberStmt(db, ev, req.user_id, ...p.guard),
+    p.add(addMemberStmt(db, ev, req.user_id, ...p.guard),
       clearRemovedStmt(db, ev.id, req.user_id, ...p.guard));
   }
   p.enqueue(req.user_id, approve

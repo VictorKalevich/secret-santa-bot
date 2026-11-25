@@ -13,7 +13,7 @@ test('041: редактор на телефоне, закрытие при вв�
   const owner = { id: 101, name: 'Олег' };
   await w.say(owner, '/start ' + (await w.setup()).adminCode);
   await w.say(owner, owner.name);
-  const event = (await w.api(owner, 'admin.events.create', { title: 'Семья' })).event.id;
+  const event = (await w.api(owner, 'event.create', { participate: false, title: 'Семья' })).event.id;
   await w.api(owner, 'admin.participate', { event, on: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 640 }, isMobile: true, hasTouch: true });
   const errors = [];

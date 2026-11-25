@@ -2,7 +2,7 @@
 // «подарок готов» / «подарок получен» (007). Права (участник ли, завершено ли событие) проверены в api.js.
 
 import {
-  eventsQuery, myEventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, peopleQuery, giftTotalsQuery, announcementsQuery, getUser,
+  myEventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, peopleQuery, giftTotalsQuery, announcementsQuery, getUser,
   getMember,
 } from './db.js';
 import { atomic } from './claim.js';
@@ -14,7 +14,7 @@ import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnrea
 import { no } from './result.js';
 import { tx } from './i18n/index.js';
 import { looksView, validCard } from './looks.js';
-import { companiesView, companyOwnersQuery, companyPeopleQuery, createView, openBot } from './companies.js';
+import { openBot, canCreate, createView, creationsQuery } from './creation.js';
 
 const DELIVERY_MAX = 500;
 
@@ -23,7 +23,7 @@ const DELIVERY_MAX = 500;
 export async function menuEvents(db, userId) {
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.title, e.status, e.draw_done, e.company_id, m.wishlist,
+      `SELECT e.id, e.title, e.status, e.draw_done, m.wishlist,
               EXISTS (SELECT 1 FROM pairs p WHERE p.event_id = e.id AND p.santa = ?1) AS has_ward,
               EXISTS (SELECT 1 FROM pairs p WHERE p.event_id = e.id AND p.ward = ?1) AS has_santa
          FROM members m JOIN events e ON e.id = m.event_id
@@ -34,10 +34,9 @@ export async function menuEvents(db, userId) {
   return results;
 }
 
-// me: незарегистрированному — только registered: false (052: в открытом боте и open). Общий контекст (050): события — где человек участник, плюс
-// все события компаний, где он администратор; владельцу бота — все. is_admin — «админ где-нибудь», is_owner — владелец бота.
-// 051: компании, видимые человеку (companiesView), у события — его компания. 052: open, create — контракт
-// specs/052-open-bot/contracts/open-bot.md, раздел 2
+// me: незарегистрированному — только registered: false (052: в открытом боте и open). 063: события — где человек
+// участник или организатор (владельцу бота — тоже только свои), у каждого роль (owner | admin | member); is_admin —
+// «организатор где-нибудь», is_owner — владелец бота; create — может ли создавать и сколько ещё (creation.js)
 export async function homeView(ctx) {
   const { db, me } = ctx;
   // 052: open — открытый бот (и незарегистрированному: в нём регистрируются без ссылки)
@@ -47,43 +46,36 @@ export async function homeView(ctx) {
   // Владелец бота — из первого пакета вызова (без запроса, если запись владельца действительна)
   const botOwnerId = await ctx.botOwnerId();
   const botOwner = !!me.is_admin && botOwnerId === me.tg_id;
-  // Одним пакетом чтений (019); компании и свои строки компаний — из первого пакета вызова
+  const counted = !botOwner && (await canCreate(ctx));
+  // Одним пакетом чтений (019); события, где он организатор, — из первого пакета вызова
   const r = await ctx.read({
     mine: db.prepare('SELECT event_id FROM members WHERE user_id = ?').bind(me.tg_id),
     unread: unreadByEventQuery(db, me.tg_id),
     supUnread: supportUnreadQuery(db, me),
-    events: botOwner ? eventsQuery(db) : myEventsQuery(db, me.tg_id), // 055: остальным — только свои
-    owners: companyOwnersQuery(db, botOwnerId, botOwner ? 0 : me.tg_id),
-    people: botOwner && companyPeopleQuery(db),
+    events: myEventsQuery(db, me.tg_id),
+    creations: counted && creationsQuery(db, me.tg_id),
   });
-  const [companies, mine] = await Promise.all([ctx.companies(), ctx.mine()]);
-  const adminOf = new Set([...mine].filter(([, c]) => c.is_admin).map(([id]) => id));
+  const organizer = await ctx.organizerOf();
   const memberOf = new Set(r.mine.map((x) => x.event_id));
   const unread = unreadByEventFrom(r.unread);
   const supUnread = supportUnreadFrom(r.supUnread);
-  const events = r.events
-    .filter((e) => botOwner || adminOf.has(e.company_id) || memberOf.has(e.id))
-    .map((e) => ({
-      id: e.id, title: e.title, status: e.status, finished_at: e.finished_at, event_date: e.event_date,
-      draw_done: !!e.draw_done, member: memberOf.has(e.id), unread: (unread[e.id] || 0) + (supUnread[e.id] || 0),
-      company: e.company_id,
-    }));
-  const memberCompanies = new Set(r.events.filter((e) => memberOf.has(e.id)).map((e) => e.company_id));
-  const create = createView({ companies, botOwner, open, meId: me.tg_id });
+  const roleOf = (e) => (e.owner_id === me.tg_id || (!e.owner_id && botOwner) ? 'owner' : organizer.has(e.id) ? 'admin' : 'member');
+  const events = r.events.map((e) => ({
+    id: e.id, title: e.title, status: e.status, finished_at: e.finished_at, event_date: e.event_date,
+    draw_done: !!e.draw_done, member: memberOf.has(e.id), role: roleOf(e), unread: (unread[e.id] || 0) + (supUnread[e.id] || 0),
+  }));
+  const create = await createView(ctx, r.creations[0]);
   return {
     registered: true,
     me: {
       id: me.tg_id, name: me.name, is_admin: !!me.is_admin, is_owner: botOwner,
       notify_mode: me.notify_mode,
     },
-    companies: companiesView({
-      companies, mine, memberOf: memberCompanies, botOwner, botOwnerId, meId: me.tg_id, events, owners: r.owners, people: r.people, open,
-    }),
     ...flag,
     ...(create ? { create } : {}),
     events,
     limits: { chars: MAX_CHARS },
-    looks: looksView(), // 038, 040: наборы открыток и масок — на сервере
+    looks: looksView(), // 038: набор открыток — на сервере
   };
 }
 
@@ -103,9 +95,13 @@ export async function eventView(ctx, ev, member) {
     users: true,
     settings: true,
   });
+  // 063: роль вызывающего в событии — владелец, организатор, участник или гость (владелец бота без участия и строки
+  // организатора)
+  const ownerId = await ctx.ownerId();
+  const role = ownerId === me.tg_id ? 'owner' : (await ctx.organizerOf()).has(ev.id) ? 'admin' : member ? 'member' : 'guest';
   const out = {
-    event: { ...publicEvent(ev), participants: r.people.length, company: ev.company_id }, // 051: компания события
-    roster: rosterView(ev, r.people, r.gifts?.[0], r.users, await ctx.ownerId(), r.settings),
+    event: { ...publicEvent(ev), participants: r.people.length, role },
+    roster: rosterView(ev, r.people, r.gifts?.[0], r.users, ownerId, r.settings),
     announcements: r.announcements,
     member: null,
     can: { edit_letter: false, chat_write: false },

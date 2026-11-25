@@ -32,13 +32,13 @@ async function world() {
     if (!known) await w.say(u, u.name);
   };
   const create = async (title, people) => {
-    const id = (await w.api(boss, 'admin.events.create', { title })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title })).event.id;
     const code = await invite(id);
     for (const u of people) await join(u, code);
     return id;
   };
   const E = await create('Открытки', [adm, anya, borya, vera]);
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
+  await w.api(boss, 'admin.role.grant', { event: E, id: adm.id });
   await w.api(boss, 'admin.participate', { event: E, on: true });
   const santaOf = (u, ev = E) => {
     const id = w.query('SELECT santa FROM pairs WHERE event_id = ? AND ward = ?', ev, u.id)[0].santa;

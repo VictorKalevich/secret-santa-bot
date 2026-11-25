@@ -42,16 +42,17 @@ async function world({ ownerByButton = false } = {}) {
   const joined = (to, name) => w.texts(to).filter((t) => t.includes(`<b>${name}</b> присоединяется к событию`)).length;
   const invite = async (ev) => /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: ev })).settings.invite_link)[1];
   const create = async (title, body = {}) => {
-    const id = (await w.api(boss, 'admin.events.create', { title })).event.id;
+    const id = (await w.api(boss, 'event.create', { participate: false, title })).event.id;
     if (Object.keys(body).length) await w.api(boss, 'admin.game', { event: id, ...body });
     return id;
   };
   if (!ownerByButton) {
     await w.say(boss, '/start ' + s.adminCode);
     await w.say(boss, boss.name);
-    await w.say(adm, '/start ' + (await invite(await create('Для админа'))));
+    const forAdmin = await create('Для админа');
+    await w.say(adm, '/start ' + (await invite(forAdmin)));
     await w.say(adm, adm.name);
-    await w.api(boss, 'admin.role.grant', { id: adm.id });
+    await w.api(boss, 'admin.role.grant', { event: forAdmin, id: adm.id });
   }
   return { w, s, say, press, answers, sent, last, user, member, joined, invite, create };
 }
@@ -92,7 +93,7 @@ describe('вступление одним нажатием (047, US1)', () => {
     assert.equal(now[0].reply_markup.inline_keyboard[0][0].text, '✏️ Написать письмо');
     assert.match(now[1].text, /Твои события/);
     assert.equal(z.joined(boss, 'Анна Иванова'), 1);
-    assert.equal(z.joined(adm, 'Анна Иванова'), 1);
+    assert.equal(z.joined(adm, 'Анна Иванова'), 0, '063: администратор другого события — не получает');
   });
 
   it('вступление по одобрению — нажатие отправляет заявку', async () => {

@@ -2,11 +2,12 @@
 
 import {
   getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt,
-  updateEventStmt, updateEventIfStmt, auditStmt, eventDataDeleteStmts,
+  updateEventStmt, updateEventIfStmt, auditStmt, eventDataDeleteStmts, adminFlagStmt, eventAdminIdsQuery, BOT_LOG,
 } from './db.js';
 import {
-  msg, q, escapeHtml, appKeyboard, inviteLink, randomCode, oneLine, cleanText, NO_DRAW, PAIRS_RACE, COMPANY_NOT_FOUND,
+  msg, q, escapeHtml, appKeyboard, inviteLink, randomCode, oneLine, cleanText, NO_DRAW, PAIRS_RACE,
 } from './format.js';
+import { createGuard, createRefusal } from './creation.js';
 import { EVENT_PARAMS, EVENT_STATE_RESET, eventDefaults, templateValues, paramValue } from './event-params.js';
 import { t, tx, tdate, DEFAULT_LANG } from './i18n/index.js';
 import { CHAT_GRACE_MS, isFinished } from './status.js';
@@ -24,39 +25,57 @@ const REMIND_AGAIN = tx('events.remindAgain');
 const onOff = (on) => tx(on ? 'events.auditText.on' : 'events.auditText.off');
 
 // from — эвент-образец (007, FR-706): копируются параметры и исключения, даты — нет.
-// invite — разослать участникам образца приглашение в новый эвент. Эвент — в компании вызова (050).
-export async function createEvent(ctx, title, createdBy, { from = null, invite = false } = {}) {
+// invite — разослать участникам образца приглашение в новый эвент. 063: создатель — владелец и организатор события,
+// participate — он же участник; факт создания — для лимита (creation.js), условие лимита и разрешения — у вставки события
+export async function createEvent(ctx, title, createdBy, { from = null, invite = false, participate = true } = {}) {
   const db = ctx.db;
   const clean = oneLine(title);
   if (!clean || clean.length > 80) return no(tx('events.titleRule'));
   const code = randomCode();
-  const cid = ctx.company.id;
-  // Параметры — по списку EVENT_PARAMS (029): копируемые — из образца, остальные задаёт схема
-  const fields = { company_id: cid, title: clean, created_at: Date.now(), created_by: createdBy, invite_code: code, ...templateValues(from) };
+  const now = Date.now();
+  // Параметры — по списку EVENT_PARAMS (029): копируемые — из образца, остальные задаёт схема. company_id = 0 (063):
+  // после отката на 062 событие не попадёт в комнату №1
+  const fields = { company_id: 0, owner_id: createdBy, title: clean, created_at: now, created_by: createdBy, invite_code: code, ...templateValues(from) };
   const cols = Object.keys(fields);
-  // Новый эвент в остальных операторах batch находим по уникальному коду приглашения. 051: событие вставляется, только
-  // если компания ещё есть (её могли удалить одновременно); нет события — нет и остальных строк
+  const guard = await createGuard(ctx, now);
+  // Новый эвент в остальных операторах batch находим по уникальному коду приглашения: нет события — нет и остальных строк
   const newId = '(SELECT id FROM events WHERE invite_code = ?)';
+  const ofNew = (sql) => `${sql} FROM events WHERE invite_code = ?`;
   const stmts = [
-    db.prepare(`INSERT INTO events (${cols.join(', ')}) SELECT ${cols.map(() => '?').join(', ')}
-                 WHERE EXISTS (SELECT 1 FROM companies WHERE id = ?) RETURNING *`)
-      .bind(...cols.map((k) => fields[k]), cid),
+    db.prepare(`INSERT INTO events (${cols.join(', ')}) SELECT ${cols.map(() => '?').join(', ')} WHERE ${guard.sql} RETURNING *`)
+      .bind(...cols.map((k) => fields[k]), ...guard.args),
+    db.prepare(ofNew('INSERT INTO event_admins (event_id, user_id, created_at) SELECT id, ?, ?')).bind(createdBy, now, code),
+    db.prepare(ofNew('INSERT INTO event_creations (event_id, user_id, created_at) SELECT id, ?, ?')).bind(createdBy, now, code),
   ];
+  if (participate) {
+    // Адрес — последний указанный человеком, если событию он нужен (как addMemberStmt)
+    const delivery = fields.delivery_on
+      ? "COALESCE((SELECT delivery FROM members WHERE user_id = ? AND delivery != '' ORDER BY joined_at DESC LIMIT 1), '')"
+      : "''";
+    stmts.push(db.prepare(ofNew(`INSERT INTO members (event_id, user_id, joined_at, delivery) SELECT id, ?, ?, ${delivery}`))
+      .bind(createdBy, now, ...(fields.delivery_on ? [createdBy] : []), code));
+  }
   if (from) {
     stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions
                             WHERE event_id = ? AND EXISTS ${newId}`)
       .bind(code, from.id, code));
   }
-  stmts.push(db.prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) SELECT id, ?, ?, 'event.create', ?, ?
-                          FROM events WHERE invite_code = ?`)
-    .bind(cid, createdBy, from ? t(DEFAULT_LANG, 'events.auditText.fromTemplate', { title: from.title }) : '', Date.now(), code));
+  stmts.push(
+    db.prepare(ofNew("INSERT INTO audit (event_id, company_id, actor, action, details, created_at) SELECT id, 0, ?, 'event.create', ?, ?"))
+      .bind(createdBy, from ? t(DEFAULT_LANG, 'events.auditText.fromTemplate', { title: from.title }) : '', now, code),
+    // Журнал бота (063): кто и какое событие создал
+    db.prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, created_at) SELECT 0, 0, ?, 'event.create', ?, ?
+                 WHERE EXISTS ${newId}`).bind(createdBy, `«${clean}»`, now, code),
+    adminFlagStmt(db, createdBy),
+  );
   const [ins] = await db.batch(stmts);
   const row = ins.results[0];
-  if (!row) return no(COMPANY_NOT_FOUND, 404);
+  if (!row) return createRefusal(ctx);
+  ctx.forgetUsers();
   let invited = 0;
   let inviteError = '';
   if (from && invite) {
-    const r = await inviteFromEvent(ctx, row, from, createdBy);
+    const r = await inviteFromEvent(await ctx.at(row), row, from, createdBy);
     if (r.ok) invited = r.count;
     else inviteError = r.error;
   }
@@ -92,13 +111,15 @@ export async function finishEvent(ctx, ev, actor = 0) {
 // и ничего не рассылает и не пишет.
 export async function deleteEvent(ctx, ev, actor = 0) {
   const db = ctx.db;
-  const members = await rowsOf(memberIdsQuery(db, ev.id));
+  const { members, organizers } = await ctx.read({ members: memberIdsQuery(db, ev.id), organizers: eventAdminIdsQuery(db, ev.id) });
   const exists = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ?)', ev.id);
   for (const m of members) exists.enqueue(m.user_id, msg(tx('events.deleted', { title: q(ev) })));
-  // Журнал эвента остаётся; само удаление — в общем журнале компании (007, 050)
-  exists.audit({ company: ev.company_id }, actor, 'event.delete', tx('events.auditText.deleted', { title: ev.title, n: members.length }));
+  // Журнал эвента остаётся; само удаление — в журнале бота (063)
+  exists.audit(BOT_LOG, actor, 'event.delete', tx('events.auditText.deleted', { title: ev.title, n: members.length }));
   // Данные эвента — по списку REGISTRY (018), строка эвента — последней: она и есть захват
   exists.claim(exists.add(...eventDataDeleteStmts(db, ev.id, {}, ...exists.guard)));
+  // Общий признак организаторов — после удаления их строк (пересчёт безусловный: тот же результат при любом исходе)
+  for (const o of organizers) exists.add(adminFlagStmt(db, o.user_id));
   if (!(await exists.run()).won) return no(tx('events.alreadyDeleted'));
   return { ok: true, count: members.length };
 }

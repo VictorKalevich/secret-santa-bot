@@ -37,7 +37,7 @@ export const EVENT_STATE_RESET = {
   status: 'active', finished_at: 0, registration_open: 1, draw_done: 0, draw_at: 0, draw_token: '', revealed: 0, last_daily: '',
   finish_warned: '', checked_on: '',
 };
-export const EVENT_SERVICE = ['id', 'company_id', 'title', 'created_at', 'created_by', 'invite_code', ...Object.keys(EVENT_STATE_RESET)];
+export const EVENT_SERVICE = ['id', 'company_id', 'owner_id', 'title', 'created_at', 'created_by', 'invite_code', ...Object.keys(EVENT_STATE_RESET)];
 // Колонки, которые код больше не читает и не пишет (062: «Учитывать семьи» — семьи стали исключениями событий). Остаются в
 // схеме, пока возможен откат на прежний код (docs/todo.md).
 export const EVENT_RETIRED = ['families_on'];

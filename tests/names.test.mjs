@@ -17,10 +17,10 @@ test('отдельный значок недоступен, эмодзи в им
   const s = await w.setup();
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
-  const event = (await w.api(boss, 'admin.events.create', { title: 'Имена' })).event.id;
+  const event = (await w.api(boss, 'event.create', { participate: false, title: 'Имена' })).event.id;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event })).settings.invite_link)[1];
   for (const u of [bora, anya, vera]) { await w.say(u, '/start ' + code); await w.say(u, u.name); }
-  await w.api(boss, 'admin.role.grant', { id: bora.id });
+  await w.api(boss, 'admin.role.grant', { event, id: bora.id });
   w.sql("UPDATE users SET emoji = '🦊' WHERE tg_id IN (201, 9102)");
 
   const oldAction = await w.api(anya, 'emoji.set', { emoji: '🐻' }, true);
