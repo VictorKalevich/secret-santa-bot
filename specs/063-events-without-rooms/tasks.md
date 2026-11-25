@@ -326,7 +326,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
   владение; `tests/i18n-languages.test.mjs` — без компаний
 - [x] T074 `tests/e2e.test.mjs`: сценарий без компаний (создание события в приложении, назначение организатора, передача
   владения)
-- [ ] T075 `tests/screenshots.mjs`: `checkHome` (список, «Создать» внизу на 320 точках, обе темы, длинный список),
+- [x] T075 `tests/screenshots.mjs`: `checkHome` (список, «Создать» внизу на 320 точках, обе темы, длинный список),
   `checkSettings`, `checkOrganizers`, `checkOpenBot` (второй Worker); убрать `checkCompanies`; `tests/*.ui.mjs` —
   без компаний; нарушения CSP — 0
 - [x] T076 `docs/api.md`: 69 действий, конвейер, поля `me`/`event.get`/`admin.state`, журнал (коды и журналы), бот

@@ -17,7 +17,7 @@ async function drawnWorld({ open = false, drafts = false } = {}) {
   const [a, b] = [{ id: 5811, name: 'Аня' }, { id: 5812, name: 'Боря' }];
   await w.say(owner, '/start ' + (await w.setup()).adminCode);
   await w.say(owner, owner.name);
-  const event = (await w.api(owner, 'event.create', { participate: false, company: 1, title: 'Ёлка' })).event.id;
+  const event = (await w.api(owner, 'event.create', { participate: false, title: 'Ёлка' })).event.id;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(owner, 'admin.state', { event })).settings.invite_link)[1];
   for (const u of [a, b]) { await w.say(u, '/start ' + code); await w.say(u, u.name); }
   await w.api(owner, 'admin.participate', { event, on: true });

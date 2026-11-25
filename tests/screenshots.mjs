@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { startWorld, initData, waitFor } from './harness.mjs';
 import { TELEGRAM_SCRIPT } from '../src/csp.js';
+import { LANGUAGES } from '../src/i18n/index.js';
 
 const OUT = new URL('../test-results/', import.meta.url);
 mkdirSync(OUT, { recursive: true });
@@ -103,7 +104,7 @@ try {
   await w.api(admin, 'admin.game', { event: B, title: 'Офис', budget: 'до 30 BYN', event_date: '2026-12-24', place: 'Переговорка', deadline: '', notes: '' });
   await w.api(admin, 'admin.exclusion.add', { event: A, giver: 101, receiver: 102, mutual: true });
   await w.api(admin, 'admin.fixed.add', { event: A, giver: 103, receiver: 101 }); // 014: блок видит только владелец
-  await w.api(admin, 'admin.role.grant', { id: people[0].id });
+  await w.api(admin, 'admin.role.grant', { event: A, id: people[0].id }); // 063: администратор этого события
   // 008: адрес доставки в эвенте A, заявка в эвент B
   await w.api(admin, 'admin.game', { event: A, delivery_on: true });
   for (const p of [admin, ...people.slice(0, 3)]) {
@@ -131,6 +132,15 @@ try {
     await page.route('https://telegram.org/**', (r) => r.abort());
     return page;
   }
+  // Тема Telegram на странице: SDK заблокирован — переменные темы ставим сами (011)
+  const paintTheme = (page, dark) => page.addInitScript((vars) => {
+    document.addEventListener('DOMContentLoaded', () => {
+      for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
+    });
+  }, dark ? DARK : LIGHT);
+  const snapPath = (name) => fileURLToPath(new URL(`${name}.png`, OUT));
+  // «Мои события» построены (063): ⚙️ в шапке видна только у главного экрана; список может быть пустым или свёрнутым
+  const HOME_READY = '#heroAction:not([hidden]), .ds-tabs:not([hidden])';
 
   // 011: раскрытый список и пункты — в схеме темы: color-scheme как у Telegram, пункты — surface/text
   async function checkScheme(page, label, expected) {
@@ -244,7 +254,7 @@ try {
     const page = await openPage(what, { viewport: { width: 390, height: 844 }, ...options });
     try {
       await page.goto(`${w.base}/app${event ? `?event=${event}` : ''}#tgWebAppData=${encodeURIComponent(initData(user))}`);
-      await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : '.ds-list-item--link, .ds-tabs:not([hidden])');
+      await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : HOME_READY);
       await fn(page);
     } catch (e) {
       problems.push(`${what}: ${e.message.split('\n')[0]}`);
@@ -365,7 +375,7 @@ try {
     });
 
     await onPage(problems, 'подсказка названия', admin, null, async (page) => {
-      await page.getByRole('button', { name: '🎄 Создать', exact: true }).click();
+      await page.getByRole('button', { name: '🎄 Создать событие', exact: true }).click();
       const hint = await page.locator('.ds-sheet input.ds-input[type="text"]').getAttribute('placeholder');
       const want = `Например: Новый год ${now.getFullYear() + 1} — семья`;
       if (hint !== want) problems.push(`подсказка названия — «${hint}», ожидалось «${want}»`);
@@ -789,15 +799,23 @@ addEventListener('message', (e) => {
     for (const p of [timur, yulia]) { await w.say(p, '/start ' + codeL); await w.say(p, p.name); }
     const D = (await w.api(admin, 'event.create', { participate: false, title: 'Уже с жеребьёвкой' })).event.id;
     const codeD = await inv(D);
-    for (const p of [timur, yulia]) await w.say(p, '/start ' + codeD);
+    for (const p of [timur, yulia, people[0]]) await w.say(p, '/start ' + codeD);
     await w.api(admin, 'admin.participate', { event: D, on: true });
-    await w.api(people[0], 'admin.participate', { event: D, on: true });
+    await w.api(admin, 'admin.role.grant', { event: D, id: people[0].id }); // 063: администратор — участник события
     await w.api(admin, 'admin.draw', { event: D });
     const member = (u, ev) => w.query(`SELECT 1 FROM members WHERE event_id = ${Number(ev)} AND user_id = ${u.id}`).length === 1;
     const leaveBtn = (page) => page.locator('#main .ds-btn--danger', { hasText: 'Выйти из события' });
+    // 063: «Профиль» — на экране «Настройки» (⚙️ в шапке главного экрана)
+    const toSettings = async (p) => {
+      await p.locator('#heroAction').click();
+      await p.locator('#heroTitle', { hasText: /^Настройки$/ }).waitFor({ timeout: 5000 });
+    };
 
-    await shot(timur, '30-profile');
-    await shot(timur, '30-profile-name', { fullPage: false, before: (p) => p.locator('#main .ds-btn', { hasText: 'Изменить имя' }).click() });
+    await shot(timur, '30-profile', { before: toSettings });
+    await shot(timur, '30-profile-name', { fullPage: false, before: async (p) => {
+      await toSettings(p);
+      await p.locator('#main .ds-btn', { hasText: 'Изменить имя' }).click();
+    } });
     await shot(timur, '31-leave', { event: L, tab: 'Инфо', fullPage: false, before: async (p) => {
       await leaveBtn(p).click();
       await p.locator('.ds-sheet .ds-input').fill('ВЫЙТИ');
@@ -806,6 +824,7 @@ addEventListener('message', (e) => {
     await shot(admin, '33-leave-owner', { event: D, tab: 'Инфо' });
 
     await onPage(problems, 'профиль', timur, null, async (page) => {
+      await toSettings(page);
       const titles = await page.locator('#main .ds-section-title').allTextContents();
       if (titles.indexOf('Профиль') < 0 || titles.indexOf('Профиль') !== titles.indexOf('Уведомления') - 1) problems.push(`профиль: разделы ${titles.join(', ')}`);
       await page.locator('#main .ds-btn', { hasText: 'Изменить имя' }).click();
@@ -846,7 +865,8 @@ addEventListener('message', (e) => {
       await input.fill('выйти');
       await go.click(); // второго окна нет: окно браузера Playwright закрыл бы отказом — выхода бы не было
       await page.locator('#toast', { hasText: 'Ты больше не участвуешь в событии «Выход»' }).waitFor({ timeout: 5000 });
-      await page.locator('#main .ds-section-title', { hasText: 'Мои события' }).waitFor({ timeout: 5000 });
+      await page.locator('#main .ds-list-item--link', { hasText: 'Уже с жеребьёвкой' }).waitFor({ timeout: 5000 });
+      if (await page.locator('#main .ds-list-item--link', { hasText: /^Выход/ }).count()) problems.push('выход: событие осталось в «Моих событиях»');
       if (member(timur, L)) problems.push('выход: на сервере всё ещё участник');
       if (!w.texts(admin).some((t) => t === '🚪 <b>Тимур Ш.</b> выходит из события «Выход».')) problems.push('выход: организатору нет сообщения');
     });
@@ -861,11 +881,12 @@ addEventListener('message', (e) => {
       if (!member(yulia, D)) problems.push('после жеребьёвки: участие пропало');
     });
 
-    // 036: раздел выхода после жеребьёвки — подсказка по роли; button — есть ли в разделе «Задать вопрос»
+    // 036: раздел выхода после жеребьёвки — подсказка по роли; button — есть ли в разделе «Задать вопрос». 063: у события
+    // свой владелец (admin создал D) — в подсказках «владелец», не «владелец бота»
     const HINTS = {
-      owner: 'Ты владелец бота — удалить тебя из события некому. Выйти можно, только отменив жеребьёвку: «Управление» → «Опасная зона» → «↩️ Отменить жеребьёвку» (пары удалятся у всех, участники получат уведомление). Потом выключи «Я участвую» и проведи жеребьёвку заново.',
-      ownerRevealed: 'Тайна уже раскрыта — жеребьёвку не отменить, поэтому выйти из события нельзя: удалить владельца бота некому.',
-      admin: 'Жеребьёвка уже прошла — удалить из события администратора может только владелец бота. Отправь обращение, чтобы владелец мог помочь.',
+      owner: 'Ты владелец — удалить тебя из события некому. Выйти можно, только отменив жеребьёвку: «Управление» → «Опасная зона» → «↩️ Отменить жеребьёвку» (пары удалятся у всех, участники получат уведомление). Потом выключи «Я участвую» и проведи жеребьёвку заново.',
+      ownerRevealed: 'Тайна уже раскрыта — жеребьёвку не отменить, поэтому выйти из события нельзя: удалить владельца некому.',
+      admin: 'Жеребьёвка уже прошла — удалить из события администратора может только владелец. Отправь обращение, чтобы владелец мог помочь.',
       member: 'Жеребьёвка уже прошла. Чтобы выйти, обратись к владельцу или администраторам.',
     };
     const leaveHint = (user, what, hint, button) => onPage(problems, what, user, D, async (page) => {
@@ -903,7 +924,7 @@ addEventListener('message', (e) => {
     });
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'имя и выход (035–036): ' + x));
-    else console.log('✔ имя и выход (035–036): «Профиль» над «Уведомлениями», имя — сразу в приветствии; выход — только со словом, без второго окна, организатору — сообщение; после жеребьёвки — подсказка по роли (владелец, админ, участник; до и после раскрытия) и обращение; «Опасная зона» — та же шторка со вторым окном');
+    else console.log('✔ имя и выход (035–036): «Профиль» в «Настройках» над «Уведомлениями», имя — сразу в приветствии; выход — только со словом, без второго окна, организатору — сообщение; после жеребьёвки — подсказка по роли (владелец, админ, участник; до и после раскрытия) и обращение; «Опасная зона» — та же шторка со вторым окном');
   }
 
   // 037: участники на «Инфо» (specs/037-info-people/contracts/info-people.md). Событие R: владелец (admin), админ people[0]
@@ -918,7 +939,8 @@ addEventListener('message', (e) => {
     const codeR = await inv(R);
     for (const p of fresh) { await w.say(p, '/start ' + codeR); await w.say(p, p.name); }
     await w.api(admin, 'admin.participate', { event: R, on: true });
-    await w.api(people[0], 'admin.participate', { event: R, on: true });
+    await w.say(people[0], '/start ' + codeR);
+    await w.api(admin, 'admin.role.grant', { event: R, id: people[0].id }); // 063: администратор — участник события
     for (const p of fresh.slice(0, 3)) await w.api(p, 'wishlist.save', { event: R, text: LETTER(p.name) });
     const SORTED = ['Вова', 'Галя', 'Дмитрий', 'Евгений', 'Жанна', 'Зоя', 'Игорь', 'Лена', 'Маша', 'Нина'];
 
@@ -1112,14 +1134,19 @@ addEventListener('message', (e) => {
     else console.log('✔ открытка (038): шторка открыток — 16 плиток, выбранная отмечена, редактор на открытке с цветами темы, несохранённый текст цел, время письма прежнее; у Санты и организатора письмо на открытке; в завершённом — без кнопки');
   }
 
-  // 039, 043: имя с Unicode-эмодзи обновляется на главном экране без перезагрузки и видно в обращениях.
+  // 039, 043: имя с Unicode-эмодзи обновляется на экране без перезагрузки и видно в обращениях. 063: имя меняется в
+  // «Настройках» — «Профиль» и приветствие на месте, прокрутка прежняя.
   async function checkNames() {
     const problems = [];
     const [gleb, liza, mila] = [['Глеб', 'gleb'], ['Лиза', 'liza'], ['Мила', 'mila']].map(([name, username], i) => ({ id: 180 + i, name, username }));
     const E = (await w.api(admin, 'event.create', { participate: false, title: 'Имена' })).event.id;
     const code = await inv(E);
     for (const p of [gleb, liza, mila]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
-    await w.api(admin, 'admin.role.grant', { id: gleb.id });
+    await w.api(admin, 'admin.role.grant', { event: E, id: gleb.id });
+    const toSettings = async (page) => {
+      await page.locator('#heroAction').click();
+      await page.locator('#heroTitle', { hasText: /^Настройки$/ }).waitFor({ timeout: 5000 });
+    };
     const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
     const scrollY = (page) => page.evaluate(() => Math.round(window.scrollY));
     // Один из узлов loc — ровно want (ждёт до 3 с: разделы перечитываются после ответа сервера)
@@ -1129,28 +1156,30 @@ addEventListener('message', (e) => {
       if (!all.includes(want)) problems.push(`${what}: ${all.map((t) => `«${t}»`).join(', ') || 'нет'}, ожидалось «${want}»`);
     };
 
-    await onPage(problems, 'главный экран организатора', gleb, null, async (page) => {
-      const meRow = page.locator('#main .ds-list-item', { hasText: '(ты)' }).locator('.ds-list-item__title');
-      await meRow.waitFor({ timeout: 5000 });
+    // Низкий экран: «Настройки» прокручиваются, кнопка «Изменить имя» — у верхнего края
+    await onPage(problems, '«Настройки» организатора', gleb, null, async (page) => {
       if ((await page.locator('#heroSub').textContent()) !== 'Привет, Глеб!') problems.push(`приветствие до смены имени: «${await page.locator('#heroSub').textContent()}»`);
+      await toSettings(page);
       const editName = page.getByRole('button', { name: '✏️ Изменить имя' });
-      await editName.scrollIntoViewIfNeeded();
+      await editName.evaluate((el) => el.scrollIntoView({ block: 'start' }));
       if (await page.getByRole('button', { name: /Значок у имени/ }).count()) problems.push('в профиле есть отдельный выбор значка');
       const y = await scrollY(page);
-      if (y < 100) problems.push(`главный экран не прокручен (${y}) — проверка прокрутки ничего не значит`);
+      if (y < 100) problems.push(`«Настройки» не прокручены (${y}) — проверка прокрутки ничего не значит`);
       await editName.click();
       await page.locator('.ds-sheet .ds-input').fill('Глеб Петров 🐧');
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Сохранить' }).click();
       await toastIs(page, 'Имя сохранено');
-      if (await page.locator('#main .ds-spinner').count()) problems.push('после смены имени — загрузчик на главном экране');
-      await textIs(meRow, 'Глеб Петров 🐧  (ты)', '«Владелец и администраторы» после имени');
+      if (await page.locator('#main .ds-spinner').count()) problems.push('после смены имени — загрузчик в «Настройках»');
       await textIs(page.locator('#heroSub'), 'Привет, Глеб Петров 🐧!', 'приветствие после имени');
       await textIs(page.locator('#main .ds-text-strong'), 'Глеб Петров 🐧', '«Профиль» после имени');
       if (Math.abs((await scrollY(page)) - y) > 1) problems.push(`прокрутка после имени: ${await scrollY(page)}, была ${y}`);
-    });
-
-    await onPage(problems, 'главный экран участника', liza, null, async (page) => {
+      // «‹» — главный экран с новым приветствием
       await page.locator('#heroBack').click();
+      await textIs(page.locator('#heroSub'), 'Привет, Глеб Петров 🐧!', 'приветствие на главном экране после имени');
+    }, { viewport: { width: 390, height: 420 } });
+
+    await onPage(problems, '«Настройки» участника', liza, null, async (page) => {
+      await toSettings(page);
       await page.getByRole('button', { name: '✏️ Изменить имя' }).click();
       await page.locator('.ds-sheet .ds-input').fill('Лиза 🦄');
       await page.locator('.ds-sheet .ds-btn', { hasText: 'Сохранить' }).click();
@@ -1205,10 +1234,16 @@ addEventListener('message', (e) => {
     await w.api(admin, 'admin.draw', { event: E });
     const ward = ppl.find((p) => p.id === w.query(`SELECT ward FROM pairs WHERE event_id = ${Number(E)} AND santa = ${tima.id}`)[0].ward);
 
-    await onPage(problems, 'главный экран', admin, null, async (page) => {
-      await page.locator('.ds-section-title', { hasText: 'Уведомления' }).waitFor({ timeout: 5000 });
-      if (await page.locator('.ds-section-title', { hasText: 'Семьи' }).count()) problems.push('на главном экране есть «Семьи»');
-      if (await page.getByRole('button', { name: 'Новая семья' }).count()) problems.push('на главном экране есть «Новая семья»');
+    // 063: «Уведомления» — в «Настройках»; семей нет ни там, ни на главном экране
+    await onPage(problems, 'главный экран и «Настройки»', admin, null, async (page) => {
+      for (const where of ['на главном экране', 'в «Настройках»']) {
+        if (where !== 'на главном экране') {
+          await page.locator('#heroAction').click();
+          await page.locator('.ds-section-title', { hasText: 'Уведомления' }).waitFor({ timeout: 5000 });
+        }
+        if (await page.locator('.ds-section-title', { hasText: 'Семьи' }).count()) problems.push(`${where} есть «Семьи»`);
+        if (await page.getByRole('button', { name: 'Новая семья' }).count()) problems.push(`${where} есть «Новая семья»`);
+      }
       if (await page.locator('#main .ds-hint', { hasText: 'Когда подопечный' }).count()) problems.push('над «Уведомлениями» есть подсказка');
       if (!(await page.locator('#main .ds-segmented').count())) problems.push('нет кнопок режима уведомлений');
     });
@@ -1236,7 +1271,7 @@ addEventListener('message', (e) => {
     }
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'без масок и семей (062): ' + x));
-    else console.log('✔ без масок и семей (062): главный экран без «Семей» и подсказки над «Уведомлениями», «Подопечный» без маски, переписка — «Твой Тайный Санта», «Управление» без «Учитывать семьи»');
+    else console.log('✔ без масок и семей (062): главный экран и «Настройки» без «Семей», над «Уведомлениями» без подсказки, «Подопечный» без маски, переписка — «Твой Тайный Санта», «Управление» без «Учитывать семьи»');
   }
 
   // 048: управление жеребьёвкой — секция только владельцу; шторка без пар; плашка владельцу-участнику; нарушение —
@@ -1342,13 +1377,13 @@ addEventListener('message', (e) => {
     await shot(admin, '48-swap-sheet', { event: E, fullPage: false, before: openWarning });
     await shot(admin, '48-swap-sheet', { event: E, fullPage: false, dark: true, before: openWarning });
 
-    await w.api(admin, 'admin.role.grant', { id: boris.id });
+    await w.api(admin, 'admin.role.grant', { event: E, id: boris.id });
     await onPage(problems, 'админ не видит секцию', boris, E, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       await page.locator('.ds-section-title', { hasText: 'Журнал' }).waitFor({ timeout: 5000 });
       if (await page.locator('.ds-section-title', { hasText: 'Управление жеребьёвкой' }).count()) problems.push('админ видит «Управление жеребьёвкой»');
     });
-    await w.api(admin, 'admin.role.revoke', { id: boris.id });
+    await w.api(admin, 'admin.role.revoke', { event: E, id: boris.id });
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'управление жеребьёвкой (048, 049): ' + x));
     else console.log('✔ управление жеребьёвкой (048, 049): секция только владельцу, шторка без пар с плашкой участнику и метками «не открыл подопечного»; нарушение — плашка, «Подробнее» свёрнуто, обмен только с галочкой; невозможный — без кнопки; обмен — окно с именами, пары поменялись, сообщение только открывшей, метка у обоих');
@@ -1389,18 +1424,21 @@ addEventListener('message', (e) => {
       await expect(page, 'тап по подсказке карточки', LETTER_FIELD, ['#main .ds-hint', 'Письмо увидит'], {}, false);
     });
 
+    // 063: «‹» — к «Моим событиям», ⚙️ — «Настройки» с «Профилем»
     await onPage(problems, 'шторка имени', olya, E, async (page) => {
       await page.locator('#heroBack').click();
+      await page.locator('#heroAction').click();
       await page.locator('#main .ds-btn', { hasText: 'Изменить имя' }).click();
       await expect(page, 'шторка имени: тап по подсказке', '.ds-sheet .ds-input', ['.ds-sheet .ds-hint', 'Имя одно'], {}, false);
     });
 
-    // Форма нового события: поле с крестиком, образец и отметка «пригласить» (062: прежде — форма семьи)
+    // Форма нового события: поле с крестиком, образец и отметка «пригласить» (062: прежде — форма семьи; 063: ещё
+    // отметка «Я тоже участвую»)
     const openCreate = async (page, how = 'click') => {
-      await page.getByRole('button', { name: '🎄 Создать', exact: true })[how]();
+      await page.getByRole('button', { name: '🎄 Создать событие', exact: true })[how]();
       const sheet = page.locator('.ds-sheet');
       await sheet.locator('select').selectOption({ index: 1 });
-      const invite = sheet.getByRole('checkbox');
+      const invite = sheet.getByRole('checkbox', { name: 'Пригласить участников образца' });
       if (!(await invite.isEnabled()) || !(await invite.isChecked())) throw new Error('отметка «пригласить» после выбора образца');
       return { sheet, invite };
     };
@@ -1469,10 +1507,11 @@ addEventListener('message', (e) => {
       await checkTap(title, 'Праздник', false);
       await checkTap(title, 'Празник', true);
       // Край подсказки под отметкой «пригласить» — не элемент управления (подпись отметки фокус оставляет и переключает её)
-      await checkTap(sheet.locator('.ds-hint').last(), 'Праздники', true, true);
+      await checkTap(sheet.locator('.ds-hint', { hasText: 'Из образца копируются' }), 'Праздники', true, true);
       if (!(await invite.isChecked())) throw new Error('сброшена отметка «пригласить»');
       await sheet.locator('[title="Закрыть"]').tap();
       await sheet.waitFor({ state: 'detached' });
+      await page.locator('#heroAction').tap();
       await page.getByRole('button', { name: '✏️ Изменить имя' }).tap();
       await checkTap(title, 'Админ', false);
       await checkTap(title, 'Адмен', true);
@@ -1494,145 +1533,370 @@ addEventListener('message', (e) => {
     else console.log('✔ клавиатура: тап снимает фокус; в формах события и имени обычный и незавершённый ввод сохраняются, отметка «пригласить» остаётся');
   }
 
-  // 051: компании (контракт specs/051-companies/contracts/companies.md, раздел 5). Идёт последней: вторая компания меняет
-  // корневой экран владельца бота. Человек с одной компанией — прежний главный экран без слова «компания»; с двумя —
-  // «Комнаты» (вход, «‹», своё название), ссылка из бота на событие; владелец бота — создание, шторка «Компания» (ссылка
-  // владельца, удаление пустой), журнал бота, гость в чужой компании
-  async function checkCompanies() {
+  // 063: «Владелец и администраторы» — секция панели события (до 063 — главный экран комнаты; контракт
+  // specs/063-events-without-rooms/contracts/events-without-rooms.md, раздел 6). Своё событие «Организаторы»: владелец
+  // admin, участники Ира, Кира, Лёва. Владелец назначает участника (выбор и окно с именем) и снимает (✕); администратор
+  // видит список и подсказку — без кнопок и выбора; 👑 в строке передаёт владение — новый владелец первым, прежний остаётся
+  // администратором. Последней проверкой событие у Иры.
+  async function checkOrganizers() {
     const problems = [];
-    const [nina, oleg] = [{ id: 240, name: 'Нина', username: 'nina' }, { id: 241, name: 'Олег К', username: 'olegk' }];
-    // Два события в «Основной»: с одним приложение сразу открыло бы его, а не главный экран
-    const E = (await w.api(admin, 'event.create', { participate: false, title: 'Ёлка у Нины' })).event.id;
-    const E2 = (await w.api(admin, 'event.create', { participate: false, title: 'Ёлка у Олега' })).event.id;
+    const [ira, kira, leva] = [['Ира', 'ira'], ['Кира', 'kira'], ['Лёва', 'leva']].map(([name, username], i) => ({ id: 280 + i, name, username }));
+    const E = (await w.api(admin, 'event.create', { participate: false, title: 'Организаторы' })).event.id;
     const code = await inv(E);
-    for (const p of [nina, oleg]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
-    const code2 = await inv(E2);
-    for (const p of [nina, oleg]) await w.say(p, '/start ' + code2);
+    for (const p of [ira, kira, leva]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
+    const TITLE = 'Владелец и администраторы';
+    const organizers = () => w.query(`SELECT user_id FROM event_admins WHERE event_id = ${Number(E)}`).map((r) => r.user_id);
+    const ownerId = () => w.query(`SELECT owner_id FROM events WHERE id = ${Number(E)}`)[0].owner_id;
     const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
-    const heroTitle = (page) => page.locator('#heroTitle').textContent();
-    const backShown = (page) => page.locator('#heroBack').isVisible();
-    // Строка «🌐 Язык» (061) — личный раздел экрана, не комната
-    const rows = async (page) => (await page.locator('#main .ds-list-item--link .ds-list-item__title').allTextContents()).filter((x) => x !== '🌐 Язык');
-    const mainHasWord = (page) => page.evaluate(() => /комнат|компани/i.test(document.getElementById('main').textContent));
-    const companiesShown = (page) => page.locator('#main .ds-section-title', { hasText: 'Комнаты' }).waitFor({ timeout: 5000 });
-
-    await onPage(problems, 'одна компания', nina, null, async (page) => {
-      await page.getByRole('button', { name: '✏️ Изменить имя' }).waitFor({ timeout: 5000 });
-      if ((await heroTitle(page)) !== 'Тайный Санта') problems.push(`одна компания: шапка «${await heroTitle(page)}»`);
-      if (await backShown(page)) problems.push('одна компания: на главном экране есть «‹»');
-      if (await mainHasWord(page)) problems.push('одна компания: на главном экране есть слово «комната» или «компания»');
-    });
-
-    // Владелец бота с одной компанией (052): главный экран со «‹» и названием компании, раздела «Комнаты» нет; создание —
-    // на «Компаниях», после него — экран новой компании
-    const heroIs = (page, text) => page.locator('#heroTitle', { hasText: new RegExp(`^${text}$`) }).waitFor({ timeout: 5000 });
-    await onPage(problems, 'владелец бота: создание компании', admin, null, async (page) => {
-      await heroIs(page, 'Основная').catch(async () => problems.push(`владелец бота с одной компанией: шапка «${await heroTitle(page)}»`));
-      if (!(await backShown(page))) problems.push('владелец бота с одной компанией: нет «‹»');
-      if (await page.getByRole('button', { name: '🚪 Создать комнату' }).count()) problems.push('владелец бота: «Создать комнату» на главном экране компании');
-      await page.locator('#heroBack').click();
-      await companiesShown(page);
-      await page.getByRole('button', { name: '🚪 Создать комнату' }).click();
-      await page.locator('.ds-sheet .ds-input').fill('Работа');
-      await page.locator('.ds-sheet .ds-btn', { hasText: 'Создать' }).click();
-      await toastIs(page, 'Комната создана');
-      await heroIs(page, 'Работа').catch(async () => problems.push(`после создания: шапка «${await heroTitle(page)}»`));
-      await page.locator('#heroBack').click();
-      await companiesShown(page);
-      const list = await rows(page);
-      if (list.join('|') !== 'Основная|Работа') problems.push(`владелец бота: список компаний — ${list.join(', ')}`);
-    });
-    const C = w.query("SELECT id FROM companies WHERE name = 'Работа'")[0]?.id;
-    if (!C) { colorProblems.push('компании (051): компания не создана — дальше проверять нечего'); return; }
-    const EC = (await w.api(admin, 'event.create', { participate: false, company: C, title: 'Новогодний корпоратив' })).event.id;
-    const codeC = await inv(EC);
-    for (const p of [nina, oleg]) await w.say(p, '/start ' + codeC);
-
-    await onPage(problems, 'две компании', nina, null, async (page) => {
-      await companiesShown(page);
-      const list = await rows(page);
-      if (list.join('|') !== 'Комната 1|Комната 2') problems.push(`две компании: список — ${list.join(', ')}`);
-      if (await backShown(page)) problems.push('«Комнаты»: есть «‹»');
-      if (!(await page.getByRole('button', { name: '✏️ Изменить имя' }).count())) problems.push('«Комнаты»: нет «Профиля»');
-      // «✏️» в строке не открывает компанию; своё название сразу в списке
-      await page.locator('#main .ds-list-item--link', { hasText: 'Комната 2' }).locator('.ds-icon-btn', { hasText: '✏️' }).click();
-      await page.locator('.ds-sheet .ds-input').fill('Работа Нины');
-      await page.locator('.ds-sheet .ds-btn', { hasText: 'Сохранить' }).click();
-      await toastIs(page, 'Название сохранено');
-      await page.locator('#main .ds-list-item__title', { hasText: 'Работа Нины' }).waitFor({ timeout: 3000 });
-      if ((await heroTitle(page)) !== 'Тайный Санта') problems.push('«✏️» открыл компанию');
-      // Вход: события только этой компании, шапка — название, «Профиля» нет; «‹» — к «Компаниям»
-      await page.locator('#main .ds-list-item--link', { hasText: 'Работа Нины' }).click();
-      await page.locator('#main .ds-list-item--link', { hasText: 'Новогодний корпоратив' }).waitFor({ timeout: 5000 });
-      if ((await heroTitle(page)) !== 'Работа Нины') problems.push(`компания: шапка «${await heroTitle(page)}»`);
-      if (await page.locator('#main .ds-list-item--link', { hasText: 'Ёлка у Нины' }).count()) problems.push('компания: событие другой компании в списке');
-      if (await page.getByRole('button', { name: '✏️ Изменить имя' }).count()) problems.push('компания: «Профиль» на главном экране');
-      if (!(await backShown(page))) problems.push('компания: нет «‹»');
-      await page.locator('#heroBack').click();
-      await companiesShown(page);
-    });
-
-    // Ссылка из бота на событие: «‹» — на главный экран его компании, ещё «‹» — к «Компаниям»
-    await onPage(problems, 'событие из бота', nina, EC, async (page) => {
-      await page.locator('#heroBack').click();
-      await page.locator('#main .ds-list-item--link', { hasText: 'Новогодний корпоратив' }).waitFor({ timeout: 5000 });
-      if ((await heroTitle(page)) !== 'Работа Нины') problems.push(`из события: шапка «${await heroTitle(page)}»`);
-      await page.locator('#heroBack').click();
-      await companiesShown(page);
-    });
-
-    // Шторка «Компания»: ссылка владельца (показ, «Скопировать», «Отправить в чат», отзыв); при событиях удалить нельзя
-    await onPage(problems, 'шторка «Компания»', admin, null, async (page) => {
-      await page.locator('#main .ds-list-item--link', { hasText: 'Работа' }).locator('.ds-icon-btn', { hasText: '⚙️' }).click();
-      const sheet = page.locator('.ds-sheet');
-      await sheet.locator('.ds-btn', { hasText: 'Создать ссылку' }).click();
-      await sheet.locator('input[readonly]').waitFor({ timeout: 5000 });
-      const link = await sheet.locator('input[readonly]').inputValue();
-      if (!/^https:\/\/t\.me\/\w+\?start=own_[a-z0-9]+$/.test(link)) problems.push(`ссылка владельца: «${link}»`);
-      for (const b of ['📋 Скопировать', '📤 Отправить в чат', 'Отозвать']) {
-        if (!(await sheet.getByRole('button', { name: b }).count())) problems.push(`шторка: нет «${b}»`);
+    // Список организаторов — первый узел после заголовка секции; строка — по имени в начале («Ира» есть и в «Кира»)
+    const row = (page, name) => page.locator('#main .ds-section-title', { hasText: TITLE }).locator('xpath=following-sibling::*[1]')
+      .locator('.ds-list-item', { hasText: new RegExp(`^${name} `) });
+    // Секция до следующего заголовка: строки «имя: метки [кнопки]», подсказки, выборы (пункты через |), кнопки
+    const section = async (page) => {
+      await page.locator('#main .ds-section-title', { hasText: TITLE }).waitFor({ timeout: 5000 });
+      return page.evaluate((title) => {
+        const head = [...document.querySelectorAll('#main .ds-section-title')].find((x) => x.textContent === title);
+        const all = (el, sel) => [el, ...el.querySelectorAll(sel)].filter((x) => x.matches(sel));
+        const text = (els) => els.map((x) => x.textContent);
+        const out = { rows: [], hints: [], selects: [], buttons: [] };
+        for (let el = head.nextElementSibling; el && !el.matches('.ds-section-title'); el = el.nextElementSibling) {
+          for (const r of all(el, '.ds-list-item')) {
+            const name = r.querySelector('.ds-list-item__title')?.firstChild?.textContent ?? r.textContent;
+            const btns = text([...r.querySelectorAll('.ds-icon-btn')]);
+            out.rows.push(`${name}: ${text([...r.querySelectorAll('.ds-chip')]).join(', ')}${btns.length ? ` [${btns.join(' ')}]` : ''}`);
+          }
+          out.hints.push(...text(all(el, '.ds-hint').filter((x) => !x.closest('.ds-list-item')))); // @username в строке — тоже ds-hint
+          out.selects.push(...all(el, 'select').map((s) => [...s.options].map((o) => o.text).join('|')));
+          out.buttons.push(...text(all(el, '.ds-btn')));
+        }
+        return out;
+      }, TITLE);
+    };
+    const expectSection = (what, got, want) => {
+      for (const [k, v] of Object.entries(want)) {
+        if (JSON.stringify(got[k]) !== JSON.stringify(v)) problems.push(`${what}: ${k} — ${JSON.stringify(got[k])}, ожидалось ${JSON.stringify(v)}`);
       }
-      if (!(await sheet.locator('.ds-hint', { hasText: 'В комнате есть события' }).count())) problems.push('шторка: нет подсказки «В комнате есть события»');
-      await sheet.getByRole('button', { name: 'Отозвать' }).click();
-      await toastIs(page, 'Ссылка отозвана');
-      if (w.query(`SELECT owner_code FROM companies WHERE id = ${Number(C)}`)[0].owner_code !== '') problems.push('ссылка не отозвана');
-      if ((await heroTitle(page)) !== 'Тайный Санта') problems.push('«⚙️» открыл компанию');
+    };
+    const rowsAre = (page, n) => waitFor(async () => (await section(page)).rows.length === n, `в списке организаторов ${n}`, 5000);
+
+    await onPage(problems, 'организаторы: назначить и снять', admin, E, async (page) => {
+      const asked = [];
+      page.on('dialog', (d) => { asked.push(d.message()); d.accept(); });
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
+      expectSection('владелец, сначала', await section(page), {
+        rows: ['Дмитрий: 👑 владелец'],
+        hints: ['Администраторы ведут событие вместе с владельцем. Назначить можно участника события; ✕ — снять права, 👑 — передать владение.'],
+        selects: ['Кого назначить…|Ира|Кира|Лёва', 'Кого сделать владельцем…|Ира|Кира|Лёва'],
+        buttons: ['🛠 Назначить администратором', '👑 Передать владение'],
+      });
+      const grant = page.locator('#main .ds-card', { has: page.locator('.ds-btn', { hasText: '🛠 Назначить администратором' }) });
+      await grant.locator('select').selectOption({ label: 'Ира' });
+      await grant.locator('.ds-btn').click();
+      await toastIs(page, 'Администратор назначен');
+      await rowsAre(page, 2);
+      if (!asked[0]?.startsWith('Назначить «Ира» администратором события?')) problems.push(`окно назначения: «${asked[0]}»`);
+      if (!organizers().includes(ira.id)) problems.push('назначение: на сервере Иры нет среди организаторов');
+      if (!w.texts(ira).some((t) => t.includes('Тебя назначили администратором события'))) problems.push('назначение: Ире нет сообщения');
+      expectSection('владелец, Ира назначена', await section(page), {
+        rows: ['Дмитрий: 👑 владелец', 'Ира: 🛠 администратор [👑 ✕]'],
+        selects: ['Кого назначить…|Кира|Лёва', 'Кого сделать владельцем…|Кира|Лёва'],
+      });
+      await row(page, 'Ира').locator('.ds-icon-btn[title="Снять права администратора"]').click();
+      await toastIs(page, 'Права администратора сняты');
+      await rowsAre(page, 1);
+      if (asked[1] !== 'Снять права администратора с «Ира»?') problems.push(`окно снятия: «${asked[1]}»`);
+      if (organizers().includes(ira.id)) problems.push('снятие: на сервере Ира всё ещё организатор');
     });
 
-    // Удаление пустой компании словом и журнал бота
-    await w.api(admin, 'bot.company.create', { name: 'Пустая' });
-    await onPage(problems, 'удаление компании', admin, null, async (page) => {
-      page.on('dialog', (d) => d.accept());
-      await page.locator('#main .ds-list-item--link', { hasText: 'Пустая' }).locator('.ds-icon-btn', { hasText: '⚙️' }).click();
-      await page.locator('.ds-sheet .ds-btn', { hasText: '🗑 Удалить комнату' }).click();
-      await page.locator('.ds-sheet .ds-input').fill('УДАЛИТЬ');
-      await page.locator('.ds-sheet .ds-btn--danger', { hasText: '🗑 Удалить комнату' }).click();
-      await toastIs(page, 'Комната удалена');
-      if (w.query("SELECT COUNT(*) AS n FROM companies WHERE name = 'Пустая'")[0].n) problems.push('пустая компания не удалена');
-      await page.getByRole('button', { name: '📜 Журнал бота' }).click();
-      await page.locator('.ds-sheet', { hasText: '🗑 Комната удалена' }).waitFor({ timeout: 5000 });
+    await w.api(admin, 'admin.role.grant', { event: E, id: ira.id });
+    await onPage(problems, 'организаторы: администратор', ira, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
+      expectSection('администратор', await section(page), {
+        rows: ['Дмитрий: 👑 владелец', 'Ира: 🛠 администратор'],
+        hints: ['Назначает администраторов владелец события — Дмитрий.'],
+        selects: [],
+        buttons: [],
+      });
+    });
+    const toSection = async (p) => {
+      const head = p.locator('#main .ds-section-title', { hasText: TITLE });
+      await head.waitFor({ timeout: 5000 });
+      await head.evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -140); }); // над ним — липкие вкладки
+    };
+    for (const dark of [false, true]) {
+      await shot(admin, '63-organizers', { event: E, tab: 'Управление', fullPage: false, dark, before: toSection });
+      await shot(ira, '63-organizers-admin', { event: E, tab: 'Управление', fullPage: false, dark, before: toSection });
+    }
+
+    await onPage(problems, 'организаторы: передать владение', admin, E, async (page) => {
+      let asked = '';
+      page.on('dialog', (d) => { asked = d.message(); d.accept(); });
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
+      await section(page);
+      await row(page, 'Ира').locator('.ds-icon-btn[title="Передать владение событием"]').click();
+      await toastIs(page, '👑 Владение передано');
+      await waitFor(async () => (await section(page)).rows[0]?.startsWith('Ира:'), 'Ира — первой в списке', 5000);
+      if (!asked.startsWith('Сделать «Ира» владельцем события?')) problems.push(`окно передачи: «${asked}»`);
+      if (ownerId() !== ira.id) problems.push(`передача: на сервере владелец ${ownerId()}`);
+      if (!organizers().includes(admin.id)) problems.push('передача: прежний владелец больше не администратор');
+      const rows = (await section(page)).rows.map((r) => r.replace(/ \[.*\]$/, ''));
+      if (rows.join('|') !== 'Ира: 👑 владелец|Дмитрий: 🛠 администратор') problems.push(`после передачи: ${rows.join(', ')}`);
+    });
+    await onPage(problems, 'организаторы: новый владелец', ira, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
+      expectSection('новый владелец', await section(page), {
+        rows: ['Ира: 👑 владелец', 'Дмитрий: 🛠 администратор [👑 ✕]'],
+        selects: ['Кого назначить…|Кира|Лёва', 'Кого сделать владельцем…|Кира|Лёва'],
+        buttons: ['🛠 Назначить администратором', '👑 Передать владение'],
+      });
     });
 
-    // Гость: компанию ведёт Олег — у владельца бота метка и плашка
-    await w.api(admin, 'admin.owner.transfer', { company: C, id: oleg.id });
-    await onPage(problems, 'гость', admin, null, async (page) => {
-      const row = page.locator('#main .ds-list-item--link', { hasText: 'Работа' });
-      if (!(await row.locator('.ds-chip', { hasText: '👁 владелец бота' }).count())) problems.push('гость: нет метки «👁 владелец бота»');
-      await row.click();
-      await page.locator('#main .ds-notice', { hasText: 'Ты здесь как владелец бота' }).waitFor({ timeout: 5000 });
-    });
-    await shot(nina, '51-companies');
-    await shot(nina, '51-companies', { dark: true });
-    await shot(admin, '51-companies-bot-owner');
-    await shot(admin, '51-company-sheet', { fullPage: false, before: (p) => p.locator('#main .ds-list-item--link', { hasText: 'Основная' }).locator('.ds-icon-btn', { hasText: '⚙️' }).click() });
-
-    if (problems.length) colorProblems.push(...problems.map((x) => 'компании (051): ' + x));
-    else console.log('✔ компании: одна — прежний экран; две — список, вход, «‹», своё название; ссылка из бота; владелец бота — «‹» при одной компании, создание, ссылка, удаление, журнал, гость');
+    if (problems.length) colorProblems.push(...problems.map((x) => 'владелец и администраторы (063): ' + x));
+    else console.log('✔ владелец и администраторы (063): секция в панели события — назначить участника (окно, сообщение), снять ✕, передать владение 👑 (новый владелец первым, прежний — администратор); у администратора — подсказка без кнопок');
   }
 
-  // 052: открытый бот — второй Worker с OPEN_BOT = 1. Незнакомец без ссылки → «Комнаты» (пусто) → создать → экран
-  // компании со «‹»; пришедший по ссылке в чужую компанию — «‹» → «Комнаты» с «Создать комнату»; две своих — кнопка
-  // недоступна и подсказка лимита; ⚙️ своей пустой — удаление словом
+  // 063: «Настройки» — ⚙️ в шапке «Моих событий», «‹» — обратно. Участнику — «Профиль» (имя, «🌐 Язык»), «Уведомления»,
+  // «О боте» (три пункта; «Поддержать проект» — только в открытом боте); владельцу бота ещё «Владелец бота»: «Все события»
+  // (новые первыми, выбор открывает событие), «Кто может создавать события» (переключатель — разрешение на сервере и
+  // «🎄 Создать событие» у человека; выключение — обратно), журнал бота (записи разрешений сверху), передача прав (выбор
+  // и окно; «Отмена» — владелец бота прежний). Снимки — в обеих темах
+  async function checkSettings() {
+    const problems = [];
+    const toSettings = async (page) => {
+      await page.locator('#heroAction').click();
+      await page.locator('#heroTitle', { hasText: /^Настройки$/ }).waitFor({ timeout: 5000 });
+    };
+    const titles = (page) => page.locator('#main .ds-section-title').allTextContents();
+    const tool = (page, text) => page.locator('#main .ds-btn', { hasText: text });
+    const closeSheet = async (page) => {
+      await page.locator('.ds-sheet .ds-icon-btn[title="Закрыть"]').click();
+      await page.locator('.ds-sheet').waitFor({ state: 'detached', timeout: 5000 });
+    };
+    const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
+    const petya = people[1];
+    const canCreate = () => w.query(`SELECT can_create FROM users WHERE tg_id = ${petya.id}`)[0].can_create;
+    const petyaBar = (want) => onPage(problems, `главный экран Пети (${want ? 'может' : 'не может'} создавать)`, petya, null, async (page) => {
+      const bar = await page.locator('#main .ds-bottom-bar .ds-btn', { hasText: '🎄 Создать событие' }).count();
+      if (bar !== (want ? 1 : 0)) problems.push(`Петя ${want ? 'может' : 'не может'} создавать, а «🎄 Создать событие» ${bar ? 'есть' : 'нет'}`);
+    });
+
+    await onPage(problems, '«Настройки» участника', petya, null, async (page) => {
+      if (await page.locator('#heroBack').isVisible()) problems.push('главный экран: есть «‹»');
+      await toSettings(page);
+      if (!(await page.locator('#heroBack').isVisible())) problems.push('«Настройки»: нет «‹»');
+      if (await page.locator('#heroAction').isVisible()) problems.push('«Настройки»: в шапке осталась ⚙️');
+      if ((await page.locator('#heroSub').textContent()) !== 'Привет, Петя!') problems.push(`«Настройки»: подзаголовок «${await page.locator('#heroSub').textContent()}»`);
+      const t = await titles(page);
+      if (t.join('|') !== 'Профиль|Уведомления|О боте') problems.push(`участник: разделы ${t.join(', ')}`);
+      if ((await page.locator('#main .ds-text-strong').first().textContent()) !== 'Петя') problems.push('«Профиль»: не своё имя');
+      if (!(await tool(page, '✏️ Изменить имя').count())) problems.push('«Профиль»: нет «✏️ Изменить имя»');
+      const lang = page.locator('#main .ds-list-item--link', { hasText: '🌐 Язык' });
+      const langNow = await lang.locator('.ds-text-muted').textContent();
+      if (!langNow.startsWith('Как в Telegram (')) problems.push(`«🌐 Язык»: «${langNow}»`);
+      const modes = await page.locator('#main .ds-segmented__item').allTextContents();
+      if (modes.join('|') !== '🔔 Звук|🔕 Тихо|🚫 Выкл') problems.push(`«Уведомления»: ${modes.join(', ')}`);
+      if ((await page.locator('#main .ds-segmented__item--on').allTextContents()).join('|') !== '🔔 Звук') problems.push('«Уведомления»: выбран не «🔔 Звук»');
+      const how = await page.locator('#main .ds-section-title', { hasText: 'О боте' }).locator('xpath=following-sibling::*[1]').locator('li').count();
+      if (how !== 3) problems.push(`«О боте»: пунктов ${how}, ожидалось 3`);
+      if (await page.locator('#main .ds-donate').count()) problems.push('закрытый бот: в «О боте» есть «Поддержать проект»');
+      await lang.click();
+      await page.locator('.ds-sheet__title', { hasText: '🌐 Язык' }).waitFor({ timeout: 5000 });
+      const langs = await page.locator('.ds-sheet .ds-btn').allTextContents();
+      if (langs.length !== LANGUAGES.length + 1 || !langs[0].startsWith('✓ Как в Telegram (')) problems.push(`шторка языка: ${langs.join(', ')}`);
+      await closeSheet(page);
+      await page.locator('#heroBack').click();
+      await page.locator('#heroTitle', { hasText: /^Тайный Санта$/ }).waitFor({ timeout: 5000 });
+      if (!(await page.locator('#heroAction').isVisible())) problems.push('«‹» из «Настроек»: на главном экране нет ⚙️');
+    });
+
+    await onPage(problems, '«Настройки» владельца бота', admin, null, async (page) => {
+      await toSettings(page);
+      const t = await titles(page);
+      if (t.join('|') !== 'Профиль|Уведомления|О боте|Владелец бота') problems.push(`владелец бота: разделы ${t.join(', ')}`);
+      const tools = await page.locator('#main .ds-section-title', { hasText: 'Владелец бота' }).locator('xpath=following-sibling::*[1]').locator('.ds-btn').allTextContents();
+      const TOOLS = ['🗂 Все события', '✍️ Кто может создавать события', '📜 Журнал бота', '👑 Передать права владельца бота'];
+      if (tools.join('|') !== TOOLS.join('|')) problems.push(`«Владелец бота»: ${tools.join(', ')}`);
+
+      // «Все события»: новые первыми; строка — статус и «Владелец — … · участников: N»; выбор — событие, шторка закрыта
+      await tool(page, '🗂 Все события').click();
+      const rows = page.locator('.ds-sheet .ds-list-item--link');
+      await rows.first().waitFor({ timeout: 5000 });
+      const got = await rows.locator('.ds-list-item__title').allTextContents();
+      const want = w.query('SELECT title FROM events ORDER BY created_at DESC, id DESC LIMIT 50').map((r) => r.title);
+      if (got.join('|') !== want.join('|')) problems.push(`«Все события»: ${got.join(', ')}; ожидалось ${want.join(', ')}`);
+      if (await page.locator('.ds-sheet .ds-btn', { hasText: 'Показать ещё' }).isVisible()) problems.push('«Все события»: «Показать ещё» при одной странице');
+      const office = rows.filter({ hasText: 'Офис' });
+      const officeChips = await office.locator('.ds-chip').allTextContents();
+      if (officeChips.join('|') !== 'идёт') problems.push(`«Все события», «Офис»: метки ${officeChips.join(', ')}`);
+      const about = await office.locator('.ds-hint').textContent();
+      if (!about.startsWith('Владелец — Дмитрий · участников: ')) problems.push(`«Все события», «Офис»: «${about}»`);
+      await office.click();
+      await page.locator('#heroTitle', { hasText: /^Офис$/ }).waitFor({ timeout: 5000 });
+      if (await page.locator('.ds-sheet').count()) problems.push('«Все события»: шторка не закрылась после выбора');
+      await page.locator('#heroBack').click();
+      await toSettings(page);
+
+      // «Кто может создавать события»: все, кроме самого владельца бота; переключатель Пети — туда и обратно
+      await tool(page, '✍️ Кто может создавать события').click();
+      await page.locator('.ds-sheet__title', { hasText: 'Кто может создавать события' }).waitFor({ timeout: 5000 });
+      const names = await page.locator('.ds-sheet .ds-text-strong').allTextContents();
+      if (names.includes('Дмитрий') || !names.includes('Петя')) problems.push(`«Кто может создавать»: ${names.join(', ')}`);
+      const sw = page.locator('.ds-sheet label.ds-switch:has(input[aria-label="Петя"])');
+      if (await sw.locator('input').isChecked()) problems.push('Петя уже может создавать — проверка разрешения ничего не значит');
+      await petyaBar(false);
+      await sw.click();
+      await toastIs(page, '«Петя» теперь может создавать события');
+      if (canCreate() !== 1) problems.push(`разрешение: на сервере can_create = ${canCreate()}`);
+      await petyaBar(true);
+      await sw.click();
+      await toastIs(page, '«Петя» больше не может создавать события');
+      if (canCreate() !== 0) problems.push(`снятие разрешения: на сервере can_create = ${canCreate()}`);
+      await petyaBar(false);
+      await closeSheet(page);
+
+      // Журнал бота: новые сверху — последним было снятие разрешения
+      await tool(page, '📜 Журнал бота').click();
+      await page.locator('.ds-sheet__title', { hasText: 'Журнал бота' }).waitFor({ timeout: 5000 });
+      await page.locator('.ds-sheet .ds-list-item').first().waitFor({ timeout: 5000 });
+      const labels = await page.locator('.ds-sheet .ds-list-item__title').allTextContents();
+      for (const l of ['✍️ Запрещено создавать события', '✍️ Разрешено создавать события', '🎄 Создано событие']) {
+        if (!labels.includes(l)) problems.push(`журнал бота: нет «${l}»`);
+      }
+      if (labels[0] !== '✍️ Запрещено создавать события') problems.push(`журнал бота: первая запись «${labels[0]}»`);
+      await closeSheet(page);
+
+      // Передача прав: выбор без себя, окно с именем; «Отмена» — шторка открыта, владелец бота прежний
+      await tool(page, '👑 Передать права владельца бота').click();
+      const sheet = page.locator('.ds-sheet', { hasText: 'Права владельца бота' });
+      await sheet.locator('select').waitFor({ timeout: 5000 });
+      const opts = await sheet.locator('select option').allTextContents();
+      if (opts[0] !== 'Кому передать…' || !opts.includes('Петя') || opts.includes('Дмитрий')) problems.push(`передача прав: выбор ${opts.join(', ')}`);
+      await sheet.locator('select').selectOption({ label: 'Петя' });
+      let asked = '';
+      page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
+      await sheet.locator('.ds-btn--danger').click();
+      await page.waitForTimeout(300);
+      if (!asked.startsWith('Передать права владельца бота «Петя»?')) problems.push(`передача прав: окно «${asked}»`);
+      if (!(await sheet.count())) problems.push('передача прав: «Отмена» закрыла шторку');
+      const owner = w.query("SELECT value FROM settings WHERE key = 'owner_id'")[0]?.value;
+      if (String(owner) !== String(admin.id)) problems.push(`передача прав: после «Отмена» владелец бота ${owner}`);
+    });
+
+    for (const dark of [false, true]) {
+      await shot(petya, '63-settings', { dark, before: toSettings });
+      await shot(admin, '63-settings-bot-owner', { dark, before: toSettings });
+    }
+
+    if (problems.length) colorProblems.push(...problems.map((x) => '«Настройки» (063): ' + x));
+    else console.log('✔ «Настройки» (063): ⚙️ и «‹»; участнику — профиль, язык, уведомления, «О боте»; владельцу бота — все события (новые первыми, открывают событие), кто может создавать (разрешение и кнопка у человека — туда и обратно), журнал бота, передача прав («Отмена» — прежний владелец)');
+  }
+
+  // 063: главный экран «Мои события». Идёт после проверок, которые создают события: у admin длинный список — «Идут» (по
+  // дате вручения, без даты — в конце, при равных — новые первыми) и «Завершённые · N» (свёрнуты, недавно завершённые
+  // первыми). «🎄 Создать событие» — нижняя панель: на 320 точках в обеих темах у нижнего края, подпись целиком, при
+  // прокрутке до конца последний пункт над панелью (и с раскрытыми «Завершёнными»). Без права создавать (закрытый бот,
+  // people[1]) панели нет.
+  async function checkHome() {
+    const problems = [];
+    const { events } = await w.api(admin, 'me');
+    const byDate = (a, b) => (a.event_date && b.event_date ? a.event_date.localeCompare(b.event_date)
+      : a.event_date ? -1 : b.event_date ? 1 : 0) || b.id - a.id;
+    const going = events.filter((e) => e.status !== 'finished').sort(byDate).map((e) => e.title);
+    const done = events.filter((e) => e.status === 'finished').sort((a, b) => (b.finished_at || 0) - (a.finished_at || 0) || b.id - a.id).map((e) => e.title);
+    // Панель и содержимое в координатах экрана; last — низ последнего видимого узла страницы, кроме панели
+    const bar = (page) => page.evaluate(() => {
+      const el = document.querySelector('#main .ds-bottom-bar');
+      if (!el) return null;
+      const btn = el.querySelector('.ds-btn');
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = 'var(--ds-color-bg)';
+      document.body.append(probe);
+      const want = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const r = el.getBoundingClientRect(), b = btn.getBoundingClientRect();
+      const content = [...document.getElementById('main').children].filter((x) => x !== el && x.getClientRects().length);
+      return {
+        top: r.top, bottom: r.bottom, screen: innerHeight, btnTop: b.top, btnBottom: b.bottom, text: btn.textContent,
+        fits: btn.scrollWidth <= btn.clientWidth, wide: document.documentElement.scrollWidth > innerWidth,
+        last: Math.max(...content.map((x) => x.getBoundingClientRect().bottom)),
+        scroll: scrollY, maxScroll: document.documentElement.scrollHeight - innerHeight,
+        bg: getComputedStyle(el).backgroundColor, want, padded: document.getElementById('main').classList.contains('ds-page--bar'),
+      };
+    });
+    const expectBar = (what, b, end = false) => {
+      if (!b) return problems.push(`${what}: нет нижней панели «Создать событие»`);
+      if (b.text !== '🎄 Создать событие') problems.push(`${what}: кнопка «${b.text}»`);
+      if (Math.abs(b.bottom - b.screen) > 1) problems.push(`${what}: панель не у нижнего края (низ ${b.bottom}, экран ${b.screen})`);
+      if (b.btnTop < 0 || b.btnBottom > b.screen) problems.push(`${what}: кнопка за краем экрана`);
+      if (!b.fits) problems.push(`${what}: подпись кнопки обрезана`);
+      if (b.wide) problems.push(`${what}: горизонтальная прокрутка страницы`);
+      if (!b.padded) problems.push(`${what}: у страницы нет ds-page--bar`);
+      if (b.bg !== b.want) problems.push(`${what}: фон панели ${b.bg}, ожидался ${b.want} (--ds-color-bg)`);
+      if (end) {
+        if (b.maxScroll < 100) problems.push(`${what}: список не длиннее экрана (${b.maxScroll}) — прокрутка не проверена`);
+        if (Math.abs(b.scroll - b.maxScroll) > 1) problems.push(`${what}: страница не прокручена до конца (${b.scroll} из ${b.maxScroll})`);
+        if (b.last > b.top + 0.5) problems.push(`${what}: последний пункт под панелью (низ ${Math.round(b.last)}, панель с ${Math.round(b.top)})`);
+      }
+    };
+    const toEnd = async (page) => {
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await page.waitForTimeout(200);
+    };
+
+    for (const dark of [false, true]) {
+      const what = `главный экран, 320${dark ? ' (тёмная)' : ''}`;
+      const page = await openPage(what, { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2 });
+      try {
+        await paintTheme(page, dark);
+        await page.goto(`${w.base}/app#tgWebAppData=${encodeURIComponent(initData(admin))}`);
+        await page.locator('#main .ds-bottom-bar').waitFor({ timeout: 10000 });
+        await page.waitForTimeout(300);
+        await checkColors(page, what);
+        await checkScheme(page, what, dark ? 'dark' : 'light');
+        if ((await page.locator('#heroTitle').textContent()) !== 'Тайный Санта') problems.push(`${what}: шапка «${await page.locator('#heroTitle').textContent()}»`);
+        if (await page.locator('#heroBack').isVisible()) problems.push(`${what}: есть «‹»`);
+        if (!(await page.locator('#heroAction').isVisible())) problems.push(`${what}: нет ⚙️`);
+        const heads = await page.locator('#main .ds-section-title').allTextContents();
+        if (heads.join('|') !== `Идут|Завершённые · ${done.length}`) problems.push(`${what}: заголовки ${heads.join(', ')}`);
+        const shown = await page.locator('#main > .ds-card .ds-list-item__title').allTextContents();
+        if (shown.join('|') !== going.join('|')) problems.push(`${what}: «Идут» — ${shown.join(', ')}; ожидалось ${going.join(', ')}`);
+        const details = page.locator('#main details.ds-details');
+        if (await details.evaluate((d) => d.open)) problems.push(`${what}: «Завершённые» раскрыты сразу`);
+        if (await details.locator('.ds-list-item').first().isVisible()) problems.push(`${what}: завершённые видны в свёрнутом списке`);
+        const office = await page.locator('#main .ds-list-item--link', { hasText: 'Офис' }).locator('.ds-chip').allTextContents();
+        if (office[0] !== '👑 владелец' || office.at(-1) !== 'ты не участвуешь') problems.push(`${what}: метки «Офиса» — ${office.join(', ')}`);
+        expectBar(what, await bar(page));
+        await page.screenshot({ path: snapPath('63-home-320' + (dark ? '-dark' : '')) });
+        await toEnd(page);
+        expectBar(`${what}, прокрутка до конца`, await bar(page), true);
+        await page.locator('#main .ds-details__summary').click();
+        await details.locator('.ds-list-item').first().waitFor({ timeout: 3000 });
+        const finished = await details.locator('.ds-list-item__title').allTextContents();
+        if (finished.join('|') !== done.join('|')) problems.push(`${what}: «Завершённые» — ${finished.join(', ')}; ожидалось ${done.join(', ')}`);
+        await toEnd(page);
+        expectBar(`${what}, «Завершённые» раскрыты`, await bar(page), true);
+        await page.screenshot({ path: snapPath('63-home-320-end' + (dark ? '-dark' : '')) });
+      } catch (e) {
+        problems.push(`${what}: ${e.message.split('\n')[0]}`);
+      } finally {
+        await page.close();
+      }
+    }
+
+    await onPage(problems, 'главный экран без права создавать', people[1], null, async (page) => {
+      if (await page.locator('#main .ds-bottom-bar').count()) problems.push('без права создавать: есть нижняя панель');
+      if (await page.getByRole('button', { name: '🎄 Создать событие' }).count()) problems.push('без права создавать: есть «🎄 Создать событие»');
+      if (await page.locator('#main.ds-page--bar').count()) problems.push('без права создавать: у страницы ds-page--bar');
+    });
+
+    if (problems.length) colorProblems.push(...problems.map((x) => '«Мои события» (063): ' + x));
+    else console.log('✔ «Мои события» (063): «Идут» по дате вручения, «Завершённые» свёрнуты; «🎄 Создать событие» внизу на 320 точках в обеих темах — у края, подпись целиком, последний пункт над панелью при прокрутке; без права создавать — панели нет');
+  }
+
+  // 063: открытый бот — второй Worker с OPEN_BOT = 1: создавать события может любой. Незнакомец без ссылки — пустые «Мои
+  // события» с подсказкой и «🎄 Создать событие» (обе темы); шторка — без образца, «Я тоже участвую» включено, «можно ещё
+  // 10»; после создания — новое событие на «Управлении», «‹» — строка с «👑 владелец», «можно ещё 9». Пришедший по ссылке
+  // тоже может создать своё. На пределе (10 за 12 месяцев) «Создать» в шторке недоступна, подсказка — с какого числа
   async function checkOpenBot() {
     const problems = [];
     const o = await startWorld({ vars: { OPEN_BOT: '1' } });
@@ -1641,11 +1905,12 @@ addEventListener('message', (e) => {
       const [zoya, petya] = [{ id: 260, name: 'Зоя', username: 'zoya' }, { id: 261, name: 'Петя', username: 'petya' }];
       await o.say(zoya, '/start');
       await o.say(zoya, zoya.name);
-      const go = async (what, user, fn) => {
+      const go = async (what, user, fn, dark = false) => {
         const page = await openPage(what, { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
         try {
+          await paintTheme(page, dark);
           await page.goto(`${o.base}/app#tgWebAppData=${encodeURIComponent(initData(user))}`);
-          await page.waitForSelector('#main .ds-section-title, .ds-list-item--link, .ds-tabs:not([hidden])');
+          await page.waitForSelector('#heroAction:not([hidden]), .ds-tabs:not([hidden])');
           await fn(page);
           await checkColors(page, what);
         } catch (e) {
@@ -1654,74 +1919,76 @@ addEventListener('message', (e) => {
           await page.close();
         }
       };
-      const snap = (page, name) => page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, OUT)), fullPage: true });
-      const heroTitle = (page) => page.locator('#heroTitle').textContent();
-      const backShown = (page) => page.locator('#heroBack').isVisible();
-      const companiesShown = (page) => page.locator('#main .ds-section-title', { hasText: 'Комнаты' }).waitFor({ timeout: 5000 });
-      const createBtn = (page) => page.getByRole('button', { name: '🚪 Создать комнату' });
-
-      await go('открытый бот: незнакомец', zoya, async (page) => {
-        await companiesShown(page);
-        await page.locator('#main .ds-hint', { hasText: 'Комнат пока нет. Создай свою' }).waitFor({ timeout: 5000 });
-        if (await backShown(page)) problems.push('пустые «Комнаты»: есть «‹»');
-        await snap(page, '52-open-empty');
+      const createBtn = (page) => page.locator('#main .ds-bottom-bar .ds-btn', { hasText: '🎄 Создать событие' });
+      const sheet = (page) => page.locator('.ds-sheet', { hasText: 'Новое событие' });
+      const openCreate = async (page) => {
         await createBtn(page).click();
-        await page.locator('.ds-sheet .ds-hint', { hasText: 'Ты станешь владельцем комнаты' }).waitFor({ timeout: 5000 });
-        await page.locator('.ds-sheet .ds-input').fill('Комната Зои');
-        await page.locator('.ds-sheet .ds-btn', { hasText: 'Создать' }).click();
-        await page.locator('#toast', { hasText: 'Комната создана' }).waitFor({ timeout: 5000 });
-        await page.locator('#heroTitle', { hasText: /^Комната Зои$/ }).waitFor({ timeout: 5000 });
-        if (!(await backShown(page))) problems.push('своя компания: нет «‹»');
-        if (!(await page.getByRole('button', { name: '🎄 Создать', exact: true }).count())) problems.push('своя компания: нет «🎄 Создать» (событие)');
+        await sheet(page).waitFor({ timeout: 5000 });
+      };
+      const limitHint = (page) => sheet(page).locator('.ds-hint').last().textContent();
+      const ok = (page) => sheet(page).locator('.ds-btn', { hasText: /^Создать$/ });
+
+      for (const dark of [false, true]) {
+        await go(`открытый бот: пустые «Мои события»${dark ? ' (тёмная)' : ''}`, zoya, async (page) => {
+          await page.locator('#main .ds-hint', { hasText: 'Событий пока нет. Создай своё — кнопка внизу' }).waitFor({ timeout: 5000 });
+          if (await page.locator('#heroBack').isVisible()) problems.push('пустые «Мои события»: есть «‹»');
+          if (!(await createBtn(page).isVisible())) problems.push('пустые «Мои события»: нет «🎄 Создать событие» внизу');
+          await page.screenshot({ path: snapPath('63-open-empty' + (dark ? '-dark' : '')) });
+        }, dark);
+      }
+
+      await go('открытый бот: незнакомец создаёт событие', zoya, async (page) => {
+        await openCreate(page);
+        const s = sheet(page);
+        if (await s.locator('select').count()) problems.push('шторка: выбор образца, а своих событий нет');
+        if (!(await s.getByRole('checkbox', { name: 'Я тоже участвую' }).isChecked())) problems.push('шторка: «Я тоже участвую» выключено');
+        if ((await limitHint(page)) !== 'Можно создать ещё 10 событий за 12 месяцев.') problems.push(`шторка: подсказка «${await limitHint(page)}»`);
+        await page.screenshot({ path: snapPath('63-open-create') });
+        await s.locator('input.ds-input[type="text"]').fill('Ёлка у Зои');
+        await ok(page).click();
+        await page.locator('#toast', { hasText: '🎄 Событие создано' }).waitFor({ timeout: 5000 });
+        await page.locator('#heroTitle', { hasText: /^Ёлка у Зои$/ }).waitFor({ timeout: 5000 });
+        await page.locator('.ds-tab--active', { hasText: 'Управление' }).waitFor({ timeout: 5000 });
         await page.locator('#heroBack').click();
-        await companiesShown(page);
-        const row = page.locator('#main .ds-list-item--link', { hasText: 'Комната Зои' });
-        if (!(await row.locator('.ds-chip', { hasText: '👑 владелец' }).count())) problems.push('строка своей компании: нет «👑 владелец»');
-        if (!(await row.locator('.ds-icon-btn[title="Название комнаты"]').count())) problems.push('строка своей компании: ✏️ не «Название комнаты»');
-        if (!(await row.locator('.ds-icon-btn', { hasText: '⚙️' }).count())) problems.push('строка своей компании: нет ⚙️');
+        const row = page.locator('#main .ds-list-item--link', { hasText: 'Ёлка у Зои' });
+        await row.waitFor({ timeout: 5000 });
+        const chips = await row.locator('.ds-chip').allTextContents();
+        if (chips.join('|') !== '👑 владелец') problems.push(`строка своего события: метки ${chips.join(', ') || 'нет'}`);
+        await openCreate(page);
+        if ((await limitHint(page)) !== 'Можно создать ещё 9 событий за 12 месяцев.') problems.push(`после создания: подсказка «${await limitHint(page)}»`);
       });
 
-      const Z = o.query("SELECT id FROM companies WHERE name = 'Комната Зои'")[0]?.id;
-      if (!Z) throw new Error('компания Зои не создана');
-      const ev = (await o.api(zoya, 'event.create', { participate: false, company: Z, title: 'Ёлка у Зои' })).event.id;
-      const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(zoya, 'admin.state', { event: ev })).settings.invite_link)[1];
+      const ev = o.query("SELECT id, owner_id FROM events WHERE title = 'Ёлка у Зои'")[0];
+      if (!ev) throw new Error('событие Зои не создано');
+      if (ev.owner_id !== zoya.id) problems.push(`владелец события Зои — ${ev.owner_id}`);
+      if (!o.query(`SELECT 1 FROM members WHERE event_id = ${Number(ev.id)} AND user_id = ${zoya.id}`).length) problems.push('«Я тоже участвую»: Зоя не участница');
+      const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(zoya, 'admin.state', { event: ev.id })).settings.invite_link)[1];
       await o.say(petya, '/start ' + code);
       await o.say(petya, petya.name);
 
       await go('открытый бот: пришедший по ссылке', petya, async (page) => {
-        await page.locator('#heroBack').click();
-        await page.locator('#main .ds-list-item--link', { hasText: 'Ёлка у Зои' }).waitFor({ timeout: 5000 });
-        if ((await heroTitle(page)) !== 'Комната Зои') problems.push(`по ссылке: шапка компании «${await heroTitle(page)}»`);
-        if (!(await backShown(page))) problems.push('по ссылке: на экране компании нет «‹»');
-        await page.locator('#heroBack').click();
-        await companiesShown(page);
-        if (!(await createBtn(page).isEnabled())) problems.push('по ссылке: «Создать комнату» недоступна');
-        await snap(page, '52-open-member');
+        const row = page.locator('#main .ds-list-item--link', { hasText: 'Ёлка у Зои' });
+        await row.waitFor({ timeout: 5000 });
+        if (await row.locator('.ds-chip').count()) problems.push(`участник: метки ${(await row.locator('.ds-chip').allTextContents()).join(', ')}`);
+        if (!(await createBtn(page).isVisible())) problems.push('пришедший по ссылке: нет «🎄 Создать событие»');
+        await page.screenshot({ path: snapPath('63-open-member'), fullPage: true });
       });
 
-      await o.api(zoya, 'company.create', { name: 'Вторая Зои' });
-      await go('открытый бот: лимит и удаление', zoya, async (page) => {
-        await companiesShown(page);
-        if (await createBtn(page).isEnabled()) problems.push('две своих: «Создать комнату» доступна');
-        await page.locator('#main .ds-hint', { hasText: 'Вести можно не больше двух своих комнат' }).waitFor({ timeout: 5000 });
-        await snap(page, '52-open-limit');
-        page.on('dialog', (d) => d.accept());
-        await page.locator('#main .ds-list-item--link', { hasText: 'Вторая Зои' }).locator('.ds-icon-btn', { hasText: '⚙️' }).click();
-        await page.locator('.ds-sheet .ds-btn', { hasText: '🗑 Удалить комнату' }).click();
-        await page.locator('.ds-sheet .ds-input').fill('УДАЛИТЬ');
-        await page.locator('.ds-sheet .ds-btn--danger', { hasText: '🗑 Удалить комнату' }).click();
-        await page.locator('#toast', { hasText: 'Комната удалена' }).waitFor({ timeout: 5000 });
-        if (o.query("SELECT COUNT(*) AS n FROM companies WHERE name = 'Вторая Зои'")[0].n) problems.push('своя пустая компания не удалена');
-        await page.locator('#heroTitle', { hasText: /^Комната Зои$/ }).waitFor({ timeout: 5000 });
-        if (!(await backShown(page))) problems.push('после удаления: на экране единственной компании нет «‹»');
+      for (let i = 2; i <= 10; i++) await o.api(zoya, 'event.create', { participate: false, title: `Ёлка Зои ${i}` });
+      await go('открытый бот: предел создания', zoya, async (page) => {
+        await openCreate(page);
+        if (!(await ok(page).isDisabled())) problems.push('предел: «Создать» доступна');
+        const hint = await limitHint(page);
+        if (!hint.startsWith('За 12 месяцев можно создать не больше 10 событий. Следующее — с ')) problems.push(`предел: подсказка «${hint}»`);
+        await page.screenshot({ path: snapPath('63-open-limit') });
       });
     } catch (e) {
       problems.push(e.message.split('\n')[0]);
     } finally {
       await o.stop();
     }
-    if (problems.length) colorProblems.push(...problems.map((x) => 'открытый бот (052): ' + x));
-    else console.log('✔ открытый бот: незнакомец — «Комнаты», создание и экран компании со «‹»; по ссылке — «‹» к «Создать комнату»; лимит; удаление своей пустой');
+    if (problems.length) colorProblems.push(...problems.map((x) => 'открытый бот (063): ' + x));
+    else console.log('✔ открытый бот (063): незнакомец — пустые «Мои события» с подсказкой и «Создать событие» (обе темы), шторка с лимитом, событие на «Управлении», строка «👑 владелец»; пришедший по ссылке тоже создаёт; на пределе «Создать» недоступна');
   }
 
   // 053: «Нравится бот?» на «Инфо» — только в открытом боте, сразу под «Нужна помощь?» (или на его месте), перед «Как это
@@ -1774,7 +2041,7 @@ addEventListener('message', (e) => {
       const c = await page.locator('#main .ds-btn--donate').evaluate((b) => [getComputedStyle(b).backgroundColor, getComputedStyle(b).color]);
       if (c[0] !== 'rgb(237, 130, 36)' || c[1] !== 'rgb(255, 255, 255)') problems.push(`${what}: кнопка ${c.join(' / ')}`);
     };
-    const snap = (page, name) => page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, OUT)), fullPage: true });
+    const snap = (page, name) => page.screenshot({ path: snapPath(name), fullPage: true });
 
     const o = await startWorld({ vars: { OPEN_BOT: '1' } });
     try {
@@ -1782,10 +2049,7 @@ addEventListener('message', (e) => {
       const [lena, kolya] = [{ id: 270, name: 'Лена', username: 'lena' }, { id: 271, name: 'Коля', username: 'kolya' }];
       await o.say(lena, '/start');
       await o.say(lena, lena.name);
-      await o.api(lena, 'company.create', { name: 'Комната Лены' });
-      const L = o.query("SELECT id FROM companies WHERE name = 'Комната Лены'")[0]?.id;
-      if (!L) throw new Error('компания Лены не создана');
-      const ev = (await o.api(lena, 'event.create', { participate: false, company: L, title: 'Ёлка у Лены' })).event.id;
+      const ev = (await o.api(lena, 'event.create', { participate: false, title: 'Ёлка у Лены' })).event.id;
       const code = /start=(inv_[a-z0-9]+)/.exec((await o.api(lena, 'admin.state', { event: ev })).settings.invite_link)[1];
       await o.say(kolya, '/start ' + code);
       await o.say(kolya, kolya.name);
@@ -1856,35 +2120,31 @@ addEventListener('message', (e) => {
     else console.log('✔ поддержка проекта: в открытом боте — под «Нужна помощь?», перед «Как это работает», у организатора и в завершённом; кнопка DonationAlerts в обеих темах, openLink без запросов, 320 точек; в закрытом боте блока нет');
   }
 
-  // event — открыть эвент (как из кнопки бота); без него — главный экран со списком эвентов
+  // event — открыть эвент (как из кнопки бота); без него — главный экран «Мои события» (063)
   async function shot(user, name, { event, tab, dark = false, before, fullPage = true } = {}) {
     const page = await openPage(name + (dark ? ' (тёмная)' : ''), { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-    await page.addInitScript((vars) => {
-      document.addEventListener('DOMContentLoaded', () => {
-        for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
-      });
-    }, dark ? DARK : LIGHT);
+    await paintTheme(page, dark);
     const q = event ? `?event=${event}` : '';
     await page.goto(`${w.base}/app${q}#tgWebAppData=${encodeURIComponent(initData(user))}`);
-    await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : '.ds-list-item--link, .ds-tabs:not([hidden])');
+    await page.waitForSelector(event ? '.ds-tabs:not([hidden])' : HOME_READY);
     if (tab) { await page.locator('.ds-tab', { hasText: tab }).click(); }
     await page.waitForTimeout(400);
     await checkColors(page, name + (dark ? ' (тёмная)' : ''));
     await checkScheme(page, name + (dark ? ' (тёмная)' : ''), dark ? 'dark' : 'light');
     if (before) { await before(page); await page.waitForTimeout(500); }
-    await page.screenshot({ path: fileURLToPath(new URL(`${name}${dark ? '-dark' : ''}.png`, OUT)), fullPage });
+    await page.screenshot({ path: snapPath(name + (dark ? '-dark' : '')), fullPage });
     await page.close();
     console.log('✔', name + (dark ? ' (тёмная)' : ''));
   }
 
-  // Главный экран (005): мои эвенты, другие эвенты, создание эвента, администраторы
+  // Главный экран (005, 063): мои события, создание события
   await shot(admin, '00-home');
   await shot(admin, '00-home', { dark: true });
-  await shot(admin, '13-new-event', { fullPage: false, before: (p) => p.getByRole('button', { name: '🎄 Создать', exact: true }).click() });
+  await shot(admin, '13-new-event', { fullPage: false, before: (p) => p.getByRole('button', { name: '🎄 Создать событие', exact: true }).click() });
   await shot(people[1], '16-home-participant');
 
-  // До жеребьёвки
-  await shot(people[4], '01-my-letter-empty');
+  // До жеребьёвки (063: без ?event — «Мои события», событие открывается из адреса)
+  await shot(people[4], '01-my-letter-empty', { event: A });
   await shot(people[0], '02-my-letter', { event: A });
   // 006: Катя заблокировала бота (после того как открыла приложение для скриншота 01) — в панели админа у неё метка «не получает сообщения»
   w.sql('UPDATE users SET blocked_at = 1 WHERE tg_id = 105');
@@ -1987,8 +2247,10 @@ addEventListener('message', (e) => {
   await checkKeyboard();
   await checkNoMasksFamilies();
   await checkSwap();
+  await checkOrganizers();
+  await checkSettings();
+  await checkHome();
   await checkCsp();
-  await checkCompanies();
   await checkOpenBot();
   await checkDonate();
   if (cspSeen.length) colorProblems.push(...cspSeen.map((x) => 'CSP: ' + x));

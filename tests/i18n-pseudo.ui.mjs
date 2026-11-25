@@ -1,6 +1,6 @@
 // node --test tests/i18n-pseudo.ui.mjs (Chrome или CHROME_PATH); Worker и D1 из локального тестового мира — псевдоязык
 // добавляется в словари того же процесса (screenshots.mjs ходит в wrangler dev, где его нет).
-// 060 (US3, T041): владелец бота с языком xx проходит главный экран, «Комнаты», событие (все вкладки), панель
+// 060 (US3, T041): владелец бота с языком xx проходит главный экран, «Настройки» (063), событие (все вкладки), панель
 // организатора и шторки — в тексте страницы и подписях (placeholder, aria-label, title) нет кириллицы, есть ⟪; у человека
 // с русским — ни одной ⟪; ошибок словаря (console.error «i18n: …») и ошибок страницы нет.
 import { test, before, after } from 'node:test';
@@ -23,12 +23,10 @@ before(async () => {
   drop = pseudoLanguage();
   w = await startWorld();
   const s = await w.setup();
-  // Название комнаты 1 из миграции — данные (видит только владелец бота), не текст словаря
-  w.query("UPDATE companies SET name = 'Main' WHERE id = 1");
   w.query('INSERT INTO users (tg_id, lang, created_at) VALUES (?, ?, ?)', anna.id, PSEUDO, Date.now());
   await w.say(anna, '/start ' + s.adminCode);
   await w.say(anna, anna.name);
-  E = (await w.api(anna, 'event.create', { participate: false, company: 1, title: 'Party' })).event.id;
+  E = (await w.api(anna, 'event.create', { participate: false, title: 'Party' })).event.id;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(anna, 'admin.state', { event: E })).settings.invite_link)[1];
   for (const u of [bob, carl, dina]) { await w.say(u, '/start ' + code); await w.say(u, u.name); }
   await w.api(anna, 'admin.participate', { event: E, on: true });
@@ -88,7 +86,7 @@ async function expectPseudo(page, where, found) {
 
 const label = (ru) => translit(ru);
 
-test('060: человек с языком xx — главный экран, «Комнаты», событие, панель и шторки без кириллицы', async (t) => {
+test('060: человек с языком xx — главный экран, «Настройки», событие, панель и шторки без кириллицы', async (t) => {
   const found = [];
   // Шторка по кнопке с подписью (транслит русской): открыть, проверить, закрыть ✕; нет кнопки — false
   async function sheet(page, ru, where) {
@@ -107,21 +105,21 @@ test('060: человек с языком xx — главный экран, «К
   const home = await openApp(t, anna);
   assert.equal(await home.page.evaluate(() => document.documentElement.lang), PSEUDO);
   await expectPseudo(home.page, 'главный экран', found);
-  if (!(await sheet(home.page, 'Изменить имя', 'шторка имени'))) found.push('главный экран: нет кнопки «Изменить имя»');
-  // «‹» владельца бота с одной комнатой ведёт к «Комнатам» (051, 052)
-  const back = home.page.locator('#heroBack');
-  if (await back.isVisible()) {
-    await back.click();
-    await home.page.waitForTimeout(300);
-    await expectPseudo(home.page, '«Комнаты»', found);
-  } else found.push('главный экран: нет «‹» к «Комнатам»');
+  // «Настройки» (063) — ⚙️ в шапке: профиль, уведомления, «О боте», раздел владельца бота и его шторки (шторка языка —
+  // названия языков на самих языках, в ней кириллица законна)
+  await home.page.locator('#heroAction').click();
+  await home.page.waitForTimeout(300);
+  await expectPseudo(home.page, '«Настройки»', found);
+  for (const ru of ['Изменить имя', 'Все события', 'Кто может создавать события', 'Журнал бота', 'Передать права владельца бота']) {
+    if (!(await sheet(home.page, ru, `шторка «${ru}»`))) found.push(`«Настройки»: нет кнопки «${ru}»`);
+  }
 
   const ev = await openApp(t, anna, `?event=${E}`);
   const tabs = ev.page.locator('.ds-tab');
   const count = await tabs.count();
   assert.ok(count >= 4, `вкладок: ${count}`);
-  // Шторки вкладок: открытка («Письмо»), маска («Подопечный»), журнал действий («Управление»)
-  const SHEETS = ['Открытка', 'Маска', 'Журнал действий'];
+  // Шторки вкладок: открытка («Письмо»), журнал действий («Управление»); масок нет с 062
+  const SHEETS = ['Открытка', 'Журнал действий'];
   const opened = new Set();
   for (let i = 0; i < count; i++) {
     await tabs.nth(i).click();

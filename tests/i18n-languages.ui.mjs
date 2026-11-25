@@ -1,7 +1,8 @@
 // node --test tests/i18n-languages.ui.mjs (Chrome или CHROME_PATH); Worker и D1 — локальный тестовый мир.
-// 061 (US1, US2): человек с английским и с китайским Telegram — главный экран, «Комнаты», событие (все вкладки), панель
-// и шторки без кириллицы (кроме названий языков в списке выбора); язык страницы — его; смена языка в «Профиле» → «🌐 Язык»
-// перестраивает экран сразу и запоминается, «Как в Telegram» возвращает язык Telegram; ошибок словаря и страницы нет.
+// 061 (US1, US2): человек с английским и с китайским Telegram — главный экран, «Настройки» (063: у владельца бота — и его
+// шторки), событие (все вкладки), панель и шторки без кириллицы (кроме названий языков в списке выбора); язык страницы —
+// его; смена языка в «Настройках» → «🌐 Язык» перестраивает экран сразу и запоминается, «Как в Telegram» возвращает язык
+// Telegram; ошибок словаря и страницы нет.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
@@ -23,11 +24,9 @@ let E;
 before(async () => {
   w = await startWorld();
   const s = await w.setup();
-  // Название комнаты 1 из миграции — данные (видит только владелец бота), не текст словаря
-  w.query("UPDATE companies SET name = 'Main' WHERE id = 1");
   await w.say(anna, '/start ' + s.adminCode);
   await w.say(anna, anna.name);
-  E = (await w.api(anna, 'event.create', { participate: false, company: 1, title: 'Party' })).event.id;
+  E = (await w.api(anna, 'event.create', { participate: false, title: 'Party' })).event.id;
   const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(anna, 'admin.state', { event: E })).settings.invite_link)[1];
   for (const u of [li, bob, carl]) { await w.say(u, '/start ' + code); await w.say(u, u.name); }
   await w.api(anna, 'admin.participate', { event: E, on: true });
@@ -62,11 +61,11 @@ async function openApp(t, user, query = '') {
   return { page, errors };
 }
 
-// Главный экран: участник с одним событием попадает сразу в событие — «‹» к главному
-async function toHome(page, lang) {
-  const row = page.locator('.ds-list-item', { hasText: tr(lang, 'app.home.lang.button').replace('🌐 ', '') });
+// Строка «🌐 Язык» в «Настройках» (063: ⚙️ в шапке главного экрана)
+async function langRow(page, lang) {
+  const row = page.locator('.ds-list-item', { hasText: tr(lang, 'app.settings.lang.button').replace('🌐 ', '') });
   if (!(await row.count())) {
-    await page.locator('#heroBack').click();
+    await page.locator('#heroAction').click();
     await row.first().waitFor();
   }
   await row.first().scrollIntoViewIfNeeded();
@@ -88,7 +87,7 @@ async function expectClean(page, where, found) {
 }
 
 for (const [user, lang] of [[anna, 'en'], [li, 'zh']]) {
-  test(`061: ${lang} — главный экран, событие, панель и шторки на языке Telegram`, async (t) => {
+  test(`061: ${lang} — главный экран, «Настройки», событие, панель и шторки на языке Telegram`, async (t) => {
     const found = [];
     async function sheet(page, key, where) {
       const btn = page.locator('.ds-btn', { hasText: tr(lang, key).replace(/^\S+\s/, '').split('{')[0].trim() });
@@ -105,6 +104,16 @@ for (const [user, lang] of [[anna, 'en'], [li, 'zh']]) {
     const home = await openApp(t, user);
     assert.equal(await home.page.evaluate(() => document.documentElement.lang), lang);
     await expectClean(home.page, 'главный экран', found);
+    // «Настройки» (063): профиль, язык, уведомления, «О боте»; у владельца бота (anna) — его раздел и шторки
+    await home.page.locator('#heroAction').click();
+    await home.page.waitForTimeout(300);
+    await expectClean(home.page, '«Настройки»', found);
+    if (!(await sheet(home.page, 'app.settings.profile.editName', 'шторка имени'))) found.push('«Настройки»: нет кнопки имени');
+    if (user === anna) {
+      for (const key of ['app.settings.bot.events', 'app.settings.bot.creators', 'app.settings.bot.log', 'app.settings.bot.pass']) {
+        if (!(await sheet(home.page, key, `шторка ${key}`))) found.push(`«Настройки»: нет кнопки ${key}`);
+      }
+    }
     const ev = await openApp(t, user, `?event=${E}`);
     const tabs = ev.page.locator('.ds-tab');
     const count = await tabs.count();
@@ -125,10 +134,10 @@ for (const [user, lang] of [[anna, 'en'], [li, 'zh']]) {
   });
 }
 
-test('061: смена языка в «Профиле» — экран сразу на новом языке, запоминается; «Как в Telegram» — обратно', async (t) => {
+test('061: смена языка в «Настройках» — экран сразу на новом языке, запоминается; «Как в Telegram» — обратно', async (t) => {
   const { page, errors } = await openApp(t, bob);
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'ru');
-  await (await toHome(page, 'ru')).click();
+  await (await langRow(page, 'ru')).click();
   await page.waitForSelector('.ds-sheet');
   const items = page.locator('.ds-sheet .ds-btn');
   assert.equal(await items.count(), LANGUAGES.length + 1, 'кнопка «Как в Telegram» и каждый язык');
@@ -142,7 +151,7 @@ test('061: смена языка в «Профиле» — экран сразу
   const again = await openApp(t, bob);
   assert.equal(await again.page.evaluate(() => document.documentElement.lang), 'de');
   // «Как в Telegram» — русский
-  await (await toHome(again.page, 'de')).click();
+  await (await langRow(again.page, 'de')).click();
   await again.page.waitForSelector('.ds-sheet');
   await again.page.locator('.ds-sheet .ds-btn').first().click();
   await again.page.waitForFunction(() => document.documentElement.lang === 'ru');
