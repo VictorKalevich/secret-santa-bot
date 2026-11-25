@@ -4,10 +4,7 @@
   "notify.set",
   "event.get",
   "wishlist.save",
-  "delivery.save",
   "ward.get",
-  "ward.gift",
-  "ward.received",
   "message.send",
   "chat.get",
   "support.get",
@@ -46,7 +43,6 @@
   "admin.announce",
   "admin.request.decide",
   "admin.remind.unfilled",
-  "admin.remind.santas",
   "admin.reveal",
   "admin.event.finish",
   "admin.event.invite_from",
@@ -72,19 +68,7 @@
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
   },
-  "stranger delivery.save": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
   "stranger ward.get": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "stranger ward.gift": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "stranger ward.received": {
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
   },
@@ -240,10 +224,6 @@
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
   },
-  "stranger admin.remind.santas": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
   "stranger admin.reveal": {
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
@@ -296,19 +276,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "outsider delivery.save": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
   "outsider ward.get": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "outsider ward.gift": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "outsider ward.received": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
@@ -464,10 +432,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "outsider admin.remind.santas": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "outsider admin.reveal": {
    "status": 403,
    "error": "Только для администратора."
@@ -520,21 +484,9 @@
    "status": 200,
    "error": null
   },
-  "member delivery.save": {
-   "status": 400,
-   "error": "В этом событии адрес доставки не нужен."
-  },
   "member ward.get": {
    "status": 200,
    "error": null
-  },
-  "member ward.gift": {
-   "status": 400,
-   "error": "У тебя пока нет подопечного."
-  },
-  "member ward.received": {
-   "status": 400,
-   "error": "У тебя пока нет Санты."
   },
   "member message.send": {
    "status": 400,
@@ -688,10 +640,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "member admin.remind.santas": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "member admin.reveal": {
    "status": 403,
    "error": "Только для администратора."
@@ -744,19 +692,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "admin delivery.save": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
   "admin ward.get": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "admin ward.gift": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "admin ward.received": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
@@ -912,10 +848,6 @@
    "status": 200,
    "error": null
   },
-  "admin admin.remind.santas": {
-   "status": 400,
-   "error": "Жеребьёвка ещё не проведена."
-  },
   "admin admin.reveal": {
    "status": 400,
    "error": "Жеребьёвка ещё не проведена."
@@ -968,19 +900,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "owner delivery.save": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
   "owner ward.get": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "owner ward.gift": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "owner ward.received": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
@@ -1136,10 +1056,6 @@
    "status": 200,
    "error": null
   },
-  "owner admin.remind.santas": {
-   "status": 400,
-   "error": "Жеребьёвка ещё не проведена."
-  },
   "owner admin.reveal": {
    "status": 400,
    "error": "Жеребьёвка ещё не проведена."
@@ -1192,19 +1108,7 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-owner delivery.save": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "missing-owner ward.get": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "missing-owner ward.gift": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "missing-owner ward.received": {
    "status": 404,
    "error": "Событие не найдено."
   },
@@ -1360,10 +1264,6 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-owner admin.remind.santas": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "missing-owner admin.reveal": {
    "status": 404,
    "error": "Событие не найдено."
@@ -1416,19 +1316,7 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-admin delivery.save": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "missing-admin ward.get": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "missing-admin ward.gift": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "missing-admin ward.received": {
    "status": 404,
    "error": "Событие не найдено."
   },
@@ -1584,10 +1472,6 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-admin admin.remind.santas": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "missing-admin admin.reveal": {
    "status": 404,
    "error": "Событие не найдено."
@@ -1640,19 +1524,7 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-member delivery.save": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "missing-member ward.get": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "missing-member ward.gift": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "missing-member ward.received": {
    "status": 404,
    "error": "Событие не найдено."
   },
@@ -1808,10 +1680,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "missing-member admin.remind.santas": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "missing-member admin.reveal": {
    "status": 403,
    "error": "Только для администратора."
@@ -1864,19 +1732,7 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "none-owner delivery.save": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "none-owner ward.get": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "none-owner ward.gift": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "none-owner ward.received": {
    "status": 404,
    "error": "Событие не найдено."
   },
@@ -2032,10 +1888,6 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "none-owner admin.remind.santas": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "none-owner admin.reveal": {
    "status": 404,
    "error": "Событие не найдено."
@@ -2088,19 +1940,7 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "none-admin delivery.save": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "none-admin ward.get": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "none-admin ward.gift": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "none-admin ward.received": {
    "status": 404,
    "error": "Событие не найдено."
   },
@@ -2256,10 +2096,6 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "none-admin admin.remind.santas": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "none-admin admin.reveal": {
    "status": 404,
    "error": "Событие не найдено."
@@ -2312,19 +2148,7 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "none-member delivery.save": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
   "none-member ward.get": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "none-member ward.gift": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "none-member ward.received": {
    "status": 404,
    "error": "Событие не найдено."
   },
@@ -2480,10 +2304,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "none-member admin.remind.santas": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "none-member admin.reveal": {
    "status": 403,
    "error": "Только для администратора."
@@ -2536,19 +2356,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "finished-owner delivery.save": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
   "finished-owner ward.get": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "finished-owner ward.gift": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "finished-owner ward.received": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
@@ -2704,10 +2512,6 @@
    "status": 400,
    "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
   },
-  "finished-owner admin.remind.santas": {
-   "status": 400,
-   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
-  },
   "finished-owner admin.reveal": {
    "status": 400,
    "error": "Жеребьёвка ещё не проведена."
@@ -2760,19 +2564,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "finished-admin delivery.save": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
   "finished-admin ward.get": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "finished-admin ward.gift": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "finished-admin ward.received": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
@@ -2928,10 +2720,6 @@
    "status": 400,
    "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
   },
-  "finished-admin admin.remind.santas": {
-   "status": 400,
-   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
-  },
   "finished-admin admin.reveal": {
    "status": 400,
    "error": "Жеребьёвка ещё не проведена."
@@ -2984,21 +2772,9 @@
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
   },
-  "finished-member delivery.save": {
-   "status": 400,
-   "error": "В этом событии адрес доставки не нужен."
-  },
   "finished-member ward.get": {
    "status": 200,
    "error": null
-  },
-  "finished-member ward.gift": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
-  },
-  "finished-member ward.received": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
   },
   "finished-member message.send": {
    "status": 400,
@@ -3152,10 +2928,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "finished-member admin.remind.santas": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "finished-member admin.reveal": {
    "status": 403,
    "error": "Только для администратора."
@@ -3208,21 +2980,9 @@
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
   },
-  "finished-delivery-member delivery.save": {
-   "status": 400,
-   "error": "Событие завершено: адрес теперь только для чтения."
-  },
   "finished-delivery-member ward.get": {
    "status": 200,
    "error": null
-  },
-  "finished-delivery-member ward.gift": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
-  },
-  "finished-delivery-member ward.received": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
   },
   "finished-delivery-member message.send": {
    "status": 400,
@@ -3376,10 +3136,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "finished-delivery-member admin.remind.santas": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "finished-delivery-member admin.reveal": {
    "status": 403,
    "error": "Только для администратора."
@@ -3432,19 +3188,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "finished-old-owner delivery.save": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
   "finished-old-owner ward.get": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "finished-old-owner ward.gift": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "finished-old-owner ward.received": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
@@ -3600,10 +3344,6 @@
    "status": 400,
    "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
   },
-  "finished-old-owner admin.remind.santas": {
-   "status": 400,
-   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
-  },
   "finished-old-owner admin.reveal": {
    "status": 400,
    "error": "Жеребьёвка ещё не проведена."
@@ -3656,19 +3396,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "finished-old-admin delivery.save": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
   "finished-old-admin ward.get": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "finished-old-admin ward.gift": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "finished-old-admin ward.received": {
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
@@ -3824,10 +3552,6 @@
    "status": 400,
    "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
   },
-  "finished-old-admin admin.remind.santas": {
-   "status": 400,
-   "error": "Событие завершено — менять его уже нельзя (доступны просмотр, раскрытие и удаление)."
-  },
   "finished-old-admin admin.reveal": {
    "status": 400,
    "error": "Жеребьёвка ещё не проведена."
@@ -3880,21 +3604,9 @@
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
   },
-  "finished-old-member delivery.save": {
-   "status": 400,
-   "error": "В этом событии адрес доставки не нужен."
-  },
   "finished-old-member ward.get": {
    "status": 200,
    "error": null
-  },
-  "finished-old-member ward.gift": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
-  },
-  "finished-old-member ward.received": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
   },
   "finished-old-member message.send": {
    "status": 400,
@@ -4048,10 +3760,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "finished-old-member admin.remind.santas": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "finished-old-member admin.reveal": {
    "status": 403,
    "error": "Только для администратора."
@@ -4163,10 +3871,6 @@
   "extra audit-event-finished": {
    "status": 200,
    "error": null
-  },
-  "extra delivery-finished": {
-   "status": 400,
-   "error": "Событие завершено: адрес теперь только для чтения."
   },
   "extra wishlist-finished": {
    "status": 400,
@@ -4599,78 +4303,6 @@
   "041 finished-old-member wishlist.publish": {
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
-  },
-  "042 stranger ward.shipment": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "042 outsider ward.shipment": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "042 member ward.shipment": {
-   "status": 400,
-   "error": "Доставка в этом событии выключена."
-  },
-  "042 admin ward.shipment": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "042 owner ward.shipment": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "042 missing-owner ward.shipment": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "042 missing-admin ward.shipment": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "042 missing-member ward.shipment": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "042 none-owner ward.shipment": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "042 none-admin ward.shipment": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "042 none-member ward.shipment": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "042 finished-owner ward.shipment": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "042 finished-admin ward.shipment": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "042 finished-member ward.shipment": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
-  },
-  "042 finished-delivery-member ward.shipment": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
-  },
-  "042 finished-old-owner ward.shipment": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "042 finished-old-admin ward.shipment": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "042 finished-old-member ward.shipment": {
-   "status": 400,
-   "error": "Событие завершено: отметка только для чтения."
   },
   "048 stranger admin.draw.swap.check": {
    "status": 403,

@@ -25,12 +25,10 @@ export default {
   // Reveal: {name} the Santa name
   'events.alreadyRevealed': '谜底已经揭晓了。',
   'events.revealed': '🎅 <b>谜底揭晓！</b>\n\n在活动 {title} 中，你的神秘圣诞老人是 <b>{name}</b>。节日快乐！🎄',
-  // Reminders: empty letter (with and without a deadline) and to Santas (with and without a gift date)
+  // Reminders: empty letter (with and without a deadline)
   'events.remindAgain': '提醒已经发出，一分钟后才能再发。',
   'events.remindUnfilled': '⏰ 提醒：你在活动 {title} 中给圣诞老人的心愿信还是空的。写一写吧，这样圣诞老人更容易挑选礼物。',
   'events.remindUnfilledBy': '⏰ 提醒：你在活动 {title} 中给圣诞老人的心愿信还是空的。请在 <b>{date}</b> 之前写好，这样圣诞老人更容易挑选礼物。',
-  'events.remindSantas': '🎁 给圣诞老人的提醒（{title}）：给收礼人的礼物准备好了吗？\n准备好后，请在“收礼人”页面标记一下。',
-  'events.remindSantasDated': '🎁 给圣诞老人的提醒（{title}）：给收礼人的礼物准备好了吗？送礼日期：<b>{date}</b>。\n准备好后，请在“收礼人”页面标记一下。',
   // Announcements (007)
   'events.announceFinished': '活动已结束，不能再发送公告。',
   'events.announceEmpty': '请写下公告内容。',

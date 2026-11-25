@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': "🔔 Sesli",
   'app.settings.notify.silent': "🔕 Sessiz",
   'app.settings.notify.off': "🚫 Kapalı",
-  'app.settings.notify.hint': "«Alıcın mektubunu değiştirdi» ve «Hediye gönderildi» mesajları için geçerlidir.",
-  // "About the bot": how it works (items - app.event.how.*)
-  'app.settings.about': "Bot hakkında",
   // Bot owner section
   'app.settings.bot.title': "Bot sahibi",
   'app.settings.bot.events': "🗂 Tüm etkinlikler",

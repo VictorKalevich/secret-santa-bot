@@ -7,7 +7,6 @@ export default {
   // What is not allowed in a finished round (field finished of the action table)
   'api.closed': 'Die Runde ist beendet – ändern lässt sie sich nicht mehr (möglich sind Ansehen, Aufdecken und Löschen).',
   'api.letterClosed': 'Die Runde ist beendet: Der Wunschzettel ist nur noch lesbar.',
-  'api.markClosed': 'Die Runde ist beendet: Die Markierung ist nur noch lesbar.',
   // Confirmation word (field confirm): refusal without the word
   'api.confirm.delete': 'Gib zum Löschen das Wort {word} ein.',
   'api.confirm.leave': 'Gib zum Austreten das Wort {word} ein.',

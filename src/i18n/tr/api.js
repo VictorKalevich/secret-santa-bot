@@ -6,7 +6,6 @@ export default {
   'api.noEvent': "Etkinlik bulunamadı.",
   'api.closed': "Etkinlik bitti — artık değiştirilemez (görüntüleme, Noel Babaları açıklama ve silme mümkün).",
   'api.letterClosed': "Etkinlik bitti: mektup artık salt okunur.",
-  'api.markClosed': "Etkinlik bitti: işaret artık salt okunur.",
   'api.confirm.delete': "Silmek için {word} kelimesini yaz.",
   'api.confirm.leave': "Ayrılmak için {word} kelimesini yaz.",
   'api.confirm.cancel': "İptal etmek için {word} kelimesini yaz.",

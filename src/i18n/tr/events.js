@@ -23,8 +23,6 @@ export default {
   'events.remindAgain': "Hatırlatma zaten gönderildi — bir dakika sonra tekrarlayabilirsin.",
   'events.remindUnfilled': "⏰ Hatırlatma: {title} etkinliğinde Noel Baba'ya mektubun hâlâ boş. Noel Baba'n hediyeyi daha kolay seçsin diye mektubunu doldur.",
   'events.remindUnfilledBy': "⏰ Hatırlatma: {title} etkinliğinde Noel Baba'ya mektubun hâlâ boş. Noel Baba'n hediyeyi daha kolay seçsin diye mektubunu <b>{date}</b> tarihine kadar doldur.",
-  'events.remindSantas': "🎁 Noel Baba için hatırlatma ({title}): alıcının hediyesi hazır mı?\nHazır olunca «Alıcı» sekmesinde işaretle.",
-  'events.remindSantasDated': "🎁 Noel Baba için hatırlatma ({title}): alıcının hediyesi hazır mı? Hediyeleşme: <b>{date}</b>.\nHazır olunca «Alıcı» sekmesinde işaretle.",
   'events.announceFinished': "Etkinlik bitti — artık duyuru gönderilemez.",
   'events.announceEmpty': "Duyuru metnini yaz.",
   'events.announcement': "📣 <b>Duyuru · {title}</b>\n\n{text}",

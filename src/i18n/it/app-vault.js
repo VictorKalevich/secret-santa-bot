@@ -1,4 +1,4 @@
-// Texts of the app part 07-vault-audit (060): the owner's service view, draw management (giftee swap), activity log
+// Texts of the app part 07-vault-audit (060): the owner's service view, giftee swap, activity log
 export default {
   // Common: the owner plays too; name in the participant list
   'app.vault.youPlay': "Partecipi a questo evento. ",
@@ -25,16 +25,12 @@ export default {
   'app.vault.person.santa': "Babbo Natale",
   'app.vault.person.noDraw': "sorteggio non ancora fatto",
   'app.vault.person.noSanta': "nessuno",
-  'app.vault.person.shipping': "Spedizione",
-  'app.vault.person.giftSent': "Regalo spedito",
-  'app.vault.person.notMarked': "Non confermata",
   'app.vault.person.letter': "Letterina a Babbo Natale",
-  'app.vault.person.address': "Indirizzo di spedizione",
   'app.vault.person.santaNamed': "Babbo Natale ({name})",
   'app.vault.person.ward': "Destinatario",
   'app.vault.person.wardNamed': "Destinatario ({name})",
-  // Draw management (048, 049): swapping giftees of two participants
-  'app.vault.swap.title': "🔀 Gestione del sorteggio",
+  // Giftee swap (048, 049): swapping giftees of two participants
+  'app.vault.swap.title': '🔀 Scambio di destinatari',
   'app.vault.swap.youPlay': "Se scegli anche te, un avviso sulle regole o un rifiuto potrebbero farti intuire chi è il tuo Babbo Natale.",
   'app.vault.swap.hint': "Scegli due partecipanti: i loro destinatari verranno invertiti. Chi fa il regalo a chi qui non si vede.",
   'app.vault.swap.go': "🔀 Inverti i destinatari",

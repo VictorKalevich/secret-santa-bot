@@ -32,9 +32,7 @@
       const want = Number(params.get('event'));
       const target = state.events.find((e) => e.id === want);
       if (target || (want && state.botOwner)) {
-        const parcel = !!target && target.member && params.get('shipment') === '1';
-        await openEvent(want, parcel ? 'my' : null, params.get('chat'), params.get('support'));
-        if (parcel && state.evId === want && state.tab === 'my') document.getElementById('myShipment')?.scrollIntoView({ block: 'center' });
+        await openEvent(want, null, params.get('chat'), params.get('support'));
         return;
       }
       state.view = 'home';

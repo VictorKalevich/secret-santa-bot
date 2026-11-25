@@ -24,12 +24,10 @@ export default {
   // Reveal: {name} — Santa's name
   'events.alreadyRevealed': 'Tajemnica została już ujawniona.',
   'events.revealed': '🎅 <b>Tajemnica ujawniona!</b>\n\nW wydarzeniu {title} Twoim Tajemniczym Mikołajem jest <b>{name}</b>. Wesołych Świąt! 🎄',
-  // Reminders: empty letter (with and without a deadline) and to Santas (with and without a gift date)
+  // Reminders: empty letter (with and without a deadline)
   'events.remindAgain': 'Przypomnienie zostało już wysłane — ponowić można za minutę.',
   'events.remindUnfilled': '⏰ Przypomnienie: Twój list do Mikołaja w wydarzeniu {title} jest wciąż pusty. Wypełnij go, żeby Mikołajowi łatwiej było wybrać prezent.',
   'events.remindUnfilledBy': '⏰ Przypomnienie: Twój list do Mikołaja w wydarzeniu {title} jest wciąż pusty. Wypełnij go do <b>{date}</b>, żeby Mikołajowi łatwiej było wybrać prezent.',
-  'events.remindSantas': '🎁 Przypomnienie dla Mikołaja ({title}): czy prezent dla podopiecznego jest już gotowy?\nGdy będzie gotowy — zaznacz to w zakładce „Podopieczny”.',
-  'events.remindSantasDated': '🎁 Przypomnienie dla Mikołaja ({title}): czy prezent dla podopiecznego jest już gotowy? Wręczenie — <b>{date}</b>.\nGdy będzie gotowy — zaznacz to w zakładce „Podopieczny”.',
   // Announcements (007)
   'events.announceFinished': 'Wydarzenie jest zakończone — nie można już w nim wysyłać ogłoszeń.',
   'events.announceEmpty': 'Napisz treść ogłoszenia.',

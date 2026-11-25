@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': '🔔 Звук',
   'app.settings.notify.silent': '🔕 Тихо',
   'app.settings.notify.off': '🚫 Выкл',
-  'app.settings.notify.hint': 'Относится к сообщениям «подопечный изменил письмо» и «подарок отправлен».',
-  // «О боте»: как это работает (пункты — app.event.how.*)
-  'app.settings.about': 'О боте',
   // Раздел владельца бота
   'app.settings.bot.title': 'Владелец бота',
   'app.settings.bot.events': '🗂 Все события',

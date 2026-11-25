@@ -40,7 +40,6 @@
         onclick: async () => {
           if (state.tab === id) return;
           if (!(await mayLeave())) return;
-          if (id === 'my' && state.ev.delivery_on) return openEvent(state.evId, 'my');
           state.tab = id;
           render();
         },
@@ -76,10 +75,10 @@
     const m = state.member;
     const max = state.limits.chars;
     const nodes = [finishedNotice(), ui.section(t('app.event.letter.title'))];
-    // «Несохранённое» — письмо или адрес (009); черновик письма сохранится сам — 'draft' (058)
-    let letterChanged = false, addrChanged = false, draftPending = false;
+    // «Несохранённое» — письмо (009); черновик письма сохранится сам — 'draft' (058)
+    let letterChanged = false, draftPending = false;
     const recompute = () => {
-      const v = letterChanged || addrChanged || (draftPending && 'draft');
+      const v = letterChanged || (draftPending && 'draft');
       if (v !== state.dirty) setDirty(v);
     };
     if (state.ev.letter_drafts) {
@@ -120,53 +119,14 @@
       }).then(update));
       // 038: смена открытки не меняет письмо — несохранённый текст остаётся в том же поле
       const paper = h('div', {}, postcard(m.card, ta));
-      const cardBtn = ui.btn(t('app.event.card.button', { title: cardTitle(m.card) }), 'secondary', 'ds-btn--block');
-      cardBtn.addEventListener('click', () => openPostcardSheet((card) => {
-        paper.replaceChildren(postcard(card, ta));
-        cardBtn.textContent = t('app.event.card.button', { title: cardTitle(card) });
-      }));
+      const cardBtn = ui.btn(t('app.event.card.button'), 'secondary', 'ds-btn--block');
+      cardBtn.addEventListener('click', () => openPostcardSheet((card) => paper.replaceChildren(postcard(card, ta))));
       nodes.push(ui.card(
         ui.hint(t('app.event.letter.hint', { max })),
         cardBtn, paper, h('div', { class: 'ds-row ds-row--between' }, counter, status), saveBtn));
       requestAnimationFrame(update);
     }
-    // 008: адрес доставки — увидит только Санта
-    if (state.ev.delivery_on) {
-      nodes.push(ui.section(t('app.event.delivery.title')));
-      if (!state.can.edit_letter) {
-        nodes.push(ui.card(m.delivery ? h('div', { class: 'ds-letter' }, m.delivery) : h('div', { class: 'ds-text-muted' }, t('app.event.delivery.none'))));
-      } else {
-        const addr = ui.textarea({ placeholder: t('app.event.delivery.placeholder'), rows: 2, maxlength: 500, value: m.delivery });
-        const saveAddr = ui.btn(t('app.event.delivery.save'), 'secondary', 'ds-btn--block');
-        const updateAddr = () => {
-          addrChanged = addr.value.trim() !== (m.delivery || '');
-          saveAddr.disabled = !addrChanged;
-          recompute();
-        };
-        addr.addEventListener('input', updateAddr);
-        saveAddr.addEventListener('click', () => busy(saveAddr, async () => {
-          const text = addr.value;
-          await eapi('delivery.save', { text });
-          m.delivery = text.trim();
-          haptic('success');
-          toast(t('app.event.delivery.saved'));
-        }).then(updateAddr));
-        requestAnimationFrame(updateAddr);
-        nodes.push(ui.card(ui.hint(t('app.event.delivery.hint')), addr, saveAddr));
-      }
-    }
     if (m.has_santa) {
-      if (m.shipment) nodes.push(h('section', { id: 'myShipment' }, ui.section(t('app.event.shipment.mine')), shipmentCard(m.shipment)));
-      // 007: подопечный отмечает «получил подарок»; Санта узнает об этом (без имени)
-      const got = h('input', { type: 'checkbox', checked: m.gift_received, disabled: !state.can.edit_letter });
-      const evId = state.evId;
-      bindToggle(got, async (on) => {
-        await api('ward.received', { event: evId, received: on });
-        m.gift_received = on;
-        haptic('success');
-        toast(t(on ? 'app.event.received.done' : 'app.event.markRemoved'));
-      });
-      nodes.push(h('div', { class: 'ds-card' }, ui.toggleRow(t('app.event.received.title'), t('app.event.received.sub'), got)));
       nodes.push(ui.section(t('app.event.chat.santaTitle')),
         ui.card(ui.hint(t('app.event.chat.santaHint')), chatButton('santa')));
     }
@@ -208,11 +168,8 @@
     const retry = ui.btn(t('app.event.draft.retry'), 'secondary');
     const publish = ui.btn('', '', 'ds-btn--block ds-btn--letter-publish');
     const paper = h('div', {}, postcard(m.card, field));
-    const card = ui.btn(t('app.event.card.button', { title: cardTitle(m.card) }), 'secondary', 'ds-btn--block');
-    card.onclick = () => openPostcardSheet((id) => {
-      paper.replaceChildren(postcard(id, field));
-      card.textContent = t('app.event.card.button', { title: cardTitle(id) });
-    });
+    const card = ui.btn(t('app.event.card.button'), 'secondary', 'ds-btn--block');
+    card.onclick = () => openPostcardSheet((id) => paper.replaceChildren(postcard(id, field)));
     const counter = ui.hint('');
     function paint() {
       const published = !!m.wishlist.trim(), changed = field.value !== m.wishlist;
@@ -311,7 +268,6 @@
   // ---------- вкладка «Подопечный» ----------
   // cached — перерисовать по последнему ответу (после закрытия переписки), не запрашивая ward.get заново
   // Шторка «Открытка для письма» (038): «без открытки» и мини-открытки набора, выбранная обведена; saved(id из ответа)
-  const cardTitle = (id) => (state.looks.postcards.find((c) => c.id === id) || { title: t('app.event.card.none') }).title;
   function openPostcardSheet(saved) {
     const m = state.member;
     const grid = h('div', { class: 'ds-choices ds-choices--cards' });
@@ -327,7 +283,7 @@
       return h('button', { class: 'ds-choice' + (id === m.card ? ' ds-choice--selected' : ''), onclick: () => pick(id) }, mini);
     };
     grid.append(tile('', t('app.event.card.noneTile')), ...state.looks.postcards.map((c) => tile(c.id, c.title)));
-    openSheet(t('app.event.card.title'), [ui.hint(t('app.event.card.hint')), grid]);
+    openSheet(t('app.event.card.title'), grid);
   }
 
   const renderWard = screen(async ({ cached = false } = {}) => {
@@ -368,103 +324,28 @@
       letter = postcard(d.ward.card, h('div', { class: 'ds-letter' }, text));
     }
 
-    const gift = h('input', { type: 'checkbox', checked: d.gift_ready, disabled: finished() || d.shipment?.sent });
-    bindToggle(gift, async (on) => {
-      await api('ward.gift', { event: evId, ready: on });
-      d.gift_ready = on;
-      haptic('success');
-      toast(t(on ? 'app.event.gift.done' : 'app.event.markRemoved'));
-    });
-
     main.replaceChildren(...[
       finishedNotice(),
       h('div', { class: 'ds-ward-card' }, h('div', { class: 'ds-ward-card__label' }, t(finished() ? 'app.event.ward.wasSantaFor' : 'app.event.ward.santaFor')), nameEl, toggle),
       ui.section(t('app.event.ward.letterTitle')),
       ui.card(letter, d.ward.updated_at && text.trim() ? ui.hint(t('app.event.ward.updated', { time: fmtTime(d.ward.updated_at) })) : null),
-      d.ward.delivery !== undefined ? ui.section(t('app.event.delivery.title')) : null,
-      d.ward.delivery !== undefined
-        ? ui.card(d.ward.delivery ? h('div', { class: 'ds-letter' }, d.ward.delivery) : h('div', { class: 'ds-text-muted' }, t('app.event.delivery.wardNone')))
-        : null,
-      h('div', { class: 'ds-card' }, ui.toggleRow(t('app.event.gift.title'), t('app.event.gift.sub'), gift)),
-      d.shipment ? outgoingShipment(d, evId) : null,
       ui.section(t('app.event.chat.wardTitle')),
-      ui.card(ui.hint(t('app.event.chat.wardHint', { santa: t('app.event.santa') })), chatButton('ward')),
+      ui.card(ui.hint(t('app.event.chat.wardHint')), chatButton('ward')),
     ].filter(Boolean));
   });
 
-  function shipmentCard(s, ...actions) {
-    const rows = [[t('app.event.shipment.date'), fmtDate(s.date)], [t('app.event.shipment.carrier'), s.carrier], [t('app.event.shipment.tracking'), s.tracking]].filter(([, v]) => v);
-    const copy = ui.btn(t('app.event.shipment.copy'), 'secondary', 'ds-btn--sm');
-    copy.onclick = async () => {
-      try { await navigator.clipboard.writeText(s.tracking); toast(t('app.event.shipment.copied')); }
-      catch {
-        const input = h('input', { class: 'ds-input', readonly: true, value: s.tracking, 'aria-label': t('app.event.shipment.tracking') });
-        openSheet(t('app.event.shipment.copyTitle'), input);
-        input.focus(); input.select();
-      }
-    };
-    return ui.card(h('div', { class: 'ds-text-strong' }, t(s.sent ? 'app.event.shipment.sent' : 'app.event.shipment.notSent')),
-      rows.length ? h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])) : null,
-      s.tracking ? copy : null, ...actions);
-  }
-
-  function outgoingShipment(d, event) {
-    const s = d.shipment;
-    if (finished()) return shipmentCard(s);
-    const save = async (fields) => {
-      const result = await api('ward.shipment', { event, version: s.version, ...fields });
-      d.shipment = result.shipment;
-      d.gift_ready = true;
-      if (state.evId === event && state.tab === 'ward') await backToEvent(event);
-    };
-    const edit = ui.btn(t(s.sent ? 'app.event.shipment.edit' : 'app.event.shipment.mark'), s.sent ? 'secondary' : '', 'ds-btn--block');
-    edit.onclick = () => {
-      const today = new Date(Date.now() + d.timezone_offset_hours * 3600000).toISOString().slice(0, 10);
-      const date = ui.date(s.sent ? s.date : today);
-      date.max = today;
-      const carrier = h('input', { class: 'ds-input', value: s.carrier || '', maxlength: 200 });
-      const tracking = h('input', { class: 'ds-input', value: s.tracking || '', maxlength: 200 });
-      const submit = ui.btn(t(s.sent ? 'app.event.shipment.saveChanges' : 'app.event.shipment.confirm'), '', 'ds-btn--block');
-      const dateError = ui.hint(t('app.event.shipment.dateError'));
-      dateError.hidden = true;
-      date.oninput = () => { dateError.hidden = date.validity.valid; };
-      const own = openSheet(t('app.event.shipment.title'), [ui.hint(t('app.event.shipment.hint')),
-        field(t('app.event.shipment.date'), date), dateError, field(t('app.event.shipment.carrier'), carrier), field(t('app.event.shipment.tracking'), tracking), submit]);
-      submit.onclick = () => busy(submit, async () => {
-        if (!date.validity.valid) { dateError.hidden = false; date.focus(); return; }
-        await save({ sent: true, date: date.value, carrier: carrier.value, tracking: tracking.value });
-        if (own.isConnected) closeSheet();
-      });
-    };
-    const cancel = ui.btn(t('app.event.shipment.cancel'), 'secondary', 'ds-btn--block');
-    cancel.onclick = () => busy(cancel, async () => {
-      if (await confirmBox(t('app.event.shipment.cancelConfirm'))) await save({ sent: false });
-    });
-    return shipmentCard(s, edit, s.sent ? cancel : null);
-  }
-
   // ---------- вкладка «Инфо» ----------
-  // 037: участники события — имена, роли и общие числа, без отметок по людям (specs/037-info-people/contracts/info-people.md)
-  const ROSTER_FOLD = 8;
+  // 037: участники события — имена, роли и до жеребьёвки — сколько написали письма, без отметок по людям
+  // (specs/037-info-people/contracts/info-people.md); 064: весь список сразу, без сводки о подарках
   function peopleSection() {
     const g = state.ev;
     const r = state.roster;
     if (!r) return [];
     const { people, progress: pr } = r;
-    const progress = !pr.of ? null : pr.letters === undefined
-      ? t('app.event.people.gifts', { ready: pr.ready, received: pr.received, of: pr.of })
-      : t('app.event.people.letters', { letters: pr.letters, of: pr.of });
+    const progress = pr && pr.of ? t('app.event.people.letters', { letters: pr.letters, of: pr.of }) : null;
     const list = h('div', { class: 'ds-card ds-card--flush' });
     if (!people.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.event.people.empty')));
-    const folded = state.rosterOpen !== g.id && people.length > ROSTER_FOLD;
-    list.append(...(folded ? people.slice(0, ROSTER_FOLD) : people).map(personRow));
-    if (folded) {
-      const more = h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => {
-        state.rosterOpen = g.id;
-        more.replaceWith(...people.slice(ROSTER_FOLD).map(personRow));
-      } }, h('div', { class: 'ds-grow ds-text-muted' }, t('app.event.people.showAll', { count: people.length })), h('span', { class: 'ds-list-item__chevron' }, '›'));
-      list.append(more);
-    }
+    list.append(...people.map(personRow));
     const nodes = [ui.section(t('app.event.people.title', { count: people.length })), progress ? ui.hint(progress, 'ds-hint--inset') : null, list];
     if (r.invite_link) {
       const share = ui.btn(t('app.event.people.invite'), 'secondary', 'ds-btn--block');
@@ -473,16 +354,12 @@
     }
     return nodes;
   }
-  // Строка участника: имя, «(ты)», роль; при разрешении организатора — @username и чат в Telegram по нажатию
+  // Строка участника: имя с @username (если есть), «(ты)», роль; без перехода в чат (064)
   function personRow(u) {
-    const mine = u.id === state.me.id;
     const title = personTitle(u);
-    if (mine) title.append(h('span', { class: 'ds-hint ds-text-regular' }, t('app.home.you')));
+    if (u.id === state.me.id) title.append(h('span', { class: 'ds-hint ds-text-regular' }, t('app.home.you')));
     const role = u.role === 'owner' ? ui.chip(t('app.core.role.owner')) : u.role === 'admin' ? ui.chip(t('app.core.role.admin')) : null;
-    if (!state.ev.contacts_on || !u.username || mine) return h('div', { class: 'ds-list-item' }, h('div', { class: 'ds-grow' }, title), role);
-    return h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: async () => {
-      if (await confirmBox(t('app.event.people.openChat', { name: u.name }))) openTgLink('https://t.me/' + encodeURIComponent(u.username));
-    } }, h('div', { class: 'ds-grow' }, title), role, h('span', { class: 'ds-list-item__chevron' }, '›'));
+    return h('div', { class: 'ds-list-item' }, h('div', { class: 'ds-grow' }, title), role);
   }
 
   // 053: поддержка проекта — только в открытом боте (specs/053-donate-block/contracts/donate-block.md)
@@ -543,15 +420,8 @@
     }
     if (!state.member) nodes.push(ui.hint(t('app.event.info.notMember'), 'ds-hint--inset'));
     nodes.push(...donateSection());
-    nodes.push(ui.section(t('app.event.how.title')), howItWorks(), ...leaveSection());
+    nodes.push(...leaveSection());
     main.replaceChildren(...nodes.filter(Boolean));
-  }
-  // «Как это работает» (011: три пункта) — на «Инфо» и в «О боте» «Настроек» (063)
-  function howItWorks() {
-    return h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
-      h('li', {}, t('app.event.how.letter')),
-      h('li', {}, t('app.event.how.ward')),
-      h('li', {}, t('app.event.how.after'))));
   }
 
   // 035: выход участника — внизу «Инфо», только из идущего события; сам — до жеребьёвки (слово ВЫЙТИ), после неё —

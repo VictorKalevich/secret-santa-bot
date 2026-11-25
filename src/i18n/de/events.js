@@ -25,12 +25,10 @@ export default {
   // Reveal: {name} - Santa name
   'events.alreadyRevealed': 'Das Geheimnis ist bereits gelüftet.',
   'events.revealed': '🎅 <b>Das Geheimnis ist gelüftet!</b>\n\nDein Wichtel in der Runde {title} ist <b>{name}</b>. Frohes Fest! 🎄',
-  // Reminders: empty wish list (with and without deadline) and to Santas (with and without gift date)
+  // Reminders: empty wish list (with and without deadline)
   'events.remindAgain': 'Die Erinnerung ist bereits verschickt – wiederholen kannst du es in einer Minute.',
   'events.remindUnfilled': '⏰ Erinnerung: Dein Wunschzettel in der Runde {title} ist noch leer. Füll ihn aus, damit dein Wichtel leichter ein Geschenk findet.',
   'events.remindUnfilledBy': '⏰ Erinnerung: Dein Wunschzettel in der Runde {title} ist noch leer. Füll ihn bis zum <b>{date}</b> aus, damit dein Wichtel leichter ein Geschenk findet.',
-  'events.remindSantas': '🎁 Erinnerung für Wichtel ({title}): Ist das Geschenk für dein Wichtelkind schon bereit?\nSobald es bereit ist, markiere es im Tab «Wichtelkind».',
-  'events.remindSantasDated': '🎁 Erinnerung für Wichtel ({title}): Ist das Geschenk für dein Wichtelkind schon bereit? Bescherung: <b>{date}</b>.\nSobald es bereit ist, markiere es im Tab «Wichtelkind».',
   // Announcements (007)
   'events.announceFinished': 'Die Runde ist beendet – Ankündigungen sind nicht mehr möglich.',
   'events.announceEmpty': 'Schreib den Text der Ankündigung.',

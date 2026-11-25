@@ -185,8 +185,8 @@ test('3. «Готово» недоступна, пока не выбран де�
 test('4. подсказки без года числом; подсказка названия — текущий год + 1', () => {
   const found = literalYears(APP);
   assert.equal(found.length, 0, report(found));
-  assert.equal(titleHint(APP, 2026), 'Например: Новый год 2027 — семья');
-  assert.equal(titleHint(APP, 2027), 'Например: Новый год 2028 — семья');
+  assert.equal(titleHint(APP, 2026), 'Новый год 2027 — семья');
+  assert.equal(titleHint(APP, 2027), 'Новый год 2028 — семья');
 });
 
 test('5. над «Вопрос решён» — отступ, как между элементами обычной шторки', () => {

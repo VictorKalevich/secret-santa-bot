@@ -14,7 +14,7 @@
     evId: null, ev: null, member: null, can: {}, tab: 'my', dirty: false, wardNameShown: false,
     announcements: [], // 007: объявления события (вкладка «Инфо»); все поля состояния — здесь (026)
     support: null, supportAdmin: null, // 012: обращения — участнику его статус, админу — ничьи и непрочитанные
-    roster: null, rosterOpen: null, // 037: участники на «Инфо»; rosterOpen — id события, где список раскрыт
+    roster: null, // 037: участники на «Инфо»
     looks: { postcards: [] }, // набор открыток — с сервера (me)
     botOwner: false, open: false, create: null,
     lang: 'ru', textsVersion: '', // 060: язык и версия словаря приложения (ответ me)
@@ -157,7 +157,6 @@
     state.member = null;
     state.wardCache = null;
     state.wardNameShown = false;
-    state.rosterOpen = null;
     syncBack();
     showLoader();
     try { await reloadEvent(id); } catch (e) { if (nav === state.nav) showError(e, () => openEvent(id, tab, chat, support)); return; }

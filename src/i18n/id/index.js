@@ -20,7 +20,6 @@ import participant from './participant.js';
 import roles from './roles.js';
 import routes from './routes.js';
 import setup from './setup.js';
-import shipment from './shipment.js';
 import stale from './stale.js';
 import support from './support.js';
 import vault from './vault.js';
@@ -54,7 +53,6 @@ export const AREAS = [
   ['roles', 'roles.js', roles],
   ['routes', 'routes.js', routes],
   ['setup', 'setup.js', setup],
-  ['shipment', 'shipment.js', shipment],
   ['stale', 'stale.js', stale],
   ['support', 'support.js', support],
   ['vault', 'vault.js', vault],

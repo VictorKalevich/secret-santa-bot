@@ -1,6 +1,6 @@
-// 037: список участников на «Инфо» (specs/037-info-people/contracts/info-people.md). event.get отдаёт roster: имена,
-// роли, организаторов, общие суммы и ссылку-приглашение; @username — только при параметре contacts_on; ни отметок по
-// людям, ни адресов, ни пар.
+// 037, 064: список участников на «Инфо» (specs/037-info-people/contracts/info-people.md). event.get отдаёт roster: имена,
+// роли, организаторов, до жеребьёвки — сколько написали письма, и ссылку-приглашение; @username — у каждого, у кого он
+// есть (064: параметра contacts_on нет); ни отметок по людям, ни адресов, ни пар.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
@@ -52,20 +52,21 @@ describe('список участников (037, US1)', () => {
     await z.w.api(borya, 'wishlist.save', { event: z.E, text: 'Тёплые носки' });
   });
 
-  it('только зарегистрированные, по алфавиту, роли; ключи — id, name, role и значок (038)', async () => {
+  it('только зарегистрированные, по алфавиту, роли; ключи — id, name, role и @username, у кого он есть (064)', async () => {
     const r = await z.roster();
     assert.deepEqual(r.people.map((p) => p.name), ['Админ', 'Аня', 'Боря', 'Вера', 'Владелец', 'Гена']);
     assert.deepEqual(r.people.map((p) => p.role), ['admin', '', '', '', 'owner', '']);
     assert.deepEqual(r.people.map((p) => p.id), [adm.id, anya.id, borya.id, vera.id, boss.id, gena.id]);
-    assert.deepEqual(keysOf(r.people), ['id', 'name', 'role']);
+    assert.deepEqual(keysOf(r.people), ['id', 'name', 'role', 'username']);
+    assert.deepEqual(r.people.map((p) => p.username), ['adm', 'anya', 'borya', undefined, 'boss', 'gena']);
   });
 
   it('организаторы бота — владелец первым, остальные по алфавиту (и тот, кто не участвует)', async () => {
     const r = await z.roster();
     assert.deepEqual(r.organizers, [
-      { id: boss.id, name: 'Владелец', owner: true },
-      { id: adm.id, name: 'Админ', owner: false },
-      { id: adm2.id, name: 'Второй админ', owner: false },
+      { id: boss.id, name: 'Владелец', owner: true, username: 'boss' },
+      { id: adm.id, name: 'Админ', owner: false, username: 'adm' },
+      { id: adm2.id, name: 'Второй админ', owner: false, username: 'adm2' },
     ]);
   });
 
@@ -75,7 +76,7 @@ describe('список участников (037, US1)', () => {
     assert.deepEqual(d.roster.progress, { letters: 2, of: 6 });
     assert.equal(d.event.participants, 6);
     assert.equal(d.event.draw_auto_date, '');
-    assert.equal(d.event.contacts_on, false);
+    assert.ok(!('contacts_on' in d.event), '064: параметра нет');
     await w.api(adm, 'admin.game', { event: E, draw_auto_date: '2026-12-15' });
     assert.equal((await w.api(anya, 'event.get', { event: E })).event.draw_auto_date, '2026-12-15');
   });
@@ -91,62 +92,32 @@ describe('список участников (037, US1)', () => {
     }
   });
 
-  it('после жеребьёвки — подарки готовы и получено: суммы по парам, вписанный после жеребьёвки — в N', async () => {
+  it('после жеребьёвки — без сводки (064); вписанный после жеребьёвки — в списке', async () => {
     const { w, E } = z;
     await w.api(boss, 'admin.draw', { event: E });
-    assert.deepEqual((await z.roster()).progress, { ready: 0, received: 0, of: 6 });
-    await w.api(anya, 'ward.gift', { event: E, ready: true });
-    await w.api(borya, 'ward.gift', { event: E, ready: true });
-    await w.api(gena, 'ward.received', { event: E, received: true });
-    assert.deepEqual((await z.roster()).progress, { ready: 2, received: 1, of: 6 });
+    assert.equal((await z.roster()).progress, null);
     await w.api(boss, 'admin.registration', { event: E, open: true });
     await z.join(friend, z.code);
     await w.api(boss, 'admin.insert', { event: E, id: friend.id });
     const r = await z.roster();
-    assert.equal(r.progress.of, 7);
+    assert.equal(r.progress, null);
     assert.equal(r.people.length, 7);
   });
 });
 
-describe('участники могут писать друг другу (037, US2)', () => {
+describe('@username всегда, параметра «писать друг другу» нет (064)', () => {
   let z;
   before(async () => { z = await world(); });
 
-  it('выключено (по умолчанию) — ни одного @username', async () => {
-    const r = await z.roster();
-    assert.ok(!JSON.stringify(r).includes('username'));
-    assert.ok(!JSON.stringify(r).includes('@'));
-  });
-
-  it('включено организатором — @username у людей и организаторов, у кого он есть; журнал «параметры»', async () => {
+  it('прежний параметр в запросе сохранения ничего не меняет; образец и сброс — без него', async () => {
     const { w, E } = z;
-    const before = w.query("SELECT COUNT(*) AS n FROM audit WHERE event_id = ? AND action = 'event.settings'", E)[0].n;
-    await w.api(adm, 'admin.game', { event: E, contacts_on: true });
-    const d = await w.api(anya, 'event.get', { event: E });
-    assert.equal(d.event.contacts_on, true);
-    assert.deepEqual(d.roster.people.map((p) => p.username), ['adm', 'anya', 'borya', undefined, 'boss', 'gena']);
-    assert.deepEqual(d.roster.organizers.map((p) => p.username), ['boss', 'adm', 'adm2']);
-    assert.equal(w.query("SELECT COUNT(*) AS n FROM audit WHERE event_id = ? AND action = 'event.settings'", E)[0].n, before + 1);
-    assert.equal((await w.api(adm, 'admin.state', { event: E })).settings.contacts_on, true);
-  });
-
-  it('образец копирует параметр, полный сброс возвращает «выключено»', async () => {
-    const { w, E } = z;
+    await w.api(adm, 'admin.game', { event: E, contacts_on: false });
+    assert.ok(!('contacts_on' in (await w.api(adm, 'admin.state', { event: E })).settings));
+    assert.equal((await z.roster()).people.find((p) => p.id === anya.id).username, 'anya');
     const copy = (await w.api(boss, 'event.create', { participate: false, title: 'По образцу', from: E })).event;
-    assert.equal(copy.contacts_on, true);
+    assert.ok(!('contacts_on' in copy));
     await w.api(boss, 'admin.reset.full', { event: E, confirm: 'СБРОС' });
-    assert.equal((await w.api(boss, 'admin.state', { event: E })).settings.contacts_on, false);
-    assert.ok(!JSON.stringify(await z.roster(boss)).includes('username'));
-  });
-
-  it('выключили снова — @username пропадают', async () => {
-    const { w } = z;
-    const F = (await w.api(boss, 'event.create', { participate: false, title: 'Вкл-выкл' })).event.id;
-    await z.join(anya, await z.invite(F));
-    await w.api(boss, 'admin.game', { event: F, contacts_on: true });
-    assert.equal((await z.roster(anya, F)).people[0].username, 'anya');
-    await w.api(boss, 'admin.game', { event: F, contacts_on: false });
-    assert.equal((await z.roster(anya, F)).people[0].username, undefined);
+    assert.equal((await z.roster(boss)).people.find((p) => p.id === boss.id).username, 'boss');
   });
 });
 

@@ -63,10 +63,8 @@ async function scenario() {
   const wg = await w.api(people[2], 'ward.get', { event: ev.id }); note('ward.get (первый раз)');
   assert.equal(wg.ward.name, people[3].name, 'закреплённая пара соблюдена');
   await w.api(people[2], 'ward.get', { event: ev.id }); note('ward.get (повторно)');
-  await w.api(people[2], 'ward.gift', { event: ev.id, ready: true }); note('ward.gift');
   await w.api(people[2], 'message.send', { event: ev.id, to: 'ward', text: 'Привет!' }); note('message.send');
   await w.api(people[3], 'chat.get', { event: ev.id, with: 'santa' }); note('chat.get');
-  await w.api(people[3], 'ward.received', { event: ev.id, received: true }); note('ward.received');
   await w.api(people[0], 'event.get', { event: ev.id }); note('event.get (участник, после жеребьёвки)');
   await w.api(people[6], 'support.send', { event: ev.id, text: 'Помогите' }); note('support.send (новое обращение)');
   await w.api(people[6], 'support.get', { event: ev.id }); note('support.get');
@@ -76,7 +74,6 @@ async function scenario() {
   await w.api(adm, 'admin.support.get', { event: ev.id, thread: th.id }); note('admin.support.get');
   await w.api(adm, 'admin.support.close', { event: ev.id, thread: th.id }); note('admin.support.close');
   await w.api(adm, 'admin.announce', { event: ev.id, text: 'Всем привет' }); note('admin.announce (14 человек)');
-  await w.api(adm, 'admin.remind.santas', { event: ev.id }); note('admin.remind.santas');
   await w.api(adm, 'admin.remove', { event: ev.id, id: people[7].id }); note('admin.remove (после жеребьёвки)');
   const late = { id: 777, name: 'Опоздавший', username: 'late' };
   await w.api(adm, 'admin.registration', { event: ev.id, open: true }); note('admin.registration');

@@ -1,7 +1,8 @@
 // Число запросов на действие (016, FR-1610; Конституция, принцип V — не больше 50 внешних запросов на вызов).
 // К базе — не больше базового замера (шаг 4 плана рефакторинга их сократил — числа ниже после 019, до него — в
 // git на 5d8cc0e: docs/refactoring/baseline.md, раздел 3; остальные фичи не добавляют; 047 — ввод имени без перечитывания
-// пользователя; 063 — событие действия читается первым пакетом контекста, на запрос меньше у каждого действия события); к
+// пользователя; 063 — событие действия читается первым пакетом контекста, на запрос меньше у каждого действия события;
+// 064 — без отметок подарка и напоминания Сантам: ward.gift, ward.received, admin.remind.santas ушли из сценария); к
 // Telegram — ровно столько же (сообщения —
 // поведение). Посмотреть текущие числа и SQL: node tests/bench/queries.mjs [sql].
 import { test, after } from 'node:test';
@@ -54,10 +55,8 @@ const BASELINE = {
   'admin.state (владелец)': [2, 0],
   'ward.get (первый раз)': [6, 0],
   'ward.get (повторно)': [5, 0],
-  'ward.gift': [3, 0],
   'message.send': [7, 1],
   'chat.get': [5, 0],
-  'ward.received': [7, 1],
   'event.get (участник, после жеребьёвки)': [3, 0],
   'support.send (новое обращение)': [8, 2],
   'support.get': [3, 0],
@@ -66,7 +65,6 @@ const BASELINE = {
   'admin.support.get': [2, 0],
   'admin.support.close': [7, 1],
   'admin.announce (14 человек)': [6, 14],
-  'admin.remind.santas': [6, 13],
   'admin.remove (после жеребьёвки)': [7, 2],
   'admin.registration': [2, 0],
   'bot: «Участвовать как …» (после ссылки)': [9, 5],
@@ -83,7 +81,7 @@ const BASELINE = {
 test('запросы: каждое действие сценария не тяжелее базового замера', async () => {
   const { rows, world } = await runQueriesScenario();
   assert.deepEqual(rows.map((r) => r.name), Object.keys(BASELINE), 'тот же набор действий');
-  assert.equal(rows.length, 46);
+  assert.equal(rows.length, 43);
   const worse = [];
   for (const { name, db, tg } of rows) {
     const [maxDb, wantTg] = BASELINE[name];

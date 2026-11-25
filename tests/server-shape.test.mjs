@@ -62,10 +62,11 @@ describe('029: параметры события', () => {
     assert.ok(!('company_id' in EVENT_STATE_RESET));
     assert.deepEqual(paramProblems(columns, EVENT_PARAMS, EVENT_SERVICE.filter((c) => c !== 'company_id')),
       ['колонка company_id не описана: ни параметр, ни служебная']);
-    // 062: «Учитывать семьи» — колонка осталась, код её не читает и не пишет
-    assert.deepEqual(EVENT_RETIRED, ['families_on']);
-    assert.ok(!('families_on' in EVENT_PARAMS));
-    assert.deepEqual(paramProblems(columns, EVENT_PARAMS, EVENT_SERVICE, []), ['колонка families_on не описана: ни параметр, ни служебная']);
+    // 062: «Учитывать семьи», 064: адрес доставки, «писать друг другу», автозавершение — колонки остались, код их не
+    // читает и не пишет
+    assert.deepEqual(EVENT_RETIRED, ['families_on', 'delivery_on', 'contacts_on', 'finish_auto']);
+    for (const c of EVENT_RETIRED) assert.ok(!(c in EVENT_PARAMS), c);
+    assert.deepEqual(paramProblems(columns, EVENT_PARAMS, EVENT_SERVICE, []).sort(), EVENT_RETIRED.map((c) => `колонка ${c} не описана: ни параметр, ни служебная`).sort());
   });
 
   it('от противного: новая колонка, лишняя строка списка и другое умолчание — замечены', () => {

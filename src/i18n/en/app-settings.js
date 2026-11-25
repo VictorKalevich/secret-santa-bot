@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': '🔔 Sound',
   'app.settings.notify.silent': '🔕 Silent',
   'app.settings.notify.off': '🚫 Off',
-  'app.settings.notify.hint': 'Applies to the “your giftee updated their letter” and “gift sent” messages.',
-  // "About the bot": how it works (items — app.event.how.*)
-  'app.settings.about': 'About the bot',
   // Bot owner section
   'app.settings.bot.title': 'Bot owner',
   'app.settings.bot.events': '🗂 All events',

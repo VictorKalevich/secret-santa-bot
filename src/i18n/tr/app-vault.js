@@ -1,4 +1,4 @@
-// Texts of app part 07-vault-audit (060): owner's service view, draw management (giftee swap), activity log
+// Texts of app part 07-vault-audit (060): owner's service view, giftee swap, activity log
 export default {
   'app.vault.youPlay': "Bu etkinliğin katılımcısısın. ",
   'app.vault.nameYou': "{name} (sen)",
@@ -21,15 +21,11 @@ export default {
   'app.vault.person.santa': "Noel Baba",
   'app.vault.person.noDraw': "henüz çekiliş yapılmadı",
   'app.vault.person.noSanta': "yok",
-  'app.vault.person.shipping': "Gönderim",
-  'app.vault.person.giftSent': "Hediye gönderildi",
-  'app.vault.person.notMarked': "İşaretlenmedi",
   'app.vault.person.letter': "Noel Baba'ya mektup",
-  'app.vault.person.address': "Teslimat adresi",
   'app.vault.person.santaNamed': "Noel Baba ({name})",
   'app.vault.person.ward': "Alıcı",
   'app.vault.person.wardNamed': "Alıcı ({name})",
-  'app.vault.swap.title': "🔀 Çekiliş yönetimi",
+  'app.vault.swap.title': '🔀 Alıcı değişimi',
   'app.vault.swap.youPlay': "Kendini seçersen, kurallarla ilgili uyarı ya da ret, Noel Baba'nın kim olduğunu ele verebilir.",
   'app.vault.swap.hint': "İki katılımcı seç — alıcılarını değiş tokuş edecekler. Kimin kime hediye verdiği burada görünmez.",
   'app.vault.swap.go': "🔀 Alıcıları değiştir",

@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': '🔔 Ton',
   'app.settings.notify.silent': '🔕 Leise',
   'app.settings.notify.off': '🚫 Aus',
-  'app.settings.notify.hint': 'Gilt für die Nachrichten «Wichtelkind hat den Wunschzettel geändert» und «Geschenk verschickt».',
-  // "About the bot": how it works (items - app.event.how.*)
-  'app.settings.about': 'Über den Bot',
   // Bot owner section
   'app.settings.bot.title': 'Bot-Inhaber',
   'app.settings.bot.events': '🗂 Alle Runden',

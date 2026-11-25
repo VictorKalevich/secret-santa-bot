@@ -1,4 +1,4 @@
-// Texts of app part 07-vault-audit (060): the owner's service view, draw management (giftee swap), activity log
+// Texts of app part 07-vault-audit (060): the owner's service view, giftee swap, activity log
 export default {
   // Shared: the owner plays too; a name in the participant list
   'app.vault.youPlay': 'Jesteś uczestnikiem tego wydarzenia. ',
@@ -25,16 +25,12 @@ export default {
   'app.vault.person.santa': 'Mikołaj',
   'app.vault.person.noDraw': 'losowania jeszcze nie było',
   'app.vault.person.noSanta': 'brak',
-  'app.vault.person.shipping': 'Wysyłka',
-  'app.vault.person.giftSent': 'Prezent wysłany',
-  'app.vault.person.notMarked': 'Nie oznaczono',
   'app.vault.person.letter': 'List do Mikołaja',
-  'app.vault.person.address': 'Adres dostawy',
   'app.vault.person.santaNamed': 'Mikołaj ({name})',
   'app.vault.person.ward': 'Podopieczny',
   'app.vault.person.wardNamed': 'Podopieczny ({name})',
-  // Draw management (048, 049): swapping giftees between two participants
-  'app.vault.swap.title': '🔀 Zarządzanie losowaniem',
+  // Giftee swap (048, 049): swapping giftees between two participants
+  'app.vault.swap.title': '🔀 Zamiana podopiecznych',
   'app.vault.swap.youPlay': 'Jeśli wybierzesz siebie, ostrzeżenie o regułach lub odmowa mogą podpowiedzieć, kto jest Twoim Mikołajem.',
   'app.vault.swap.hint': 'Wybierz dwóch uczestników — zamienią się podopiecznymi. Kto kogo obdarowuje, tutaj nie widać.',
   'app.vault.swap.go': '🔀 Zamień podopiecznych',

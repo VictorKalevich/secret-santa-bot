@@ -6,14 +6,13 @@
 
 import { updateUser, getUser, getEvent, getMember, getAudit } from './db.js';
 import { validateInitData } from './telegram.js';
-import { saveShipment } from './shipment.js';
-import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NO_DRAW, NOT_MEMBER } from './format.js';
+import { inviteLink, oneLine, NOT_REGISTERED, ADMIN_ONLY, NOT_MEMBER } from './format.js';
 import { t, tx, render, appTexts, DEFAULT_LANG, telegramLanguage, foldWord } from './i18n/index.js';
 import { syncLanguage, setLanguage, languagesView } from './language.js';
 import { isFinished, publicEvent } from './status.js';
 import { openContext } from './context.js';
 import {
-  createEvent, finishEvent, deleteEvent, resetEvent, inviteFromEvent, revealAll, remindUnfilled, remindSantas, announce,
+  createEvent, finishEvent, deleteEvent, resetEvent, inviteFromEvent, revealAll, remindUnfilled, announce,
   saveEventSettings, setRing, setRegistration, regenInvite, setAvoidPrevious,
 } from './events.js';
 import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancelDraw, checkSwap, swapWards } from './pairs.js';
@@ -27,7 +26,7 @@ import {
   participantView, sendFromUser, closeByUser, adminThread, take, sendFromAdmin, pass, closeByAdmin,
 } from './support.js';
 import {
-  homeView, eventView, saveWishlist, writeLetterDraft, saveDelivery, wardView, setGiftReady, setGiftReceived, setCard,
+  homeView, eventView, saveWishlist, writeLetterDraft, wardView, setCard,
 } from './participant.js';
 import { adminState, memberLetter, renameUser } from './panel.js';
 import { changeExclusions, changeFixed } from './constraints.js';
@@ -59,7 +58,6 @@ const OWNER_ROLES = 'api.owner.transfer';
 const VAULT_OWNER = 'api.owner.vault';
 const SWAP_OWNER = 'api.owner.swap';
 const LETTER_CLOSED = 'api.letterClosed';
-const MARK_CLOSED = 'api.markClosed';
 // Имя — одна строка до 40 символов, как при регистрации в боте: своё (035) и от организатора
 const NAME_RULE = tx('api.nameRule');
 const validName = (raw) => {
@@ -150,12 +148,7 @@ export const ACTIONS = {
   'wishlist.save': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await saveWishlist(ctx, ev, member, body.text)) },
   'wishlist.draft': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await writeLetterDraft(ctx, ev, member, body, false)) },
   'wishlist.publish': { role: MEMBER, event: true, finished: LETTER_CLOSED, run: async (ctx, body, ev, member) => out(await writeLetterDraft(ctx, ev, member, body, true)) },
-  // Свой порядок отказов: «адрес не нужен» раньше «завершено» (в модуле)
-  'delivery.save': { role: MEMBER, event: true, finished: true, run: async (ctx, body, ev, member) => out(await saveDelivery(ctx, ev, member, body.text)) },
   'ward.get': { role: MEMBER, event: true, finished: true, run: (ctx, body, ev) => wardView(ctx, ev) },
-  'ward.gift': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReady(ctx, ev, body.ready)) },
-  'ward.shipment': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await saveShipment(ctx, ev, body)) },
-  'ward.received': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReceived(ctx, ev, body.received)) },
   // Переписка в завершённом — 7 суток (chat.js)
   'message.send': {
     role: MEMBER,
@@ -355,15 +348,6 @@ export const ACTIONS = {
     },
   },
   'admin.remind.unfilled': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await remindUnfilled(ctx, ev, ctx.me.tg_id), count) },
-  'admin.remind.santas': {
-    role: ADMIN,
-    event: true,
-    finished: CLOSED,
-    async run(ctx, body, ev) {
-      if (!ev.draw_done) return refuse(NO_DRAW);
-      return out(await remindSantas(ctx, ev, ctx.me.tg_id), count);
-    },
-  },
   // Повторно имена не рассылаются (006, FR-610), в том числе при одновременных вызовах (009)
   'admin.reveal': { role: ADMIN, event: true, finished: true, run: async (ctx, body, ev) => out(await revealAll(ctx, ev, ctx.me.tg_id), count) },
   'admin.event.finish': { role: ADMIN, event: true, finished: CLOSED, run: async (ctx, body, ev) => out(await finishEvent(ctx, ev, ctx.me.tg_id), none) },

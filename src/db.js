@@ -223,10 +223,10 @@ export const drawMembersQuery = (db, eventId) => db.prepare(
      ${MEMBERS_OF} ORDER BY m.joined_at`
 ).bind(eventId);
 
-// Панель организатора: «письмо есть», «адрес указан» вместо текстов
+// Панель организатора: «письмо есть» вместо текста
 export const panelMembersQuery = (db, eventId) => db.prepare(
   `SELECT m.user_id, u.name, u.username, u.registered, ${EVENT_ADMIN} AS is_admin, u.blocked_at,
-          NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist, NOT ${BLANK_SQL('m.delivery')} AS has_delivery
+          NOT ${BLANK_SQL('m.wishlist')} AS has_wishlist
      ${MEMBERS_OF} ORDER BY m.joined_at`
 ).bind(eventId);
 
@@ -245,22 +245,16 @@ export const peopleQuery = (db, eventId) => db.prepare(
 export const rowsOf = async (stmt) => (await stmt.all()).results;
 
 // Добавить участника — единственное место вставки (вход по ссылке, «Я участвую», решение по заявке).
-// Новое участие предзаполняет адрес доставки последним указанным адресом человека (008, FR-802) — только если
-// в эвенте адрес нужен: иначе адрес лежал бы там, где его не ждут (009, FR-905).
 // guard — необязательное SQL-условие с параметрами args (вставка только при нём, для атомарных действий).
 export function addMemberStmt(db, ev, userId, guard = '1', ...args) {
-  const copy = !!ev.delivery_on;
-  const delivery = copy
-    ? "COALESCE((SELECT delivery FROM members WHERE user_id = ? AND delivery != '' ORDER BY joined_at DESC LIMIT 1), '')"
-    : "''";
   return db
     .prepare(
-      `INSERT INTO members (event_id, user_id, joined_at, delivery)
-       SELECT ?, ?, ?, ${delivery}
+      `INSERT INTO members (event_id, user_id, joined_at)
+       SELECT ?, ?, ?
         WHERE ${guard}
        ON CONFLICT(event_id, user_id) DO NOTHING`
     )
-    .bind(ev.id, userId, Date.now(), ...(copy ? [userId] : []), ...args);
+    .bind(ev.id, userId, Date.now(), ...args);
 }
 
 // ---------- отметки «удалён организатором» (010) ----------
@@ -290,13 +284,9 @@ export const pairsQuery = (db, eventId) => db.prepare('SELECT * FROM pairs WHERE
 // Только связи «Санта → подопечный» (раскрытие, служебный просмотр) — без увиденного письма; маска (040) — для сообщения
 // о раскрытии, служебный просмотр и отмена жеребьёвки её не отдают
 export const pairLinksQuery = (db, eventId) => db.prepare('SELECT santa, ward FROM pairs WHERE event_id = ?').bind(eventId);
-// Панель: статусы пар; «открыл подопечного» — признаком, без текста увиденного письма
+// Панель: кто в жеребьёвке и «открыл подопечного» — признаком, без текста увиденного письма
 export const panelPairsQuery = (db, eventId) =>
-  db.prepare('SELECT santa, ward, gift_ready, gift_received, gift_sent, seen_text IS NOT NULL AS seen FROM pairs WHERE event_id = ?').bind(eventId);
-// Общий прогресс на «Инфо» (037): только суммы — от того, кто кому дарит, не зависят
-export const giftTotalsQuery = (db, eventId) => db.prepare(
-  'SELECT COUNT(*) AS n, COALESCE(SUM(gift_ready), 0) AS ready, COALESCE(SUM(gift_received), 0) AS received FROM pairs WHERE event_id = ?'
-).bind(eventId);
+  db.prepare('SELECT santa, seen_text IS NOT NULL AS seen FROM pairs WHERE event_id = ?').bind(eventId);
 export const pairOfSantaQuery = (db, eventId, santa) => db.prepare('SELECT * FROM pairs WHERE event_id = ? AND santa = ?').bind(eventId, santa);
 export const pairOfWardQuery = (db, eventId, ward) => db.prepare('SELECT * FROM pairs WHERE event_id = ? AND ward = ?').bind(eventId, ward);
 

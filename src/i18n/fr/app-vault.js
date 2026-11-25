@@ -1,4 +1,4 @@
-// Texts of app part 07-vault-audit (060): owner's control view, draw management (giftee swap), activity log
+// Texts of app part 07-vault-audit (060): owner's control view, giftee swap, activity log
 export default {
   // Common: the owner plays too; name in the participant list
   'app.vault.youPlay': "Tu participes à cet événement. ",
@@ -25,16 +25,12 @@ export default {
   'app.vault.person.santa': "Père Noël",
   'app.vault.person.noDraw': "pas encore de tirage",
   'app.vault.person.noSanta': "aucun",
-  'app.vault.person.shipping': "Envoi",
-  'app.vault.person.giftSent': "Cadeau envoyé",
-  'app.vault.person.notMarked': "Non indiqué",
   'app.vault.person.letter': "Lettre au Père Noël",
-  'app.vault.person.address': "Adresse de livraison",
   'app.vault.person.santaNamed': "Père Noël ({name})",
   'app.vault.person.ward': "Destinataire",
   'app.vault.person.wardNamed': "Destinataire ({name})",
-  // Draw management (048, 049): swapping giftees of two participants
-  'app.vault.swap.title': "🔀 Gestion du tirage",
+  // Giftee swap (048, 049): swapping giftees of two participants
+  'app.vault.swap.title': '🔀 Échange de destinataires',
   'app.vault.swap.youPlay': "Si tu te choisis, un avertissement sur les règles ou un refus pourrait te laisser deviner qui est ton Père Noël.",
   'app.vault.swap.hint': "Choisis deux participants — ils échangeront leurs destinataires. On ne voit pas ici qui offre à qui.",
   'app.vault.swap.go': "🔀 Échanger les destinataires",

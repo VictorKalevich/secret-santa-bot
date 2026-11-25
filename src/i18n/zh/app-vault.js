@@ -1,4 +1,4 @@
-// Texts of app part 07-vault-audit (060): owner's service view, draw management (giftee swap), activity log
+// Texts of app part 07-vault-audit (060): owner's service view, giftee swap, activity log
 export default {
   // Shared: the owner plays too; name in the participant list
   'app.vault.youPlay': '你是这个活动的参与者。',
@@ -25,16 +25,12 @@ export default {
   'app.vault.person.santa': '圣诞老人',
   'app.vault.person.noDraw': '还没有抽签',
   'app.vault.person.noSanta': '无',
-  'app.vault.person.shipping': '寄送',
-  'app.vault.person.giftSent': '礼物已寄出',
-  'app.vault.person.notMarked': '未标记',
   'app.vault.person.letter': '给圣诞老人的心愿信',
-  'app.vault.person.address': '收货地址',
   'app.vault.person.santaNamed': '圣诞老人（{name}）',
   'app.vault.person.ward': '收礼人',
   'app.vault.person.wardNamed': '收礼人（{name}）',
-  // Draw management (048, 049): swapping giftees of two participants
-  'app.vault.swap.title': '🔀 抽签调整',
+  // Giftee swap (048, 049): swapping giftees of two participants
+  'app.vault.swap.title': '🔀 交换收礼人',
   'app.vault.swap.youPlay': '如果选了你自己，规则提示或拒绝信息可能会暗示谁是你的圣诞老人。',
   'app.vault.swap.hint': '选择两位参与者，他们会交换收礼人。这里看不到谁送礼给谁。',
   'app.vault.swap.go': '🔀 交换收礼人',

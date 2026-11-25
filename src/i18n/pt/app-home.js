@@ -1,7 +1,7 @@
 // Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
   // Leaving an event or a tab (058): asks only about what will not save by itself
-  'app.home.unsaved': 'A carta ou o endereço não foram salvos. Sair sem salvar?',
+  'app.home.unsaved': 'A carta não foi salva. Sair sem salvar?',
   // Error screen on an event — back to the list
   'app.home.toEvents': 'Voltar para a lista de eventos',
   // Shared labels (also on the event screen)
@@ -21,9 +21,9 @@ export default {
   // New event (007: from a template; 063: the creator is the owner, limit); {year} — next year
   'app.home.create.button': '🎄 Criar evento',
   'app.home.create.title': 'Novo evento',
-  'app.home.create.hint': 'O evento terá seus próprios participantes, link de convite, cartas e sorteio. Você será o dono dele e poderá nomear administradores.',
+  'app.home.create.hint': 'Escreva o nome do evento',
   'app.home.create.name': 'Nome do evento',
-  'app.home.create.placeholder': 'Por exemplo: Ano Novo {year} — família',
+  'app.home.create.placeholder': 'Ano Novo {year} — família',
   'app.home.create.noTemplate': 'Sem modelo — do zero',
   'app.home.create.fromTemplate': 'Com base em: {title}',
   'app.home.create.invite': 'Convidar os participantes do modelo',

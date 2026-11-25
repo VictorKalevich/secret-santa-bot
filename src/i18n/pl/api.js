@@ -6,7 +6,6 @@ export default {
   'api.noEvent': 'Nie znaleziono wydarzenia.',
   'api.closed': 'Wydarzenie jest zakończone — nie można go już zmieniać (dostępne są podgląd, ujawnienie i usunięcie).',
   'api.letterClosed': 'Wydarzenie jest zakończone: list jest teraz tylko do odczytu.',
-  'api.markClosed': 'Wydarzenie jest zakończone: oznaczenie jest tylko do odczytu.',
   'api.confirm.delete': 'Aby usunąć, wpisz słowo {word}.',
   'api.confirm.leave': 'Aby wypisać się z wydarzenia, wpisz słowo {word}.',
   'api.confirm.cancel': 'Aby anulować, wpisz słowo {word}.',

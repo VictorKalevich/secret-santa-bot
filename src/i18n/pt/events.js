@@ -25,12 +25,10 @@ export default {
   // Reveal: {name} — Santa name
   'events.alreadyRevealed': 'O segredo já foi revelado.',
   'events.revealed': '🎅 <b>Segredo revelado!</b>\n\nNo evento {title}, seu Papai Noel secreto é <b>{name}</b>. Boas festas! 🎄',
-  // Reminders: empty letter (with and without a deadline) and to Santas (with and without the exchange date)
+  // Reminders: empty letter (with and without a deadline)
   'events.remindAgain': 'O lembrete já foi enviado — dá para repetir daqui a um minuto.',
   'events.remindUnfilled': '⏰ Lembrete: sua carta ao Papai Noel no evento {title} ainda está vazia. Preencha para facilitar a escolha do presente.',
   'events.remindUnfilledBy': '⏰ Lembrete: sua carta ao Papai Noel no evento {title} ainda está vazia. Preencha até <b>{date}</b> para facilitar a escolha do presente.',
-  'events.remindSantas': '🎁 Lembrete para o Papai Noel ({title}): o presente do seu presenteado já está pronto?\nQuando estiver, marque na aba “Presenteado”.',
-  'events.remindSantasDated': '🎁 Lembrete para o Papai Noel ({title}): o presente do seu presenteado já está pronto? Troca de presentes: <b>{date}</b>.\nQuando estiver, marque na aba “Presenteado”.',
   // Announcements (007)
   'events.announceFinished': 'O evento foi encerrado — não dá mais para enviar avisos nele.',
   'events.announceEmpty': 'Escreva o texto do aviso.',

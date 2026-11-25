@@ -1,4 +1,4 @@
-// Texts of src/participant.js (061): letter, delivery address, postcard, gift marks
+// Texts of src/participant.js (061): letter, postcard
 export default {
   // Postcard: value not from the set
   'participant.noCard': 'Kartu ini tidak ada — pilih dari daftar.',
@@ -9,12 +9,4 @@ export default {
   'participant.noText': 'Kirim teks suratnya.',
   'participant.emptyLetter': 'Tulis surat sebelum menerbitkannya.',
   'participant.letterConflict': 'Surat atau pengaturan berubah. Buka lagi acaranya.',
-  // Delivery address
-  'participant.noDelivery': 'Acara ini tidak memerlukan alamat pengiriman.',
-  'participant.deliveryClosed': 'Acara sudah selesai: alamat sekarang hanya bisa dibaca.',
-  // Pair: giftee, Santa, gift marks
-  'participant.noSanta': 'Kamu belum punya Santa.',
-  'participant.unmarkSentFirst': 'Hapus dulu tanda pengiriman.',
-  // To Santa: the giftee received the gift
-  'participant.giftReceived': '🎉 Penerima kadomu di acara {title} sudah menerima kadonya! Terima kasih, Santa 🎅',
 };

@@ -25,12 +25,10 @@ export default {
   // Reveal: {name} — Santa name
   'events.alreadyRevealed': 'Rahasia sudah terungkap.',
   'events.revealed': '🎅 <b>Rahasia terungkap!</b>\n\nDi acara {title}, Secret Santa-mu adalah <b>{name}</b>. Selamat merayakan! 🎄',
-  // Reminders: empty letter (with and without deadline) and to Santas (with and without the gift date)
+  // Reminders: empty letter (with and without deadline)
   'events.remindAgain': 'Pengingat sudah dikirim — bisa diulang setelah satu menit.',
   'events.remindUnfilled': '⏰ Pengingat: suratmu untuk Santa di acara {title} masih kosong. Isi suratnya supaya Santa lebih mudah memilih kado.',
   'events.remindUnfilledBy': '⏰ Pengingat: suratmu untuk Santa di acara {title} masih kosong. Isi paling lambat <b>{date}</b> supaya Santa lebih mudah memilih kado.',
-  'events.remindSantas': '🎁 Pengingat untuk Santa ({title}): kado untuk penerimamu sudah siap?\nKalau sudah siap, tandai di tab «Penerima».',
-  'events.remindSantasDated': '🎁 Pengingat untuk Santa ({title}): kado untuk penerimamu sudah siap? Tukar kado — <b>{date}</b>.\nKalau sudah siap, tandai di tab «Penerima».',
   // Announcements
   'events.announceFinished': 'Acara sudah selesai — pengumuman tidak bisa dikirim lagi.',
   'events.announceEmpty': 'Tulis teks pengumuman.',

@@ -251,7 +251,8 @@ test('050: перенос строк компаний — права больш�
 });
 
 // ---------- после действия не остаётся строк (US3) ----------
-// «Богатый мир»: событие A (адрес нужен, владелец участвует, жеребьёвка проведена), событие B (с одобрением заявок),
+// «Богатый мир»: событие A (адреса от прежнего кода — 064 их не пишет, но каскады чистят; владелец участвует,
+// жеребьёвка проведена), событие B (с одобрением заявок),
 // событие C (p1 удалён организатором). Поиск строк идёт по REGISTRY — все колонки события и человека (полноту списка
 // проверяет тест схемы выше); что может остаться — по таблице «что делает сейчас» файла шага (data-model.md).
 
@@ -297,8 +298,8 @@ async function rich() {
   const codeOf = async (id) => /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: id })).settings.invite_link)[1];
   const [A, B, C] = [await create('Альфа'), await create('Бета'), await create('Гамма')];
 
-  // A: адрес доставки, владелец участвует, админ и 6 игроков по ссылке
-  await w.api(boss, 'admin.game', { event: A, delivery_on: true });
+  // A: адрес доставки (прежний код), владелец участвует, админ и 6 игроков по ссылке
+  w.sql(`UPDATE events SET delivery_on = 1 WHERE id = ${A}`);
   await w.api(boss, 'admin.participate', { event: A, on: true });
   const codeA = await codeOf(A);
   for (const u of [adm, ...P]) {
@@ -323,10 +324,10 @@ async function rich() {
   await w.say(p1, '/start ' + (await codeOf(C)));
   await w.api(adm, 'admin.remove', { event: C, id: p1.id });
 
-  // Письма и адреса
+  // Письма и адреса (адреса — как их оставил прежний код)
   for (const u of [boss, p1, p2]) {
     await w.api(u, 'wishlist.save', { event: A, text: 'письмо ' + u.name });
-    await w.api(u, 'delivery.save', { event: A, text: 'адрес ' + u.name });
+    w.query('UPDATE members SET delivery = ?, delivery_updated_at = ? WHERE event_id = ? AND user_id = ?', 'адрес ' + u.name, Date.now(), A, u.id);
   }
   await w.api(p1, 'wishlist.save', { event: B, text: 'письмо в Бете' });
   // Исключения, закреплённая пара, семья
@@ -428,7 +429,6 @@ describe('после действия не остаётся строк собы�
       [{ user_id: boss.id, wishlist: '', wishlist_updated_at: 0, delivery: '', delivery_updated_at: 0 }]);
     const ev = w.query('SELECT * FROM events WHERE id = ?', A)[0];
     assert.equal(ev.draw_done, 0);
-    assert.equal(ev.delivery_on, 0);
     assert.equal(ev.registration_open, 1);
     assert.notEqual(ev.invite_code, code);
     assert.deepEqual(orphans(w), {});

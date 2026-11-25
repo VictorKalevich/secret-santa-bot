@@ -19,14 +19,11 @@ export const EVENT_PARAMS = {
   deadline: { kind: 'date', default: '' },
   // Расписание (007, FR-702)
   draw_auto_date: { kind: 'date', default: '', beforeDraw: 'eventParams.drawAutoAfterDraw' },
-  delivery_on: { kind: 'flag', default: 0, template: true }, // 008
   approval: { kind: 'flag', default: 0, template: true },
   rejoin: { kind: 'flag', default: 1, template: true }, // 010
   reveal_auto: { kind: 'flag', default: 0, template: true },
-  finish_auto: { kind: 'flag', default: 0, template: true },
   ring: { kind: 'flag', default: 1, template: true, own: true },
   avoid_previous: { kind: 'flag', default: 1, template: true, own: true },
-  contacts_on: { kind: 'flag', default: 0, template: true }, // 037: @username и чат в списке участников на «Инфо»
 };
 
 // Служебные колонки. Состояние события — со значением после полного сброса; код приглашения сброс задаёт новым;
@@ -38,9 +35,10 @@ export const EVENT_STATE_RESET = {
   finish_warned: '', checked_on: '',
 };
 export const EVENT_SERVICE = ['id', 'company_id', 'owner_id', 'title', 'created_at', 'created_by', 'invite_code', ...Object.keys(EVENT_STATE_RESET)];
-// Колонки, которые код больше не читает и не пишет (062: «Учитывать семьи» — семьи стали исключениями событий). Остаются в
-// схеме, пока возможен откат на прежний код (docs/todo.md).
-export const EVENT_RETIRED = ['families_on'];
+// Колонки, которые код больше не читает и не пишет (062: «Учитывать семьи» — семьи стали исключениями событий; 064: адрес
+// доставки, «участники могут писать друг другу», автозавершение — оно теперь у каждого события с датой). Остаются в схеме,
+// пока возможен откат на прежний код (docs/todo.md).
+export const EVENT_RETIRED = ['families_on', 'delivery_on', 'contacts_on', 'finish_auto'];
 
 // Значение параметра из тела запроса — как его хранит база
 export function paramValue(spec, raw) {

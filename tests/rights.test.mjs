@@ -58,9 +58,9 @@ before(async () => {
   await grant(w, chief, await fresh(chief), other);
 });
 
-test('права: список действий admin.* — ровно 43, включая действия с «_»; всего действий — 69 (063)', () => {
-  assert.equal(ACTIONS.length, 43, ACTIONS.join(', '));
-  assert.equal(Object.keys(TABLE).length, 69);
+test('права: список действий admin.* — ровно 42, включая действия с «_»; всего действий — 64 (064)', () => {
+  assert.equal(ACTIONS.length, 42, ACTIONS.join(', '));
+  assert.equal(Object.keys(TABLE).length, 64);
   assert.ok(ACTIONS.includes('admin.avoid_previous') && ACTIONS.includes('admin.event.invite_from'));
   for (const a of OWNER_ONLY) assert.ok(ACTIONS.includes(a), 'действие владельца есть в коде: ' + a);
 });

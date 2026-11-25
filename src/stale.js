@@ -1,20 +1,20 @@
-// Автозавершение брошенных событий в открытом боте (056, specs/056-auto-finish-stale/contracts/auto-finish.md): правила
-// владельца А — дата вручения прошла, Г — без даты, без жеребьёвки и никого, кроме организаторов, Б — без даты и старое.
-// Подходит — организаторам предупреждение, через STALE.wait дней — обычное завершение (finishEvent). Проверяет ежедневный
-// шаг cron (src/cron.js), только в открытом боте.
+// Автозавершение брошенных событий (056, specs/056-auto-finish-stale/contracts/auto-finish.md; 064 — в обоих ботах и
+// только без даты вручения: событие с датой завершается само на 3-й день после неё, src/cron.js). Правила владельца:
+// Г — без даты, без жеребьёвки и никого, кроме организаторов; Б — без даты и старое. Подходит — организаторам
+// предупреждение, через STALE.wait дней — обычное завершение (finishEvent). Проверяет ежедневный шаг cron (src/cron.js).
 
 import { atomic } from './claim.js';
 import { msg, q, addDays, ISO_DATE, localDate, adminRecipients, appKeyboard } from './format.js';
 import { tx, tdate } from './i18n/index.js';
 
-// Пороги в днях по местным датам: А — от даты вручения, Г и Б — от создания; завершение — через wait после предупреждения
-export const STALE = { afterDate: 7, empty: 23, age: 113, wait: 7 };
+// Пороги в днях по местным датам от создания: Г и Б; завершение — через wait после предупреждения (30 и 60 дней)
+export const STALE = { empty: 23, age: 53, wait: 7 };
 const DAY_MS = 86400000;
 
-// Почему событие брошено: 'date' (А), 'empty' (Г), 'age' (Б) или null. Будущая дата защищает от всех правил.
+// Почему событие брошено: 'empty' (Г), 'age' (Б) или null. Дата вручения защищает от всех правил.
 // ev.outsiders — участники, кроме организаторов (-1 — не считали: dailyEventsQuery)
 export function staleReason(env, ev, today) {
-  if (ISO_DATE.test(ev.event_date || '')) return addDays(ev.event_date, STALE.afterDate) <= today ? 'date' : null;
+  if (ISO_DATE.test(ev.event_date || '')) return null;
   const created = localDate(env, ev.created_at).iso;
   if (!ev.draw_done && ev.outsiders === 0 && addDays(created, STALE.empty) <= today) return 'empty';
   return addDays(created, STALE.age) <= today ? 'age' : null;
@@ -31,22 +31,21 @@ export function staleStep(env, ev, today) {
 
 // Идущие события ежедневного шага, ещё не проверенные сегодня (057: индекс events_unchecked, checked_on < сегодня), и
 // outsiders — сколько участников не организаторы события (063: строки event_admins, владелец — тоже, инвариант E1) и
-// не владелец бота. Считается только в открытом боте у кандидатов правила Г, ещё не
-// проверенных сегодня, иначе -1: CASE не вычисляет подзапрос, участники остальных событий не читаются. since — на день
-// раньше порога Г (точная проверка — по местным датам, staleReason)
-export const dailyEventsQuery = (db, { open, today, now = Date.now() }) => db.prepare(
-  `SELECT events.*, CASE WHEN ?1 AND last_daily != ?2 AND event_date = '' AND draw_done = 0 AND created_at <= ?3
+// не владелец бота. Считается только у кандидатов правила Г, ещё не проверенных сегодня, иначе -1: CASE не вычисляет
+// подзапрос, участники остальных событий не читаются. since — на день раньше порога Г (точная проверка — по местным
+// датам, staleReason)
+export const dailyEventsQuery = (db, { today, now = Date.now() }) => db.prepare(
+  `SELECT events.*, CASE WHEN last_daily != ?1 AND event_date = '' AND draw_done = 0 AND created_at <= ?2
      THEN (SELECT COUNT(*) FROM members m
             WHERE m.event_id = events.id
               AND m.user_id != COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id'), 0)
               AND NOT EXISTS (SELECT 1 FROM event_admins a WHERE a.event_id = events.id AND a.user_id = m.user_id))
      ELSE -1 END AS outsiders
-     FROM events WHERE status = 'active' AND checked_on < ?2`
-).bind(open ? 1 : 0, today, now - (STALE.empty - 1) * DAY_MS);
+     FROM events WHERE status = 'active' AND checked_on < ?1`
+).bind(today, now - (STALE.empty - 1) * DAY_MS);
 
 // Тексты по причине (060): почему брошено (stale.why.*), как сохранить (stale.keep.*), запись журнала (stale.logged.*)
 const WHY = {
-  date: (ev) => tx('stale.why.date', { date: tdate(ev.event_date) }),
   empty: () => tx('stale.why.empty'),
   age: () => tx('stale.why.age'),
 };

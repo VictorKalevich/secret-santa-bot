@@ -149,6 +149,8 @@
   padding: var(--ds-space-3);
 }
 .ds-input:focus { box-shadow: 0 0 0 var(--ds-border-focus) var(--ds-color-accent) inset; }
+/* Неактивное (064): пригласительная ссылка при закрытой регистрации — бледнее, как недоступная кнопка */
+.ds-input:disabled { opacity: var(--ds-opacity-disabled); cursor: default; }
 .ds-clearable { display: block; position: relative; min-width: 0; }
 .ds-clearable > .ds-input {
   box-sizing: border-box; min-height: var(--ds-size-control);

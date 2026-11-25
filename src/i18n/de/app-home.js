@@ -1,7 +1,7 @@
 // Texts of app part 03-home (061, German): the "My rounds" home screen and the "New round" sheet (063)
 export default {
   // Leaving a round or tab (058): asks only about what is not saved by itself
-  'app.home.unsaved': 'Wunschzettel oder Adresse sind nicht gespeichert. Ohne Speichern verlassen?',
+  'app.home.unsaved': 'Der Wunschzettel ist nicht gespeichert. Ohne Speichern verlassen?',
   // Error screen of a round - back to the list
   'app.home.toEvents': 'Zu den Runden',
   // Shared labels (also on the round screen)
@@ -21,9 +21,9 @@ export default {
   // New event (007: from a template; 063: the creator is the owner, limit); {year} - next year
   'app.home.create.button': '🎄 Runde erstellen',
   'app.home.create.title': 'Neue Runde',
-  'app.home.create.hint': 'Jede Runde hat eigene Teilnehmer, einen Einladungslink, Wunschzettel und eine Auslosung. Du wirst ihr Inhaber und kannst Admins ernennen.',
+  'app.home.create.hint': 'Schreib den Namen der Runde',
   'app.home.create.name': 'Name der Runde',
-  'app.home.create.placeholder': 'Zum Beispiel: Neujahr {year} – Familie',
+  'app.home.create.placeholder': 'Neujahr {year} – Familie',
   'app.home.create.noTemplate': 'Ohne Vorlage – ganz neu',
   'app.home.create.fromTemplate': 'Nach Vorlage: {title}',
   'app.home.create.invite': 'Teilnehmer der Vorlage einladen',

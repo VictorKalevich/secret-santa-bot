@@ -2,10 +2,8 @@
 export default {
   'stale.warning': "⏳ <b>{title} etkinliği {when} tarihinde otomatik olarak bitecek.</b>\n{why}\n\n{keep}",
   'stale.openButton': "⚙️ Etkinliği aç",
-  'stale.why.date': "Hediyeleşme tarihi ({date}) geçti.",
   'stale.why.empty': "Sahip ve yöneticiler dışında henüz kimse katılmadı.",
-  'stale.why.age': "Hediyeleşme tarihi yok ve etkinlik üç aydan uzun süre önce oluşturuldu.",
-  'stale.keep.date': "Etkinlik hâlâ gerekiyorsa hediyeleşme tarihini ertele: «Yönetim» → «Ayarlar».",
+  'stale.why.age': 'Hediyeleşme tarihi yok ve etkinlik yedi haftadan uzun süre önce oluşturuldu.',
   'stale.keep.empty': "Etkinlik hâlâ gerekiyorsa katılımcı davet et ya da hediyeleşme tarihi belirle: «Yönetim» → «Ayarlar».",
   'stale.keep.age': "Etkinlik hâlâ gerekiyorsa hediyeleşme tarihi belirle: «Yönetim» → «Ayarlar».",
   'stale.auditText': "{why}; bitiş: {when}",

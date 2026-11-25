@@ -42,7 +42,7 @@
 
 - **Настройки**: `app.settings.notify.hint`, `app.settings.about`.
 - **Письмо и подопечный**: `app.event.card.none`, `app.event.card.hint`, `app.event.delivery.*` (7), `app.event.received.*`
-  (3), `app.event.gift.*` (3), `app.event.markRemoved`, `app.event.santa`, `app.event.shipment.*` (20).
+  (3), `app.event.gift.*` (3), `app.event.markRemoved`, `app.event.shipment.*` (20).
 - **Инфо**: `app.event.people.gifts`, `app.event.people.showAll`, `app.event.people.openChat`, `app.event.how.*` (4).
 - **Управление**: `app.admin.invite.regHint`, `app.admin.invite.approvalHint`, `app.admin.invite.rejoinHint`,
   `app.admin.support.hint`, `app.admin.members.ready`, `.notReady`, `.sent`, `.received`, `.address`, `.noAddress`,
@@ -59,5 +59,5 @@
 ## 4. Остаются (история и общие)
 
 `stale.logged.date` (подробности прежних `finish.warn`), `app.vault.audit.remind.santas` (прежние записи журнала),
-`app.core.word.reset` (слово проверяет сервер у `admin.reset.full`), `app.sheet.support.title`, `events.openButton`,
+`app.core.word.reset` (слово проверяет сервер у `admin.reset.full`), `app.event.santa` (подсказка в шапке переписки у Санты, `app.sheet.chat.youAre`), `app.sheet.support.title`, `events.openButton`,
 `chat.noWard`, `app.admin.remindSent`.

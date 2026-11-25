@@ -4,11 +4,9 @@ export default {
   'stale.warning': '⏳ <b>Wydarzenie {title} zakończy się automatycznie {when}.</b>\n{why}\n\n{keep}',
   'stale.openButton': '⚙️ Otwórz wydarzenie',
   // Why the event looks abandoned
-  'stale.why.date': 'Data wręczenia ({date}) już minęła.',
   'stale.why.empty': 'Nikt jeszcze do niego nie dołączył poza właścicielem i administratorami.',
-  'stale.why.age': 'Nie ma daty wręczenia, a zostało utworzone ponad trzy miesiące temu.',
+  'stale.why.age': 'Nie ma daty wręczenia, a zostało utworzone ponad siedem tygodni temu.',
   // How to keep the event
-  'stale.keep.date': 'Jeśli wydarzenie jest jeszcze potrzebne — przesuń datę wręczenia: „Zarządzanie” → „Ustawienia”.',
   'stale.keep.empty': 'Jeśli wydarzenie jest jeszcze potrzebne — zaproś uczestników lub ustaw datę wręczenia: „Zarządzanie” → „Ustawienia”.',
   'stale.keep.age': 'Jeśli wydarzenie jest jeszcze potrzebne — ustaw datę wręczenia: „Zarządzanie” → „Ustawienia”.',
   // finish.warn log detail: {why} — stale.logged.<reason>

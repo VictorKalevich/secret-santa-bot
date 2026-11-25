@@ -34,10 +34,10 @@ function rowProblems(name, row) {
   return p;
 }
 
-test('таблица действий: 69 строк (21 действие участника, 43 admin.*, 5 bot.*), каждая — по правилам', () => {
+test('таблица действий: 64 строки (17 действий участника, 42 admin.*, 5 bot.*), каждая — по правилам (064)', () => {
   const names = Object.keys(ACTIONS);
-  assert.equal(names.length, 69);
-  assert.equal(names.filter((a) => a.startsWith('admin.')).length, 43);
+  assert.equal(names.length, 64);
+  assert.equal(names.filter((a) => a.startsWith('admin.')).length, 42);
   assert.deepEqual(names.filter((a) => a.startsWith('bot.')).sort(), ['bot.audit', 'bot.creator.set', 'bot.events', 'bot.owner.transfer', 'bot.people']);
   assert.deepEqual(names.flatMap((n) => rowProblems(n, ACTIONS[n])), []);
 });

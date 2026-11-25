@@ -1,7 +1,7 @@
 // Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
   // Leaving an event or a tab (058): asks only about what is not saved by itself
-  'app.home.unsaved': '心愿信或地址还没保存。不保存就离开吗？',
+  'app.home.unsaved': '心愿信还没保存。不保存就离开吗？',
   // Error screen on an event, back to the list
   'app.home.toEvents': '返回活动列表',
   // Shared labels (also on the event screen)
@@ -21,9 +21,9 @@ export default {
   // New event (007: from a template; 063: the creator is the owner, limit); {year} is the next year
   'app.home.create.button': '🎄 创建活动',
   'app.home.create.title': '新活动',
-  'app.home.create.hint': '每个活动都有自己的参与者、邀请链接、心愿信和抽签。你将成为它的所有者，并可以任命管理员。',
+  'app.home.create.hint': '写下活动名称',
   'app.home.create.name': '活动名称',
-  'app.home.create.placeholder': '例如：{year} 新年 · 家人',
+  'app.home.create.placeholder': '{year} 新年 · 家人',
   'app.home.create.noTemplate': '不用模板，从头开始',
   'app.home.create.fromTemplate': '模板：{title}',
   'app.home.create.invite': '邀请模板活动的参与者',

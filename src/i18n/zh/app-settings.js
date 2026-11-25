@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': '🔔 有声音',
   'app.settings.notify.silent': '🔕 静音',
   'app.settings.notify.off': '🚫 关闭',
-  'app.settings.notify.hint': '适用于“收礼人修改了心愿信”和“礼物已寄出”这两类消息。',
-  // "About the bot": how it works (items - app.event.how.*)
-  'app.settings.about': '关于机器人',
   // Bot owner section
   'app.settings.bot.title': '机器人所有者',
   'app.settings.bot.events': '🗂 所有活动',

@@ -5,10 +5,9 @@ import { appKeyboard, msg, q, escapeHtml, localDate, daysUntil, addDays, ISO_DAT
 import { flushOutbox } from './outbox.js';
 import { tx } from './i18n/index.js';
 import { isFinished } from './status.js';
-import { remindUnfilled, remindSantas, revealAll, finishEvent } from './events.js';
+import { remindUnfilled, revealAll, finishEvent } from './events.js';
 import { runDraw } from './pairs.js';
 import { makeContext } from './context.js';
-import { openBot } from './creation.js';
 import { dailyEventsQuery, staleStep, warnStale } from './stale.js';
 
 // Шаги запуска независимы (009, FR-910): ошибка в одном не мешает остальным, а очередь сообщений отправляется
@@ -41,7 +40,7 @@ async function notifyWishlistChanges(ctx) {
   const { results } = await db
     .prepare(
       `SELECT w.event_id, w.user_id, w.notify_at, MAX(w.wishlist_updated_at, w.delivery_updated_at) AS upd,
-              p.santa, p.notified_at, s.notify_mode, e.title, e.delivery_on, e.status
+              p.santa, p.notified_at, s.notify_mode, e.title, e.status
          FROM members w
          LEFT JOIN pairs p ON p.event_id = w.event_id AND p.ward = w.user_id
          LEFT JOIN events e ON e.id = w.event_id
@@ -58,10 +57,8 @@ async function notifyWishlistChanges(ctx) {
   for (const r of due) {
     stmts.push(db.prepare('UPDATE pairs SET notified_at = ? WHERE event_id = ? AND santa = ?').bind(r.upd, r.event_id, r.santa));
     if (r.notify_mode === 'off') continue;
-    // Без имени подопечного и без текста — превью видно на экране блокировки.
-    // 008: изменение адреса доставки — тем же уведомлением, без текста адреса
-    const what = r.delivery_on ? 'cron.wishlistOrDeliveryChanged' : 'cron.wishlistChanged';
-    stmts.push(enqueueStmt(db, r.santa, msg(tx(what, { title: q(r) }), {
+    // Без имени подопечного и без текста — превью видно на экране блокировки
+    stmts.push(enqueueStmt(db, r.santa, msg(tx('cron.wishlistChanged', { title: q(r) }), {
       disable_notification: r.notify_mode === 'silent',
       ...appKeyboard(settings, tx('cron.lookButton'), { event: r.event_id }),
     })));
@@ -69,24 +66,20 @@ async function notifyWishlistChanges(ctx) {
   await db.batch(stmts);
 }
 
-// Какое ежедневное напоминание нужно эвенту сегодня:
-//  • до жеребьёвки — за 2 дня, за день и в день дедлайна напомнить тем, у кого пустое письмо;
-//  • после жеребьёвки — за 2 дня и в день вручения напомнить Сантам, которые не отметили «подарок готов».
+// Ежедневное напоминание: до жеребьёвки — за 2 дня, за день и в день дедлайна тем, у кого пустое письмо. После
+// жеребьёвки напоминаний нет (064: отметки «подарок готов» убраны)
 function dailyReminder(env, ev) {
-  if (!ev.draw_done) {
-    const d = daysUntil(env, ev.deadline);
-    return d !== null && d >= 0 && d <= 2 ? remindUnfilled : null;
-  }
-  const d = daysUntil(env, ev.event_date);
-  return d === 2 || d === 0 ? remindSantas : null;
+  if (ev.draw_done) return null;
+  const d = daysUntil(env, ev.deadline);
+  return d !== null && d >= 0 && d <= 2 ? remindUnfilled : null;
 }
 
 // Раз в день (с REMINDER_HOUR по местному времени) — автодействия расписания (007: жеребьёвка → раскрытие →
 // завершение) и ежедневные напоминания. Каждое такое действие стоит ~10 запросов, поэтому за запуск выполняется
 // только одно (009, FR-911); остальные — в следующие минуты. Кандидат выбирается по минуте суток: если один эвент
 // раз за разом падает, он не задерживает остальные. Эвенты, которым сегодня ничего не нужно, отмечаются одним запросом.
-// 056: в открытом боте — ещё правила автозавершения брошенных событий (src/stale.js): завершение важнее напоминания,
-// предупреждение — нет; снятие отметки — вместе с «сегодня сделано».
+// 056: ещё правила автозавершения брошенных событий (src/stale.js; 064 — в обоих ботах, только события без даты):
+// завершение важнее напоминания, предупреждение — нет; снятие отметки — вместе с «сегодня сделано».
 // 057: событие, с которым на сегодня всё (ежедневная часть сделана, автодействие не нужно), отмечается checked_on и до
 // завтра не читается. Автодействие может наступить в тот же день только после сохранения параметров, жеребьёвки или
 // сброса — они отметку снимают (specs/057-cron-marks/research.md, R7); last_daily при этом остаётся — напоминание не
@@ -97,8 +90,7 @@ async function dailyStep(ctx) {
   if (now.hour < Number(env.REMINDER_HOUR ?? 10)) return;
   // Идущие эвенты без отметки «на сегодня проверено» (057). Людей события читает контекст только для действия — в
   // обычную минуту их не читаем (054)
-  const open = openBot(env);
-  const { events: results } = await ctx.read({ events: dailyEventsQuery(db, { open, today: now.iso }) });
+  const { events: results } = await ctx.read({ events: dailyEventsQuery(db, { today: now.iso }) });
   const autos = [];
   const reminders = [];
   const quiet = [];
@@ -107,7 +99,7 @@ async function dailyStep(ctx) {
     const due = dueAutoAction(ev, now.iso);
     if (due) autos.push(async () => runAutoAction(await ctx.at(ev), ev, due));
     else if (ev.last_daily !== now.iso) {
-      const stale = open ? staleStep(env, ev, now.iso) : null;
+      const stale = staleStep(env, ev, now.iso);
       const remind = dailyReminder(env, ev);
       // Отметка «сегодня сделано» — в одном batch с напоминанием: либо оба, либо ничего
       if (stale?.act === 'finish') reminders.push(async () => finishEvent(await ctx.at(ev), ev, 0));
@@ -131,13 +123,14 @@ async function markDaily(db, set, ids, values) {
 
 // ---------- автодействия по расписанию (007, FR-703) ----------
 
-// Какое автодействие наступило для эвента сегодня: 'draw' → 'reveal' → 'finish' (в этом порядке) или null
+// Какое автодействие наступило для эвента сегодня: 'draw' → 'reveal' → 'finish' (в этом порядке) или null.
+// Завершение — у каждого события с датой вручения на 3-й день после неё (064: галочки finish_auto нет)
 function dueAutoAction(ev, today) {
   if (isFinished(ev)) return null;
   if (!ev.draw_done && ISO_DATE.test(ev.draw_auto_date || '') && ev.draw_auto_date <= today) return 'draw';
   const dated = ISO_DATE.test(ev.event_date || '');
   if (ev.reveal_auto && ev.draw_done && !ev.revealed && dated && addDays(ev.event_date, 1) <= today) return 'reveal';
-  if (ev.finish_auto && dated && addDays(ev.event_date, 3) <= today) return 'finish';
+  if (dated && addDays(ev.event_date, 3) <= today) return 'finish';
   return null;
 }
 

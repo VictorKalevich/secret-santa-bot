@@ -1,4 +1,4 @@
-// Texts of app part 07-vault-audit (061, German): the owner's control view, draw management (giftee swap),
+// Texts of app part 07-vault-audit (061, German): the owner's control view, giftee swap,
 // activity log
 export default {
   // Shared: the owner plays too; name in the participant list
@@ -26,16 +26,12 @@ export default {
   'app.vault.person.santa': 'Wichtel',
   'app.vault.person.noDraw': 'noch keine Auslosung',
   'app.vault.person.noSanta': 'keiner',
-  'app.vault.person.shipping': 'Versand',
-  'app.vault.person.giftSent': 'Geschenk verschickt',
-  'app.vault.person.notMarked': 'Nicht markiert',
   'app.vault.person.letter': 'Wunschzettel',
-  'app.vault.person.address': 'Lieferadresse',
   'app.vault.person.santaNamed': 'Wichtel ({name})',
   'app.vault.person.ward': 'Wichtelkind',
   'app.vault.person.wardNamed': 'Wichtelkind ({name})',
-  // Draw management (048, 049): swapping the giftees of two participants
-  'app.vault.swap.title': '🔀 Auslosung verwalten',
+  // Giftee swap (048, 049): swapping the giftees of two participants
+  'app.vault.swap.title': '🔀 Wichtelkinder tauschen',
   'app.vault.swap.youPlay': 'Wählst du dich selbst, können Regelwarnungen oder eine Ablehnung verraten, wer dein Wichtel ist.',
   'app.vault.swap.hint': 'Wähle zwei Teilnehmer – sie tauschen ihre Wichtelkinder. Wer wen beschenkt, ist hier nicht zu sehen.',
   'app.vault.swap.go': '🔀 Wichtelkinder tauschen',

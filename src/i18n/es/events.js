@@ -24,12 +24,10 @@ export default {
   // Reveal: {name} the Santa name
   'events.alreadyRevealed': 'El secreto ya se reveló.',
   'events.revealed': '🎅 <b>¡Secreto revelado!</b>\n\nEn el evento {title}, tu Santa secreto es <b>{name}</b>. ¡Felices fiestas! 🎄',
-  // Reminders: empty letter (with and without deadline) and to Santas (with and without exchange date)
+  // Reminders: empty letter (with and without deadline)
   'events.remindAgain': 'El recordatorio ya se envió: puedes repetirlo dentro de un minuto.',
   'events.remindUnfilled': '⏰ Recordatorio: tu carta a Santa en el evento {title} sigue vacía. Escríbela para que a tu Santa le sea más fácil elegir el regalo.',
   'events.remindUnfilledBy': '⏰ Recordatorio: tu carta a Santa en el evento {title} sigue vacía. Escríbela antes del <b>{date}</b> para que a tu Santa le sea más fácil elegir el regalo.',
-  'events.remindSantas': '🎁 Recordatorio para Santa ({title}): ¿ya tienes listo el regalo para tu destinatario?\nCuando lo tengas, márcalo en la pestaña «Destinatario».',
-  'events.remindSantasDated': '🎁 Recordatorio para Santa ({title}): ¿ya tienes listo el regalo para tu destinatario? Intercambio: <b>{date}</b>.\nCuando lo tengas, márcalo en la pestaña «Destinatario».',
   // Announcements
   'events.announceFinished': 'El evento ha finalizado: ya no se pueden enviar anuncios.',
   'events.announceEmpty': 'Escribe el texto del anuncio.',

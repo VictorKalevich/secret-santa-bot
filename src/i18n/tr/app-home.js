@@ -1,6 +1,6 @@
 // Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
-  'app.home.unsaved': "Mektup ya da adres kaydedilmedi. Kaydetmeden çıkılsın mı?",
+  'app.home.unsaved': 'Mektup kaydedilmedi. Kaydetmeden çıkılsın mı?',
   'app.home.toEvents': "Etkinlik listesine dön",
   'app.home.you': "  (sen)",
   'app.home.finished': "bitti",
@@ -17,9 +17,9 @@ export default {
   // New event (007: from a template; 063: the creator is the owner, limit); {year} is the next year
   'app.home.create.button': "🎄 Etkinlik oluştur",
   'app.home.create.title': "Yeni etkinlik",
-  'app.home.create.hint': "Etkinliğin kendi katılımcıları, davet bağlantısı, mektupları ve çekilişi olacak. Etkinliğin sahibi sen olacaksın ve yönetici atayabileceksin.",
+  'app.home.create.hint': 'Etkinliğin adını yaz',
   'app.home.create.name': "Etkinlik adı",
-  'app.home.create.placeholder': "Örneğin: Yılbaşı {year} — aile",
+  'app.home.create.placeholder': 'Yılbaşı {year} — aile',
   'app.home.create.noTemplate': "Şablonsuz — sıfırdan",
   'app.home.create.fromTemplate': "Şablon: {title}",
   'app.home.create.invite': "Şablonun katılımcılarını davet et",

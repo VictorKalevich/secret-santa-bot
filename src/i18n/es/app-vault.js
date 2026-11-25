@@ -1,4 +1,4 @@
-// Spanish: app part 07-vault-audit (owner supervision view, draw management, activity log).
+// Spanish: app part 07-vault-audit (owner supervision view, giftee swap, activity log).
 export default {
   // Common: the owner plays too; name in the participant list
   'app.vault.youPlay': 'Participas en este evento. ',
@@ -25,16 +25,12 @@ export default {
   'app.vault.person.santa': 'Santa',
   'app.vault.person.noDraw': 'todavía no hubo sorteo',
   'app.vault.person.noSanta': 'no tiene',
-  'app.vault.person.shipping': 'Envío',
-  'app.vault.person.giftSent': 'Regalo enviado',
-  'app.vault.person.notMarked': 'Sin marcar',
   'app.vault.person.letter': 'Carta a Santa',
-  'app.vault.person.address': 'Dirección de envío',
   'app.vault.person.santaNamed': 'Santa ({name})',
   'app.vault.person.ward': 'Destinatario',
   'app.vault.person.wardNamed': 'Destinatario ({name})',
-  // Draw management: swapping the giftees of two participants
-  'app.vault.swap.title': '🔀 Gestión del sorteo',
+  // Giftee swap (048, 049): swapping the giftees of two participants
+  'app.vault.swap.title': '🔀 Intercambio de destinatarios',
   'app.vault.swap.youPlay': 'Si te eliges a ti, el aviso sobre las reglas o un rechazo podrían darte pistas de quién es tu Santa.',
   'app.vault.swap.hint': 'Elige a dos participantes: intercambiarán sus destinatarios. Aquí no se ve quién regala a quién.',
   'app.vault.swap.go': '🔀 Intercambiar destinatarios',

@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': "🔔 Suono",
   'app.settings.notify.silent': "🔕 Muto",
   'app.settings.notify.off': "🚫 Off",
-  'app.settings.notify.hint': "Vale per i messaggi «il destinatario ha modificato la letterina» e «regalo spedito».",
-  // "About the bot": how it works (items - app.event.how.*)
-  'app.settings.about': "Informazioni sul bot",
   // Bot owner section
   'app.settings.bot.title': "Proprietario del bot",
   'app.settings.bot.events': "🗂 Tutti gli eventi",

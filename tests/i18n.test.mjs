@@ -399,7 +399,8 @@ describe('семейства ключей — по источнику кодов
     ['app.core.role.', () => [...src('src/participant.js').matchAll(/'(owner|admin|member|guest)'/g)].map((m) => m[1])],
     ['bot.notify.mode.', () => JSON.parse(/const NOTIFY_MODES = (\[[^\]]*\])/.exec(src('src/bot.js'))[1].replace(/'/g, '"'))],
     ['stale.keep.', () => Object.keys(staleWhy())],
-    ['stale.logged.', () => Object.keys(staleWhy())],
+    // 064: date — правило «дата прошла» снято, прежние записи finish.warn в журнале остались
+    ['stale.logged.', () => [...Object.keys(staleWhy()), 'date']],
   ];
   // Причины автозавершения — ключи WHY в src/stale.js
   function staleWhy() {

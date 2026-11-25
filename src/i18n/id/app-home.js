@@ -1,7 +1,7 @@
 // Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
   // Leaving an event or a tab: asks only about what is not saved by itself
-  'app.home.unsaved': 'Surat atau alamat belum disimpan. Keluar tanpa menyimpan?',
+  'app.home.unsaved': 'Surat belum disimpan. Keluar tanpa menyimpan?',
   // Error screen of an event — back to the list
   'app.home.toEvents': 'Ke daftar acara',
   // Shared labels (also on the event screen)
@@ -21,9 +21,9 @@ export default {
   // New event (007: from a template; 063: the creator is the owner, limit); {year} is the next year
   'app.home.create.button': '🎄 Buat acara',
   'app.home.create.title': 'Acara baru',
-  'app.home.create.hint': 'Setiap acara punya peserta, tautan undangan, surat, dan undiannya sendiri. Kamu akan menjadi pemiliknya dan bisa menunjuk admin.',
+  'app.home.create.hint': 'Tulis nama acara',
   'app.home.create.name': 'Nama acara',
-  'app.home.create.placeholder': 'Misalnya: Tahun Baru {year} — keluarga',
+  'app.home.create.placeholder': 'Tahun Baru {year} — keluarga',
   'app.home.create.noTemplate': 'Tanpa templat — mulai dari nol',
   'app.home.create.fromTemplate': 'Dari templat: {title}',
   'app.home.create.invite': 'Undang peserta acara templat',

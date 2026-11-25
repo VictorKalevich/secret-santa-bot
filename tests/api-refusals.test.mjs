@@ -55,11 +55,14 @@
 //   назначение и снятие администратора, передача владения, переименование, разрешения владельца бота, журнал без
 //   события) и «063 open …» (открытый бот: название, десять созданий, лимит — дата в тексте заменена на «…»,
 //   разрешение в открытом боте, bot.people не владельцу бота).
+//   064 (specs/064-texts-cleanup/contracts/texts.md): адреса, отметок подарка, посылки и напоминания Сантам нет — из
+//   «actions» удалены delivery.save, ward.gift, ward.received, admin.remind.santas (прежних — 50), из ответов — все ключи
+//   «<ситуация> <действие>» этих четырёх, «042 …» (ward.shipment) и «extra delivery-finished»; остальные ответы те же.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  runRefusals, NEW_ACTIONS, NEW_ACTIONS_038, NEW_ACTIONS_041, NEW_ACTIONS_042, NEW_ACTIONS_048, NEW_ACTIONS_051,
+  runRefusals, NEW_ACTIONS, NEW_ACTIONS_038, NEW_ACTIONS_041, NEW_ACTIONS_048, NEW_ACTIONS_051,
   NEW_ACTIONS_061, NEW_ACTIONS_063,
 } from './support/refusals-scenario.mjs';
 import { restoreFetch } from './support/world.mjs';
@@ -74,11 +77,11 @@ test('отказы API: каждый код и текст — как в этал
   assert.deepEqual(now.actions, golden.actions);
   const names = Object.keys(ACTIONS);
   const later = [
-    ...NEW_ACTIONS, ...NEW_ACTIONS_038, ...NEW_ACTIONS_041, ...NEW_ACTIONS_042, ...NEW_ACTIONS_048, ...NEW_ACTIONS_051,
+    ...NEW_ACTIONS, ...NEW_ACTIONS_038, ...NEW_ACTIONS_041, ...NEW_ACTIONS_048, ...NEW_ACTIONS_051,
     ...NEW_ACTIONS_061, ...NEW_ACTIONS_063,
   ];
-  assert.deepEqual(names.filter((a) => !later.includes(a)), golden.actions, 'таблица действий — прежние 54 действия в прежнем порядке');
-  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038, 041, 042, 048, 051, 061, 063) — в таблице');
+  assert.deepEqual(names.filter((a) => !later.includes(a)), golden.actions, 'таблица действий — прежние 50 действий в прежнем порядке');
+  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038, 041, 048, 051, 061, 063) — в таблице');
   const diff = [];
   for (const key of new Set([...Object.keys(golden.cases), ...Object.keys(now.cases)])) {
     const a = JSON.stringify(golden.cases[key]);

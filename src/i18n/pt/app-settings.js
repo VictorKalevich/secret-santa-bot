@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': '🔔 Som',
   'app.settings.notify.silent': '🔕 Mudo',
   'app.settings.notify.off': '🚫 Desligado',
-  'app.settings.notify.hint': 'Vale para as mensagens “o presenteado alterou a carta” e “presente enviado”.',
-  // "About the bot": how it works (items — app.event.how.*)
-  'app.settings.about': 'Sobre o bot',
   // Bot owner section
   'app.settings.bot.title': 'Dono do bot',
   'app.settings.bot.events': '🗂 Todos os eventos',

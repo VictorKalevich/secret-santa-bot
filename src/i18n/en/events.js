@@ -25,12 +25,10 @@ export default {
   // The reveal: {name} — Santa's name
   'events.alreadyRevealed': 'The secret has already been revealed.',
   'events.revealed': '🎅 <b>The secret is out!</b>\n\nIn {title}, your Secret Santa was <b>{name}</b>. Happy holidays! 🎄',
-  // Reminders: empty letter (with and without a deadline) and to Santas (with and without a gift exchange date)
+  // Reminders: empty letter (with and without a deadline)
   'events.remindAgain': 'A reminder has already been sent — you can send it again in a minute.',
   'events.remindUnfilled': '⏰ Reminder: your letter to Santa in {title} is still empty. Fill it in so your Santa can choose a gift more easily.',
   'events.remindUnfilledBy': '⏰ Reminder: your letter to Santa in {title} is still empty. Fill it in by <b>{date}</b> so your Santa can choose a gift more easily.',
-  'events.remindSantas': '🎁 Reminder for Santa ({title}): is your giftee’s gift ready?\nWhen it is, mark it on the “Giftee” tab.',
-  'events.remindSantasDated': '🎁 Reminder for Santa ({title}): is your giftee’s gift ready? Gift exchange: <b>{date}</b>.\nWhen it is, mark it on the “Giftee” tab.',
   // Announcements (007)
   'events.announceFinished': 'The event has finished — announcements can’t be sent in it anymore.',
   'events.announceEmpty': 'Write the announcement text.',

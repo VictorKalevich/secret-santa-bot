@@ -1,4 +1,4 @@
-// Spanish: texts of src/participant.js (letter, shipping address, postcard, gift marks).
+// Spanish: texts of src/participant.js (letter, postcard).
 export default {
   // Postcard: value not from the set
   'participant.noCard': 'Esa postal no existe: elige una de la lista.',
@@ -9,12 +9,4 @@ export default {
   'participant.noText': 'Falta el texto de la carta.',
   'participant.emptyLetter': 'Escribe la carta antes de publicarla.',
   'participant.letterConflict': 'La carta o los ajustes cambiaron. Vuelve a abrir el evento.',
-  // Shipping address
-  'participant.noDelivery': 'En este evento no hace falta dirección de envío.',
-  'participant.deliveryClosed': 'El evento ha finalizado: la dirección ahora es de solo lectura.',
-  // Assignment: giftee, Santa, gift marks
-  'participant.noSanta': 'Todavía no tienes Santa.',
-  'participant.unmarkSentFirst': 'Primero quita la marca de envío.',
-  // To Santa: the giftee received the gift
-  'participant.giftReceived': '🎉 ¡Tu destinatario del evento {title} recibió el regalo! Gracias, Santa 🎅',
 };

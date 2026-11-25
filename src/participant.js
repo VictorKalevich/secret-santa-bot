@@ -1,13 +1,10 @@
-// Участник события (019): экран «мои события», экран события, письмо Санте, адрес доставки (008), подопечный и отметки
-// «подарок готов» / «подарок получен» (007). Права (участник ли, завершено ли событие) проверены в api.js.
+// Участник события (019): экран «мои события», экран события, письмо Санте, подопечный (064: без адреса доставки и
+// отметок подарка). Права (участник ли, завершено ли событие) проверены в api.js.
 
 import {
-  myEventsQuery, pairOfSanta, pairOfWard, pairOfSantaQuery, pairOfWardQuery, peopleQuery, giftTotalsQuery, announcementsQuery, getUser,
-  getMember,
+  myEventsQuery, pairOfSanta, pairOfSantaQuery, pairOfWardQuery, peopleQuery, announcementsQuery, getUser, getMember,
 } from './db.js';
-import { atomic } from './claim.js';
-import { shipmentDetails } from './shipment.js';
-import { msg, q, appKeyboard, cleanText, inviteLink } from './format.js';
+import { inviteLink } from './format.js';
 import { isFinished, chatWritable, publicEvent } from './status.js';
 import { MAX_CHARS, tooLong, unreadQuery, unreadFrom, unreadByEventQuery, unreadByEventFrom } from './chat.js';
 import { supportCountsQuery, supportCountsView, supportUnreadQuery, supportUnreadFrom } from './support.js';
@@ -15,8 +12,6 @@ import { no } from './result.js';
 import { tx } from './i18n/index.js';
 import { looksView, validCard } from './looks.js';
 import { openBot, canCreate, createView, creationsQuery } from './creation.js';
-
-const DELIVERY_MAX = 500;
 
 // Меню бота: события человека с признаками «есть подопечный» и «есть Санта» — один запрос на любое число событий
 // (009, FR-913; 029 — из bot.js)
@@ -79,11 +74,11 @@ export async function homeView(ctx) {
   };
 }
 
-// event.get: участнику — его письмо, адрес, есть ли подопечный и Санта, непрочитанное; админу-неучастнику — событие
+// event.get: участнику — его письмо, есть ли подопечный и Санта, непрочитанное; админу-неучастнику — событие
 export async function eventView(ctx, ev, member) {
   const { db, me } = ctx;
   // Одним пакетом чтений (019): участники (037: и список для «Инфо»), объявления, пары и непрочитанное участника,
-  // счётчики обращений, суммы по парам, пользователи и настройки (организаторы, ссылка-приглашение)
+  // счётчики обращений, пользователи и настройки (организаторы, ссылка-приглашение)
   const r = await ctx.read({
     people: peopleQuery(db, ev.id),
     announcements: announcementsQuery(db, ev.id, ctx.t('db.announcementAuthor')), // 007, FR-701
@@ -91,7 +86,6 @@ export async function eventView(ctx, ev, member) {
     wardPair: member && pairOfWardQuery(db, ev.id, me.tg_id),
     unread: member && unreadQuery(db, ev.id, me.tg_id),
     support: supportCountsQuery(db, ev, me),
-    gifts: ev.draw_done && giftTotalsQuery(db, ev.id),
     users: true,
     settings: true,
   });
@@ -101,7 +95,7 @@ export async function eventView(ctx, ev, member) {
   const role = ownerId === me.tg_id ? 'owner' : (await ctx.organizerOf()).has(ev.id) ? 'admin' : member ? 'member' : 'guest';
   const out = {
     event: { ...publicEvent(ev), participants: r.people.length, role, bot_run: !ev.owner_id },
-    roster: rosterView(ev, r.people, r.gifts?.[0], r.users, ownerId, r.settings),
+    roster: rosterView(ev, r.people, r.users, ownerId, r.settings),
     announcements: r.announcements,
     member: null,
     can: { edit_letter: false, chat_write: false },
@@ -118,9 +112,6 @@ export async function eventView(ctx, ev, member) {
       card: member.card, // 038: открытка письма
       has_ward: !!pair,
       has_santa: !!wardPair,
-      gift_received: !!wardPair?.gift_received, // 007, FR-704
-      delivery: member.delivery, // 008: свой адрес доставки
-      ...(ev.delivery_on && wardPair ? { shipment: shipmentDetails(wardPair) } : {}),
       unread: pair || wardPair ? unreadFrom(r.unread) : { from_ward: 0, from_santa: 0 },
     };
     out.can = { edit_letter: !isFinished(ev), chat_write: chatWritable(ev) };
@@ -130,11 +121,11 @@ export async function eventView(ctx, ev, member) {
   return out;
 }
 
-// Список участников на «Инфо» (037, specs/037-info-people/contracts/info-people.md): имена, роли и общие суммы — ни
-// отметок по людям, ни пар; @username — только если организатор разрешил участникам писать друг другу
+// Список участников на «Инфо» (037, specs/037-info-people/contracts/info-people.md): имена, роли и до жеребьёвки — сколько
+// написали письма; ни отметок по людям, ни пар. @username — у каждого, у кого он есть (064)
 const byName = (a, b) => a.name.localeCompare(b.name, 'ru') || a.id - b.id;
-export function rosterView(ev, people, gifts, users, ownerId, settings) {
-  const contact = (u) => ev.contacts_on && u.username ? { username: u.username } : {};
+export function rosterView(ev, people, users, ownerId, settings) {
+  const contact = (u) => (u.username ? { username: u.username } : {});
   const role = (u) => (u.tg_id === ownerId ? 'owner' : u.is_admin ? 'admin' : '');
   const admins = users.filter((u) => u.is_admin && u.registered);
   return {
@@ -143,9 +134,7 @@ export function rosterView(ev, people, gifts, users, ownerId, settings) {
       ...admins.filter((u) => u.tg_id === ownerId),
       ...admins.filter((u) => u.tg_id !== ownerId).map((u) => ({ ...u, id: u.tg_id })).sort(byName),
     ].map((u) => ({ id: u.tg_id, name: u.name, owner: u.tg_id === ownerId, ...contact(u) })),
-    progress: ev.draw_done
-      ? { ready: gifts.ready, received: gifts.received, of: gifts.n }
-      : { letters: people.filter((m) => m.has_wishlist).length, of: people.length },
+    progress: ev.draw_done ? null : { letters: people.filter((m) => m.has_wishlist).length, of: people.length },
     invite_link: ev.registration_open && !isFinished(ev) ? inviteLink(settings, ev) : '',
   };
 }
@@ -158,9 +147,9 @@ export async function setCard(ctx, ev, raw) {
   return { ok: true, card };
 }
 
-// 057: правка письма или адреса — отметка «ждёт уведомления Санте» (время правки) в той же записи, если у участника есть
-// Санта; минутная проверка (src/cron.js) читает только отметки. Каждая запись, меняющая время письма или адреса, — с ней
-// (тест cron-marks). Параметр — время правки
+// 057: правка письма — отметка «ждёт уведомления Санте» (время правки) в той же записи, если у участника есть Санта;
+// минутная проверка (src/cron.js) читает только отметки. Каждая запись, меняющая время письма, — с ней (тест cron-marks).
+// Параметр — время правки
 export const NOTIFY_MARK = `notify_at = CASE WHEN EXISTS (SELECT 1 FROM pairs WHERE pairs.event_id = members.event_id
   AND pairs.ward = members.user_id) THEN ? ELSE notify_at END`;
 
@@ -203,20 +192,7 @@ export async function writeLetterDraft(ctx, ev, member, body, publish) {
   return result.meta.changes ? { ok: true, revision: body.revision + 1, updated_at: updated } : no(conflict);
 }
 
-// Адрес доставки (008): виден только самому участнику и его Санте. «Адрес не нужен» — раньше «завершено».
-export async function saveDelivery(ctx, ev, member, raw) {
-  if (!ev.delivery_on) return no(tx('participant.noDelivery'));
-  if (isFinished(ev)) return no(tx('participant.deliveryClosed'));
-  const text = cleanText(raw);
-  if (text.length > DELIVERY_MAX) return no(tx('common.tooLong', { n: text.length, max: DELIVERY_MAX }));
-  if (text === member.delivery) return { ok: true, updated_at: member.delivery_updated_at };
-  const now = Date.now();
-  await ctx.db.prepare(`UPDATE members SET delivery = ?, delivery_updated_at = ?, ${NOTIFY_MARK} WHERE event_id = ? AND user_id = ?`)
-    .bind(text, now, now, ev.id, ctx.me.tg_id).run();
-  return { ok: true, updated_at: now };
-}
-
-// ward.get: подопечный, его письмо и адрес (только Санте); открытие запоминает увиденное письмо
+// ward.get: подопечный и его письмо (только Санте); открытие запоминает увиденное письмо
 export async function wardView(ctx, ev) {
   const { db, me } = ctx;
   if (!ev.draw_done) return { state: 'no_draw' };
@@ -235,47 +211,9 @@ export async function wardView(ctx, ev) {
       wishlist: wardMember.wishlist,
       card: wardMember.card,
       updated_at: wardMember.wishlist_updated_at,
-      ...(ev.delivery_on ? { delivery: wardMember.delivery } : {}), // 008: адрес — только Санте
     },
     previous: prev === null || prev === wardMember.wishlist ? null : prev,
     first_view: prev === null,
-    gift_ready: !!pair.gift_ready,
-    ...(ev.delivery_on ? { shipment: { ...shipmentDetails(pair), version: pair.shipment_version },
-      timezone_offset_hours: Number(ctx.env.TIMEZONE_OFFSET_HOURS ?? 3) } : {}),
   };
 }
 
-const NO_WARD = tx('chat.noWard');
-
-export async function setGiftReady(ctx, ev, ready) {
-  const r = await ctx.db.prepare('UPDATE pairs SET gift_ready = ?1 WHERE event_id = ?2 AND santa = ?3 AND (?1 = 1 OR gift_sent = 0)').bind(ready ? 1 : 0, ev.id, ctx.me.tg_id).run();
-  if (!r.meta.changes) {
-    const pair = await pairOfSanta(ctx.db, ev.id, ctx.me.tg_id);
-    return no(pair?.gift_sent ? tx('participant.unmarkSentFirst') : NO_WARD);
-  }
-  return { ok: true };
-}
-
-// Подопечный отмечает «подарок получен» (007, FR-704). Санта узнаёт об этом только при первой отметке.
-// Защита от двойного нажатия (020): сообщение — перед отметкой и только пока отметки нет. Второй вызов (даже в ту же
-// миллисекунду) видит отметку первого и ничего не рассылает.
-export async function setGiftReceived(ctx, ev, received) {
-  const { db, me } = ctx;
-  const pair = await pairOfWard(db, ev.id, me.tg_id);
-  if (!pair) return no(tx('participant.noSanta'));
-  const on = received ? 1 : 0;
-  const a = atomic(db, 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND ward = ? AND gift_received_at = 0)', ev.id, me.tg_id);
-  if (on && !pair.gift_received_at) {
-    const settings = await ctx.settings();
-    a.enqueue(pair.santa, msg(
-      tx('participant.giftReceived', { title: q(ev) }),
-      appKeyboard(settings, tx('events.openButton'), { event: ev.id })
-    ));
-  }
-  a.claim(db.prepare(
-    `UPDATE pairs SET gift_received = ?, gift_received_at = CASE WHEN ? = 1 AND gift_received_at = 0 THEN ? ELSE gift_received_at END
-      WHERE event_id = ? AND ward = ?`
-  ).bind(on, on, Date.now(), ev.id, me.tg_id));
-  await a.run();
-  return { ok: true };
-}

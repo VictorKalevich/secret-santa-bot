@@ -17,7 +17,7 @@ const fullScans = (sqlite, sql) => scansOf(sqlite, sql, { tables: SERVICE });
 const cronStatements = (w) => statementsDuring(w, () => w.cron());
 
 const NOTIFY = /MAX\(w\.wishlist_updated_at, w\.delivery_updated_at\) AS upd/;
-const DAILY = /FROM events WHERE status = 'active' AND checked_on < \?2/;
+const DAILY = /FROM events WHERE status = 'active' AND checked_on < \?1/;
 // Люди события (063: контекст события ctx.at — eventUsersQuery)
 const PEOPLE = /\bFROM event_admins WHERE event_id = \?1\b/;
 const plan = (w, sql) => w.DB.sqlite.prepare('EXPLAIN QUERY PLAN ' + sql).all().map((r) => r.detail);
@@ -67,7 +67,7 @@ test('cron на базе с историей: только отметки по �
   assert.equal(w.DB.sqlite.prepare(notify).all(Date.now()).length, 0, 'отметок нет');
   const today = w.query('SELECT checked_on FROM events WHERE id = ?', B)[0].checked_on;
   assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
-  assert.equal(w.DB.sqlite.prepare(daily).all(1, today, Date.now()).length, 0, 'непроверенных событий нет');
+  assert.equal(w.DB.sqlite.prepare(daily).all(today, Date.now()).length, 0, 'непроверенных событий нет');
 });
 
 test('уведомление: от отметок к паре, событию и Санте — пары и участники без правок не перебираются', async () => {

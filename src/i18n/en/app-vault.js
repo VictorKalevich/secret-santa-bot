@@ -1,4 +1,4 @@
-// Texts of the app part 07-vault-audit (061, English): the owner's service view, draw management (swapping giftees),
+// Texts of the app part 07-vault-audit (061, English): the owner's service view, giftee swap,
 // activity log
 export default {
   // Shared: the owner plays too; name in the participant list
@@ -26,16 +26,12 @@ export default {
   'app.vault.person.santa': 'Santa',
   'app.vault.person.noDraw': 'no draw yet',
   'app.vault.person.noSanta': 'none',
-  'app.vault.person.shipping': 'Shipping',
-  'app.vault.person.giftSent': 'Gift sent',
-  'app.vault.person.notMarked': 'Not marked',
   'app.vault.person.letter': 'Letter to Santa',
-  'app.vault.person.address': 'Delivery address',
   'app.vault.person.santaNamed': 'Santa ({name})',
   'app.vault.person.ward': 'Giftee',
   'app.vault.person.wardNamed': 'Giftee ({name})',
-  // Draw management (048, 049): swapping the giftees of two participants
-  'app.vault.swap.title': '🔀 Draw management',
+  // Giftee swap (048, 049): swapping the giftees of two participants
+  'app.vault.swap.title': '🔀 Giftee swap',
   'app.vault.swap.youPlay': 'If you choose yourself, a rule warning or a refusal may hint at who your Santa is.',
   'app.vault.swap.hint': 'Choose two participants — they’ll swap giftees. Who gives to whom isn’t shown here.',
   'app.vault.swap.go': '🔀 Swap giftees',

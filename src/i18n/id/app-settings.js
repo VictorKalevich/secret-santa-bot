@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': '🔔 Suara',
   'app.settings.notify.silent': '🔕 Senyap',
   'app.settings.notify.off': '🚫 Mati',
-  'app.settings.notify.hint': 'Berlaku untuk pesan «penerima kado mengubah suratnya» dan «kado sudah dikirim».',
-  // "About the bot": how it works (items - app.event.how.*)
-  'app.settings.about': 'Tentang bot',
   // Bot owner section
   'app.settings.bot.title': 'Pemilik bot',
   'app.settings.bot.events': '🗂 Semua acara',

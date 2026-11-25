@@ -25,12 +25,10 @@ export default {
   // Reveal: {name} - Santa's name
   'events.alreadyRevealed': "Il segreto è già stato svelato.",
   'events.revealed': "🎅 <b>Il segreto è svelato!</b>\n\nNell'evento {title} il tuo Babbo Natale segreto è <b>{name}</b>. Buone feste! 🎄",
-  // Reminders: empty letter (with and without a deadline) and to Santas (with and without the exchange date)
+  // Reminders: empty letter (with and without a deadline)
   'events.remindAgain': "Il promemoria è già stato inviato: potrai ripetere tra un minuto.",
   'events.remindUnfilled': "⏰ Promemoria: la tua letterina a Babbo Natale nell'evento {title} è ancora vuota. Compilala, così sarà più facile scegliere il regalo.",
   'events.remindUnfilledBy': "⏰ Promemoria: la tua letterina a Babbo Natale nell'evento {title} è ancora vuota. Compilala entro il <b>{date}</b>, così sarà più facile scegliere il regalo.",
-  'events.remindSantas': "🎁 Promemoria per Babbo Natale ({title}): il regalo per il tuo destinatario è pronto?\nQuando lo sarà, segnalalo nella scheda «Destinatario».",
-  'events.remindSantasDated': "🎁 Promemoria per Babbo Natale ({title}): il regalo per il tuo destinatario è pronto? Lo scambio dei regali è il <b>{date}</b>.\nQuando lo sarà, segnalalo nella scheda «Destinatario».",
   // Announcements (007)
   'events.announceFinished': "L'evento è concluso: non si possono più inviare annunci.",
   'events.announceEmpty': "Scrivi il testo dell'annuncio.",

@@ -1,4 +1,4 @@
-// Texts of app part 07-vault-audit (060): restricted area of the owner, draw management (giftee swap),
+// Texts of app part 07-vault-audit (060): restricted area of the owner, giftee swap,
 // activity log
 export default {
   // Shared: the owner plays too; name in the participant list
@@ -26,16 +26,12 @@ export default {
   'app.vault.person.santa': 'Papai Noel',
   'app.vault.person.noDraw': 'ainda não houve sorteio',
   'app.vault.person.noSanta': 'nenhum',
-  'app.vault.person.shipping': 'Envio',
-  'app.vault.person.giftSent': 'Presente enviado',
-  'app.vault.person.notMarked': 'Não marcado',
   'app.vault.person.letter': 'Carta ao Papai Noel',
-  'app.vault.person.address': 'Endereço de entrega',
   'app.vault.person.santaNamed': 'Papai Noel ({name})',
   'app.vault.person.ward': 'Presenteado',
   'app.vault.person.wardNamed': 'Presenteado ({name})',
-  // Draw management (048, 049): swapping giftees of two participants
-  'app.vault.swap.title': '🔀 Gerenciar sorteio',
+  // Giftee swap (048, 049): swapping giftees of two participants
+  'app.vault.swap.title': '🔀 Troca de presenteados',
   'app.vault.swap.youPlay': 'Se você se escolher, o aviso sobre as regras ou a recusa podem dar uma pista de quem é seu Papai Noel.',
   'app.vault.swap.hint': 'Escolha dois participantes — eles vão trocar de presenteado. Aqui não dá para ver quem presenteia quem.',
   'app.vault.swap.go': '🔀 Trocar presenteados',

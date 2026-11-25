@@ -7,7 +7,6 @@ export default {
   // What is not allowed in a finished event
   'api.closed': 'Acara sudah selesai — tidak bisa diubah lagi (masih bisa dilihat, diungkap, dan dihapus).',
   'api.letterClosed': 'Acara sudah selesai: surat sekarang hanya bisa dibaca.',
-  'api.markClosed': 'Acara sudah selesai: tanda ini hanya bisa dibaca.',
   // Confirmation word missing
   'api.confirm.delete': 'Untuk menghapus, ketik kata {word}.',
   'api.confirm.leave': 'Untuk keluar, ketik kata {word}.',

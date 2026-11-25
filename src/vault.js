@@ -1,4 +1,4 @@
-// Служебный просмотр владельца бота (010, Конституция 2.0.0, принцип I): единственное место, где пары, письма, адреса и
+// Служебный просмотр владельца бота (010, Конституция 2.0.0, принцип I): единственное место, где пары, письма и
 // переписка читаются не для самого Санты. Только владелец (проверяет api.js), каждое открытие — запись в журнал эвента
 // (без пар), статусы участников не меняются: здесь нет ни одного UPDATE.
 
@@ -21,7 +21,7 @@ function chatOf(results) {
   return results.reverse().map((m) => ({ from: m.sender === 'santa' ? 'santa' : 'ward', text: m.text, created_at: m.created_at }));
 }
 
-// Участник: кому дарит, кто его Санта, письмо, адрес, переписка с Сантой и с подопечным
+// Участник: кому дарит, кто его Санта, письмо, переписка с Сантой и с подопечным
 export async function vaultPerson(ctx, ev, id, actor) {
   const db = ctx.db;
   // Люди — из списка пользователей вызова (019), участие — одним пакетом с ним
@@ -48,12 +48,10 @@ export async function vaultPerson(ctx, ev, id, actor) {
     ok: true,
     person: who(user, id),
     in_draw: !!asSanta,
-    ...(ev.delivery_on && asSanta ? { gift_sent: !!asSanta.gift_sent } : {}),
     ward: asSanta ? who(wardUser, asSanta.ward) : null,
     santa: asWard ? who(santaUser, asWard.santa) : null,
     wishlist: member.wishlist,
     wishlist_updated_at: member.wishlist_updated_at,
-    ...(ev.delivery_on ? { delivery: member.delivery } : {}),
     chat_with_santa: withSanta,
     chat_with_ward: withWard,
   };

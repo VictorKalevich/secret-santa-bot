@@ -1,5 +1,5 @@
 // 057 (specs/057-cron-marks/): минутная проверка по отметкам. Уведомление Санте «обновил письмо» — по отметке участника
-// (members.notify_at): ставят записи письма и адреса при наличии Санты, снимает минутная проверка, если после чтения не
+// (members.notify_at): ставят записи письма при наличии Санты (064: адреса нет), снимает минутная проверка, если после чтения не
 // было новой правки; текст, задержка и режимы — прежние. Ежедневный шаг — по отметке события (events.checked_on):
 // проверенное сегодня событие не читается, сохранение параметров, жеребьёвка и сброс отметку снимают, напоминание не
 // повторяется. Контракт — specs/057-cron-marks/contracts/cron-marks.md.
@@ -26,7 +26,7 @@ async function later(minutes, fn) {
   }
 }
 
-// Событие после жеребьёвки: владелец и трое участников, адрес доставки включён, задержка уведомления — 10 минут
+// Событие после жеребьёвки: владелец и трое участников, задержка уведомления — 10 минут
 async function drawnWorld() {
   const w = await startWorld({ notifyDelay: 10 });
   const boss = { id: 5701, name: 'Владелец', username: 'boss' };
@@ -44,7 +44,6 @@ async function drawnWorld() {
   };
   const ev = await create('Отметки', [a, b, c]);
   await w.api(boss, 'admin.participate', { event: ev, on: true });
-  await w.api(boss, 'admin.game', { event: ev, delivery_on: true });
   for (const u of [boss, a, b, c]) await w.api(u, 'wishlist.save', { event: ev, text: 'Хочу книгу ' + u.id });
   const before = w.query('SELECT notify_at FROM members WHERE event_id = ?', ev).map((r) => r.notify_at);
   assert.deepEqual(before, [0, 0, 0, 0], 'до жеребьёвки — без отметок (уведомлять некого)');
@@ -70,7 +69,7 @@ test('US1: правка после жеребьёвки — отметка; че
   await later(11, () => w.cron());
   const sent = notes(santa);
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].params.text, '📝 Твой подопечный в событии «Отметки» обновил письмо или адрес доставки.');
+  assert.equal(sent[0].params.text, '📝 Твой подопечный в событии «Отметки» обновил письмо Санте.');
   assert.match(JSON.stringify(sent[0].params.reply_markup), /👀 Посмотреть/);
   assert.ok(!sent[0].params.disable_notification);
   assert.equal(mark(a), 0, 'отметка снята');
@@ -84,24 +83,23 @@ test('US1: правка после жеребьёвки — отметка; че
   assert.equal(notes(santa).length, 2, 'серия — одно сообщение');
 });
 
-test('US1: адрес доставки, режимы «выключено» и «без звука», публикация черновика; без изменений, черновик и открытка — без отметки', async () => {
+test('US1: режимы «выключено» и «без звука», публикация черновика; без изменений, черновик и открытка — без отметки', async () => {
   const { w, boss, a, b, c, ev, mark, santaOf, notes, who } = await drawnWorld();
-  await w.api(b, 'delivery.save', { event: ev, text: 'Минск, Победителей 1' });
-  assert.ok(mark(b) > 0, 'адрес — отметка');
+  await w.api(b, 'wishlist.save', { event: ev, text: 'Хочу плед' });
+  assert.ok(mark(b) > 0, 'письмо — отметка');
   await w.api(who(santaOf(c)), 'notify.set', { mode: 'off' });
   await w.api(c, 'wishlist.save', { event: ev, text: 'Хочу чай' });
   const cTime = mark(c);
   await w.api(who(santaOf(a)), 'notify.set', { mode: 'silent' });
   await w.api(a, 'wishlist.save', { event: ev, text: 'Хочу кофе' });
   await later(11, () => w.cron());
-  assert.match(notes(santaOf(b))[0].params.text, /обновил письмо или адрес доставки/);
+  assert.match(notes(santaOf(b))[0].params.text, /обновил письмо Санте/);
   assert.equal(notes(santaOf(c)).length, 0, 'уведомления выключены — сообщения нет');
   assert.equal(mark(c), 0);
   assert.equal(w.query('SELECT notified_at FROM pairs WHERE event_id = ? AND ward = ?', ev, c.id)[0].notified_at, cTime, 'правка учтена');
   assert.equal(notes(santaOf(a))[0].params.disable_notification, true, 'без звука');
   // Без изменений, открытка — не правка
   await w.api(a, 'wishlist.save', { event: ev, text: 'Хочу кофе' });
-  await w.api(a, 'delivery.save', { event: ev, text: '' });
   await w.api(a, 'card.set', { event: ev, card: 'snow' });
   assert.equal(mark(a), 0, 'сохранение без изменений и открытка — без отметки');
   // Черновики (041): черновик — без отметки, публикация изменённого — отметка и уведомление, неизменённого — без
@@ -174,11 +172,11 @@ test('US1: без Санты и при перестройке пар — сня�
 const literals = (text) => [...text.matchAll(/`(?:\\.|[^`\\])*`|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"/g)].map((m) => m[0]);
 const unmarked = (text) => literals(text).filter((l) => /(?:wishlist|delivery)_updated_at = \?/.test(l) && !l.includes('${NOTIFY_MARK}'));
 
-test('контракт: каждая запись, меняющая время письма или адреса, ставит отметку; «от противного»', () => {
+test('контракт: каждая запись, меняющая время письма, ставит отметку; «от противного»', () => {
   const dir = new URL('../src/', import.meta.url);
   const files = readdirSync(dir).filter((f) => f.endsWith('.js'));
   const writes = files.flatMap((f) => literals(readFileSync(new URL(f, dir), 'utf8')).filter((l) => /(?:wishlist|delivery)_updated_at = \?/.test(l)).map(() => f));
-  assert.deepEqual(writes, ['participant.js', 'participant.js', 'participant.js'], 'три записи: письмо, публикация, адрес');
+  assert.deepEqual(writes, ['participant.js', 'participant.js'], 'две записи: письмо и публикация (064: адреса нет)');
   assert.deepEqual(files.flatMap((f) => unmarked(readFileSync(new URL(f, dir), 'utf8')).map((l) => `${f}: ${l.slice(0, 80)}`)), []);
   assert.deepEqual(unmarked("db.prepare('UPDATE members SET delivery = ?, delivery_updated_at = ? WHERE event_id = ?')").length, 1, 'запись без отметки находится');
 });
@@ -229,7 +227,7 @@ test('US2: проверенное сегодня событие не читае�
   assert.deepEqual([ev(E1).last_daily, ev(E2).last_daily], [local(0), local(0)]);
   const list = await statementsDuring(w, () => w.cron());
   const daily = list.find((s) => /AS outsiders/.test(s));
-  assert.equal(w.DB.sqlite.prepare(daily).all(0, local(0), Date.now()).length, 0, 'запрос ежедневного шага ничего не находит');
+  assert.equal(w.DB.sqlite.prepare(daily).all(local(0), Date.now()).length, 0, 'запрос ежедневного шага ничего не находит');
   assert.equal(w.last.db, 3);
 });
 

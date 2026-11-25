@@ -18,9 +18,6 @@ export default {
   'app.settings.notify.sound': '🔔 Dźwięk',
   'app.settings.notify.silent': '🔕 Cicho',
   'app.settings.notify.off': '🚫 Wył.',
-  'app.settings.notify.hint': 'Dotyczy wiadomości „podopieczny zmienił list” i „prezent wysłany”.',
-  // "About the bot": how it works (items - app.event.how.*)
-  'app.settings.about': 'O bocie',
   // Bot owner section
   'app.settings.bot.title': 'Właściciel bota',
   'app.settings.bot.events': '🗂 Wszystkie wydarzenia',

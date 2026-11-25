@@ -7,18 +7,19 @@
 // слов подтверждения, людей и текстов) — опасные действия получают отказ по данным, а не по правам. Админ и владелец
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
 //
-// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 041, 042, 048, 051, 061, 063), проходят те
+// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 041, 048, 051, 061, 063), проходят те
 // же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются; их ответы —
-// новые ключи эталона «035 …», «038 …», «041 …», «042 …», «048 …», «051 …», «061 …» и «063 …» (063 — ещё и второй мир,
+// новые ключи эталона «035 …», «038 …», «041 …», «048 …», «051 …», «061 …» и «063 …» (063 — ещё и второй мир,
 // открытый бот: «063 open …»). 062: действий семей и маски (040) нет; 063: нет действий комнат (051, 052) и
-// admin.events.create, admin.users — их ответы из эталона удалены (tests/api-refusals.test.mjs).
+// admin.events.create, admin.users; 064: нет адреса, отметок подарка, посылки (042) и напоминания Сантам — их ответы из
+// эталона удалены (tests/api-refusals.test.mjs).
 import { startWorld } from './world.mjs';
 
-// 54 действия в порядке таблицы ACTIONS (src/api.js): 13 участника, 2 общих админа, 39 — в пределах события (062: без
+// 50 действий в порядке таблицы ACTIONS (src/api.js): 10 участника, 2 общих админа, 38 — в пределах события (062: без
 // admin.families, admin.family.save, admin.family.delete; 063: без admin.events.create и admin.users, admin.audit и
-// действия ролей — действия события)
+// действия ролей — действия события; 064: без delivery.save, ward.gift, ward.received, admin.remind.santas)
 export const ACTION_LIST = [
-  'me', 'notify.set', 'event.get', 'wishlist.save', 'delivery.save', 'ward.get', 'ward.gift', 'ward.received',
+  'me', 'notify.set', 'event.get', 'wishlist.save', 'ward.get',
   'message.send', 'chat.get', 'support.get', 'support.send', 'support.close',
   'admin.rename', 'admin.transfer',
   'admin.state', 'admin.audit', 'admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.wishlist', 'admin.game', 'admin.ring', 'admin.registration', 'admin.invite.regen',
@@ -26,7 +27,7 @@ export const ACTION_LIST = [
   'admin.exclusion.add', 'admin.exclusion.del', 'admin.fixed.add', 'admin.fixed.del', 'admin.draw.check', 'admin.draw',
   'admin.draw.cancel', 'admin.draw.cancel.force', 'admin.support.get', 'admin.support.take', 'admin.support.send',
   'admin.support.pass', 'admin.support.close', 'admin.announce', 'admin.request.decide', 'admin.remind.unfilled',
-  'admin.remind.santas', 'admin.reveal', 'admin.event.finish', 'admin.event.invite_from', 'admin.event.delete',
+  'admin.reveal', 'admin.event.finish', 'admin.event.invite_from', 'admin.event.delete',
   'admin.vault.person', 'admin.vault.pairs', 'admin.reset.full',
 ];
 // Неизвестные действия идут тем же путём, что и известные (админа — до события, участника — до участия)
@@ -35,7 +36,6 @@ export const UNKNOWN = ['admin.nope', 'nope'];
 export const NEW_ACTIONS = ['name.set', 'event.leave'];
 // 038: значок у имени и открытка письма
 export const NEW_ACTIONS_038 = ['card.set'];
-export const NEW_ACTIONS_042 = ['ward.shipment'];
 export const NEW_ACTIONS_041 = ['wishlist.draft', 'wishlist.publish'];
 // 048: обмен подопечных после жеребьёвки — только владелец
 export const NEW_ACTIONS_048 = ['admin.draw.swap.check', 'admin.draw.swap'];
@@ -96,7 +96,7 @@ export async function runRefusals() {
   await join(F, [member]);
   await w.api(boss, 'admin.event.finish', { event: F });
   const FD = withAdmin(await create('Завершено с адресом'));
-  await w.api(boss, 'admin.game', { event: FD, delivery_on: true });
+  w.sql(`UPDATE events SET delivery_on = 1 WHERE id = ${FD}`); // 064: как оставил прежний код — ответы от этого не зависят
   await join(FD, [member]);
   await w.api(boss, 'admin.event.finish', { event: FD });
   const FO = withAdmin(await create('Завершено давно'));
@@ -151,7 +151,6 @@ export async function runRefusals() {
     ['transfer-to-admin', boss, 'admin.transfer', { from: outsider.id, to: adm.id }],
     ['audit-event-zero', boss, 'admin.audit', { event: 0 }],
     ['audit-event-finished', adm, 'admin.audit', { event: F }],
-    ['delivery-finished', member, 'delivery.save', { event: FD, text: 'Минск' }],
     ['wishlist-finished', member, 'wishlist.save', { event: F, text: 'Книга' }],
     ['event.get-admin', adm, 'event.get', { event: E }],
     ['ward.get-admin', adm, 'ward.get', { event: E }],
@@ -203,9 +202,6 @@ export async function runRefusals() {
 
   for (const [name, user, ev] of situations) {
     for (const a of NEW_ACTIONS_041) await record(`041 ${name} ${a}`, user, a, body(await ev()));
-  }
-  for (const [name, user, ev] of situations) {
-    for (const a of NEW_ACTIONS_042) await record(`042 ${name} ${a}`, user, a, body(await ev()));
   }
   // ---------- 048: обмен подопечных — те же ситуации; один человек дважды, не в жеребьёвке, «сам себе», версия ----------
   for (const [name, user, ev] of situations) {

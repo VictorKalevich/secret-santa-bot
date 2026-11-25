@@ -16,8 +16,8 @@ import { tx, tjoin } from './i18n/index.js';
 export async function adminState(ctx, ev) {
   const { db, me } = ctx;
   const [ownerId, isOwner, settings, botOwner] = await Promise.all([ctx.ownerId(), ctx.isOwner(), ctx.settings(), ctx.isBotOwner()]);
-  // Всё состояние — одним пакетом чтений (019). Тексты писем, адреса и увиденные письма не читаются: «письмо есть»,
-  // «адрес указан» и «открыл подопечного» считаются в базе
+  // Всё состояние — одним пакетом чтений (019). Тексты писем и увиденные письма не читаются: «письмо есть» и «открыл
+  // подопечного» считаются в базе
   const r = await ctx.read({
     members: panelMembersQuery(db, ev.id),
     pairs: panelPairsQuery(db, ev.id),
@@ -43,10 +43,7 @@ export async function adminState(ctx, ev) {
   const cancelable = !!r.cancelable[0]?.ok;
   const fixed = isOwner ? r.fixed : null;
   const santas = new Set(pairs.map((p) => p.santa));
-  const ready = new Set(pairs.filter((p) => p.gift_ready).map((p) => p.santa));
-  const sent = new Set(pairs.filter((p) => p.gift_sent).map((p) => p.santa));
-  // 007: статусы человека, а не пары — «получил подарок» (как подопечный) и «открыл подопечного» (как Санта)
-  const received = new Set(pairs.filter((p) => p.gift_received).map((p) => p.ward));
+  // Статус человека, а не пары — «открыл подопечного» (как Санта)
   const seen = new Set(pairs.filter((p) => p.seen).map((p) => p.santa));
   const memberIds = new Set(members.map((m) => m.user_id));
   return {
@@ -59,13 +56,8 @@ export async function adminState(ctx, ev) {
       is_owner: u.user_id === ownerId,
       has_wishlist: !!u.has_wishlist,
       in_draw: santas.has(u.user_id),
-      gift_ready: ready.has(u.user_id),
-      ...(ev.delivery_on ? { gift_sent: sent.has(u.user_id) } : {}),
       blocked: !!u.blocked_at, // Telegram сообщил, что бот заблокирован (006)
-      gift_received: received.has(u.user_id),
       ward_seen: santas.has(u.user_id) ? seen.has(u.user_id) : null,
-      // 008: только «указан ли адрес» — сам адрес админу не отдаётся
-      ...(ev.delivery_on ? { has_delivery: !!u.has_delivery } : {}),
     })),
     requests: requests.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, username: r.username, created_at: r.created_at })),
     removed: removed.map((r) => ({ id: r.user_id, name: r.name, username: r.username, removed_at: r.removed_at })),
@@ -87,7 +79,6 @@ export async function adminState(ctx, ev) {
       draw_at: ev.draw_at,
       owner_id: ownerId,
       reveal_auto: !!ev.reveal_auto,
-      finish_auto: !!ev.finish_auto,
       draw_cancelable: cancelable,
     },
   };

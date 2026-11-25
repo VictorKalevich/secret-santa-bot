@@ -1,5 +1,6 @@
 // Тайна по значениям (016, FR-1607; Конституция, принцип I): ответы организаторам не зависят от пар, писем и адресов.
-// Не «нет ключа с подозрительным именем», а «перестановка пар в базе не меняет ни одного байта ответа».
+// Не «нет ключа с подозрительным именем», а «перестановка пар в базе не меняет ни одного байта ответа». 064: адреса,
+// отметки подарков и посылка код больше не пишет — в базе они остаются от прежнего кода, и ответы от них не зависят.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startWorld, restoreFetch } from './support/world.mjs';
@@ -23,7 +24,8 @@ async function join(w, u, code) {
 }
 
 // Колонки пар: у Санты — его статусы, у подопечного — его. Новая колонка в pairs — решить, чья она, здесь.
-// Маска (040) — выбор Санты: остаётся у него (с 062 код её не пишет, колонка осталась ради отката)
+// Маска (040) — выбор Санты: остаётся у него (с 062 код её не пишет, колонка осталась ради отката); отметки подарка и
+// посылка — с 064 так же
 const SANTA_COLS = ['seen_text', 'notified_at', 'gift_ready', 'mask', 'gift_sent', 'sent_date', 'carrier', 'tracking', 'shipment_version'];
 const WARD_COLS = ['gift_received', 'gift_received_at'];
 
@@ -73,7 +75,8 @@ before(async () => {
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
   E1 = (await w.api(boss, 'event.create', { participate: false, title: 'Тайна' })).event.id;
-  await w.api(boss, 'admin.game', { event: E1, delivery_on: true, budget: '50 р.' });
+  await w.api(boss, 'admin.game', { event: E1, budget: '50 р.' });
+  w.sql(`UPDATE events SET delivery_on = 1 WHERE id = ${E1}`); // как оставил прежний код
   const code1 = inviteOf(await w.api(boss, 'admin.state', { event: E1 }));
   for (const u of [adm, adm2, ...people]) await join(w, u, code1);
   await w.api(boss, 'admin.role.grant', { event: E1, id: adm.id });
@@ -84,19 +87,19 @@ before(async () => {
   for (const [i, u] of people.entries()) {
     if (i === 7) continue; // одно письмо пустое — статус «письмо пусто» тоже в ответах
     await w.api(u, 'wishlist.save', { event: E1, text: letter(i) });
-    await w.api(u, 'delivery.save', { event: E1, text: address(i) });
+    w.query('UPDATE members SET delivery = ?, delivery_updated_at = ? WHERE event_id = ? AND user_id = ?', address(i), Date.now(), E1, u.id);
   }
   // Бывшая семья — взаимное исключение (062)
   await w.api(adm, 'admin.exclusion.add', { event: E1, giver: people[0].id, receiver: people[1].id });
   await w.api(adm, 'admin.exclusion.add', { event: E1, giver: people[1].id, receiver: people[0].id });
   await w.api(adm, 'admin.exclusion.add', { event: E1, giver: people[2].id, receiver: people[3].id });
   await w.api(adm, 'admin.draw', { event: E1 });
-  // Статусы, которые видит админ: открыл подопечного, подарок готов, подарок получен; переписка; обращение
+  // Статус, который видит админ: открыл подопечного; отметки подарка и посылка — как их оставил прежний код; переписка;
+  // обращение
   for (const u of people.slice(0, 4)) await w.api(u, 'ward.get', { event: E1 });
-  for (const u of [people[0], people[4]]) await w.api(u, 'ward.gift', { event: E1, ready: true });
-  const { shipment } = await w.api(people[0], 'ward.get', { event: E1 });
-  await w.api(people[0], 'ward.shipment', { event: E1, version: shipment.version, sent: true, tracking: 'PRIVATE-042' });
-  for (const u of [people[5], people[6]]) await w.api(u, 'ward.received', { event: E1, received: true });
+  w.sql(`UPDATE pairs SET gift_ready = 1 WHERE event_id = ${E1} AND santa IN (${people[0].id}, ${people[4].id})`);
+  w.sql(`UPDATE pairs SET gift_sent = 1, tracking = 'PRIVATE-042', shipment_version = 2 WHERE event_id = ${E1} AND santa = ${people[0].id}`);
+  w.sql(`UPDATE pairs SET gift_received = 1, gift_received_at = 1 WHERE event_id = ${E1} AND ward IN (${people[5].id}, ${people[6].id})`);
   await w.api(people[1], 'message.send', { event: E1, to: 'ward', text: 'Привет, подопечный!' });
   await w.api(people[2], 'message.send', { event: E1, to: 'santa', text: 'Привет, Санта!' });
   await w.api(people[6], 'support.send', { event: E1, text: 'Вопрос организатору: метка обращения S7Q.' });
@@ -140,9 +143,13 @@ test('тайна: перестановка пар в базе не меняет 
   const users = JSON.parse(before['админ admin.state E1']).users;
   const count = (k) => users.filter((u) => u[k] === true).length;
   assert.deepEqual(
-    { in_draw: count('in_draw'), ward_seen: count('ward_seen'), gift_ready: count('gift_ready'), gift_received: count('gift_received'), has_wishlist: count('has_wishlist'), has_delivery: count('has_delivery') },
-    { in_draw: 8, ward_seen: 4, gift_ready: 2, gift_received: 2, has_wishlist: 7, has_delivery: 7 }
+    { in_draw: count('in_draw'), ward_seen: count('ward_seen'), has_wishlist: count('has_wishlist') },
+    { in_draw: 8, ward_seen: 4, has_wishlist: 7 }
   );
+  // 064: отметок подарка, посылки и адреса в ответах нет вовсе
+  for (const k of ['gift_ready', 'gift_received', 'gift_sent', 'has_delivery', 'tracking', 'PRIVATE-042']) {
+    assert.ok(!Object.values(before).some((text) => text.includes(k)), k);
+  }
   assert.equal(JSON.parse(before['админ admin.draw.check E2']).possible, true);
   const old = new Map(w.query('SELECT santa, ward FROM pairs WHERE event_id = ?', E1).map((r) => [r.santa, r.ward]));
   const next = permutePairs(w, E1);
@@ -179,7 +186,6 @@ test('тайна: закреплённые пары видит только вл
 test('тайна: действия участника — только участникам события', async () => {
   const actions = [
     ['ward.get', {}], ['chat.get', { with: 'ward' }], ['chat.get', { with: 'santa' }], ['message.send', { to: 'ward', text: 'x' }],
-    ['ward.gift', { ready: true }], ['ward.received', { received: true }], ['delivery.save', { text: 'x' }],
     ['wishlist.save', { text: 'x' }], ['support.get', {}], ['support.send', { text: 'x' }], ['support.close', {}],
   ];
   // Посторонний — участник только E2; админ и владелец не участвуют в E1
@@ -210,13 +216,12 @@ test('тайна: взятое обращение — переписку вид�
   }
 });
 
-test('тайна: сообщения участникам — без имени подопечного и без текста письма и адреса', async () => {
+test('тайна: сообщения участникам — без имени подопечного и без текста письма', async () => {
   const z = await startWorld();
   const s = await z.setup();
   await z.say(boss, '/start ' + s.adminCode);
   await z.say(boss, boss.name);
   const F = (await z.api(boss, 'event.create', { participate: false, title: 'Рассылки' })).event.id;
-  await z.api(boss, 'admin.game', { event: F, delivery_on: true });
   const code = inviteOf(await z.api(boss, 'admin.state', { event: F }));
   for (const u of [adm, ...people]) await join(z, u, code);
   await z.api(boss, 'admin.role.grant', { event: F, id: adm.id });
@@ -242,12 +247,8 @@ test('тайна: сообщения участникам — без имени 
     await z.api(u, 'message.send', { event: F, to: 'ward', text: 'Привет! Как дела?' });
     await z.api(u, 'message.send', { event: F, to: 'santa', text: 'Спасибо, Санта!' });
     await z.api(u, 'wishlist.save', { event: F, text: seq(i) }); // Санте — «письмо обновлено» (cron)
-    await z.api(u, 'delivery.save', { event: F, text: address(i) });
   }
   await z.cron();
-  await z.api(people[0], 'ward.gift', { event: F, ready: true });
-  for (const u of people.slice(1, 4)) await z.api(u, 'ward.received', { event: F, received: true });
-  await z.api(adm, 'admin.remind.santas', { event: F });
   await z.api(adm, 'admin.remind.unfilled', { event: F });
   await z.api(adm, 'admin.announce', { event: F, text: 'Встречаемся в пятницу.' });
   await z.api(people[3], 'support.send', { event: F, text: 'Где мы встречаемся?' });
@@ -272,7 +273,7 @@ test('тайна: сообщения участникам — без имени 
   const leaks = [];
   for (const c of sent) {
     const text = shown(c);
-    if (/L\dQ|A\dQ/.test(text)) leaks.push(`текст письма или адреса → ${c.params.chat_id}: ${text}`);
+    if (/L\dQ|A\dQ/.test(text)) leaks.push(`текст письма → ${c.params.chat_id}: ${text}`);
     if (!names.has(c.params.chat_id) || text.includes('Тайна раскрыта')) continue;
     for (const ward of wardsOf.get(c.params.chat_id) || []) {
       if (text.includes(names.get(ward))) leaks.push(`имя подопечного ${names.get(ward)} → ${names.get(c.params.chat_id)}: ${text}`);

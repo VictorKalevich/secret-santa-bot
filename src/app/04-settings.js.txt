@@ -15,7 +15,7 @@
     const greet = () => { heroSub.textContent = t('app.home.greet', { name: state.me.name }); };
     greet();
     document.getElementById('tabs').hidden = true;
-    const nodes = [...personalSections(nav, greet), ...aboutSections()];
+    const nodes = [...personalSections(nav, greet), ...donateSection()];
     if (state.botOwner) nodes.push(...botOwnerSections());
     main.replaceChildren(...nodes);
   }
@@ -46,12 +46,7 @@
       h('span', { class: 'ds-text-muted' }, langLabel(state.langs.choice)),
       h('span', { class: 'ds-list-item__chevron' }, '›'));
     return [ui.section(t('app.settings.profile.title')), ui.card(nameText, editName), h('div', { class: 'ds-card ds-card--flush' }, langRow),
-      ui.section(t('app.settings.notify.title')), ui.card(seg, ui.hint(t('app.settings.notify.hint')))];
-  }
-
-  // «О боте»: как это работает (тот же текст, что на «Инфо»); в открытом боте — «Поддержать проект» (053)
-  function aboutSections() {
-    return [ui.section(t('app.settings.about')), howItWorks(), ...donateSection()];
+      ui.section(t('app.settings.notify.title')), ui.card(seg)];
   }
 
   // Подпись языка (061): название на самом языке; '' — «Как в Telegram (<язык по Telegram>)»

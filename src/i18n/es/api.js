@@ -5,7 +5,6 @@ export default {
   'api.noEvent': 'Evento no encontrado.',
   'api.closed': 'El evento ha finalizado y ya no se puede modificar (solo se puede ver, revelar y eliminar).',
   'api.letterClosed': 'El evento ha finalizado: la carta ahora es de solo lectura.',
-  'api.markClosed': 'El evento ha finalizado: la marca es de solo lectura.',
   'api.confirm.delete': 'Para eliminar, escribe la palabra {word}.',
   'api.confirm.leave': 'Para salir, escribe la palabra {word}.',
   'api.confirm.cancel': 'Para cancelar, escribe la palabra {word}.',

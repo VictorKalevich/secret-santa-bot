@@ -1,4 +1,4 @@
-// Texts of app part 07-vault-audit (061): owner service view, draw management (giftee swap), activity log
+// Texts of app part 07-vault-audit (061): owner service view, giftee swap, activity log
 export default {
   // Shared: the owner plays too; name in the participant list
   'app.vault.youPlay': 'Kamu peserta acara ini. ',
@@ -25,16 +25,12 @@ export default {
   'app.vault.person.santa': 'Santa',
   'app.vault.person.noDraw': 'undian belum dilakukan',
   'app.vault.person.noSanta': 'tidak ada',
-  'app.vault.person.shipping': 'Pengiriman',
-  'app.vault.person.giftSent': 'Kado sudah dikirim',
-  'app.vault.person.notMarked': 'Belum ditandai',
   'app.vault.person.letter': 'Surat untuk Santa',
-  'app.vault.person.address': 'Alamat pengiriman',
   'app.vault.person.santaNamed': 'Santa ({name})',
   'app.vault.person.ward': 'Penerima kado',
   'app.vault.person.wardNamed': 'Penerima kado ({name})',
-  // Draw management: swapping giftees of two participants
-  'app.vault.swap.title': '🔀 Kelola undian',
+  // Giftee swap (048, 049): swapping giftees of two participants
+  'app.vault.swap.title': '🔀 Tukar penerima kado',
   'app.vault.swap.youPlay': 'Jika kamu memilih dirimu sendiri, peringatan aturan atau penolakan bisa membocorkan siapa Santa-mu.',
   'app.vault.swap.hint': 'Pilih dua peserta — mereka akan bertukar penerima kado. Siapa memberi kado ke siapa tidak terlihat di sini.',
   'app.vault.swap.go': '🔀 Tukar penerima kado',

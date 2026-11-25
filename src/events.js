@@ -1,7 +1,7 @@
 // Жизненный цикл эвента: создание, завершение, удаление, сброс, приглашения, раскрытие тайны, напоминания, объявления.
 
 import {
-  getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairsQuery, pairLinksQuery, enqueueStmt,
+  getEvent, rowsOf, memberIdsQuery, participantIdsQuery, unfilledIdsQuery, pairLinksQuery, enqueueStmt,
   updateEventStmt, updateEventIfStmt, auditStmt, eventDataDeleteStmts, adminFlagStmt, eventAdminIdsQuery, BOT_LOG,
 } from './db.js';
 import {
@@ -48,12 +48,7 @@ export async function createEvent(ctx, title, createdBy, { from = null, invite =
     db.prepare(ofNew('INSERT INTO event_creations (event_id, user_id, created_at) SELECT id, ?, ?')).bind(createdBy, now, code),
   ];
   if (participate) {
-    // Адрес — последний указанный человеком, если событию он нужен (как addMemberStmt)
-    const delivery = fields.delivery_on
-      ? "COALESCE((SELECT delivery FROM members WHERE user_id = ? AND delivery != '' ORDER BY joined_at DESC LIMIT 1), '')"
-      : "''";
-    stmts.push(db.prepare(ofNew(`INSERT INTO members (event_id, user_id, joined_at, delivery) SELECT id, ?, ?, ${delivery}`))
-      .bind(createdBy, now, ...(fields.delivery_on ? [createdBy] : []), code));
+    stmts.push(db.prepare(ofNew('INSERT INTO members (event_id, user_id, joined_at) SELECT id, ?, ?')).bind(createdBy, now, code));
   }
   if (from) {
     stmts.push(db.prepare(`INSERT OR IGNORE INTO exclusions (event_id, giver, receiver) SELECT ${newId}, giver, receiver FROM exclusions
@@ -235,21 +230,6 @@ export async function remindUnfilled(ctx, ev, actor = 0, extra = []) {
     appKeyboard(settings, tx('common.writeLetterButton'), { event: ev.id })
   )]);
   return sendReminder(ctx, ev, { actor, action: 'remind.unfilled', letters, extra });
-}
-
-export async function remindSantas(ctx, ev, actor = 0, extra = []) {
-  const db = ctx.db;
-  const r = await ctx.read({ rows: pairsQuery(db, ev.id), settings: true });
-  const { settings } = r;
-  const rows = r.rows.filter((p) => !p.gift_ready);
-  const text = ev.event_date
-    ? tx('events.remindSantasDated', { title: q(ev), date: tdate(ev.event_date) })
-    : tx('events.remindSantas', { title: q(ev) });
-  const letters = rows.map((p) => [p.santa, msg(
-    text,
-    appKeyboard(settings, tx('events.openButton'), { event: ev.id })
-  )]);
-  return sendReminder(ctx, ev, { actor, action: 'remind.santas', letters, extra });
 }
 
 // ---------- объявления (007) ----------

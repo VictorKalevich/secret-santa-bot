@@ -7,7 +7,6 @@ export default {
   // What is not allowed in a finished event (field finished of the action table)
   'api.closed': "L'événement est terminé — il ne peut plus être modifié (consultation, révélation et suppression restent possibles).",
   'api.letterClosed': "L'événement est terminé : la lettre est désormais en lecture seule.",
-  'api.markClosed': "L'événement est terminé : la case est en lecture seule.",
   // Confirmation word (field confirm): refusal without the word
   'api.confirm.delete': "Pour supprimer, saisis le mot {word}.",
   'api.confirm.leave': "Pour quitter, saisis le mot {word}.",
