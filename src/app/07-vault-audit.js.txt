@@ -184,11 +184,11 @@
   // ---------- журнал действий (007) ----------
   // Подпись записи — app.vault.audit.<код> (коды — docs/api.md, «Коды журнала»); код без подписи — как есть
   const auditLabel = (action) => (own(TEXTS, 'app.vault.audit.' + action) ? t('app.vault.audit.' + action) : action);
-  // Журнал события, общий журнал компании открытого экрана или журнал бота (bot, 051: только владельцу бота)
+  // Журнал события или журнал бота (bot, 051: только владельцу бота; 063 — общих журналов комнат нет)
   function openAudit(eventId, bot = false) {
     const box = h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' }), t('app.boot.loading'));
-    openSheet(bot ? t('app.vault.log.bot') : eventId ? t('app.vault.log.event') : t('app.vault.log.common'), [box]);
-    (bot ? api('bot.audit') : eventId ? api('admin.audit', { event: eventId }) : capi('admin.audit')).then((d) => {
+    openSheet(bot ? t('app.vault.log.bot') : t('app.vault.log.event'), [box]);
+    (bot ? api('bot.audit') : api('admin.audit', { event: eventId })).then((d) => {
       const list = h('div', { class: 'ds-card ds-card--flush' });
       if (!d.entries.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.vault.log.empty')));
       for (const e of d.entries) {

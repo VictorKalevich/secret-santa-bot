@@ -320,24 +320,13 @@
     if (!data.ok) throw new Error(data.error || t('app.boot.error'));
     return data;
   }
-  // Общие действия организатора (050: admin.events.create, admin.audit без события, admin.users, admin.rename,
-  // admin.transfer, admin.role.grant, admin.role.revoke, admin.owner.transfer) — только так: компания открытого экрана
-  // (051, контракт — раздел 5)
-  // (шторки владельца бота на «Компаниях» передают свою company)
-  const capi = (action, body) => api(action, { company: state.companyId || undefined, ...(body || {}) });
-
-  // Кто может действие владельца (051, как ownerWord сервера): в компании, которую ведёт владелец бота, — «владелец бота»,
-  // в компании с назначенным владельцем — «владелец». Формы: именительный, родительный, дательный, творительный,
+  // Кто может действие владельца (051, как ownerWord сервера; 063 — по событию): у события без своего владельца (bot_run,
+  // данные до 063) — «владелец бота», иначе — «владелец». Формы: именительный, родительный, дательный, творительный,
   // именительный с прописной; в тексте словаря — {owner.nom} и т. п.
-  function ownerWord(botRun = !state.company || state.company.bot_run) {
+  function ownerWord(botRun = !!(state.ev && state.ev.bot_run)) {
     const k = botRun ? 'app.core.botOwner.' : 'app.core.owner.';
     return { nom: t(k + 'nom'), gen: t(k + 'gen'), dat: t(k + 'dat'), ins: t(k + 'ins'), nomCap: t(k + 'nomCap') };
   }
-  // Экран «Компании» доступен (052): компаний несколько, владелец бота или открытый бот — тогда у главного экрана
-  // компании «‹» к списку
-  const withList = () => state.companies.length >= 2 || state.botOwner || state.open;
-  // Заголовок главного экрана: если есть список компаний — её название, иначе прежний
-  const companyTitle = () => (withList() && state.company ? state.company.title : t('app.boot.title'));
 
   let toastTimer;
   function toast(text) {

@@ -1,0 +1,173 @@
+
+  // ---------- настройки (063) ----------
+  // Экран «Настройки» — ⚙️ в шапке главного экрана: «Профиль», «🌐 Язык», «Уведомления», «О боте»; владельцу бота — раздел
+  // «Владелец бота»: журнал бота, передача прав, все события, в закрытом боте — кто может создавать события. Контракт —
+  // specs/063-events-without-rooms/contracts/events-without-rooms.md, раздел 6
+  function goSettings() {
+    state.view = 'settings';
+    render();
+  }
+
+  function renderSettings() {
+    const nav = state.nav;
+    heroBack.hidden = false;
+    heroTitle.textContent = t('app.settings.title');
+    const greet = () => { heroSub.textContent = t('app.home.greet', { name: state.me.name }); };
+    greet();
+    document.getElementById('tabs').hidden = true;
+    const nodes = [...personalSections(nav, greet), ...aboutSections()];
+    if (state.botOwner) nodes.push(...botOwnerSections());
+    main.replaceChildren(...nodes);
+  }
+
+  // «Профиль», язык и «Уведомления». Новое имя сразу отображается на экране (039): «Профиль» и приветствие — на месте
+  function personalSections(nav, greet) {
+    const me = state.me;
+    const nameText = h('div', { class: 'ds-text-strong' }, me.name);
+    const profileChanged = () => {
+      if (nav !== state.nav) return;
+      nameText.textContent = me.name;
+      greet();
+    };
+    const editName = ui.btn(t('app.settings.profile.editName'), 'secondary', 'ds-btn--block');
+    editName.addEventListener('click', () => openNameSheet(profileChanged));
+
+    // Уведомления — общие для всех эвентов
+    const modes = [['sound', t('app.settings.notify.sound')], ['silent', t('app.settings.notify.silent')], ['off', t('app.settings.notify.off')]];
+    const seg = h('div', { class: 'ds-segmented' });
+    const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
+      class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
+      onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast(t('app.core.saved')); }),
+    }, label)));
+    draw();
+    // Язык бота и приложения (061) — шторка выбора
+    const langRow = h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openLangSheet() },
+      h('div', { class: 'ds-grow ds-list-item__title' }, t('app.settings.lang.button')),
+      h('span', { class: 'ds-text-muted' }, langLabel(state.langs.choice)),
+      h('span', { class: 'ds-list-item__chevron' }, '›'));
+    return [ui.section(t('app.settings.profile.title')), ui.card(nameText, editName), h('div', { class: 'ds-card ds-card--flush' }, langRow),
+      ui.section(t('app.settings.notify.title')), ui.card(seg, ui.hint(t('app.settings.notify.hint')))];
+  }
+
+  // «О боте»: как это работает (тот же текст, что на «Инфо»); в открытом боте — «Поддержать проект» (053)
+  function aboutSections() {
+    return [ui.section(t('app.settings.about')), howItWorks(), ...donateSection()];
+  }
+
+  // Подпись языка (061): название на самом языке; '' — «Как в Telegram (<язык по Telegram>)»
+  function langLabel(code) {
+    const name = (c) => (state.langs.list.find((x) => x.code === c) || { name: c }).name;
+    return code ? name(code) : t('app.settings.lang.auto', { name: name(state.langs.auto) });
+  }
+
+  // Шторка «🌐 Язык» (061): «Как в Telegram (…)» и языки, у выбранного — ✓. Выбор — словарь нового языка (reloadMe) и
+  // тот же экран на нём, прокрутка прежняя
+  function openLangSheet() {
+    const codes = ['', ...state.langs.list.map((x) => x.code)];
+    const btns = codes.map((code) => ui.btn((state.langs.choice === code ? '✓ ' : '') + langLabel(code), 'secondary', 'ds-btn--block'));
+    btns.forEach((b, i) => b.addEventListener('click', () => busy(btns, async () => {
+      await api('lang.set', { lang: codes[i] });
+      const y = window.scrollY;
+      await reloadMe();
+      closeSheet();
+      render();
+      window.scrollTo(0, y);
+    })));
+    openSheet(t('app.settings.lang.button'), [ui.hint(t('app.settings.lang.hint')), ...btns]);
+  }
+
+  // Шторка «Твоё имя» (035): правило — как при регистрации (до 40 символов, пробелы схлопывает сервер); saved(имя из
+  // ответа сервера)
+  function openNameSheet(saved) {
+    const input = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: state.me.name, autocomplete: 'off' });
+    const save = ui.btn(t('app.core.save'), '', 'ds-btn--block');
+    save.addEventListener('click', () => busy(save, async () => {
+      if (!input.value.trim()) return toast(t('app.settings.name.empty'));
+      const r = await api('name.set', { name: input.value });
+      state.me.name = r.name;
+      closeSheet();
+      toast(t('app.settings.name.saved'));
+      saved(r.name);
+    }));
+    openSheet(t('app.settings.name.title'), [ui.hint(t('app.settings.name.hint')), clearable(input, t('app.settings.name.title')), save]);
+  }
+
+  // ---------- владелец бота ----------
+  function botOwnerSections() {
+    const tool = (label, fn) => {
+      const b = ui.btn(label, 'secondary', 'ds-btn--block');
+      b.addEventListener('click', () => fn(b));
+      return b;
+    };
+    return [ui.section(t('app.settings.bot.title')), ui.card(
+      tool(t('app.settings.bot.events'), () => openAllEvents()),
+      state.open ? null : tool(t('app.settings.bot.creators'), (b) => openCreators(b)),
+      tool(t('app.settings.bot.log'), () => openAudit(null, true)),
+      tool(t('app.settings.bot.pass'), (b) => openBotOwnerSheet(b)))];
+  }
+
+  // «Все события» (FR-032): новыми первыми, страницами по 50; открытие — с правами владельца бота
+  function openAllEvents() {
+    const list = h('div', { class: 'ds-card ds-card--flush' });
+    const more = ui.btn(t('app.settings.events.more'), 'secondary', 'ds-btn--block');
+    let offset = 0;
+    const page = () => busy(more, async () => {
+      const d = await api('bot.events', { offset });
+      offset += d.events.length;
+      for (const e of d.events) {
+        list.append(h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => { closeSheet(); openEvent(e.id); } },
+          h('div', { class: 'ds-grow' },
+            h('div', { class: 'ds-list-item__title' }, e.title),
+            h('div', { class: 'ds-chips' }, e.status === 'finished' ? ui.chip(t('app.home.finished')) : ui.chip(t('app.home.active'), 'success')),
+            ui.hint(t('app.settings.events.about', { owner: e.owner_name || '—', n: e.people }))),
+          h('span', { class: 'ds-list-item__chevron' }, '›')));
+      }
+      if (!offset) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.settings.events.empty')));
+      more.hidden = !d.more;
+    });
+    more.addEventListener('click', page);
+    openSheet(t('app.settings.events.title'), [list, more]);
+    page();
+  }
+
+  // «Кто может создавать события» (закрытый бот, FR-050): переключатель у каждого зарегистрированного
+  function openCreators(btn) {
+    busy(btn, async () => {
+      const d = await api('bot.people');
+      const people = d.people.filter((u) => u.id !== state.me.id);
+      const list = h('div', { class: 'ds-card' });
+      if (!people.length) list.append(ui.hint(t('app.settings.creators.empty')));
+      for (const u of people) {
+        const input = h('input', { type: 'checkbox', checked: !!u.can_create });
+        bindToggle(input, async (on) => {
+          await api('bot.creator.set', { id: u.id, on });
+          toast(on ? t('app.settings.creators.on', { name: u.name }) : t('app.settings.creators.off', { name: u.name }));
+        });
+        list.append(ui.toggleRow(u.name, u.username ? '@' + u.username : '', input));
+      }
+      openSheet(t('app.settings.creators.title'), [ui.hint(t('app.settings.creators.hint')), list]);
+    });
+  }
+
+  // Передать права владельца бота (FR-033): кандидаты — люди событий владельца бота (bot.people)
+  function openBotOwnerSheet(btn) {
+    busy(btn, async () => {
+      const d = await api('bot.people');
+      const people = d.people.filter((u) => u.id !== state.me.id);
+      if (!people.length) return openSheet(t('app.settings.pass.title'), [ui.hint(t('app.settings.pass.empty'))]);
+      const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.settings.pass.choose')), ...people.map((u) => h('option', { value: u.id }, u.name)));
+      const go = ui.btn(t('app.settings.bot.pass'), 'danger', 'ds-btn--block');
+      go.addEventListener('click', async () => {
+        const u = people.find((x) => String(x.id) === sel.value);
+        if (!u) return toast(t('app.core.pickPerson'));
+        if (!(await confirmBox(t('app.settings.pass.confirm', { name: u.name })))) return;
+        busy(go, async () => {
+          await api('bot.owner.transfer', { id: u.id });
+          closeSheet();
+          toast(t('app.settings.pass.done'));
+          await goHome();
+        });
+      });
+      openSheet(t('app.settings.pass.title'), [ui.hint(t('app.settings.pass.hint')), sel, go]);
+    });
+  }

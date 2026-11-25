@@ -516,6 +516,7 @@
     if (owner) rows.push([t('app.event.info.owner'), owner.name]);
     if (admins.length) rows.push([t('app.event.info.admins'), admins.map((u) => u.name).join(', ')]);
     const nodes = [
+      guestNotice(g.role === 'guest'),
       finishedNotice(),
       ui.section(t('app.event.info.title')),
       h('div', { class: 'ds-card' }, h('dl', { class: 'ds-info-grid' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
@@ -542,14 +543,15 @@
     }
     if (!state.member) nodes.push(ui.hint(t('app.event.info.notMember'), 'ds-hint--inset'));
     nodes.push(...donateSection());
-    nodes.push(
-      ui.section(t('app.event.how.title')),
-      h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
-        h('li', {}, t('app.event.how.letter')),
-        h('li', {}, t('app.event.how.ward')),
-        h('li', {}, t('app.event.how.after')))),
-      ...leaveSection());
+    nodes.push(ui.section(t('app.event.how.title')), howItWorks(), ...leaveSection());
     main.replaceChildren(...nodes.filter(Boolean));
+  }
+  // «Как это работает» (011: три пункта) — на «Инфо» и в «О боте» «Настроек» (063)
+  function howItWorks() {
+    return h('div', { class: 'ds-card' }, h('ul', { class: 'ds-bullets' },
+      h('li', {}, t('app.event.how.letter')),
+      h('li', {}, t('app.event.how.ward')),
+      h('li', {}, t('app.event.how.after'))));
   }
 
   // 035: выход участника — внизу «Инфо», только из идущего события; сам — до жеребьёвки (слово ВЫЙТИ), после неё —

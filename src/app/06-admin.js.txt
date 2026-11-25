@@ -44,8 +44,10 @@
     const sections = p.done
       ? [adminRequests, adminSupport]
       : [adminInvite, adminRequests, adminRemoved, adminInviteFrom, adminSupport, adminAnnounce];
-    const nodes = [finishedNotice(s)];
-    for (const section of [...sections, adminMembers, adminExclusions, adminFixed, adminDraw, adminParams, adminLog, adminSwap, adminVault, adminDanger]) {
+    // Владелец бота без участия и организаторства — гость (063): по своему ответу, не по state.ev (026)
+    const guest = state.botOwner && !d.me_member && !d.organizers.some((u) => u.id === state.me.id);
+    const nodes = [guestNotice(guest), finishedNotice(s)];
+    for (const section of [...sections, adminMembers, adminExclusions, adminFixed, adminDraw, adminParams, adminLog, adminSwap, adminVault, adminOrganizers, adminDanger]) {
       nodes.push(...section(p));
     }
     const y = window.scrollY;
@@ -265,16 +267,17 @@
         });
       });
       items.push(b);
-      // Администраторов переименовывает только владелец; себя — любой админ (006)
-      const canRename = !(u.is_admin || u.is_owner) || me.is_owner || u.id === me.id;
-      const r = ui.btn(t('app.admin.member.rename'), 'secondary', 'ds-btn--block');
-      if (canRename) r.addEventListener('click', () => {
-        const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
-        const ok = ui.btn(t('app.core.save'), '', 'ds-btn--block');
-        ok.addEventListener('click', () => busy(ok, async () => { await capi('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast(t('app.admin.member.renamed')); await refresh(); }));
-        openSheet(t('app.admin.member.nameTitle'), [ui.hint(t('app.admin.member.nameHint')), clearable(inp, t('app.admin.member.nameTitle')), ok]);
-      });
-      if (canRename) items.push(r);
+      // Переименовывает только владелец бота (063): имя одно во всех событиях; себя — в «Настройках»
+      if (state.botOwner) {
+        const r = ui.btn(t('app.admin.member.rename'), 'secondary', 'ds-btn--block');
+        r.addEventListener('click', () => {
+          const inp = h('input', { class: 'ds-input', type: 'text', value: u.name, maxlength: 40 });
+          const ok = ui.btn(t('app.core.save'), '', 'ds-btn--block');
+          ok.addEventListener('click', () => busy(ok, async () => { await api('admin.rename', { id: u.id, name: inp.value }); closeSheet(); toast(t('app.admin.member.renamed')); await refresh(); }));
+          openSheet(t('app.admin.member.nameTitle'), [ui.hint(t('app.admin.member.nameHint')), clearable(inp, t('app.admin.member.nameTitle')), ok]);
+        });
+        items.push(r);
+      }
     }
     if (canTransfer(p, u) && transferTargets(p, u).length) {
       const b = ui.btn(t('app.admin.member.transfer'), 'secondary', 'ds-btn--block');
@@ -290,12 +293,9 @@
       });
       items.push(b);
     }
-    // 051: в компании с назначенным владельцем переносит участие только владелец бота
-    const assigned = !!state.company && !state.company.bot_run;
+    // Переносит участие только владелец бота (051, 063)
     if (u.is_owner) items.push(ui.hint(t('app.admin.member.ownerHint')));
-    else if (!me.is_owner) items.push(ui.hint(u.is_admin
-      ? (assigned ? t('app.admin.member.adminHintAssigned') : t('app.admin.member.adminHint'))
-      : (assigned ? t('app.admin.member.transferBotOwner') : t('app.admin.member.transferOwner'))));
+    else if (!me.is_owner) items.push(ui.hint(t(u.is_admin ? 'app.admin.member.adminHint' : 'app.admin.member.transferBotOwner', { owner: ownerWord() })));
     else if (!state.botOwner && u.registered) items.push(ui.hint(t('app.admin.member.transferBotOwner')));
     openSheet(u.name || t('app.core.noName'), [
       h('div', {}, u.username ? ui.hint('@' + u.username) : null, h('div', { class: 'ds-chips' }, chips)),
@@ -311,7 +311,7 @@
       const to = targets.find((x) => String(x.id) === sel.value);
       if (!to) return toast(t('app.admin.transfer.pickFirst'));
       if (!(await confirmBox(t('app.admin.transfer.confirm', { name: u.name, to: to.name })))) return;
-      busy(go, async () => { await capi('admin.transfer', { from: u.id, to: to.id }); closeSheet(); toast(t('app.admin.transfer.done')); await p.refresh(); });
+      busy(go, async () => { await api('admin.transfer', { from: u.id, to: to.id }); closeSheet(); toast(t('app.admin.transfer.done')); await p.refresh(); });
     });
     openSheet(t('app.admin.transfer.title'), [
       ui.hint(t('app.admin.transfer.hint', { name: u.name || t('app.admin.transfer.noName') })),
@@ -376,6 +376,57 @@
       nodes.push(remindBtn);
     }
     return nodes;
+  }
+
+  // --- владелец и администраторы (063; до 063 — на главном экране комнаты): владельцу — назначить из участников, снять
+  // (✕), передать владение (👑); остальным — кто владелец и что назначает он
+  function adminOrganizers(p) {
+    const { d, players, me, xapi, refresh } = p;
+    const crown = async (u, btns) => {
+      if (!(await confirmBox(t('app.admin.admins.transferConfirm', { name: u.name })))) return;
+      busy(btns, async () => { await xapi('admin.owner.transfer', { id: u.id }); toast(t('app.admin.admins.transferred')); await refresh({ quiet: true }); });
+    };
+    const list = h('div', { class: 'ds-card ds-card--flush' });
+    for (const u of d.organizers) {
+      const actions = h('div', { class: 'ds-row ds-row--tight' });
+      if (me.is_owner && !u.owner) {
+        actions.append(
+          h('button', { class: 'ds-icon-btn', title: t('app.admin.admins.transfer'), onclick: () => crown(u, [...actions.children]) }, '👑'),
+          h('button', { class: 'ds-icon-btn', title: t('app.admin.admins.revoke'), onclick: async () => {
+            if (!(await confirmBox(t('app.admin.admins.revokeConfirm', { name: u.name })))) return;
+            busy([...actions.children], async () => { await xapi('admin.role.revoke', { id: u.id }); toast(t('app.admin.admins.revoked')); await refresh({ quiet: true }); });
+          } }, '✕'));
+      }
+      list.append(h('div', { class: 'ds-list-item' },
+        h('div', { class: 'ds-grow' }, personTitle(u), h('div', { class: 'ds-chips' }, ui.chip(t(u.owner ? 'app.core.role.owner' : 'app.core.role.admin')))),
+        actions));
+    }
+    if (!d.organizers.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.admin.admins.none')));
+    const nodes = [ui.section(t('app.admin.admins.title')), list];
+    if (!me.is_owner) {
+      const owner = d.organizers.find((u) => u.owner);
+      nodes.push(ui.hint(owner ? t('app.admin.admins.onlyOwnerNamed', { name: owner.name }) : t('app.admin.admins.onlyOwner', { owner: ownerWord() }), 'ds-hint--inset'));
+      return nodes;
+    }
+    // Назначить и сделать владельцем — участника, который ещё не организатор (организаторам — 👑 в списке)
+    const candidates = players.filter((u) => !u.is_admin);
+    if (!candidates.length) return [...nodes, ui.hint(t('app.admin.admins.noCandidates'), 'ds-hint--inset')];
+    const options = (ph) => [h('option', { value: '' }, ph), ...candidates.map((u) => h('option', { value: u.id }, u.name))];
+    const sel = h('select', { class: 'ds-input' }, options(t('app.admin.admins.grantPick')));
+    const grant = ui.btn(t('app.admin.admins.grant'), 'secondary', 'ds-btn--block');
+    grant.addEventListener('click', async () => {
+      const u = candidates.find((x) => String(x.id) === sel.value);
+      if (!u) return toast(t('app.core.pickPerson'));
+      if (!(await confirmBox(t('app.admin.admins.grantConfirm', { name: u.name })))) return;
+      busy(grant, async () => { await xapi('admin.role.grant', { id: u.id }); toast(t('app.admin.admins.granted')); await refresh({ quiet: true }); });
+    });
+    const pick = h('select', { class: 'ds-input' }, options(t('app.admin.admins.ownerPick')));
+    const make = ui.btn(t('app.admin.admins.makeOwner'), 'secondary', 'ds-btn--block');
+    make.addEventListener('click', () => {
+      const u = candidates.find((x) => String(x.id) === pick.value);
+      return u ? crown(u, make) : toast(t('app.core.pickPerson'));
+    });
+    return [...nodes, ui.card(ui.hint(t('app.admin.admins.ownerHint')), sel, grant), ui.card(pick, make)];
   }
 
   // --- правила пар (026): исключения и закреплённые пары устроены одинаково — список «кто — кому» (взаимные —

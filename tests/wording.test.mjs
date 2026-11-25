@@ -27,7 +27,7 @@ const sources = [
 ];
 // Файл словаря области (060): модуль src/<имя>.js → src/i18n/<язык>/<имя>.js, часть приложения → app-<область>.js
 const APP_AREA = { '01-shell.html': 'app-boot', '02-core.js.txt': 'app-core', '03-home.js.txt': 'app-home',
-  '04-companies.js.txt': 'app-companies', '05-event.js.txt': 'app-event', '06-admin.js.txt': 'app-admin',
+  '04-settings.js.txt': 'app-settings', '05-event.js.txt': 'app-event', '06-admin.js.txt': 'app-admin',
   '07-vault-audit.js.txt': 'app-vault', '08-sheet-chat.js.txt': 'app-sheet', '09-start.html': 'app-boot' };
 const areaOf = (file) => {
   const app = /^src\/app\/(.+)$/.exec(file);
@@ -118,8 +118,8 @@ const BOT_OWNER_ALWAYS = [
   ['src/roles.js', 'теперь владелец бота'],
   ['src/setup.js', '<b>владельцем бота</b>'],
   ['src/app/03-home.js.txt', 'Ты здесь как владелец бота'], // плашка гостя
-  ['src/app/03-home.js.txt', 'Ты останешься владельцем бота'], // 👑 владельца бота
-  ['src/app/04-companies.js.txt', ''], // экран «Комнаты» и шторки владельца бота
+  ['src/app/04-settings.js.txt', ''], // 063: «Настройки» — раздел «Владелец бота» и его шторки
+  ['src/app/07-vault-audit.js.txt', 'Переданы права владельца бота'], // код журнала бота owner.transfer
   ['src/app/06-admin.js.txt', 'владелец бота должен один раз открыть /setup'],
   ['src/app/06-admin.js.txt', 'переносить участие — владелец бота'], // admin.transfer
   ['src/app/06-admin.js.txt', 'Переносить участие на новый аккаунт может только владелец бота'],

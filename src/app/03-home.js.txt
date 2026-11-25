@@ -1,9 +1,8 @@
 
   // ---------- состояние ----------
-  // view: 'companies' (список компаний, 051), 'home' (события одной компании) или 'event' (вкладки одного эвента).
-  // companies — видимые компании из me; companyId, company — компания открытого экрана (enterCompany); botOwner — владелец
-  // бота (me.is_owner до входа в компанию: в компании state.me.is_owner — «владелец этой компании»); open — открытый бот,
-  // create — можно ли создать компанию (052: { bot } владельцу бота, { left } человеку открытого бота).
+  // view: 'home' (мои события, 063), 'settings' («Настройки», 063) или 'event' (вкладки одного эвента).
+  // botOwner — владелец бота (me.is_owner; в событии state.me.is_owner — «владелец этого события», enterEvent); open —
+  // открытый бот; create — можно ли создавать события (063: { bot } владельцу бота, { left, limit, next } по лимиту).
   // nav — номер экрана (009): растёт при каждом переходе; ответ сервера для прежнего экрана не рисуется.
   // drafts[evId] — несохранённые объявление и параметры эвента (переживают перерисовку панели).
   // dirty — несохранённое на «Письме» (вопрос Telegram при закрытии, точка на вкладке): true — адрес или письмо без
@@ -17,7 +16,7 @@
     support: null, supportAdmin: null, // 012: обращения — участнику его статус, админу — ничьи и непрочитанные
     roster: null, rosterOpen: null, // 037: участники на «Инфо»; rosterOpen — id события, где список раскрыт
     looks: { postcards: [] }, // набор открыток — с сервера (me)
-    companies: [], companyId: null, company: null, botOwner: false, open: false, create: null,
+    botOwner: false, open: false, create: null,
     lang: 'ru', textsVersion: '', // 060: язык и версия словаря приложения (ответ me)
     langs: { choice: '', auto: 'ru', list: [] }, // 061: выбор языка ('' — как в Telegram), язык по Telegram, языки бота
   };
@@ -25,6 +24,7 @@
   const heroTitle = document.getElementById('heroTitle');
   const heroSub = document.getElementById('heroSub');
   const heroBack = document.getElementById('heroBack');
+  const heroAction = document.getElementById('heroAction');
   // Уход с события или вкладки (058): черновик письма — сохранить сразу, спросить — только о том, что само не сохранится
   async function mayLeave() {
     if (saveLetterNow) saveLetterNow();
@@ -36,13 +36,13 @@
     if (!(await mayLeave())) return;
     await goHome();
   }
-  // «‹» и системная «Назад» (051): из события — на главный экран его компании, оттуда — к «Компаниям», если список есть
-  // (withList, 052)
+  // «‹» и системная «Назад» (063): из события и «Настроек» — к списку событий
   function goBack() {
     if (state.view === 'event') return leaveEvent();
-    if (state.view === 'home' && withList()) return goCompanies();
+    if (state.view === 'settings') return goHome();
   }
   heroBack.addEventListener('click', goBack);
+  heroAction.addEventListener('click', () => goSettings());
 
   // Запросы в пределах открытого эвента
   const eapi = (action, body) => api(action, { ...(body || {}), event: state.evId });
@@ -64,25 +64,21 @@
     state.botOwner = !!d.me.is_owner;
     state.open = !!d.open;
     state.create = d.create || null;
-    state.companies = d.companies || [];
     state.events = d.events;
     state.limits = d.limits;
     state.looks = d.looks;
-    enterCompany(state.companyId);
+    if (state.ev) enterEvent(state.ev.role);
     return d;
   }
 
-  // Компания открытого экрана (051, R13): права человека в ней — в state.me.is_admin / is_owner, остальные части читают
-  // их как раньше. Компании нет (удалена, больше не видна) — экран без компании
-  function enterCompany(id) {
-    const c = state.companies.find((x) => x.id === id) || null;
-    state.companyId = c ? c.id : null;
-    state.company = c;
-    if (c) {
-      state.me.is_admin = c.organizer;
-      state.me.is_owner = c.owner;
-    }
+  // Права в открытом событии (063): роль из event.get пишется в state.me.is_admin / is_owner — остальные части читают их
+  // как раньше; владелец бота — права владельца в любом событии
+  function enterEvent(role) {
+    state.me.is_admin = state.botOwner || role === 'owner' || role === 'admin';
+    state.me.is_owner = state.botOwner || role === 'owner';
   }
+  // Владелец бота в чужом событии — гость (063): плашка над «Инфо» и «Управлением»
+  const guestNotice = (on) => (on ? h('div', { class: 'ds-notice ds-text-sm' }, t('app.home.guest')) : null);
 
   // Данные эвента evId; если пользователь уже в другом эвенте — ничего не меняет (009).
   // Участие обновляется на месте: открытые экраны держат ссылку на state.member и видят свежие данные.
@@ -97,6 +93,7 @@
     state.support = d.support || null;
     state.supportAdmin = d.support_admin || null;
     state.roster = d.roster || null;
+    enterEvent(d.event.role);
     return d;
   }
 
@@ -122,9 +119,12 @@
   function render() {
     state.nav++;
     window.scrollTo(0, 0);
+    // Нижняя панель и ⚙️ — только у главного экрана (063): его render ставит их снова
+    main.classList.remove('ds-page--bar');
+    heroAction.hidden = true;
     try {
-      if (state.view === 'companies') renderCompanies();
-      else if (state.view === 'home') renderHome();
+      if (state.view === 'home') renderHome();
+      else if (state.view === 'settings') renderSettings();
       else {
         renderHero();
         renderTabs();
@@ -136,7 +136,7 @@
     syncBack();
   }
 
-  // ---------- главный экран: список эвентов (005) ----------
+  // ---------- главный экран: мои события (005, 063) ----------
   async function goHome() {
     const nav = ++state.nav;
     state.view = 'home';
@@ -148,26 +148,6 @@
     showLoader();
     try { await reloadMe(); } catch (e) { if (nav === state.nav) showError(e, goHome); return; }
     if (nav === state.nav) render();
-  }
-
-  // Экран «Компании» (051): корневой у человека с несколькими компаниями
-  async function goCompanies() {
-    const nav = ++state.nav;
-    state.view = 'companies';
-    state.evId = null;
-    state.ev = null;
-    state.wardCache = null;
-    state.companyId = null;
-    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
-    syncBack();
-    showLoader();
-    try { await reloadMe(); } catch (e) { if (nav === state.nav) showError(e, goCompanies); return; }
-    if (nav === state.nav) render();
-  }
-  // Главный экран компании
-  function openCompany(id) {
-    state.companyId = id;
-    return goHome();
   }
 
   async function openEvent(id, tab, chat, support) {
@@ -182,7 +162,6 @@
     showLoader();
     try { await reloadEvent(id); } catch (e) { if (nav === state.nav) showError(e, () => openEvent(id, tab, chat, support)); return; }
     if (nav !== state.nav) return;
-    enterCompany(state.ev.company); // права в компании события (051)
     const m = state.member;
     // Админу «Подопечный» по умолчанию не открывается: просмотр подопечного запрещает отмену жеребьёвки (009)
     // 012: из кнопок бота «💬 Открыть» — обращение участника (support=my) или обращение в панели админа (support=<id>)
@@ -199,219 +178,99 @@
     if (supportThread) openSupportThread(supportThread, id, () => (state.evId === id && state.tab === 'admin' ? render() : undefined));
   }
 
-  // Системная кнопка «Назад» Telegram (009): закрывает шторку, иначе — как «‹» (на экране эвента — к его компании, на
-  // главном экране — к «Компаниям», 051)
+  // Системная кнопка «Назад» Telegram (009): закрывает шторку, иначе — как «‹» (063: из события и «Настроек» — к списку)
   function syncBack() {
     try {
       if (!tg || !ver('6.1')) return;
-      if (sheetEl || ((state.view === 'event' || (state.view === 'home' && withList())) && !heroBack.hidden)) tg.BackButton.show();
+      if (sheetEl || ((state.view === 'event' || state.view === 'settings') && !heroBack.hidden)) tg.BackButton.show();
       else tg.BackButton.hide();
     } catch (e) {}
   }
   try { if (tg && ver('6.1')) tg.BackButton.onClick(() => (sheetEl ? requestCloseSheet() : goBack())); } catch (e) {}
 
+  // Списки главного экрана (063): «Идут» — по дате вручения, без даты — в конце, при равных — новые первыми;
+  // «Завершённые» — недавно завершённые первыми
+  function homeLists(events) {
+    const newer = (a, b) => b.id - a.id;
+    const byDate = (a, b) => (a.event_date && b.event_date ? a.event_date.localeCompare(b.event_date)
+      : a.event_date ? -1 : b.event_date ? 1 : 0) || newer(a, b);
+    return {
+      active: events.filter((e) => e.status !== 'finished').sort(byDate),
+      finished: events.filter((e) => e.status === 'finished').sort((a, b) => (b.finished_at || 0) - (a.finished_at || 0) || newer(a, b)),
+    };
+  }
+
   function eventRow(e) {
-    const chips = [e.status === 'finished' ? ui.chip(t('app.home.finished')) : ui.chip(t('app.home.active'), 'success')];
+    const chips = [];
+    if (e.role === 'owner' || e.role === 'admin') chips.push(ui.chip(t('app.core.role.' + e.role)));
     if (e.event_date) chips.push(ui.chip('🎁 ' + fmtDate(e.event_date)));
     if (!e.member) chips.push(ui.chip(t('app.home.notMember')));
     return h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openEvent(e.id) },
-      h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, e.title), h('div', { class: 'ds-chips' }, chips)),
+      h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, e.title), chips.length ? h('div', { class: 'ds-chips' }, chips) : null),
       e.unread ? h('span', { class: 'ds-badge' }, String(e.unread)) : null,
       h('span', { class: 'ds-list-item__chevron' }, '›'));
   }
 
   function renderHome() {
-    const me = state.me;
-    const nav = state.nav;
-    const many = state.companies.length >= 2;
-    heroBack.hidden = !withList();
-    heroTitle.textContent = companyTitle();
-    const greet = () => { heroSub.textContent = t('app.home.greet', { name: me.name }); };
-    greet();
-    // Разделы с именами людей (039): после смены своего имени перечитываются на месте
-    const people = [];
+    heroBack.hidden = true;
+    heroAction.hidden = false;
+    heroTitle.textContent = t('app.boot.title');
+    heroSub.textContent = t('app.home.greet', { name: state.me.name });
     document.getElementById('tabs').hidden = true;
-    // События — только этой компании (051)
-    const events = state.events.filter((e) => !state.companyId || e.company === state.companyId);
-    const mine = events.filter((e) => e.member);
-    const others = events.filter((e) => !e.member);
+    const { active, finished } = homeLists(state.events);
     const nodes = [];
-    // 051, R9: владелец бота в чужой компании — гость
-    if (state.company && state.company.role === 'guest') {
-      nodes.push(h('div', { class: 'ds-notice ds-text-sm' }, t('app.home.guest')));
+    if (active.length) nodes.push(ui.section(t('app.home.going')), h('div', { class: 'ds-card ds-card--flush' }, active.map(eventRow)));
+    if (finished.length) {
+      nodes.push(h('details', { class: 'ds-details ds-stack--sm' },
+        h('summary', { class: 'ds-details__summary ds-section-title' }, t('app.home.done', { n: finished.length })),
+        h('div', { class: 'ds-card ds-card--flush' }, finished.map(eventRow))));
     }
-    nodes.push(ui.section(t('app.home.myEvents')));
-    if (mine.length) nodes.push(h('div', { class: 'ds-card ds-card--flush' }, mine.map(eventRow)));
-    else nodes.push(ui.hint(t(me.is_admin ? 'app.home.noEvents.admin' : 'app.home.noEvents.member'), 'ds-hint--inset'));
-
-    if (me.is_admin) {
-      if (others.length) nodes.push(ui.section(t('app.home.otherEvents')), h('div', { class: 'ds-card ds-card--flush' }, others.map(eventRow)));
-      const create = ui.btn(t('app.home.create.button'), 'festive', 'ds-btn--block');
-      create.addEventListener('click', () => {
-        const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: t('app.home.create.placeholder', { year: new Date().getFullYear() + 1 }) });
-        // Образец (007): параметры и исключения прошлого эвента, по желанию — приглашение его участников
-        const from = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.home.create.noTemplate')),
-          ...events.map((e) => h('option', { value: e.id }, t('app.home.create.fromTemplate', { title: e.title }))));
-        const invite = h('input', { type: 'checkbox', checked: true, disabled: true });
-        const inviteRow = h('label', { class: 'ds-check' }, invite, t('app.home.create.invite'));
-        from.addEventListener('change', () => { invite.disabled = !from.value; });
-        const ok = ui.btn(t('app.core.create'), '', 'ds-btn--block');
-        ok.addEventListener('click', () => busy(ok, async () => {
-          if (!title.value.trim()) return toast(t('app.core.needTitle'));
-          const r = await capi('admin.events.create', { title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked });
-          closeSheet();
-          toast(r.invited ? t('app.home.create.doneInvited', { count: r.invited })
-            : r.invite_error ? t('app.home.create.doneInviteError', { error: r.invite_error }) : t('app.home.create.done'));
-          await reloadMe();
-          await openEvent(r.event.id, 'admin');
-        }));
-        const sheet = [ui.hint(t('app.home.create.hint')), clearable(title, t('app.home.create.name'))];
-        if (events.length) {
-          sheet.push(from, inviteRow, ui.hint(t('app.home.create.templateHint')));
-        }
-        openSheet(t('app.home.create.title'), [...sheet, ok]);
-      });
-      nodes.push(h('div', { class: 'ds-card' }, create));
-      const admins = renderAdminsSection();
-      nodes.push(admins.box);
-      people.push(admins.load);
+    if (!active.length && !finished.length) nodes.push(ui.hint(t(state.create ? 'app.home.empty.create' : 'app.home.empty.join'), 'ds-hint--inset'));
+    // «Создать событие» — закреплена внизу (063), только тем, кто может создавать
+    if (state.create) {
+      const create = ui.btn(t('app.home.create.button'), '', 'ds-btn--block');
+      create.addEventListener('click', openCreateSheet);
+      nodes.push(h('div', { class: 'ds-bottom-bar' }, create));
+      main.classList.add('ds-page--bar');
     }
-
-    // «Профиль» и «Уведомления» — на корневом экране (051, FR-5125): у человека с несколькими компаниями — на «Компаниях»
-    if (!many) nodes.push(...personalSections(nav, greet, people));
     main.replaceChildren(...nodes);
   }
 
-  // «Профиль» и «Уведомления» корневого экрана. Новое имя сразу отображается на экране (039): приветствие и разделы с
-  // именами людей (people — их load) перечитываются на месте
-  function personalSections(nav, greet, people = []) {
-    const me = state.me;
-    const nameText = h('div', { class: 'ds-text-strong' }, me.name);
-    const profileChanged = () => {
-      if (nav !== state.nav) return;
-      nameText.textContent = me.name;
-      greet();
-      for (const load of people) load();
-    };
-    const editName = ui.btn(t('app.home.profile.editName'), 'secondary', 'ds-btn--block');
-    editName.addEventListener('click', () => openNameSheet(profileChanged));
-
-    // Уведомления — общие для всех эвентов
-    const modes = [['sound', t('app.home.notify.sound')], ['silent', t('app.home.notify.silent')], ['off', t('app.home.notify.off')]];
-    const seg = h('div', { class: 'ds-segmented' });
-    const draw = () => seg.replaceChildren(...modes.map(([k, label]) => h('button', {
-      class: 'ds-segmented__item' + (me.notify_mode === k ? ' ds-segmented__item--on' : ''),
-      onclick: () => busy([...seg.children], async () => { await api('notify.set', { mode: k }); me.notify_mode = k; draw(); toast(t('app.core.saved')); }),
-    }, label)));
-    draw();
-    // Язык бота и приложения (061) — шторка выбора
-    const langRow = h('div', { class: 'ds-list-item ds-list-item--link', role: 'button', onclick: () => openLangSheet() },
-      h('div', { class: 'ds-grow ds-list-item__title' }, t('app.home.lang.button')),
-      h('span', { class: 'ds-text-muted' }, langLabel(state.langs.choice)),
-      h('span', { class: 'ds-list-item__chevron' }, '›'));
-    return [ui.section(t('app.home.profile.title')), ui.card(nameText, editName), h('div', { class: 'ds-card ds-card--flush' }, langRow),
-      ui.section(t('app.home.notify.title')), ui.card(seg)];
-  }
-
-  // Подпись языка (061): название на самом языке; '' — «Как в Telegram (<язык по Telegram>)»
-  function langLabel(code) {
-    const name = (c) => (state.langs.list.find((x) => x.code === c) || { name: c }).name;
-    return code ? name(code) : t('app.home.lang.auto', { name: name(state.langs.auto) });
-  }
-
-  // Шторка «🌐 Язык» (061): «Как в Telegram (…)» и языки, у выбранного — ✓. Выбор — словарь нового языка (reloadMe) и
-  // тот же экран на нём, прокрутка прежняя
-  function openLangSheet() {
-    const codes = ['', ...state.langs.list.map((x) => x.code)];
-    const btns = codes.map((code) => ui.btn((state.langs.choice === code ? '✓ ' : '') + langLabel(code), 'secondary', 'ds-btn--block'));
-    btns.forEach((b, i) => b.addEventListener('click', () => busy(btns, async () => {
-      await api('lang.set', { lang: codes[i] });
-      const y = window.scrollY;
+  // Шторка «Новое событие» (063): название, образец (события, где он владелец или администратор), «Я тоже участвую»;
+  // лимит — подсказкой, при пределе кнопка недоступна. После создания — новое событие на «Управлении»
+  function openCreateSheet() {
+    const limit = state.create;
+    const title = h('input', { class: 'ds-input', type: 'text', maxlength: 80, placeholder: t('app.home.create.placeholder', { year: new Date().getFullYear() + 1 }) });
+    // Образец (007): параметры и исключения прошлого эвента, по желанию — приглашение его участников
+    const templates = state.events.filter((e) => e.role === 'owner' || e.role === 'admin');
+    const from = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.home.create.noTemplate')),
+      ...templates.map((e) => h('option', { value: e.id }, t('app.home.create.fromTemplate', { title: e.title }))));
+    const invite = h('input', { type: 'checkbox', checked: true, disabled: true });
+    from.addEventListener('change', () => { invite.disabled = !from.value; });
+    const participate = h('input', { type: 'checkbox', checked: true });
+    const ok = ui.btn(t('app.core.create'), '', 'ds-btn--block');
+    ok.disabled = !limit.bot && limit.left === 0;
+    ok.addEventListener('click', () => busy(ok, async () => {
+      if (!title.value.trim()) return toast(t('app.core.needTitle'));
+      const r = await api('event.create', {
+        title: title.value, from: from.value ? +from.value : undefined, invite: !!from.value && invite.checked, participate: participate.checked,
+      });
+      closeSheet();
+      toast(r.invited ? t('app.home.create.doneInvited', { count: r.invited })
+        : r.invite_error ? t('app.home.create.doneInviteError', { error: r.invite_error }) : t('app.home.create.done'));
       await reloadMe();
-      closeSheet();
-      render();
-      window.scrollTo(0, y);
-    })));
-    openSheet(t('app.home.lang.button'), [ui.hint(t('app.home.lang.hint')), ...btns]);
-  }
-
-  // Шторка «Твоё имя» (035): правило — как при регистрации (до 40 символов, пробелы схлопывает сервер); saved(имя из
-  // ответа сервера)
-  function openNameSheet(saved) {
-    const input = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: state.me.name, autocomplete: 'off' });
-    const save = ui.btn(t('app.core.save'), '', 'ds-btn--block');
-    save.addEventListener('click', () => busy(save, async () => {
-      if (!input.value.trim()) return toast(t('app.home.name.empty'));
-      const r = await api('name.set', { name: input.value });
-      state.me.name = r.name;
-      closeSheet();
-      toast(t('app.home.name.saved'));
-      saved(r.name);
+      await openEvent(r.event.id, 'admin');
     }));
-    openSheet(t('app.home.name.title'), [ui.hint(t('app.home.name.hint')), clearable(input, t('app.home.name.title')), save]);
-  }
-
-  // Раздел «Владелец и администраторы» (002): люди и права компании открытого экрана. → { box, load }: повторный load
-  // заменяет содержимое по ответу, без загрузчика (039)
-  function renderAdminsSection() {
-    const box = h('div', {}, ui.section(t('app.home.admins.title')), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
-    // 👑 (051): владелец компании передаёт свои права; владелец бота делает человека владельцем компании
-    const makeOwner = async (u, btns) => {
-      if (!(await confirmBox(state.botOwner
-        ? t('app.home.admins.makeOwnerConfirm', { name: u.name })
-        : t('app.home.admins.transferConfirm', { name: u.name })))) return;
-      busy(btns, async () => { await capi('admin.owner.transfer', { id: u.id }); toast(t('app.home.admins.transferred')); await goHome(); });
-    };
-    const load = () => capi('admin.users').then((d) => {
-      const me = state.me;
-      const admins = d.users.filter((u) => u.is_admin).sort((a, b) => (b.is_owner ? 1 : 0) - (a.is_owner ? 1 : 0));
-      const list = h('div', { class: 'ds-card ds-card--flush' });
-      for (const u of admins) {
-        const actions = h('div', { class: 'ds-row ds-row--tight' });
-        if (me.is_owner && !u.is_owner) {
-          actions.append(
-            h('button', { class: 'ds-icon-btn', title: t('app.home.admins.transfer'), onclick: () => makeOwner(u, [...actions.children]) }, '👑'),
-            h('button', { class: 'ds-icon-btn', title: t('app.home.admins.revoke'), onclick: async () => {
-              if (!(await confirmBox(t('app.home.admins.revokeConfirm', { name: u.name })))) return;
-              busy([...actions.children], async () => { await capi('admin.role.revoke', { id: u.id }); toast(t('app.home.admins.revoked')); await goHome(); });
-            } }, '✕'));
-        }
-        list.append(h('div', { class: 'ds-list-item' },
-          h('div', { class: 'ds-grow' },
-            h('div', { class: 'ds-list-item__title' }, u.name || t('app.core.noName'), u.id === me.id ? h('span', { class: 'ds-hint ds-text-regular' }, t('app.home.you')) : null),
-            h('div', { class: 'ds-chips' }, u.is_owner ? ui.chip(t('app.core.role.owner')) : ui.chip(t('app.core.role.admin')))),
-          actions));
-      }
-      const parts = [ui.section(t('app.home.admins.title')), list];
-      if (me.is_owner) {
-        const candidates = d.users.filter((u) => !u.is_admin);
-        if (candidates.length) {
-          const sel = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.home.admins.grantPick')), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
-          const grant = ui.btn(t('app.home.admins.grant'), 'secondary', 'ds-btn--block');
-          grant.addEventListener('click', async () => {
-            const u = candidates.find((x) => String(x.id) === sel.value);
-            if (!u) return toast(t('app.core.pickPerson'));
-            if (!(await confirmBox(t('app.home.admins.grantConfirm', { name: u.name })))) return;
-            busy(grant, async () => { await capi('admin.role.grant', { id: u.id }); toast(t('app.home.admins.granted')); await goHome(); });
-          });
-          parts.push(ui.card(ui.hint(t('app.home.admins.ownerHint')), sel, grant));
-          // Владельцем можно сделать и не администратора (051)
-          const pick = h('select', { class: 'ds-input' }, h('option', { value: '' }, t('app.home.admins.ownerPick')), ...candidates.map((u) => h('option', { value: u.id }, u.name)));
-          const crown = ui.btn(t('app.home.admins.makeOwner'), 'secondary', 'ds-btn--block');
-          crown.addEventListener('click', () => {
-            const u = candidates.find((x) => String(x.id) === pick.value);
-            return u ? makeOwner(u, crown) : toast(t('app.core.pickPerson'));
-          });
-          parts.push(ui.card(pick, crown));
-        }
-      } else {
-        parts.push(ui.hint(d.owner_name ? t('app.home.admins.onlyOwnerNamed', { name: d.owner_name }) : t('app.home.admins.onlyOwner'), 'ds-hint--inset'));
-      }
-      const log = ui.btn(t('app.core.auditLog'), 'secondary', 'ds-btn--block');
-      log.addEventListener('click', () => openAudit(null));
-      parts.push(ui.card(ui.hint(t('app.home.admins.logHint')), log));
-      box.replaceChildren(...parts);
-    }).catch((e) => box.replaceChildren(ui.section(t('app.home.admins.title')), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
-    load();
-    return { box, load };
+    const sheet = [ui.hint(t('app.home.create.hint')), clearable(title, t('app.home.create.name'))];
+    if (templates.length) {
+      sheet.push(from, h('label', { class: 'ds-check' }, invite, t('app.home.create.invite')), ui.hint(t('app.home.create.templateHint')));
+    }
+    sheet.push(h('label', { class: 'ds-check' }, participate, t('app.home.create.participate')));
+    if (!limit.bot) {
+      const next = new Date(limit.next || 0);
+      const iso = isoDay(next.getFullYear(), next.getMonth() + 1, next.getDate());
+      sheet.push(ui.hint(limit.left ? t('app.home.create.left', { n: limit.left })
+        : t('app.home.create.full', { limit: limit.limit, date: t('app.core.dateYear', { date: fmtDate(iso), year: next.getFullYear() }) })));
+    }
+    openSheet(t('app.home.create.title'), [...sheet, ok]);
   }

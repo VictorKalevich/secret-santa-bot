@@ -100,7 +100,7 @@ export async function eventView(ctx, ev, member) {
   const ownerId = await ctx.ownerId();
   const role = ownerId === me.tg_id ? 'owner' : (await ctx.organizerOf()).has(ev.id) ? 'admin' : member ? 'member' : 'guest';
   const out = {
-    event: { ...publicEvent(ev), participants: r.people.length, role },
+    event: { ...publicEvent(ev), participants: r.people.length, role, bot_run: !ev.owner_id },
     roster: rosterView(ev, r.people, r.gifts?.[0], r.users, ownerId, r.settings),
     announcements: r.announcements,
     member: null,

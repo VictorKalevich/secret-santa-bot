@@ -98,6 +98,8 @@ export async function setOwner(ctx, newOwnerId, { via, prevOwnerId, newOwnerLabe
       a.enqueue(newOwnerId, msg(tx('roles.botOwner.transferred'), appKeyboard(settings, tx('roles.openButton'))));
     }
     for (const u of adminRecipients(admins, [newOwnerId, prevOwnerId])) a.enqueue(u.tg_id, adminNotice(tx('roles.botOwner.notice', { name: label })));
+    // 063: прежний владелец бота и дальше создаёт события — с лимитом, как все (в закрытом боте — по разрешению)
+    a.where('UPDATE users SET can_create = 1 WHERE tg_id = ?', prevOwnerId);
   }
   if (transfer) a.claim(db.prepare("UPDATE settings SET value = ? WHERE key = 'owner_id' AND value = ?").bind(String(newOwnerId), String(prevOwnerId)));
   else a.add(setSettingStmt(db, 'owner_id', String(newOwnerId)));

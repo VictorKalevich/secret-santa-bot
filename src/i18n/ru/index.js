@@ -26,7 +26,7 @@ import vault from './vault.js';
 import appBoot from './app-boot.js';
 import appCore from './app-core.js';
 import appHome from './app-home.js';
-import appCompanies from './app-companies.js';
+import appSettings from './app-settings.js';
 import appEvent from './app-event.js';
 import appAdmin from './app-admin.js';
 import appVault from './app-vault.js';
@@ -59,7 +59,7 @@ export const AREAS = [
   ['app.boot', 'app-boot.js', appBoot],
   ['app.core', 'app-core.js', appCore],
   ['app.home', 'app-home.js', appHome],
-  ['app.companies', 'app-companies.js', appCompanies],
+  ['app.settings', 'app-settings.js', appSettings],
   ['app.event', 'app-event.js', appEvent],
   ['app.admin', 'app-admin.js', appAdmin],
   ['app.vault', 'app-vault.js', appVault],

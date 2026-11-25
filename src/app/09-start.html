@@ -4,6 +4,7 @@
   function shellTexts() {
     document.title = t('app.boot.title');
     heroBack.title = t('app.boot.back');
+    heroAction.title = t('app.settings.title');
   }
   async function start() {
     shellTexts();
@@ -25,25 +26,17 @@
           : ui.empty('🔒', t('app.boot.signUpFirst.title'), t('app.boot.signUpFirst.text')));
         return;
       }
-      // ?event=…&chat=…|support=… — из кнопок бота; иначе единственный эвент открывается сразу
+      // ?event=…&chat=…|support=… — из кнопок бота: своё событие (владельцу бота — любое) открывается сразу; иначе —
+      // главный экран «Мои события» (063)
       const params = new URLSearchParams(location.search);
       const want = Number(params.get('event'));
       const target = state.events.find((e) => e.id === want);
-      if (target) {
-        const parcel = target.member && params.get('shipment') === '1';
-        await openEvent(target.id, parcel ? 'my' : null, params.get('chat'), params.get('support'));
-        if (parcel && state.evId === target.id && state.tab === 'my') document.getElementById('myShipment')?.scrollIntoView({ block: 'center' });
+      if (target || (want && state.botOwner)) {
+        const parcel = !!target && target.member && params.get('shipment') === '1';
+        await openEvent(want, parcel ? 'my' : null, params.get('chat'), params.get('support'));
+        if (parcel && state.evId === want && state.tab === 'my') document.getElementById('myShipment')?.scrollIntoView({ block: 'center' });
         return;
       }
-      // 051: несколько компаний — корневой экран «Компании»; одна — её главный экран, как раньше (052: и без компаний, если
-      // список доступен, — «Компании»)
-      if (listFirst()) {
-        state.view = 'companies';
-        return render();
-      }
-      enterCompany(state.companies.length ? state.companies[0].id : null);
-      const mine = state.events.filter((e) => e.member);
-      if (!state.me.is_admin && state.events.length === 1 && mine.length === 1) return openEvent(mine[0].id);
       state.view = 'home';
       render();
     } catch (e) {

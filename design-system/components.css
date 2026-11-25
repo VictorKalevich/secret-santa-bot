@@ -28,6 +28,8 @@
 
 /* ========== Раскладка ========== */
 .ds-page { padding: 0 var(--ds-page-gutter); }
+/* Страница с нижней панелью (063): последняя карточка не уходит под панель */
+.ds-page--bar { padding-bottom: calc(var(--ds-bottom-bar-h) + var(--ds-space-3)); }
 .ds-stack > * + * { margin-top: var(--ds-space-3); }
 .ds-stack--sm > * + * { margin-top: var(--ds-space-2); }
 .ds-row { display: flex; align-items: center; gap: var(--ds-space-3); }
@@ -65,6 +67,14 @@
   border: 0; border-radius: var(--ds-radius-pill);
   background: var(--ds-color-surface); color: var(--ds-color-link);
   font-size: var(--ds-text-xl); line-height: 1;
+}
+/* Кнопка справа в шапке (063): ⚙️ «Настройки» на главном экране */
+.ds-hero__action {
+  flex: none; display: grid; place-items: center; cursor: pointer;
+  width: var(--ds-size-control-sm); height: var(--ds-size-control-sm);
+  border: 0; border-radius: var(--ds-radius-pill);
+  background: var(--ds-color-surface); color: var(--ds-color-text);
+  font-size: var(--ds-text-lg); line-height: 1;
 }
 
 /* ========== Вкладки ==========
@@ -377,6 +387,16 @@ select.ds-input {
   transition: opacity var(--ds-duration-base), transform var(--ds-duration-base);
 }
 .ds-toast--visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.ds-root:has(.ds-bottom-bar) .ds-toast { bottom: calc(var(--ds-bottom-bar-h) + var(--ds-space-3)); }
+
+/* ========== Нижняя панель (063) ==========
+ * Главное действие экрана закреплено внизу («Создать событие»): фон страницы, линия сверху, отступ под «домашнюю»
+ * полосу iOS. У страницы с панелью — ds-page--bar. */
+.ds-bottom-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--ds-z-sticky);
+  padding: var(--ds-space-3) var(--ds-page-gutter) calc(var(--ds-space-3) + var(--ds-safe-bottom));
+  background: var(--ds-color-bg); border-top: var(--ds-border-thin) solid var(--ds-color-separator);
+}
 
 /* ========== Шторка ========== */
 .ds-sheet-backdrop { position: fixed; inset: 0; z-index: var(--ds-z-sheet); display: flex; align-items: flex-end; background: var(--ds-color-overlay); }

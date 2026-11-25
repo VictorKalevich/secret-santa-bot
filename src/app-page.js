@@ -6,7 +6,7 @@
 import SHELL from './app/01-shell.html';
 import CORE from './app/02-core.js.txt';
 import HOME from './app/03-home.js.txt';
-import COMPANIES from './app/04-companies.js.txt';
+import SETTINGS from './app/04-settings.js.txt';
 import EVENT from './app/05-event.js.txt';
 import ADMIN from './app/06-admin.js.txt';
 import VAULT_AUDIT from './app/07-vault-audit.js.txt';
@@ -18,7 +18,7 @@ export const APP_PARTS = [
   ['01-shell.html', SHELL],
   ['02-core.js.txt', CORE],
   ['03-home.js.txt', HOME],
-  ['04-companies.js.txt', COMPANIES],
+  ['04-settings.js.txt', SETTINGS],
   ['05-event.js.txt', EVENT],
   ['06-admin.js.txt', ADMIN],
   ['07-vault-audit.js.txt', VAULT_AUDIT],

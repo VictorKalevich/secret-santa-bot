@@ -46,7 +46,9 @@ function appRules(app, dict = APP_DICT) {
     open: donate[1] && /^\s*if \(!state\.open\) return \[\];$/.test(donate[1]) ? [] : ['donateSection: первая проверка — не state.open'],
     place: call > at(/t\('app\.event\.info\.notMember'\)/) && call > at(/ui\.section\(t\('app\.event\.support\.section'\)\)/)
       && call < at(/ui\.section\(t\('app\.event\.how\.title'\)\)/)
-      && lines.filter((l) => /\.\.\.donateSection\(\)/.test(code(l))).length === 1 ? [] : ['renderInfo: donateSection() не на своём месте'],
+      // 063: и в «О боте» «Настроек» — ровно два вызова
+      && lines.filter((l) => /\.\.\.donateSection\(\)/.test(code(l))).length === 2
+      && body(lines, 'aboutSections').some((l) => /\.\.\.donateSection\(\)/.test(code(l))) ? [] : ['renderInfo: donateSection() не на своём месте'],
     link: (donate.some((l) => /openWebLink\(DONATE_URL\)/.test(l)) ? [] : ['кнопка открывает ссылку не через openWebLink'])
       .concat(/if \(tg && tg\.openLink\) tg\.openLink\(url\); else window\.open\(url, '_blank', 'noopener'\);/.test(web) ? [] : ['openWebLink: не openLink / window.open'])
       .concat(bad(/\.openLink\(|window\.open\(/, ['openWebLink', 'openTgLink'])),
@@ -84,6 +86,7 @@ test('от противного (053): каждое правило находи�
   assert.deepEqual(broken(spoil('    if (!state.open) return [];\n', '')), ['open']);
   assert.deepEqual(broken(spoil('    nodes.push(...donateSection());\n', '')), ['place']);
   assert.deepEqual(broken(spoil("ui.section(t('app.event.how.title')),", "ui.section(t('app.event.how.title')), ...donateSection(),")), ['place']);
+  assert.deepEqual(broken(spoil("howItWorks(), ...donateSection()]", "howItWorks()]")), ['place']);
   assert.deepEqual(broken(spoil('openWebLink(DONATE_URL)', 'window.open(DONATE_URL)')), ['link']);
   assert.deepEqual(broken(spoil("else window.open(url, '_blank', 'noopener');", "else location.href = url;")), ['link']);
 });

@@ -53,21 +53,21 @@ test('отдельный значок недоступен, эмодзи в им
 const lines = APP.split('\n');
 const part = (prefix) => PARTS.find((p) => p.name.startsWith(prefix)).text.split('\n');
 
-test('главный экран обновляется после смены имени и не предлагает отдельный значок', () => {
-  const home = part('03-');
+test('«Настройки» обновляются после смены имени и не предлагают отдельный значок', () => {
+  const settings = part('04-');
   const block = (name) => {
-    const [start, end] = topBlock(home, name);
-    return home.slice(start, end + 1).map(code).join('\n');
+    const [start, end] = topBlock(settings, name);
+    return settings.slice(start, end + 1).map(code).join('\n');
   };
-  // «Профиль» и «Уведомления» корневого экрана (051) — personalSections: главный экран передаёт ей приветствие и разделы
+  // «Профиль» и «Уведомления» (063 — экран «Настройки») — personalSections: экран передаёт ей приветствие
   const body = block('personalSections');
-  assert.match(block('renderHome'), /heroSub\.textContent = t\('app\.home\.greet', \{ name: me\.name \}\)/);
+  assert.match(block('renderSettings'), /heroSub\.textContent = t\('app\.home\.greet', \{ name: state\.me\.name \}\)/);
   assert.equal(appTexts(DEFAULT_LANG).texts['app.home.greet'], 'Привет, {name}!');
-  assert.match(block('renderHome'), /personalSections\(nav, greet, people\)/);
+  assert.match(block('renderSettings'), /personalSections\(nav, greet\)/);
   assert.match(body, /openNameSheet\(profileChanged\)/);
   assert.match(body, /nameText\.textContent = me\.name/);
   assert.match(body, /nav !== state\.nav/);
-  assert.match(body, /for \(const load of people\) load\(\)/);
+  assert.match(body, /greet\(\)/);
   assert.doesNotMatch(APP, /openEmojiSheet|emoji\.set|Значок у имени/);
   assert.ok(!Object.values(appTexts(DEFAULT_LANG).texts).some((v) => /Значок у имени/.test(v)), 'в словаре приложения нет «Значок у имени»');
 });

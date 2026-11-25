@@ -47,9 +47,8 @@ export default {
   'app.vault.swap.warning': 'Если поменять, тем, кто уже открыл подопечного, бот напишет, что он сменился. Отметки подарка и переписка этих двух пар начнутся заново.',
   'app.vault.swap.agree': 'Согласен — всё равно поменять',
   'app.vault.swap.confirm': 'Поменять подопечных у «{a}» и «{b}»? Тем, кто уже открыл подопечного, бот напишет, что он сменился. Отметки подарка и переписка этих двух пар начнутся заново.',
-  // Журнал действий: событие, общий журнал комнаты, журнал бота
+  // Журнал действий: событие и журнал бота (063: общих журналов комнат нет)
   'app.vault.log.event': 'Журнал события',
-  'app.vault.log.common': 'Общий журнал',
   'app.vault.log.bot': 'Журнал бота',
   'app.vault.log.empty': 'Записей пока нет.',
   'app.vault.log.hint': 'Последние 100 записей, новые сверху.',
@@ -84,7 +83,11 @@ export default {
   'app.vault.audit.transfer': '🔁 Перенос участия',
   'app.vault.audit.role.grant': '🛠 Назначен администратор',
   'app.vault.audit.role.revoke': '🛠 Сняты права администратора',
-  'app.vault.audit.owner.transfer': '👑 Переданы права владельца',
+  'app.vault.audit.owner.transfer': '👑 Переданы права владельца бота',
+  // 063: владение событием и разрешение создавать события (закрытый бот)
+  'app.vault.audit.event.owner': '👑 Передано владение событием',
+  'app.vault.audit.creator.grant': '✍️ Разрешено создавать события',
+  'app.vault.audit.creator.revoke': '✍️ Запрещено создавать события',
   'app.vault.audit.owner.link': '👑 Владелец по ссылке /setup',
   'app.vault.audit.family.save': '👪 Семья сохранена',
   'app.vault.audit.family.delete': '👪 Семья удалена',
@@ -102,7 +105,7 @@ export default {
   'app.vault.audit.support.pass': '↪️ Обращение передано',
   'app.vault.audit.support.close': '✅ Обращение закрыто',
   'app.vault.audit.support.return': '🔄 Обращение снова ничьё',
-  // 051: журнал бота (и смена владельца — в общем журнале комнаты)
+  // 051: журнал бота и общие журналы комнат — до 063 (история)
   'app.vault.audit.company.create': '🚪 Создана комната',
   'app.vault.audit.company.owner': '👑 Новый владелец',
   'app.vault.audit.company.link': '🔗 Ссылка владельца',

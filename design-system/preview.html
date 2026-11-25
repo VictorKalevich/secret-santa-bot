@@ -31,6 +31,8 @@
   .pv-swatch + div { font-size: var(--ds-text-xs); color: var(--ds-color-text-muted); margin-top: var(--ds-space-1); word-break: break-all; }
   .pv-space { background: var(--ds-color-accent); height: 12px; border-radius: var(--ds-radius-xs); }
   .pv-static { position: static !important; transform: none !important; opacity: 1 !important; }
+  .pv-bar-wrap { position: relative; height: 132px; border-radius: var(--ds-radius-lg); overflow: hidden; }
+  .pv-bar-wrap .ds-bottom-bar { position: absolute; }
   .pv-sheet-wrap { position: relative; border-radius: var(--ds-radius-lg); overflow: hidden; }
   .pv-sheet-wrap .ds-sheet-backdrop { position: absolute; padding-top: var(--ds-space-10); }
   .pv-sheet-wrap { height: 240px; }
@@ -52,6 +54,12 @@
     <button class="ds-hero__back" title="Все эвенты">‹</button>
     <div class="ds-hero__badge">🎅</div>
     <div><h1 class="ds-hero__title">Тайный Санта</h1><div class="ds-hero__subtitle">🎁 27 декабря · 💰 до 50 BYN</div></div>
+  </header>
+  <!-- Шапка главного экрана (063): кнопка справа — ⚙️ «Настройки» -->
+  <header class="ds-hero">
+    <div class="ds-hero__badge">🎅</div>
+    <div class="ds-grow"><h1 class="ds-hero__title">Тайный Санта</h1><div class="ds-hero__subtitle">Привет, Аня!</div></div>
+    <button class="ds-hero__action" title="Настройки">⚙️</button>
   </header>
   <nav class="ds-tabs">
     <button class="ds-tab ds-tab--active"><span class="ds-tab__icon">✉️</span><span class="ds-tab__label">Письмо</span><span class="ds-tab__dot"></span></button>
@@ -277,6 +285,13 @@
     <div class="ds-card ds-empty"><div class="ds-empty__icon">🎲</div><h3 class="ds-empty__title">Жеребьёвка ещё не проведена</h3>
       <div class="ds-text-muted">Здесь появится подопечный.</div><button class="ds-btn ds-btn--secondary ds-empty__action">Попробовать снова</button></div>
     <div class="ds-card"><div class="ds-loader"><div class="ds-spinner"></div>Загрузка…</div></div>
+
+    <!-- Нижняя панель (063): главное действие экрана закреплено внизу; у страницы — ds-page--bar -->
+    <div class="ds-section-title">Нижняя панель · ds-bottom-bar</div>
+    <div class="pv-bar-wrap ds-page--bar">
+      <div class="ds-card">Последняя карточка страницы не уходит под панель</div>
+      <div class="ds-bottom-bar"><button class="ds-btn ds-btn--festive ds-btn--block">🎄 Создать событие</button></div>
+    </div>
 
     <!-- Поддержка проекта (053): фирменный цвет DonationAlerts — одинаковый в обеих темах -->
     <div class="ds-section-title">Поддержка проекта</div>

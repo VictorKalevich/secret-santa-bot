@@ -118,29 +118,29 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 **Independent Test**: человек — участник А, организатор Б, владелец В → видит ровно А, Б, В с ролями; порядок по дате
 вручения; владелец бота — только свои.
 
-- [ ] T022 [P] [US1] Дизайн-система: токены и компоненты `ds-bottom-bar` (закреплена внизу, фон страницы, отступ
+- [X] T022 [P] [US1] Дизайн-система: токены и компоненты `ds-bottom-bar` (закреплена внизу, фон страницы, отступ
   `env(safe-area-inset-bottom)`), `ds-page--bar` (нижний отступ страницы под панель), `ds-hero__action` (кнопка справа в
   шапке) — `design-system/tokens.css`, `design-system/components.css` (базовые — через `:where()`),
   `design-system/preview.html`, `design-system/README.md` (версия дизайн-системы +1 minor)
-- [ ] T023 [US1] `src/app/02-core.js.txt`: убрать `capi`, `withList`, `companyTitle`, `ownerWord(botRun)` → `ownerWord()` по
+- [X] T023 [US1] `src/app/02-core.js.txt`: убрать `capi`, `withList`, `companyTitle`, `ownerWord(botRun)` → `ownerWord()` по
   `state.ev.owner_id`/роли события; `api` — без поля `company`
-- [ ] T024 [US1] `src/app/03-home.js.txt`: `state` — без `companies`, `companyId`, `company`; `view` — `home` | `settings` |
+- [X] T024 [US1] `src/app/03-home.js.txt`: `state` — без `companies`, `companyId`, `company`; `view` — `home` | `settings` |
   `event`; убрать `enterCompany`, `goCompanies`, `openCompany`, `personalSections` с главного экрана, `renderAdminsSection`;
   `renderHome` — шапка (приветствие, ⚙️ `ds-hero__action` → `goSettings`), «Идут» по дате вручения (без даты — в конце,
   новые первыми), «Завершённые · N» в `ds-details` (свёрнуто), `eventRow` с ролью (`app.core.role.owner`/`admin`), датой,
   непрочитанными; пусто — подсказка по `state.create`; `ds-bottom-bar` с «🎄 Создать событие» при `state.create` и
   `ds-page--bar` у страницы; `goBack`/`goHome` — к списку
-- [ ] T025 [US1] `src/app/03-home.js.txt` — `openEvent`: права из `event.get` — `enterEvent(role)` (пишет `state.me.is_admin`,
+- [X] T025 [US1] `src/app/03-home.js.txt` — `openEvent`: права из `event.get` — `enterEvent(role)` (пишет `state.me.is_admin`,
   `is_owner` события; владелец бота — права владельца везде), «‹» — к списку; `src/app/09-start.html` — без `listFirst`,
   `enterCompany` и автооткрытия единственного события; ссылка `/app?event=` открывает событие сразу
-- [ ] T026 [US1] Удалить `src/app/04-companies.js.txt` и строку в `src/app-page.js` (часть `04-settings` — US7)
-- [ ] T027 [US1] Тексты главного экрана — `src/i18n/ru/app-home.js` (`app.home.*`: «Идут», «Завершённые · {n}», пусто с
+- [X] T026 [US1] Удалить `src/app/04-companies.js.txt` и строку в `src/app-page.js` (часть `04-settings` — US7)
+- [X] T027 [US1] Тексты главного экрана — `src/i18n/ru/app-home.js` (`app.home.*`: «Идут», «Завершённые · {n}», пусто с
   правом и без, «Создать событие»), удалить `app.home.admins.*`, ключи компаний в `app-core.js`
-- [ ] T028 [US1] Тест `tests/app-home.test.mjs` (по склейке): кнопка «Создать» только в `ds-bottom-bar` и только при
+- [X] T028 [US1] Тест `tests/app-home.test.mjs` (по склейке): кнопка «Создать» только в `ds-bottom-bar` и только при
   `state.create`; порядок «Идут» (чистая функция сортировки из склейки на примерах); «Завершённые» — `ds-details`; нет
   экрана компаний и слов `company`/`companies` в склейке, кроме удалённых; «от противного»; заменяет
   `tests/app-companies.test.mjs` (удалить, строка в `package.json`)
-- [ ] T029 [US1] Тест сервера `tests/event-owners.test.mjs` — часть «главный экран»: `me.events` у участника, организатора,
+- [X] T029 [US1] Тест сервера `tests/event-owners.test.mjs` — часть «главный экран»: `me.events` у участника, организатора,
   владельца, владельца бота (только свои), роли, без чужих; `me` без `companies`
 
 ## Phase 4: User Story 2 — создание события и лимит (P1)
@@ -150,22 +150,22 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 **Independent Test**: незнакомец открытого бота → имя → «Создать» → ссылка; 11-е создание — отказ с датой; два
 одновременных у границы — одно.
 
-- [ ] T030 [US2] `src/events.js` — `createEvent(ctx, title, createdBy, { from, invite, participate })`: вставка события с
+- [X] T030 [US2] `src/events.js` — `createEvent(ctx, title, createdBy, { from, invite, participate })`: вставка события с
   `company_id = 0`, `owner_id = createdBy` и условием `createGuard` (T008); по коду приглашения — `event_admins`
   создателя, `event_creations`, участие (`participate`, по умолчанию `true`), исключения образца, журнал события
   `event.create` (по образцу — «по образцу «…»»), журнал бота `event.create` («<название>»), `adminFlagStmt` создателя;
   проигравшему — отказ по свежему состоянию (разрешение снято → текст разрешения, иначе лимит с датой)
-- [ ] T031 [US2] `src/api.js`: строка `event.create` (роль `USER`, без события) вместо `admin.events.create`; обработчик —
+- [X] T031 [US2] `src/api.js`: строка `event.create` (роль `USER`, без события) вместо `admin.events.create`; обработчик —
   проверки по порядку контракта (разрешение, название, образец — событие, где вызывающий организатор, владельцу бота —
   любое, лимит по свежему счёту), ответ `event` (`publicEvent` + `role: 'owner'`), `invited`, `invite_error`
-- [ ] T032 [US2] `src/bot.js`: незнакомец открытого бота после имени — «создай своё событие в приложении или попроси
+- [X] T032 [US2] `src/bot.js`: незнакомец открытого бота после имени — «создай своё событие в приложении или попроси
   ссылку» (без «комнаты»); `bot.createFirstEvent` — при `canCreate`; меню без идущих событий — текст по `canCreate`
-- [ ] T033 [US2] Приложение: шторка создания в `src/app/03-home.js.txt` (`openCreateSheet`): название, образец (события с
+- [X] T033 [US2] Приложение: шторка создания в `src/app/03-home.js.txt` (`openCreateSheet`): название, образец (события с
   ролью `owner`/`admin`), «Пригласить участников образца», «Я тоже участвую» (вкл.), подсказка «Можно создать ещё {n}» /
   «Предел: следующее — {date}», кнопка недоступна при `left = 0`; после создания — открыть новое событие; `busy`
-- [ ] T034 [US2] Тексты — `src/i18n/ru/events.js` (отказы лимита и разрешения, журнал бота), `src/i18n/ru/api.js`,
+- [X] T034 [US2] Тексты — `src/i18n/ru/events.js` (отказы лимита и разрешения, журнал бота), `src/i18n/ru/api.js`,
   `src/i18n/ru/bot.js`, `src/i18n/ru/app-home.js` (`app.home.create.*`)
-- [ ] T035 [US2] Тест `tests/event-create.test.mjs`: открытый бот — любой создаёт, участие вкл./выкл., образец своего и
+- [X] T035 [US2] Тест `tests/event-create.test.mjs`: открытый бот — любой создаёт, участие вкл./выкл., образец своего и
   чужого события, история пар нового события — по владельцу; лимит — 10 проходят, 11-е — отказ с датой (часы мира),
   через 365 суток — снова можно, удалённые и переданные считаются, владелец бота без лимита; закрытый бот — без
   разрешения отказ, с разрешением можно; незнакомец открытого бота — имя → создание; `me.create` во всех случаях; «от
@@ -179,24 +179,24 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 
 **Independent Test**: владелец назначает участника; тот управляет только этим событием; передача владения меняет роли.
 
-- [ ] T037 [US3] `src/roles.js`: `grantAdmin(ctx, ev, id)` — `atomic` по прежнему состоянию «строки нет»: только
+- [X] T037 [US3] `src/roles.js`: `grantAdmin(ctx, ev, id)` — `atomic` по прежнему состоянию «строки нет»: только
   зарегистрированный участник события; сообщения назначенному (кнопка события) и остальным организаторам без звука,
   журнал события `role.grant` → вставка `event_admins` (захват) → `adminFlagStmt`; `revokeAdmin` — «строка есть, не
   владелец»: `returnThreadsStmts` по событию, сообщения, журнал `role.revoke` → удаление строки (захват) →
   `adminFlagStmt`; `transferEventOwner(ctx, ev, id)` — по прежнему владельцу: строка `event_admins` нового → сообщения
   (новому; прежнему, если передал не он; остальным без звука) → журнал `event.owner` («→ <имя>») → `owner_id` (захват) →
   `adminFlagStmt` обоих; отказы — контракт §2
-- [ ] T038 [US3] `src/api.js`: `admin.role.grant`, `admin.role.revoke`, `admin.owner.transfer` — действия события (`event:
+- [X] T038 [US3] `src/api.js`: `admin.role.grant`, `admin.role.revoke`, `admin.owner.transfer` — действия события (`event:
   true`, `OWNER`, в завершённом — да), отказ не владельцу — тексты контракта; `admin.rename` — только владелец бота
   (`OWNER`, `bot: true`, отказ `api.botOwner.rename`); `admin.event.invite_from` — источник по организаторству
-- [ ] T039 [US3] Приложение `src/app/06-admin.js.txt`: секция `adminOrganizers(p)` «Владелец и администраторы» (место —
+- [X] T039 [US3] Приложение `src/app/06-admin.js.txt`: секция `adminOrganizers(p)` «Владелец и администраторы» (место —
   перед «Опасной зоной»): `p.d.organizers` (владелец 👑 первым), ✕ и 👑 — владельцу, «Назначить администратором» из
   участников-неорганизаторов, «Передать владение» из участников и организаторов (подтверждение `confirmBox`), не
   владельцу — «Назначает администраторов владелец события — <имя>.»; после ответа — `refresh({ quiet: true })`;
   `canRename` — только `state.botOwner`; `canRemove`/`canTransfer` — по роли события; `other_events` — из ответа
-- [ ] T040 [US3] Тексты — `src/i18n/ru/roles.js` (сообщения, отказы, журнал), `src/i18n/ru/app-admin.js`
+- [X] T040 [US3] Тексты — `src/i18n/ru/roles.js` (сообщения, отказы, журнал), `src/i18n/ru/app-admin.js`
   (`app.admin.admins.*`), `src/i18n/ru/app-vault.js` (подписи `event.owner`, `creator.*`)
-- [ ] T041 [US3] `tests/event-owners.test.mjs` — права: организатор А не видит событие Б того же владельца (404; участник Б
+- [X] T041 [US3] `tests/event-owners.test.mjs` — права: организатор А не видит событие Б того же владельца (404; участник Б
   — 403), назначение только участника, снятие не владельца, передача владения (роли, сообщения, журнал), снятие
   возвращает обращения, событие пропадает из списка снятого неучастника; инварианты E1–E4 после каждого шага
 - [X] T042 [US3] `tests/rights.test.mjs`: роли — владелец бота, владелец события, организатор события, организатор
@@ -205,7 +205,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
   бота
 - [X] T043 [US3] `tests/atomic.test.mjs`: назначение ×2, снятие ×2, назначение ↔ снятие, передача владения ×2 (одному и
   разным) — один результат, одна запись журнала, одно сообщение; убрать случаи компаний (050–052)
-- [ ] T044 [US3] Замена `tests/companies.test.mjs` и `tests/companies-manage.test.mjs` на проверки событий в
+- [X] T044 [US3] Замена `tests/companies.test.mjs` и `tests/companies-manage.test.mjs` на проверки событий в
   `tests/event-owners.test.mjs` (статические правила: права не из `users.is_admin` в SQL модулей, кроме разрешённых мест;
   нет `company_members`/`companies` в `src/*.js` вне комментариев; сфера журнала — событие или `BOT_LOG`); удалить
   старые файлы и строки в `package.json`
@@ -224,10 +224,10 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 - [ ] T046 [US4] Тот же тест — права до и после: для каждой пары «человек — событие» роль 062 (владелец комнаты /
   админ комнаты / участник) = роль 063; «не повторять пары» выбирает те же прошлые пары (события одной комнаты с одним
   владельцем)
-- [ ] T047 [US4] `src/bot.js`: `/start own_<код>` — текст «ссылка больше не действует» и меню (незнакомцу закрытого бота —
+- [X] T047 [US4] `src/bot.js`: `/start own_<код>` — текст «ссылка больше не действует» и меню (незнакомцу закрытого бота —
   `CLOSED_BOT`, открытого — просьба имени); `name_own:…` после имени — обычная регистрация и тот же текст; убрать
   `onCompanyOwnerLink`, `signUpOwner`, `OWNER_PENDING`; тексты — `src/i18n/ru/bot.js`
-- [ ] T048 [US4] `tests/signup.test.mjs` / `tests/event-owners.test.mjs`: прежняя ссылка `own_` прав не даёт, ожидание
+- [X] T048 [US4] `tests/signup.test.mjs` / `tests/event-owners.test.mjs`: прежняя ссылка `own_` прав не даёт, ожидание
   `name_own:` — регистрация без прав
 
 ## Phase 7: User Story 5 — закрытый бот: кто создаёт (P2)
@@ -236,15 +236,15 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 
 **Independent Test**: без разрешения нет кнопки и отказ; разрешение → кнопка и создание.
 
-- [ ] T049 [US5] Новый `src/bot-owner.js`: `setCreator(ctx, id, on)` — `atomic` по прежнему значению: открытый бот — отказ;
+- [X] T049 [US5] Новый `src/bot-owner.js`: `setCreator(ctx, id, on)` — `atomic` по прежнему значению: открытый бот — отказ;
   только зарегистрированный; сообщение человеку, журнал бота `creator.grant`/`creator.revoke` (имя) → `can_create`
   (захват); `peopleView(ctx)` — `bot.people` (закрытый бот — все зарегистрированные по имени, открытый — люди событий, где
   владелец бота организатор, кроме него), поля `{ id, name, username, can_create }`
-- [ ] T050 [US5] `src/api.js`: строки `bot.people`, `bot.creator.set` (роль `BOT`)
-- [ ] T051 [US5] Приложение (часть `04-settings`, T058): шторка «✍️ Кто может создавать события» — `bot.people`,
+- [X] T050 [US5] `src/api.js`: строки `bot.people`, `bot.creator.set` (роль `BOT`)
+- [X] T051 [US5] Приложение (часть `04-settings`, T058): шторка «✍️ Кто может создавать события» — `bot.people`,
   переключатели `ds-switch`, `busy`; только в закрытом боте
-- [ ] T052 [US5] Тексты — `src/i18n/ru/bot-owner.js`, `src/i18n/ru/app-settings.js`
-- [ ] T053 [US5] Тест `tests/bot-owner.test.mjs` — разрешения: без разрешения — отказ и нет `me.create`; разрешение →
+- [X] T052 [US5] Тексты — `src/i18n/ru/bot-owner.js`, `src/i18n/ru/app-settings.js`
+- [X] T053 [US5] Тест `tests/bot-owner.test.mjs` — разрешения: без разрешения — отказ и нет `me.create`; разрешение →
   сообщение, журнал, создание; снятие — созданные остаются; открытый бот — отказ действия; не владельцу бота — 403;
   `atomic`: разрешение ×2 — один результат
 
@@ -255,16 +255,16 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 **Independent Test**: «Все события» — все события страницами по 50, открытие с правами владельца; журнал бота — записи
 по контракту и прежние общие записи.
 
-- [ ] T054 [US6] `src/bot-owner.js`: `eventsPage(ctx, offset)` — `bot.events` (новые первыми, `LIMIT 51 OFFSET ?`,
+- [X] T054 [US6] `src/bot-owner.js`: `eventsPage(ctx, offset)` — `bot.events` (новые первыми, `LIMIT 51 OFFSET ?`,
   `owner_name`, `people`), `botAudit` — `getAudit(db, BOT_LOG, …)`; `src/api.js` — строка `bot.events`; `bot.audit` —
   через `bot-owner.js`
-- [ ] T055 [US6] `src/roles.js` — `bot.owner.transfer`: цель любой зарегистрированный, кроме себя; журнал бота; события и
+- [X] T055 [US6] `src/roles.js` — `bot.owner.transfer`: цель любой зарегистрированный, кроме себя; журнал бота; события и
   организаторство не меняются, флаги `is_admin` обоих пересчитываются
-- [ ] T056 [US6] Приложение (`04-settings`): раздел «Владелец бота» — «📜 Журнал бота» (`openAudit` с `BOT_LOG`),
+- [X] T056 [US6] Приложение (`04-settings`): раздел «Владелец бота» — «📜 Журнал бота» (`openAudit` с `BOT_LOG`),
   «👑 Передать права владельца бота» (кандидаты — `bot.people`), «🗂 Все события» (шторка, «Показать ещё», нажатие —
   `openEvent`); гость в событии — плашка (`app.event.guest`); `src/app/07-vault-audit.js.txt` — `openAudit(evId)` только
   событие или журнал бота
-- [ ] T057 [US6] `tests/bot-owner.test.mjs` — `bot.events` (страницы, порядок, `more`), открытие чужого события
+- [X] T057 [US6] `tests/bot-owner.test.mjs` — `bot.events` (страницы, порядок, `more`), открытие чужого события
   владельцем бота — гость (нет в `users`, получателях, своём списке; журнал под его именем), журнал бота — коды
   контракта §4 и прежние записи комнат (база с историей), передача прав владельца бота — лимит появляется у прежнего и
   пропадает у нового; не владельцу бота — 403
@@ -275,15 +275,15 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 
 **Independent Test**: смена имени, языка, режима в «Настройках» — тот же результат, что раньше на главном экране.
 
-- [ ] T058 [US7] Новая часть `src/app/04-settings.js.txt` (`renderSettings`): «Профиль» (`openNameSheet`), «🌐 Язык»
+- [X] T058 [US7] Новая часть `src/app/04-settings.js.txt` (`renderSettings`): «Профиль» (`openNameSheet`), «🌐 Язык»
   (`openLangSheet`), «Уведомления» (режим + пояснение `app.settings.notify.hint`), «О боте» («Как это работает»,
   `donateSection` в открытом боте), раздел «Владелец бота» (US5, US6); «‹» — к списку; строка в `src/app-page.js`;
   `profileChanged` — обновление на месте
-- [ ] T059 [US7] Перенос `openNameSheet`, `openLangSheet`, `langLabel`, режима уведомлений из `03-home` в `04-settings`
+- [X] T059 [US7] Перенос `openNameSheet`, `openLangSheet`, `langLabel`, режима уведомлений из `03-home` в `04-settings`
   (без копий; правило `app-ui` — одна шторка)
-- [ ] T060 [US7] Тексты — `src/i18n/ru/app-settings.js` (область `app-settings`, строка в `AREAS`), удалить
+- [X] T060 [US7] Тексты — `src/i18n/ru/app-settings.js` (область `app-settings`, строка в `AREAS`), удалить
   `src/i18n/ru/app-companies.js`
-- [ ] T061 [US7] `tests/app-home.test.mjs` — «Настройки»: на главном экране нет «Профиля», «Уведомлений»,
+- [X] T061 [US7] `tests/app-home.test.mjs` — «Настройки»: на главном экране нет «Профиля», «Уведомлений»,
   «Администраторов»; «Поддержать проект» только при `state.open`; `tests/names.test.mjs`, `tests/donate.test.mjs`,
   `tests/poll-drafts.test.mjs` — по новому месту
 
@@ -291,9 +291,9 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 
 **Goal**: журнал события и журнал бота, без общих журналов комнат.
 
-- [ ] T062 [US8] `src/i18n/ru/app-vault.js`: подписи кодов `event.owner`, `creator.grant`, `creator.revoke`; прежние
+- [X] T062 [US8] `src/i18n/ru/app-vault.js`: подписи кодов `event.owner`, `creator.grant`, `creator.revoke`; прежние
   `company.*` — с пометкой «история» (видит только владелец бота); `AUDIT_HISTORY` — при необходимости
-- [ ] T063 [US8] `tests/event-owners.test.mjs` — журналы: назначение, снятие, передача — в журнале события; удаление
+- [X] T063 [US8] `tests/event-owners.test.mjs` — журналы: назначение, снятие, передача — в журнале события; удаление
   события — журнал бота с названием и числом участников; `name.set` — без записей; `admin.audit` без события — 404
 - [ ] T064 [US8] `tests/api-doc.test.mjs` проходит: коды журнала документа = коды `src/*.js`
 
