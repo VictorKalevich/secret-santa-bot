@@ -324,7 +324,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 - [x] T073 `tests/auto-finish.test.mjs`: правило Г — организаторы события; предупреждение — организаторам события;
   `tests/roster.test.mjs` — роли по событию; `tests/self-service.test.mjs` — выход владельца-участника оставляет
   владение; `tests/i18n-languages.test.mjs` — без компаний
-- [ ] T074 `tests/e2e.test.mjs`: сценарий без компаний (создание события в приложении, назначение организатора, передача
+- [x] T074 `tests/e2e.test.mjs`: сценарий без компаний (создание события в приложении, назначение организатора, передача
   владения)
 - [ ] T075 `tests/screenshots.mjs`: `checkHome` (список, «Создать» внизу на 320 точках, обе темы, длинный список),
   `checkSettings`, `checkOrganizers`, `checkOpenBot` (второй Worker); убрать `checkCompanies`; `tests/*.ui.mjs` —

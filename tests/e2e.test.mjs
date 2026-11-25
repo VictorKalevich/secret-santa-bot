@@ -1,5 +1,5 @@
 // Сквозной тест: локальный Worker (wrangler dev) + имитация Telegram. Сценарии: сквозной (события, жеребьёвка, переписка,
-// история), 006 (миграции), 007, 008, 009, 010, 012, 014, 032 (политика страницы).
+// история), 006 (миграции), 007, 008, 009, 010, 012, 014, 032 (политика страницы), 063 (события без комнат).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -274,7 +274,7 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     assert.equal(oe.member, null);
     assert.equal((await api(owner, 'ward.get', { event: ev.B }, true)).status, 403);
     assert.equal((await api(owner, 'chat.get', { event: ev.B, with: 'ward' }, true)).status, 403);
-    assert.ok((await api(owner, 'me')).events.some((e) => e.id === ev.B && !e.member));
+    assert.ok((await api(owner, 'me')).events.some((e) => e.id === ev.B && !e.member && e.role === 'owner'));
   });
 
   await t.test('005: завершение эвента и окно переписки 7 дней', async () => {
@@ -325,21 +325,35 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     for (const [s, wd] of pc) assert.notEqual(pairs.get(s), wd, 'пара прошлого эвента не повторилась');
   });
 
-  await t.test('002: роли — владелец назначает и снимает админов', async () => {
-    await api(owner, 'admin.role.grant', { id: masha.id });
-    await waitFor(() => texts(masha).some((x) => /назначил тебя администратором/.test(x)), 'назначен');
-    assert.equal((await api(masha, 'me')).me.is_admin, true);
-    assert.ok((await api(masha, 'me')).events.length >= 3, 'админ видит все эвенты');
-    assert.equal((await api(masha, 'admin.role.grant', { id: petya.id }, true)).status, 403);
+  await t.test('002/063: роли — владелец события назначает и снимает администраторов', async () => {
+    // 063: администратор — в одном событии, назначают только участника события
+    const outsider = await api(owner, 'admin.role.grant', { event: ev.C, id: ivan.id }, true);
+    assert.equal(outsider.status, 400);
+    assert.equal(outsider.data.error, 'Назначить можно только участника события.');
+    await api(owner, 'admin.role.grant', { event: ev.C, id: masha.id });
+    await waitFor(() => texts(masha).some((x) => /Тебя назначили администратором события «Семья 2027»/.test(x)), 'назначен');
+    const mm = await api(masha, 'me');
+    assert.equal(mm.me.is_admin, true);
+    assert.deepEqual(mm.events.filter((e) => e.role !== 'member').map((e) => [e.id, e.role]), [[ev.C, 'admin']], 'администратор только в одном событии');
+    assert.equal((await api(masha, 'admin.state', { event: ev.B }, true)).status, 403, 'в другом событии — участник');
+    assert.equal((await api(owner, 'admin.role.grant', { event: ev.C, id: masha.id }, true)).data.error, 'Он(а) уже администратор.');
+    const byAdmin = await api(masha, 'admin.role.grant', { event: ev.C, id: petya.id }, true);
+    assert.equal(byAdmin.status, 403);
+    assert.equal(byAdmin.data.error, 'Назначать и снимать администраторов может только владелец.');
     const del = await api(masha, 'admin.remove', { event: ev.C, id: owner.id }, true);
     assert.equal(del.status, 400);
-    await api(owner, 'admin.role.grant', { id: petya.id });
+    await api(owner, 'admin.role.grant', { event: ev.C, id: petya.id });
     assert.equal((await api(masha, 'admin.remove', { event: ev.C, id: petya.id }, true)).status, 403);
-    await api(owner, 'admin.role.revoke', { id: petya.id });
+    await api(owner, 'admin.role.revoke', { event: ev.C, id: petya.id });
     assert.equal((await api(petya, 'admin.state', { event: ev.C }, true)).status, 403);
     await api(owner, 'bot.owner.transfer', { id: masha.id }); // 051: прежний admin.owner.transfer
     assert.equal((await api(masha, 'me')).me.is_owner, true);
-    assert.equal((await api(owner, 'admin.role.grant', { id: petya.id }, true)).status, 403);
+    // 063: события остаются за прежним владельцем бота, создавать дальше — с лимитом (создал A, B, C)
+    const prev = await api(owner, 'me');
+    assert.equal(prev.me.is_owner, false);
+    assert.deepEqual(prev.create, { left: 7, limit: 10 });
+    assert.equal((await api(owner, 'event.get', { event: ev.C })).event.role, 'owner');
+    assert.equal((await api(owner, 'bot.audit', {}, true)).status, 403);
     // 010: ссылка владельца одноразовая — повторный переход владельца не меняет
     await say(owner, '/start ' + ownerCode);
     assert.ok(texts(owner).slice(-2).some((x) => /Ссылка владельца уже использована/.test(x)), 'отказ (и меню следом)');
@@ -347,8 +361,11 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     // Смена ADMIN_SECRET делает отметку «использована» чужой — здесь так же, без перезапуска Worker
     w.sql("UPDATE settings SET value = 'old-secret' WHERE key = 'owner_link_used'");
     await say(owner, '/start ' + ownerCode); // ссылка владельца возвращает права
-    assert.equal((await api(owner, 'me')).me.is_owner, true);
+    const back = await api(owner, 'me');
+    assert.equal(back.me.is_owner, true);
+    assert.deepEqual(back.create, { bot: true });
     await waitFor(() => texts(masha).some((x) => /Права владельца бота перешли к <b>Дмитрий<\/b>/.test(x)), 'предупреждение');
+    assert.deepEqual((await api(masha, 'me')).create, { left: 10, limit: 10 }, 'прежний владелец бота может создавать события');
   });
 
   await t.test('004/005: перенос аккаунта во всех эвентах', async () => {
@@ -369,7 +386,7 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     assert.equal((await api(owner, 'admin.transfer', { from: anya.id, to: owner.id }, true)).status, 400, 'и на свой');
     assert.equal((await api(anya, 'ward.get', { event: ev.C })).ward?.name, wardOfAnya, 'пары Ани на месте');
     await api(owner, 'admin.transfer', { from: katya.id, to: katya2.id });
-    await waitFor(() => texts(katya2).some((x) => /Владелец перенёс на этот аккаунт/.test(x)), 'сообщение новому аккаунту');
+    await waitFor(() => texts(katya2).some((x) => /Владелец бота перенёс на этот аккаунт/.test(x)), 'сообщение новому аккаунту');
     // 006: перенос не тайный — прежний аккаунт и другие админы узнают о нём
     await waitFor(() => texts(katya).some((x) => /перенесено на аккаунт <b>Катя Новая<\/b>/.test(x)), 'сообщение прежнему аккаунту');
     await waitFor(() => texts(masha).some((x) => /<b>Дмитрий<\/b> перенёс участие <b>Катя<\/b> на аккаунт <b>Катя Новая<\/b>/.test(x)), 'сообщение админу');
@@ -438,17 +455,21 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
     const rm = await api(owner, 'admin.remove', { event: ev.D, id: ivan.id }, true);
     assert.equal(rm.status, 400);
     assert.match(rm.data.error, /не участвует/);
-    // переименование администратора — только владелец
-    assert.equal((await api(masha, 'admin.rename', { id: owner.id, name: 'Взлом' }, true)).status, 403);
-    await api(masha, 'admin.rename', { id: masha.id, name: masha.name });
-    await api(masha, 'admin.rename', { id: petya.id, name: petya.name });
-    assert.equal((await api(masha, 'admin.rename', { id: 424242, name: 'Никто' }, true)).status, 400);
+    // переименовать человека — только владелец бота (063)
+    for (const id of [owner.id, petya.id]) {
+      const r = await api(masha, 'admin.rename', { id, name: 'Взлом' }, true);
+      assert.equal(r.status, 403);
+      assert.equal(r.data.error, 'Переименовать человека может только владелец бота.');
+    }
+    await api(owner, 'admin.rename', { id: petya.id, name: petya.name });
+    assert.equal((await api(owner, 'admin.rename', { id: 424242, name: 'Никто' }, true)).status, 400);
 
-    // двойная жеребьёвка: два одновременных запроса — ровно одна
+    // двойная жеребьёвка: два одновременных запроса двух организаторов — ровно одна
+    await api(owner, 'admin.role.grant', { event: ev.D, id: petya.id });
     const drawn = (u) => texts(u).filter((x) => x.includes('Жеребьёвка в событии') && x.includes('отдела маркетинга')).length;
     const [r1, r2] = await Promise.all([
       api(owner, 'admin.draw', { event: ev.D }, true),
-      api(masha, 'admin.draw', { event: ev.D }, true),
+      api(petya, 'admin.draw', { event: ev.D }, true),
     ]);
     assert.deepEqual([r1.status, r2.status].sort(), [200, 400]);
     assert.match((r1.status === 400 ? r1 : r2).data.error, /уже проведена/);
@@ -536,7 +557,7 @@ test('007: инструменты организатора', { timeout: 300000 }
     return m;
   };
   const noPairs = (obj) => assert.ok(!/"(santa|ward)"\s*:/.test(JSON.stringify(obj)), 'в ответе админу нет пар');
-  const audit = async (eid) => (await zapi(boss, 'admin.audit', eid ? { event: eid } : {})).entries;
+  const audit = async (eid) => (await zapi(boss, 'admin.audit', { event: eid })).entries;
   let E1, E2;
 
   try {
@@ -684,7 +705,7 @@ test('007: инструменты организатора', { timeout: 300000 }
       for (const u of crew) assert.equal(ztexts(u).filter((x) => x.includes('Тайна раскрыта')).length, 1, 'раскрытие один раз');
     });
 
-    await t.test('US7: журнал — по эвенту и общий, только админам, без писем', async () => {
+    await t.test('US7: журнал — события и бота, только организаторам, без писем', async () => {
       await zapi(boss, 'admin.wishlist', { event: E1, id: egor.id });
       const a = await audit(E1);
       const codes = new Set(a.map((e) => e.action));
@@ -699,13 +720,20 @@ test('007: инструменты организатора', { timeout: 300000 }
       assert.equal((await zapi(vera, 'admin.audit', { event: E1 }, true)).status, 403);
       assert.equal((await zapi(vera, 'admin.audit', {}, true)).status, 403);
 
-      await zapi(boss, 'admin.role.grant', { id: vera.id });
-      await zapi(boss, 'admin.role.revoke', { id: vera.id });
-      const g = await audit(null);
+      // 063: назначение и снятие администратора — в журнале события (и в завершённом)
+      await zapi(boss, 'admin.role.grant', { event: E1, id: vera.id });
+      await zapi(boss, 'admin.role.revoke', { event: E1, id: vera.id });
+      const roles = await audit(E1);
+      assert.equal(roles.find((e) => e.action === 'role.grant').details, vera.name);
+      assert.equal(roles.find((e) => e.action === 'role.revoke').details, vera.name);
+      // Общего журнала нет: без события — «не найдено»; у владельца бота — журнал бота
+      assert.equal((await zapi(boss, 'admin.audit', {}, true)).status, 404);
+      const g = (await zapi(boss, 'bot.audit')).entries;
       const gc = g.map((e) => e.action);
-      assert.ok(gc.includes('owner.link') && gc.includes('role.grant') && gc.includes('role.revoke'));
-      assert.equal(g.find((e) => e.action === 'role.grant').details, vera.name);
-      assert.ok(!gc.includes('draw'), 'в общем журнале нет действий эвентов');
+      assert.ok(gc.includes('owner.link'));
+      assert.ok(g.some((e) => e.action === 'event.create' && e.details === '«Офис 2026»' && e.actor_name === boss.name));
+      assert.ok(!gc.includes('draw') && !gc.includes('role.grant'), 'в журнале бота нет действий событий');
+      assert.equal((await zapi(vera, 'bot.audit', {}, true)).status, 403);
     });
   } finally {
     const log = z.log();
@@ -942,6 +970,12 @@ test('009: исправления перед выкатом', { timeout: 400000 
     for (const u of people) await join(u, code);
     return id;
   };
+  // 063: администратор — в одном событии; назначают участника, затем он выключает «Я участвую» (в жеребьёвке его нет)
+  const staff = async (eid) => {
+    await join(helper, await zInvite(eid));
+    await zapi(boss, 'admin.role.grant', { event: eid, id: helper.id });
+    await zapi(helper, 'admin.participate', { event: eid, on: false });
+  };
   let E1, E6;
 
   try {
@@ -951,8 +985,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
       await z.say(boss, boss.name);
       registered.add(boss.id);
       E1 = await newEvent('Тайна', crew);
-      await newEvent('Штаб', [helper]);
-      await zapi(boss, 'admin.role.grant', { id: helper.id });
+      await staff(E1);
     });
 
     await t.test('тайна: админу исключения после жеребьёвки заморожены, себя не вписать', async () => {
@@ -970,7 +1003,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
       // вписать себя нельзя: вписывает только владелец (012)
       const self = await zapi(helper, 'admin.insert', { event: E1, id: helper.id }, true);
       assert.equal(self.status, 403);
-      assert.match(self.data.error, /только владелец бота/);
+      assert.equal(self.data.error, 'Вписывать в жеребьёвку после неё может только владелец.');
 
       // проверка жеребьёвки без признаков учёта прошлых пар
       const E2 = await newEvent('Снова', crew);
@@ -1179,6 +1212,12 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
     for (const u of people) await join(u, code);
     return id;
   };
+  // 063: администратор — в одном событии; назначают участника, затем он выключает «Я участвую»
+  const staff = async (eid) => {
+    await join(helper, await zInvite(eid));
+    await zapi(boss, 'admin.role.grant', { event: eid, id: helper.id });
+    await zapi(helper, 'admin.participate', { event: eid, on: false });
+  };
   let E;
 
   try {
@@ -1223,7 +1262,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
 
     await t.test('подготовка', async () => {
       E = await newEvent('База', [helper, anya, borya, vera, gena, dasha]);
-      await zapi(boss, 'admin.role.grant', { id: helper.id });
+      await zapi(boss, 'admin.role.grant', { event: E, id: helper.id });
     });
 
     await t.test('перенос участия — только владелец', async () => {
@@ -1243,6 +1282,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
 
       const V = await newEvent('Сейф', [anya, borya, vera, gena], { delivery_on: true });
       await zapi(boss, 'admin.participate', { event: V, on: true });
+      await staff(V);
       await zapi(vera, 'wishlist.save', { event: V, text: 'Хочу шарф ВЕРА-СЕКРЕТ' });
       await zapi(vera, 'delivery.save', { event: V, text: 'Минск, ул. Ёлочная, 1' });
       await zapi(boss, 'admin.draw', { event: V });
@@ -1259,7 +1299,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       for (const action of ['admin.vault.person', 'admin.vault.pairs']) {
         const r = await zapi(helper, action, { event: V, id: vera.id }, true);
         assert.equal(r.status, 403, action);
-        assert.equal(r.data.error, 'Служебный просмотр доступен только владельцу бота.');
+        assert.equal(r.data.error, 'Служебный просмотр доступен только владельцу.');
       }
 
       const all = await zapi(boss, 'admin.vault.pairs', { event: V, confirm: 'ОТКРЫТЬ' });
@@ -1303,18 +1343,20 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       const code = await zInvite(V4);
       await z.say(helper, '/start ' + code);
       await z.say(boss, '/start ' + code);
+      await zapi(boss, 'admin.role.grant', { event: V4, id: helper.id }); // назначить можно и после жеребьёвки
       const hs = await zapi(helper, 'admin.insert', { event: V4, id: helper.id }, true);
       assert.equal(hs.status, 403);
-      assert.match(hs.data.error, /Вписывать в жеребьёвку после неё может только владелец бота/);
+      assert.equal(hs.data.error, 'Вписывать в жеребьёвку после неё может только владелец.');
       await zapi(boss, 'admin.insert', { event: V4, id: boss.id });
       assert.ok((await pairsSql(V4)).has(boss.id), 'владелец вписал себя');
     });
 
     await t.test('владелец может всё, что админ (автотест по всем действиям admin.*)', async () => {
-      // 019: список — из таблицы действий (порядок строк = прежний порядок case); ровно 48 (048) — потерю действия видно сразу
+      // 019: список — из таблицы действий (порядок строк = прежний порядок case); ровно 43 (063: без admin.users и
+      // admin.events.create) — потерю действия видно сразу
       const { ACTIONS } = await import('../src/api.js');
       const actions = Object.keys(ACTIONS).filter((a) => a.startsWith('admin.'));
-      assert.equal(actions.length, 45, `найдено действий: ${actions.length}`);
+      assert.equal(actions.length, 43, `найдено действий: ${actions.length}`);
       // Минимальное тело: без слов подтверждения и без людей — опасные действия получают отказ по данным, а не по правам
       const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
       const P1 = (await zapi(boss, 'event.create', { participate: false, title: 'Права владельца' })).event.id;
@@ -1326,18 +1368,20 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       assert.deepEqual(denied, [], 'владельцу ни одного отказа по правам');
       // Проверка не пустая: обычный админ получает отказ на действия владельца
       const P2 = (await zapi(boss, 'event.create', { participate: false, title: 'Права админа' })).event.id;
+      await staff(P2);
       const deniedAdmin = [];
       for (const a of actions) {
         const r = await zapi(helper, a, body(P2), true);
         if (r.status === 403) deniedAdmin.push(a);
       }
-      for (const a of ['admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete', 'admin.insert', 'admin.draw.cancel.force', 'admin.fixed.add', 'admin.fixed.del', 'admin.draw.swap.check', 'admin.draw.swap']) {
+      for (const a of ['admin.rename', 'admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.transfer', 'admin.vault.person', 'admin.vault.pairs', 'admin.event.delete', 'admin.insert', 'admin.draw.cancel.force', 'admin.fixed.add', 'admin.fixed.del', 'admin.draw.swap.check', 'admin.draw.swap']) {
         assert.ok(deniedAdmin.includes(a), `админу отказано: ${a}`);
       }
     });
 
     await t.test('закрытая регистрация: заявки ждут, приглашений нет, «Я участвую» можно', async () => {
       const R = await newEvent('Набор', []);
+      await staff(R);
       await zapi(boss, 'admin.game', { event: R, approval: true });
       const code = await zInvite(R);
       await z.say(gena, '/start ' + code);
@@ -1374,6 +1418,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
 
     await t.test('возврат удалённых: запрет, «Разрешить вернуться», включено по умолчанию, образец', async () => {
       const J = await newEvent('Возврат', [anya, borya, vera]);
+      await staff(J);
       assert.equal((await zapi(boss, 'admin.state', { event: J })).settings.rejoin, true, 'по умолчанию включено');
       await zapi(helper, 'admin.game', { event: J, rejoin: false });
       await zapi(helper, 'admin.remove', { event: J, id: borya.id });
@@ -1451,27 +1496,30 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       assert.equal(rows[0].n, 1, 'одна запись в общем журнале');
     });
 
-    // 051: владелец компании ⊇ администратор в своей компании (кроме admin.transfer — только владелец бота). Последним: со
-    // второй компанией общим действиям владельца бота нужно поле company
-    await t.test('владелец компании может в своей компании всё, что админ (автотест по admin.*)', async () => {
+    // 063: владелец события ⊇ администратор в своём событии (кроме admin.rename и admin.transfer — только владелец бота).
+    // Событие создала владелица по разрешению владельца бота (закрытый бот)
+    await t.test('владелец своего события может в нём всё, что админ (автотест по admin.*)', async () => {
       const { ACTIONS } = await import('../src/api.js');
       const actions = Object.keys(ACTIONS).filter((a) => a.startsWith('admin.'));
-      const chief = { id: 1190, name: 'Владелица', username: 'chief051' };
-      const company = (await zapi(boss, 'bot.company.create', { name: 'Вторая компания' })).company;
-      const { link } = await zapi(boss, 'bot.company.link', { company, on: true });
-      await z.say(chief, '/start ' + /start=(own_[a-z0-9]+)/.exec(link)[1]);
-      await z.say(chief, chief.name);
-      await waitFor(() => ztexts(chief).some((x) => /Создай первое событие/.test(x)), 'владелица по ссылке');
+      const chief = { id: 1190, name: 'Владелица', username: 'chief063' };
+      const hall = await newEvent('Вход', [chief]);
+      const refused = await zapi(chief, 'event.create', { participate: false, title: 'Своё' }, true);
+      assert.equal(refused.status, 403);
+      assert.equal(refused.data.error, 'Создавать события в этом боте может владелец бота и те, кому он разрешил.');
+      await zapi(boss, 'bot.creator.set', { id: chief.id, on: true });
+      const own = async () => (await zapi(chief, 'event.create', { participate: false, title: 'Права владелицы' })).event.id;
       const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
+      let P = await own();
       const denied = [];
       for (const a of actions) {
-        const ev = (await zapi(chief, 'event.create', { participate: false, title: 'Права ' + a })).event.id;
-        const r = await zapi(chief, a, body(ev), true);
+        const r = await zapi(chief, a, body(P), true);
         if (r.status === 403) denied.push(a);
+        // В завершённом событии «завершено» отвечается раньше проверки владельца — дальше на новом
+        if ((await zapi(chief, 'event.get', { event: P })).event.status === 'finished') P = await own();
       }
-      assert.deepEqual(denied, ['admin.transfer']);
-      const other = await zapi(chief, 'admin.state', { event: E }, true);
-      assert.equal(other.status, 404, 'событие другой компании — как несуществующее');
+      assert.deepEqual(denied, ['admin.rename', 'admin.transfer']);
+      assert.equal((await zapi(chief, 'admin.state', { event: E }, true)).status, 404, 'чужое событие — как несуществующее');
+      assert.equal((await zapi(chief, 'admin.state', { event: hall }, true)).status, 403, 'где она участница — не администратор');
     });
   } finally {
     const log = z.log();
@@ -1506,10 +1554,16 @@ test('012: вписывание по группам, принудительна�
       registered.add(u.id);
     }
   };
+  // 063: администраторы — в каждом событии отдельно: назначают участников, затем они выключают «Я участвую»
   const newEvent = async (title, people) => {
     const id = (await zapi(boss, 'event.create', { participate: false, title })).event.id;
     const code = await zInvite(id);
     for (const u of people) await join(u, code);
+    for (const a of [helper, third]) {
+      await join(a, code);
+      await zapi(boss, 'admin.role.grant', { event: id, id: a.id });
+      await zapi(a, 'admin.participate', { event: id, on: false });
+    }
     return id;
   };
   const answers = () => z.mock.calls.filter((c) => c.method === 'answerCallbackQuery').map((c) => c.params.text);
@@ -1520,9 +1574,7 @@ test('012: вписывание по группам, принудительна�
       await z.say(boss, '/start ' + s.adminCode);
       await z.say(boss, boss.name);
       registered.add(boss.id);
-      await newEvent('База-012', [helper, third, anya, borya, vera, gena, dasha, eva, zhora]);
-      await zapi(boss, 'admin.role.grant', { id: helper.id });
-      await zapi(boss, 'admin.role.grant', { id: third.id });
+      await newEvent('База-012', [anya, borya, vera, gena, dasha, eva, zhora]);
     });
 
     await t.test('вписывание: только владелец; сначала не открывшие, потом неготовые, иначе отказ', async () => {
@@ -1536,7 +1588,7 @@ test('012: вписывание по группам, принудительна�
 
       const denied = await zapi(helper, 'admin.insert', { event: V, id: dasha.id }, true);
       assert.equal(denied.status, 403);
-      assert.equal(denied.data.error, 'Вписывать в жеребьёвку после неё может только владелец бота.');
+      assert.equal(denied.data.error, 'Вписывать в жеребьёвку после неё может только владелец.');
       assert.equal((await pairsSql(V)).size, 4, 'админ ничего не изменил');
 
       // не открыл подопечного только Гена — подопечный меняется у него
@@ -1580,7 +1632,7 @@ test('012: вписывание по группам, принудительна�
 
       // «Я участвую» после жеребьёвки — отказ называет владельца
       const part = await zapi(helper, 'admin.participate', { event: W, on: true }, true);
-      assert.equal(part.data.error, 'После жеребьёвки так нельзя. Попроси владельца бота вписать тебя.');
+      assert.equal(part.data.error, 'После жеребьёвки так нельзя. Попроси владельца вписать тебя.');
     });
 
     await t.test('принудительная отмена: только владелец, пары и переписка удалены, письма на месте', async () => {
@@ -1594,7 +1646,7 @@ test('012: вписывание по группам, принудительна�
 
       const byAdmin = await zapi(helper, 'admin.draw.cancel.force', { event: F, confirm: 'ОТМЕНА' }, true);
       assert.equal(byAdmin.status, 403);
-      assert.equal(byAdmin.data.error, 'Принудительно отменить жеребьёвку может только владелец бота.');
+      assert.equal(byAdmin.data.error, 'Принудительно отменить жеребьёвку может только владелец.');
       const noWord = await zapi(boss, 'admin.draw.cancel.force', { event: F }, true);
       assert.equal(noWord.status, 400);
       assert.equal(noWord.data.error, 'Для отмены введи слово ОТМЕНА.');
@@ -1747,11 +1799,12 @@ test('012: вписывание по группам, принудительна�
       const winner = rs[0].status === 200 ? helper : third;
       const other = winner === helper ? third : helper;
 
-      await zapi(boss, 'admin.role.revoke', { id: winner.id });
+      await zapi(boss, 'admin.role.revoke', { event: S, id: winner.id });
       assert.equal(await count(`SELECT assignee AS n FROM support_threads WHERE id = ${b.thread}`), 0, 'снова ничьё');
       await waitFor(() => [boss, other].every((u) => ztexts(u).some((x) => x.includes('<b>Боря</b> («Помощь-012») снова ничьё'))), 'админам — снова ничьё');
       await waitFor(() => ztexts(borya).some((x) => x.includes('снова ждёт ответа')), 'участнику');
-      await zapi(boss, 'admin.role.grant', { id: winner.id });
+      // 063: снятый — администратор других событий, но этого больше не видит
+      assert.equal((await zapi(winner, 'admin.state', { event: S }, true)).status, 404);
 
       // перенос участия: обращения переходят на новый аккаунт
       await join(borya2, await zInvite(S));
@@ -1788,7 +1841,7 @@ test('014: закреплённые пары владельца', { timeout: 400
   const dasha = { id: 1407, name: 'Даша', username: 'dasha014' };
   const eva = { id: 1408, name: 'Ева', username: 'eva014' };
   const anya2 = { id: 1409, name: 'Аня', username: 'anya_new014' };
-  const FIXED_BLOCK = 'Мешают закреплённые пары: с ними распределить всех по правилам не получается. Владелец бота может убрать часть закреплённых пар.';
+  const FIXED_BLOCK = 'Мешают закреплённые пары: с ними распределить всех по правилам не получается. Владелец может убрать часть закреплённых пар.';
   const FROZEN = 'После жеребьёвки закреплённые пары не меняются. Чтобы поменять их, отмени жеребьёвку.';
   const registered = new Set();
   const zInvite = async (eid) => /start=(inv_[a-z0-9]+)/.exec((await zapi(boss, 'admin.state', { event: eid })).settings.invite_link)[1];
@@ -1802,10 +1855,14 @@ test('014: закреплённые пары владельца', { timeout: 400
       registered.add(u.id);
     }
   };
+  // 063: администратор — в каждом событии отдельно: назначают участника, затем он выключает «Я участвую»
   const newEvent = async (title, people) => {
     const id = (await zapi(boss, 'event.create', { participate: false, title })).event.id;
     const code = await zInvite(id);
     for (const u of people) await join(u, code);
+    await join(helper, code);
+    await zapi(boss, 'admin.role.grant', { event: id, id: helper.id });
+    await zapi(helper, 'admin.participate', { event: id, on: false });
     return id;
   };
   const err = async (u, action, body) => (await zapi(u, action, body, true)).data.error;
@@ -1816,8 +1873,7 @@ test('014: закреплённые пары владельца', { timeout: 400
       await z.say(boss, '/start ' + s.adminCode);
       await z.say(boss, boss.name);
       registered.add(boss.id);
-      await newEvent('База-014', [helper]);
-      await zapi(boss, 'admin.role.grant', { id: helper.id });
+      await newEvent('База-014', []);
     });
 
     await t.test('закрепление: только владелец, проверки, админ ничего не видит', async () => {
@@ -1833,7 +1889,7 @@ test('014: закреплённые пары владельца', { timeout: 400
       for (const a of ['admin.fixed.add', 'admin.fixed.del']) {
         const r = await zapi(helper, a, { event: F, giver: anya.id, receiver: borya.id }, true);
         assert.equal(r.status, 403);
-        assert.equal(r.data.error, 'Закреплять пары может только владелец бота.');
+        assert.equal(r.data.error, 'Закреплять пары может только владелец.');
       }
       assert.equal(await fixedCount(F), 1, 'админ ничего не изменил');
       const audit = (await zapi(helper, 'admin.audit', { event: F })).entries.filter((e) => e.action.startsWith('fixed.'));
@@ -1946,6 +2002,173 @@ test('014: закреплённые пары владельца', { timeout: 400
       await zapi(boss, 'admin.draw', { event: E });
       await zapi(boss, 'admin.event.finish', { event: E });
       assert.match(await err(boss, 'admin.fixed.add', { event: E, giver: vera.id, receiver: gena.id }), /Событие завершено/);
+    });
+  } finally {
+    const log = z.log();
+    await z.stop();
+    assertBudget(log);
+  }
+});
+
+// 063: события без комнат — человек с разрешением владельца бота создаёт своё событие, назначает администратора,
+// передаёт владение; журнал события и журнал бота; разрешение снято — свои события остаются. Закрытый бот, отдельный мир.
+test('063: события без комнат — своё событие, администраторы, владение', { timeout: 300000 }, async (t) => {
+  const z = await startWorld();
+  const zapi = (...a) => z.api(...a);
+  const ztexts = (u) => z.texts(u);
+  const boss = { id: 6300, name: 'Хозяин', username: 'host063' };
+  const olya = { id: 6301, name: 'Оля', username: 'olya063' };
+  const petr = { id: 6302, name: 'Петя', username: 'petya063' };
+  const rita = { id: 6303, name: 'Рита', username: 'rita063' };
+  const sasha = { id: 6304, name: 'Саша', username: 'sasha063' };
+  const inviteOf = async (u, eid) => /start=(inv_[a-z0-9]+)/.exec((await zapi(u, 'admin.state', { event: eid })).settings.invite_link)[1];
+  const roleIn = async (u, eid) => (await zapi(u, 'event.get', { event: eid })).event.role;
+  const refusal = async (u, action, body) => {
+    const r = await zapi(u, action, body, true);
+    return [r.status, r.data.error];
+  };
+  let H, O, O2;
+
+  try {
+    await t.test('подготовка: владелец бота; люди вступают по его ссылке', async () => {
+      const s = await z.setup();
+      await z.say(boss, '/start ' + s.adminCode);
+      await z.say(boss, boss.name);
+      H = (await zapi(boss, 'event.create', { participate: false, title: 'Знакомство' })).event.id;
+      const code = await inviteOf(boss, H);
+      for (const u of [olya, petr, rita, sasha]) {
+        await z.say(u, '/start ' + code);
+        await z.say(u, u.name);
+      }
+    });
+
+    await t.test('закрытый бот: создавать события — по разрешению владельца бота; комнат нет', async () => {
+      assert.ok(!('create' in (await zapi(olya, 'me'))), 'без разрешения — кнопки «Создать» нет');
+      assert.deepEqual(await refusal(olya, 'event.create', { title: 'Олин праздник' }),
+        [403, 'Создавать события в этом боте может владелец бота и те, кому он разрешил.']);
+      assert.deepEqual((await zapi(boss, 'me')).create, { bot: true }, 'у владельца бота лимита нет');
+      assert.deepEqual(await refusal(olya, 'bot.creator.set', { id: olya.id, on: true }), [403, 'Только для владельца бота.']);
+      assert.equal((await zapi(boss, 'bot.people')).people.find((p) => p.id === olya.id).can_create, false);
+      await zapi(boss, 'bot.creator.set', { id: olya.id, on: true });
+      await waitFor(() => ztexts(olya).some((x) => x.includes('Владелец бота разрешил тебе создавать события')), 'сообщение о разрешении');
+      assert.deepEqual(await refusal(boss, 'bot.creator.set', { id: olya.id, on: true }), [400, 'Уже разрешено.']);
+      assert.equal((await zapi(boss, 'bot.people')).people.find((p) => p.id === olya.id).can_create, true);
+      assert.deepEqual((await zapi(olya, 'me')).create, { left: 10, limit: 10 });
+      // Прежние действия комнат — путь неизвестного действия; ссылка владельца комнаты прав не даёт
+      for (const a of ['company.create', 'bot.company.create', 'admin.users', 'admin.events.create']) {
+        assert.equal((await zapi(boss, a, { name: 'Вторая', title: 'Вторая' }, true)).status, 404, a);
+      }
+      await z.say(olya, '/start own_0123456789abcdef');
+      assert.ok(ztexts(olya).slice(-2).some((x) => x.includes('Эта ссылка больше не действует.')), 'ссылка комнаты не действует');
+      assert.equal((await zapi(olya, 'me')).me.is_admin, false, 'и прав не дала');
+    });
+
+    await t.test('своё событие: создательница — владелица и участница; гость — владелец бота', async () => {
+      const r = await zapi(olya, 'event.create', { title: 'Олин праздник' });
+      O = r.event.id;
+      assert.equal(r.event.role, 'owner');
+      const me = await zapi(olya, 'me');
+      assert.equal(me.me.is_admin, true);
+      assert.deepEqual(me.create, { left: 9, limit: 10 });
+      assert.deepEqual(me.events.map((e) => [e.id, e.role, e.member]).sort(), [[H, 'member', true], [O, 'owner', true]].sort());
+      const code = await inviteOf(olya, O);
+      for (const u of [petr, rita]) await z.say(u, '/start ' + code);
+      await waitFor(() => ztexts(olya).filter((x) => x.includes('присоединяется к событию «Олин праздник»')).length === 2, 'владелице — кто вступил');
+      O2 = (await zapi(olya, 'event.create', { title: 'Олин второй', participate: false })).event.id;
+      // Владелец бота в чужом событии — гость: его нет на главном экране и в сообщениях организаторам
+      assert.equal(await roleIn(boss, O), 'guest');
+      assert.deepEqual((await zapi(boss, 'me')).events.map((e) => e.id), [H], 'на главном экране — только свои события');
+      const all = (await zapi(boss, 'bot.events')).events;
+      assert.deepEqual(all.filter((e) => [O, O2].includes(e.id)).map((e) => [e.id, e.owner_name, e.people]).sort(), [[O, olya.name, 3], [O2, olya.name, 0]].sort());
+      assert.ok(!ztexts(boss).some((x) => x.includes('Олин')), 'владельцу бота сообщений чужого события нет');
+    });
+
+    await t.test('администратор события: назначает владелица, права — только в этом событии', async () => {
+      assert.deepEqual(await refusal(olya, 'admin.role.grant', { event: O, id: sasha.id }), [400, 'Назначить можно только участника события.']);
+      await zapi(olya, 'admin.role.grant', { event: O, id: petr.id });
+      await waitFor(() => ztexts(petr).some((x) => x.includes('Тебя назначили администратором события «Олин праздник»')), 'назначенному');
+      assert.deepEqual(await refusal(olya, 'admin.role.grant', { event: O, id: petr.id }), [400, 'Он(а) уже администратор.']);
+      assert.equal(await roleIn(petr, O), 'admin');
+      assert.equal((await zapi(petr, 'me')).events.find((e) => e.id === O).role, 'admin');
+      const st = await zapi(petr, 'admin.state', { event: O });
+      assert.deepEqual(st.organizers.map((o) => [o.id, o.owner]), [[olya.id, true], [petr.id, false]]);
+      assert.equal(st.settings.owner_id, olya.id);
+      assert.ok(!/"(ward|santa|pairs|fixed)"/.test(JSON.stringify(st)), 'администратору — без пар');
+      // Другое событие той же владелицы, где он не человек события, — как несуществующее; где участник — не администратор
+      assert.deepEqual(await refusal(petr, 'admin.state', { event: O2 }), [404, 'Событие не найдено.']);
+      assert.deepEqual(await refusal(petr, 'admin.state', { event: H }), [403, 'Только для администратора.']);
+      // Действия владельца — не ему
+      assert.deepEqual(await refusal(petr, 'admin.role.grant', { event: O, id: rita.id }),
+        [403, 'Назначать и снимать администраторов может только владелец.']);
+      assert.deepEqual(await refusal(petr, 'admin.owner.transfer', { event: O, id: petr.id }),
+        [403, 'Передать владение событием может только владелец.']);
+      assert.deepEqual(await refusal(petr, 'admin.vault.pairs', { event: O, confirm: 'ОТКРЫТЬ' }),
+        [403, 'Служебный просмотр доступен только владельцу.']);
+      // Переименовать человека — только владелец бота
+      for (const u of [olya, petr]) {
+        assert.deepEqual(await refusal(u, 'admin.rename', { id: rita.id, name: 'Взлом' }), [403, 'Переименовать человека может только владелец бота.']);
+      }
+      // Ведёт событие, как прежний администратор
+      await zapi(petr, 'admin.game', { event: O, budget: 'до 30 BYN' });
+      assert.equal((await zapi(olya, 'admin.state', { event: O })).settings.budget, 'до 30 BYN');
+    });
+
+    await t.test('передача владения: новый владелец — он, прежняя остаётся администратором', async () => {
+      await zapi(olya, 'admin.owner.transfer', { event: O, id: petr.id });
+      await waitFor(() => ztexts(petr).some((x) => x.includes('Ты теперь владелец события «Олин праздник»')), 'новому владельцу');
+      assert.equal(await roleIn(petr, O), 'owner');
+      assert.equal(await roleIn(olya, O), 'admin');
+      assert.equal((await zapi(olya, 'me')).events.find((e) => e.id === O).role, 'admin');
+      const st = await zapi(olya, 'admin.state', { event: O });
+      assert.equal(st.settings.owner_id, petr.id);
+      assert.deepEqual(st.organizers.map((o) => [o.id, o.owner]), [[petr.id, true], [olya.id, false]]);
+      assert.deepEqual(await refusal(olya, 'admin.owner.transfer', { event: O, id: rita.id }),
+        [403, 'Передать владение событием может только владелец.']);
+      assert.deepEqual(await refusal(petr, 'admin.role.revoke', { event: O, id: petr.id }),
+        [400, 'Нельзя снять права владельца. Сначала передай владение событием.']);
+      assert.deepEqual(await refusal(petr, 'admin.owner.transfer', { event: O, id: sasha.id }),
+        [400, 'Передать владение можно только участнику или администратору события.']);
+      assert.deepEqual((await zapi(olya, 'me')).create, { left: 8, limit: 10 }, 'передача место в лимите не освобождает');
+      assert.ok(!('create' in (await zapi(petr, 'me'))), 'владение не даёт права создавать');
+
+      // Владелец бота может в чужом событии то же, что владелец: возвращает владение; прежнему владельцу — сообщение
+      await zapi(boss, 'admin.owner.transfer', { event: O, id: olya.id });
+      await waitFor(() => ztexts(petr).some((x) => x.includes('Владение событием «Олин праздник» перешло к <b>Оля</b>. Ты остаёшься администратором.')), 'прежнему владельцу');
+      await waitFor(() => ztexts(olya).some((x) => x.includes('Ты теперь владелец события «Олин праздник»')), 'новой владелице');
+      assert.deepEqual([await roleIn(olya, O), await roleIn(petr, O), await roleIn(boss, O)], ['owner', 'admin', 'guest']);
+
+      await zapi(olya, 'admin.role.revoke', { event: O, id: petr.id });
+      await waitFor(() => ztexts(petr).some((x) => x.includes('С тебя сняли права администратора события «Олин праздник»')), 'снятому');
+      assert.equal(await roleIn(petr, O), 'member');
+      assert.equal((await zapi(petr, 'me')).me.is_admin, false);
+      assert.equal((await zapi(petr, 'admin.state', { event: O }, true)).status, 403);
+    });
+
+    await t.test('журнал события и журнал бота', async () => {
+      const a = (await zapi(olya, 'admin.audit', { event: O })).entries;
+      for (const c of ['event.create', 'role.grant', 'role.revoke', 'event.owner', 'event.settings']) assert.ok(a.some((e) => e.action === c), c);
+      assert.equal(a.find((e) => e.action === 'role.grant').details, petr.name);
+      assert.deepEqual(a.filter((e) => e.action === 'event.owner').map((e) => [e.actor_name, e.details]).sort(),
+        [[olya.name, '→ Петя'], [boss.name, '→ Оля']].sort(), 'действия гостя — под его именем');
+      const b = (await zapi(boss, 'bot.audit')).entries;
+      assert.ok(b.some((e) => e.action === 'event.create' && e.details === '«Олин праздник»' && e.actor_name === olya.name));
+      assert.ok(b.some((e) => e.action === 'creator.grant' && e.details === olya.name));
+      assert.ok(b.some((e) => e.action === 'owner.link'));
+      assert.ok(!b.some((e) => ['role.grant', 'role.revoke', 'event.owner', 'event.settings'].includes(e.action)), 'действия события — не в журнале бота');
+      assert.equal((await zapi(olya, 'bot.audit', {}, true)).status, 403);
+      assert.equal((await zapi(olya, 'admin.audit', {}, true)).status, 404, 'общего журнала у организатора нет');
+    });
+
+    await t.test('разрешение снято: новое событие — нельзя, свои остаются', async () => {
+      await zapi(boss, 'bot.creator.set', { id: olya.id, on: false });
+      await waitFor(() => ztexts(olya).some((x) => x.includes('больше не разрешает тебе создавать новые события')), 'сообщение о снятии');
+      assert.deepEqual(await refusal(boss, 'bot.creator.set', { id: olya.id, on: false }), [400, 'Уже не разрешено.']);
+      assert.equal((await zapi(olya, 'event.create', { title: 'Третье' }, true)).status, 403);
+      const me = await zapi(olya, 'me');
+      assert.ok(!('create' in me));
+      assert.deepEqual(me.events.filter((e) => e.role === 'owner').map((e) => e.id).sort(), [O, O2].sort());
+      await zapi(olya, 'admin.game', { event: O2, budget: 'до 20 BYN' });
+      assert.ok((await zapi(boss, 'bot.audit')).entries.some((e) => e.action === 'creator.revoke' && e.details === olya.name));
     });
   } finally {
     const log = z.log();
