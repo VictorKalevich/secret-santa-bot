@@ -192,7 +192,6 @@ export default {
   'app.admin.params.notes': 'Notes for everyone',
   'app.admin.params.notesPlaceholder': 'Any rules and details for everyone',
   'app.admin.params.letterDrafts': 'Letter drafts',
-  'app.admin.params.remindersHint': 'The bot reminds people without a letter automatically: 2 days before, 1 day before and on the letter deadline.',
   'app.admin.params.autoDraw': 'Auto draw',
   'app.admin.params.autoDrawHint': 'On the chosen day the bot will run the draw itself — at the time of the daily reminders.',
   'app.admin.params.revealAuto': 'Reveal the Santas the day after the gift exchange',

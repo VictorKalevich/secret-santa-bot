@@ -117,12 +117,33 @@ test('cron: напоминаний Сантам нет; уведомление �
   assert.equal(w.query('SELECT status FROM events WHERE id = ?', ev)[0].status, 'finished', 'без галочки — само');
 });
 
+// 066: плановое напоминание о пустом письме — одно, за 2 дня до срока; за день и в день срока — нет
+test('cron (066): напоминание о пустом письме — только за 2 дня до срока, один раз', async () => {
+  const w = await startWorld();
+  await w.say(boss, '/start ' + (await w.setup()).adminCode);
+  await w.say(boss, boss.name);
+  const ev = (await w.api(boss, 'event.create', { participate: false, title: 'Срок' })).event.id;
+  const code = /start=(inv_[a-z0-9]+)/.exec((await w.api(boss, 'admin.state', { event: ev })).settings.invite_link)[1];
+  const [a] = people;
+  await w.say(a, '/start ' + code);
+  await w.say(a, a.name);
+  const reminders = () => w.texts(a).filter((t) => t.startsWith('⏰')).length;
+  for (const [days, want] of [[2, 1], [1, 0], [0, 0]]) {
+    await w.api(boss, 'admin.game', { event: ev, deadline: local(days) });
+    w.sql(`UPDATE events SET last_daily = '', checked_on = '' WHERE id = ${ev}`);
+    const before = reminders();
+    for (let i = 0; i < 3; i++) await w.cron();
+    assert.equal(reminders() - before, want, `за ${days} дн. до срока`);
+  }
+  assert.equal(w.query("SELECT COUNT(*) AS n FROM audit WHERE action = 'remind.unfilled'")[0].n, 1);
+});
+
 // ---------- приложение: по склейке ----------
 // Что не должно встречаться в коде частей (вне комментариев): вызовы удалённых действий и кнопок, поля удалённых данных;
-// 065 — кнопки раскрытия Сант нет (раскрытие — только по расписанию, reveal_auto)
+// 065 — кнопки раскрытия Сант нет (раскрытие — только по расписанию, reveal_auto); 066 — подсказки о напоминаниях нет
 const FORBIDDEN = [
   ...GONE_ACTIONS.map((a) => `'${a}'`), "'admin.reset.full'", "'admin.event.finish'", "'admin.reveal'", 'app.admin.draw.reveal',
-  'howItWorks', 'aboutSections', 'rosterOpen', ...GONE_PARAMS, 'gift_', 'has_delivery', 'shipment', '.delivery',
+  'howItWorks', 'aboutSections', 'remindersHint', 'rosterOpen', ...GONE_PARAMS, 'gift_', 'has_delivery', 'shipment', '.delivery',
 ];
 
 function appRules(app) {
@@ -155,7 +176,7 @@ test('от противного: каждое правило находит по
   };
   const broken = (rules) => Object.keys(rules).filter((k) => rules[k].length);
   for (const bad of ["xapi('ward.gift', { ready: true })", "xapi('admin.reset.full')", 'state.ev.delivery_on', 'u.gift_ready', 'howItWorks()',
-    "xapi('admin.reveal')", "t('app.admin.draw.revealed')"]) {
+    "xapi('admin.reveal')", "t('app.admin.draw.revealed')", "ui.hint(t('app.admin.params.remindersHint'))"]) {
     assert.deepEqual(broken(appRules(APP + `\n  function spoiled() {\n    return ${bad};\n  }\n`)), ['removed'], bad);
   }
   assert.deepEqual(broken(appRules(APP + "\n  // xapi('ward.gift') — в комментарии не в счёт\n")), []);

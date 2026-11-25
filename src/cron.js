@@ -66,12 +66,11 @@ async function notifyWishlistChanges(ctx) {
   await db.batch(stmts);
 }
 
-// Ежедневное напоминание: до жеребьёвки — за 2 дня, за день и в день дедлайна тем, у кого пустое письмо. После
-// жеребьёвки напоминаний нет (064: отметки «подарок готов» убраны)
+// Ежедневное напоминание: до жеребьёвки — один раз, за 2 дня до дедлайна, тем, у кого пустое письмо (066: за день и в
+// день дедлайна — нет). После жеребьёвки напоминаний нет (064: отметки «подарок готов» убраны)
 function dailyReminder(env, ev) {
   if (ev.draw_done) return null;
-  const d = daysUntil(env, ev.deadline);
-  return d !== null && d >= 0 && d <= 2 ? remindUnfilled : null;
+  return daysUntil(env, ev.deadline) === 2 ? remindUnfilled : null;
 }
 
 // Раз в день (с REMINDER_HOUR по местному времени) — автодействия расписания (007: жеребьёвка → раскрытие →

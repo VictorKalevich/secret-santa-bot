@@ -192,7 +192,6 @@ export default {
   'app.admin.params.notes': 'Notas para todos',
   'app.admin.params.notesPlaceholder': 'Cualquier regla o detalle para todos',
   'app.admin.params.letterDrafts': 'Borradores de cartas',
-  'app.admin.params.remindersHint': 'El bot recordará solo, 2 días antes, 1 día antes y el día del plazo de la carta, a quienes no la tengan.',
   'app.admin.params.autoDraw': 'Sorteo automático',
   'app.admin.params.autoDrawHint': 'El día elegido, el bot hará el sorteo solo, a la hora de los recordatorios diarios.',
   'app.admin.params.revealAuto': 'Revelar a los Santas al día siguiente del intercambio',

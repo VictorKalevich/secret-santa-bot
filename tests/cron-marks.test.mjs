@@ -262,7 +262,7 @@ test('US2: напоминание не повторяется после сох�
   const ids = [];
   for (const title of ['Н1', 'Н2', 'Н3']) {
     const id = await create(title, people);
-    await w.api(boss, 'admin.game', { event: id, deadline: local(0) }); // у всех письма пустые — напоминание сегодня
+    await w.api(boss, 'admin.game', { event: id, deadline: local(2) }); // у всех письма пустые — напоминание сегодня (066: за 2 дня до срока)
     ids.push(id);
   }
   const reminders = (u) => w.texts(u).filter((t) => t.startsWith('⏰')).length;

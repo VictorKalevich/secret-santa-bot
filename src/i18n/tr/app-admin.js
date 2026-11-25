@@ -170,7 +170,6 @@ export default {
   'app.admin.params.notes': "Herkes için notlar",
   'app.admin.params.notesPlaceholder': "Herkes için her türlü kural ve ayrıntı",
   'app.admin.params.letterDrafts': "Mektup taslakları",
-  'app.admin.params.remindersHint': 'Bot, mektubu olmayanlara mektup son tarihinden 2 gün ve 1 gün önce ve o gün kendisi hatırlatır.',
   'app.admin.params.autoDraw': "Otomatik çekiliş",
   'app.admin.params.autoDrawHint': "Seçilen gün bot çekilişi kendisi yapar — günlük hatırlatmaların saatinde.",
   'app.admin.params.revealAuto': "Hediyeleşmenin ertesi günü Noel Babaları açıkla",

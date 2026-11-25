@@ -156,7 +156,7 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
   });
 
   await t.test('ежедневное напоминание по эвенту — раз в сутки', async () => {
-    const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+    const today = new Date(Date.now() + 3 * 3600e3 + 2 * 86400e3).toISOString().slice(0, 10); // 066: только за 2 дня до срока
     // 064: событие с прошедшей датой завершается само — дата вручения всегда впереди
     const later = new Date(Date.now() + 3 * 3600e3 + 30 * 86400e3).toISOString().slice(0, 10);
     await api(owner, 'admin.game', { event: ev.A, title: 'Семья 2026', budget: 'до 50 BYN', deadline: today, event_date: later, place: 'У Маши', notes: '' });
@@ -984,7 +984,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
     });
 
     await t.test('рассылка: три эвента с напоминаниями в один день — каждому ровно одно', async () => {
-      const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+      const today = new Date(Date.now() + 3 * 3600e3 + 2 * 86400e3).toISOString().slice(0, 10); // 066: за 2 дня до срока
       const titles = ['Утро', 'День', 'Вечер'];
       for (const title of titles) await newEvent(title, crew.slice(0, 4), { deadline: today });
       const reminders = (u, title) => ztexts(u).filter((x) => x.includes('пока пустое') && x.includes(`«${title}»`)).length;

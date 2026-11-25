@@ -190,7 +190,6 @@ export default {
   'app.admin.params.notes': '给所有人的备注',
   'app.admin.params.notesPlaceholder': '给所有人的规则和细节',
   'app.admin.params.letterDrafts': '心愿信草稿',
-  'app.admin.params.remindersHint': '机器人会在心愿信截止前 2 天、前 1 天和当天，自动提醒还没写的人。',
   'app.admin.params.autoDraw': '自动抽签',
   'app.admin.params.autoDrawHint': '机器人会在选定的那天自动抽签，时间与每日提醒相同。',
   'app.admin.params.revealAuto': '送礼日期次日揭晓圣诞老人',

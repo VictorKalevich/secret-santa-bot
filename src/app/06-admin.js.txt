@@ -667,7 +667,6 @@
         field(t('app.admin.params.deadline'), f.deadline),
         field(t('app.admin.params.notes'), f.notes),
         h('label', { class: 'ds-check' }, checks.letter_drafts, t('app.admin.params.letterDrafts')),
-        ui.hint(t('app.admin.params.remindersHint')),
         f.draw_auto_date ? field(t('app.admin.params.autoDraw'), f.draw_auto_date) : null,
         h('label', { class: 'ds-check' }, checks.reveal_auto, t('app.admin.params.revealAuto')),
         noDate,

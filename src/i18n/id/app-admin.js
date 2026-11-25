@@ -190,7 +190,6 @@ export default {
   'app.admin.params.notes': 'Catatan untuk semua',
   'app.admin.params.notesPlaceholder': 'Aturan dan detail apa pun untuk semua',
   'app.admin.params.letterDrafts': 'Draf surat',
-  'app.admin.params.remindersHint': 'Bot akan mengingatkan sendiri yang belum menulis surat: 2 hari sebelum, 1 hari sebelum, dan pada hari batas surat.',
   'app.admin.params.autoDraw': 'Undian otomatis',
   'app.admin.params.autoDrawHint': 'Pada hari yang dipilih, bot akan melakukan undian sendiri — pada jam pengingat harian.',
   'app.admin.params.revealAuto': 'Ungkap para Santa sehari setelah tukar kado',

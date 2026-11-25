@@ -227,15 +227,15 @@ describe('056, 064: события без даты', () => {
     const { w } = z;
     const id = await z.event('Срок письма');
     await w.api(org, 'admin.participate', { event: id, on: true });
-    z.set(id, { created_at: z.ago(40), deadline: local(0) }); // сегодня срок письма — напоминание пустым письмам
+    z.set(id, { created_at: z.ago(40), deadline: local(2) }); // срок письма через 2 дня — напоминание пустым письмам (066)
     await z.daily();
     assert.ok(w.texts(org).some((t) => t.startsWith('⏰ Напоминание') && t.includes('«Срок письма»')), 'напоминание');
     assert.equal(z.ev(id).finish_warned, '', 'предупреждение — не в день напоминания');
-    z.set(id, { deadline: local(-1) });
+    z.set(id, { deadline: local(1) });
     await z.daily();
     assert.equal(z.warns(org, 'Срок письма').length, 1, 'на следующий день');
 
-    z.set(id, { deadline: local(0), finish_warned: local(-7) });
+    z.set(id, { deadline: local(2), finish_warned: local(-7) });
     const reminders = w.texts(org).filter((t) => t.startsWith('⏰')).length;
     await z.daily();
     assert.equal(z.ev(id).status, 'finished', 'завершение важнее напоминания');

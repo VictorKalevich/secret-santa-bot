@@ -192,7 +192,6 @@ export default {
   'app.admin.params.notes': 'Observações para todos',
   'app.admin.params.notesPlaceholder': 'Quaisquer regras e detalhes para todos',
   'app.admin.params.letterDrafts': 'Rascunhos de cartas',
-  'app.admin.params.remindersHint': 'O bot lembra sozinho quem está sem carta: 2 dias antes, 1 dia antes e no dia do prazo da carta.',
   'app.admin.params.autoDraw': 'Sorteio automático',
   'app.admin.params.autoDrawHint': 'No dia escolhido, o bot faz o sorteio sozinho — no horário dos lembretes diários.',
   'app.admin.params.revealAuto': 'Revelar os Papais Noéis no dia seguinte à troca de presentes',

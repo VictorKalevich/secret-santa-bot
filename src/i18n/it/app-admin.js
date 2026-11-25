@@ -192,7 +192,6 @@ export default {
   'app.admin.params.notes': "Note per tutti",
   'app.admin.params.notesPlaceholder': "Regole e dettagli per tutti",
   'app.admin.params.letterDrafts': "Bozze delle letterine",
-  'app.admin.params.remindersHint': 'Il bot ricorderà da solo a chi non ha scritto la letterina: 2 giorni prima, il giorno prima e il giorno della scadenza.',
   'app.admin.params.autoDraw': "Sorteggio automatico",
   'app.admin.params.autoDrawHint': "Nel giorno scelto il bot farà il sorteggio da solo, all'ora dei promemoria giornalieri.",
   'app.admin.params.revealAuto': "Rivela i Babbi Natale il giorno dopo lo scambio",

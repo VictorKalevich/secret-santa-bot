@@ -196,7 +196,6 @@ export default {
   'app.admin.params.notes': 'Notatki dla wszystkich',
   'app.admin.params.notesPlaceholder': 'Dowolne zasady i szczegóły dla wszystkich',
   'app.admin.params.letterDrafts': 'Szkice listów',
-  'app.admin.params.remindersHint': 'Bot sam przypomni osobom bez listu: 2 dni przed, dzień przed i w dniu terminu listu.',
   'app.admin.params.autoDraw': 'Losowanie automatyczne',
   'app.admin.params.autoDrawHint': 'W wybranym dniu bot sam przeprowadzi losowanie — o godzinie codziennych przypomnień.',
   'app.admin.params.revealAuto': 'Ujawnij Mikołajów dzień po wręczeniu',

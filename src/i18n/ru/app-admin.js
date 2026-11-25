@@ -195,7 +195,6 @@ export default {
   'app.admin.params.notes': 'Заметки для всех',
   'app.admin.params.notesPlaceholder': 'Любые правила и детали для всех',
   'app.admin.params.letterDrafts': 'Черновики писем',
-  'app.admin.params.remindersHint': 'Бот сам напомнит за 2 дня, за день и в день срока письма тем, у кого его нет.',
   'app.admin.params.autoDraw': 'Автожеребьёвка',
   'app.admin.params.autoDrawHint': 'В выбранный день бот сам проведёт жеребьёвку — в час ежедневных напоминаний.',
   'app.admin.params.revealAuto': 'Раскрыть Сант на следующий день после вручения',

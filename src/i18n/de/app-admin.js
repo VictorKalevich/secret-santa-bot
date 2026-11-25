@@ -192,7 +192,6 @@ export default {
   'app.admin.params.notes': 'Notizen für alle',
   'app.admin.params.notesPlaceholder': 'Beliebige Regeln und Details für alle',
   'app.admin.params.letterDrafts': 'Wunschzettel-Entwürfe',
-  'app.admin.params.remindersHint': 'Der Bot erinnert alle ohne Wunschzettel von selbst: 2 Tage und 1 Tag vor sowie am Tag der Wunschzettel-Frist.',
   'app.admin.params.autoDraw': 'Auto-Auslosung',
   'app.admin.params.autoDrawHint': 'Am gewählten Tag lost der Bot selbst aus – zur Zeit der täglichen Erinnerungen.',
   'app.admin.params.revealAuto': 'Wichtel am Tag nach der Bescherung aufdecken',

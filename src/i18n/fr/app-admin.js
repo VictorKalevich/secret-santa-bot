@@ -192,7 +192,6 @@ export default {
   'app.admin.params.notes': "Notes pour tous",
   'app.admin.params.notesPlaceholder': "Règles et détails pour tout le monde",
   'app.admin.params.letterDrafts': "Brouillons de lettre",
-  'app.admin.params.remindersHint': "Le bot relancera tout seul ceux qui n'ont pas écrit leur lettre : 2 jours avant, la veille et le jour limite.",
   'app.admin.params.autoDraw': "Tirage automatique",
   'app.admin.params.autoDrawHint': "Le jour choisi, le bot lancera le tirage tout seul — à l'heure des rappels quotidiens.",
   'app.admin.params.revealAuto': "Révéler les Pères Noël le lendemain de la remise",
