@@ -25,7 +25,6 @@ export default {
   'common.noDraw': 'Die Auslosung hat noch nicht stattgefunden.',
   'common.pairsRace': 'Die Paare haben sich gleichzeitig mit dieser Aktion geändert – versuch es noch einmal.',
   'common.notMember': 'Du nimmst an dieser Runde nicht teil.',
-  'common.companyNotFound': 'Raum nicht gefunden.',
   'common.writeLetterButton': '✏️ Wunschzettel schreiben',
   'common.replyButton': '↩️ Antworten',
   'common.tooLong': 'Zu lang: {n} Zeichen, maximal {max}.',

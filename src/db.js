@@ -367,9 +367,14 @@ export function auditStmt(db, sphere, actor, action, details = '') {
     .bind(auditEvent(sphere), actor || 0, action, ...auditDetails(details), Date.now());
 }
 
-// Подробности прежних записей журнала, которые код больше не пишет (062: семьи): запись с details_tx (061) показывается по
-// этим ключам на языке смотрящего — из словарей они не удаляются
-export const AUDIT_HISTORY = ['membership.audit.familySave', 'membership.audit.familyDelete'];
+// Подробности прежних записей журнала, которые код больше не пишет (062: семьи; 063: комнаты): запись с details_tx
+// (061) показывается по этим ключам на языке смотрящего — из словарей они не удаляются
+export const AUDIT_HISTORY = [
+  'membership.audit.familySave', 'membership.audit.familyDelete',
+  // 063: комнаты (051–062) — журнал бота
+  'companies.audit.ownerChanged', 'companies.audit.byLink', 'companies.audit.toBotOwner', 'companies.audit.linkCreated',
+  'companies.audit.linkRevoked', 'companies.audit.roomDeleted',
+];
 
 // Последние записи: события (число) или журнал бота (BOT_LOG); t — переводчик
 // вызывающего (имя бота и безымянного; 061 — подробности новых записей на его языке, прежние — как записаны)

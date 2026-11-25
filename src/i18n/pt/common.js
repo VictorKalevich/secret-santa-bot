@@ -24,7 +24,6 @@ export default {
   'common.noDraw': 'O sorteio ainda não foi feito.',
   'common.pairsRace': 'Os pares mudaram ao mesmo tempo que esta ação — tente de novo.',
   'common.notMember': 'Você não participa deste evento.',
-  'common.companyNotFound': 'Sala não encontrada.',
   // Shared (060: the same text with the same meaning — one key)
   'common.writeLetterButton': '✏️ Escrever carta',
   'common.replyButton': '↩️ Responder',

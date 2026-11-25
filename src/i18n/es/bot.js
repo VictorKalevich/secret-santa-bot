@@ -29,19 +29,15 @@ export default {
   'bot.ownerLink.used': 'El enlace de propietario ya se usó. Para obtener uno nuevo, cambia ADMIN_SECRET y vuelve a abrir la página de configuración.',
   'bot.ownerLink.hello': '👑 Eres el propietario del bot «Amigo Secreto»: creas eventos y nombras administradores.',
   'bot.ownerLink.done': '👑 Ahora eres el propietario del bot: los eventos y los administradores están en la app.',
-  // Room owner link; {greeting} is the new owner greeting
-  'bot.roomLink.bot': 'Eres el propietario del bot: esta sala ya la gestionas tú.',
-  'bot.roomLink.already': 'Ya eres el propietario.',
-  'bot.roomLink.owner': '{greeting} Todo está en la app.',
-  'bot.roomLink.gone': 'El enlace de propietario ya se usó o fue revocado. Pide uno nuevo.',
+  // The former owner link (051) — no longer valid (063)
+  'bot.ownLink.gone': 'Este enlace ya no funciona. Para participar, pide un enlace de invitación a un evento.',
   // Menu
   'bot.menu.title': '🎄 <b>Amigo Secreto</b>',
-  'bot.menu.noEventsAdmin': 'No tienes eventos en curso. Crea un evento en la app: allí aparecerá el enlace de invitación.',
-  'bot.menu.noEventsOpen': 'Ahora mismo no participas en ningún evento en curso. Crea tu propia sala en la app o pide un enlace de invitación a un evento.',
+  // No ongoing events: can create (063) — and cannot
+  'bot.menu.noEventsCreate': 'Ahora mismo no participas en ningún evento en curso. Crea tu propio evento en la app o pide un enlace de invitación a un evento.',
   'bot.menu.noEvents': 'Ahora mismo no participas en ningún evento en curso. Pide un enlace de invitación a un evento.',
   'bot.menu.events': 'Tus eventos:',
   'bot.menu.event': '• {title} — {letter}, {draw}',
-  'bot.menu.eventInRoom': '• {title} ({room}) — {letter}, {draw}',
   'bot.menu.letterFilled': 'carta ✅',
   'bot.menu.letterEmpty': 'carta vacía ✏️',
   'bot.menu.drawAhead': 'sorteo pendiente',
@@ -49,8 +45,6 @@ export default {
   'bot.menu.awaitingInsert': 'esperando entrar en el sorteo',
   'bot.menu.finished': '📚 Eventos finalizados: {n}. Su historial está en la app.',
   'bot.menu.botOwner': '👑 Eres el propietario del bot: los eventos y los administradores están en la app.',
-  'bot.menu.owner': '👑 Eres el propietario: los eventos y los administradores están en la app.',
-  'bot.menu.admin': '🛠 Eres administrador: los eventos están en la app.',
   'bot.menu.toWard': '💬 A tu destinatario · {title}',
   'bot.menu.toSanta': '💬 A tu Santa · {title}',
   'bot.menu.notify': '🔔 Notificaciones',

@@ -46,9 +46,8 @@ export default {
   'app.vault.swap.warning': 'Si haces el cambio, el bot avisará a quien ya había visto a su destinatario. Las marcas de regalo y los chats de ambas asignaciones se reinician.',
   'app.vault.swap.agree': 'Acepto: cambiar de todos modos',
   'app.vault.swap.confirm': '¿Intercambiar destinatarios entre «{a}» y «{b}»? El bot avisará a quien ya había visto a su destinatario. Marcas de regalo y chats de ambos se reinician.',
-  // Activity log: event, room general log, bot log
+  // Activity log: event and bot log (063: no shared logs anymore)
   'app.vault.log.event': 'Registro del evento',
-  'app.vault.log.common': 'Registro general',
   'app.vault.log.bot': 'Registro del bot',
   'app.vault.log.empty': 'Todavía no hay entradas.',
   'app.vault.log.hint': 'Las últimas 100 entradas, las más recientes arriba.',
@@ -82,7 +81,11 @@ export default {
   'app.vault.audit.transfer': '🔁 Traspaso de participación',
   'app.vault.audit.role.grant': '🛠 Administrador nombrado',
   'app.vault.audit.role.revoke': '🛠 Permisos de administrador quitados',
-  'app.vault.audit.owner.transfer': '👑 Propiedad transferida',
+  'app.vault.audit.owner.transfer': '👑 Propiedad del bot transferida',
+  // 063: event ownership and the permission to create events (closed bot)
+  'app.vault.audit.event.owner': '👑 Propiedad del evento transferida',
+  'app.vault.audit.creator.grant': '✍️ Permiso para crear eventos',
+  'app.vault.audit.creator.revoke': '✍️ Permiso para crear eventos retirado',
   'app.vault.audit.owner.link': '👑 Propietario por el enlace de /setup',
   'app.vault.audit.family.save': '👪 Familia guardada',
   'app.vault.audit.family.delete': '👪 Familia eliminada',
@@ -100,7 +103,7 @@ export default {
   'app.vault.audit.support.pass': '↪️ Consulta transferida',
   'app.vault.audit.support.close': '✅ Consulta cerrada',
   'app.vault.audit.support.return': '🔄 Consulta sin asignar de nuevo',
-  // Bot log (owner change also goes to the room general log)
+  // 051: bot log and shared logs — before 063 (history)
   'app.vault.audit.company.create': '🚪 Sala creada',
   'app.vault.audit.company.owner': '👑 Nuevo propietario',
   'app.vault.audit.company.link': '🔗 Enlace de propietario',

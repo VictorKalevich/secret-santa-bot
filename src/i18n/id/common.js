@@ -24,7 +24,6 @@ export default {
   'common.noDraw': 'Undian belum dilakukan.',
   'common.pairsRace': 'Pasangan berubah bersamaan dengan tindakan ini — coba lagi.',
   'common.notMember': 'Kamu tidak ikut dalam acara ini.',
-  'common.companyNotFound': 'Ruang tidak ditemukan.',
   // shared
   'common.writeLetterButton': '✏️ Tulis surat',
   'common.replyButton': '↩️ Balas',

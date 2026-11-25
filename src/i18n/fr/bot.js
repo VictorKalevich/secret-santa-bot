@@ -30,19 +30,15 @@ export default {
   'bot.ownerLink.used': "Le lien de propriétaire a déjà été utilisé. Pour en obtenir un nouveau, change ADMIN_SECRET et rouvre la page de configuration.",
   'bot.ownerLink.hello': "👑 Tu es le propriétaire du bot « Père Noël secret » : tu crées les événements et nommes les administrateurs.",
   'bot.ownerLink.done': "👑 Tu es maintenant le propriétaire du bot : événements et administrateurs sont dans l'appli.",
-  // Room owner link (051); {greeting} - greeting of the new owner
-  'bot.roomLink.bot': "Tu es le propriétaire du bot — c'est déjà toi qui gères ce salon.",
-  'bot.roomLink.already': "Tu es déjà propriétaire.",
-  'bot.roomLink.owner': "{greeting} Tout se passe dans l'appli.",
-  'bot.roomLink.gone': "Ce lien de propriétaire a déjà été utilisé ou révoqué. Demandes-en un nouveau.",
+  // The former owner link (051) - no longer valid (063)
+  'bot.ownLink.gone': "Ce lien ne fonctionne plus. Pour participer, demande un lien d'invitation à un événement.",
   // Menu
   'bot.menu.title': "🎄 <b>Père Noël secret</b>",
-  'bot.menu.noEventsAdmin': "Tu n'as aucun événement en cours. Crée un événement dans l'appli — le lien d'invitation y apparaîtra.",
-  'bot.menu.noEventsOpen': "Tu ne participes à aucun événement en cours. Crée ton salon dans l'appli ou demande un lien d'invitation à un événement.",
+  // No ongoing events: can create (063) - and cannot
+  'bot.menu.noEventsCreate': "Tu ne participes à aucun événement en cours. Crée ton événement dans l'appli ou demande un lien d'invitation à un événement.",
   'bot.menu.noEvents': "Tu ne participes à aucun événement en cours. Demande un lien d'invitation à un événement.",
   'bot.menu.events': "Tes événements :",
   'bot.menu.event': "• {title} — {letter}, {draw}",
-  'bot.menu.eventInRoom': "• {title} ({room}) — {letter}, {draw}",
   'bot.menu.letterFilled': "lettre ✅",
   'bot.menu.letterEmpty': "lettre vide ✏️",
   'bot.menu.drawAhead': "tirage à venir",
@@ -50,8 +46,6 @@ export default {
   'bot.menu.awaitingInsert': "en attente d'ajout au tirage",
   'bot.menu.finished': "📚 Événements terminés : {n} — leur historique est dans l'appli.",
   'bot.menu.botOwner': "👑 Tu es le propriétaire du bot — événements et administrateurs sont dans l'appli.",
-  'bot.menu.owner': "👑 Tu es propriétaire — événements et administrateurs sont dans l'appli.",
-  'bot.menu.admin': "🛠 Tu es administrateur — les événements sont dans l'appli.",
   'bot.menu.toWard': "💬 Au destinataire · {title}",
   'bot.menu.toSanta': "💬 Au Père Noël · {title}",
   'bot.menu.notify': "🔔 Notifications",

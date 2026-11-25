@@ -1,4 +1,4 @@
-// Spanish: app part 03-home (home screen, profile, notifications, owner and admins).
+// Spanish: app part 03-home (the "My events" home screen and the "New event" sheet).
 export default {
   // Leaving an event or a tab: asks only about what will not be saved by itself
   'app.home.unsaved': 'La carta o la dirección no están guardadas. ¿Salir sin guardar?',
@@ -10,59 +10,32 @@ export default {
   'app.home.finished': 'finalizado',
   'app.home.active': 'en curso',
   'app.home.notMember': 'no participas',
-  // Home screen
+  // Home screen (063): ongoing and finished events; {n} — number of finished ones
   'app.home.greet': '¡Hola, {name}!',
-  'app.home.guest': 'Estás aquí como propietario del bot: no apareces en las listas de la sala y no recibes los avisos para sus administradores. Tus cambios quedan en el registro de la sala.',
-  'app.home.myEvents': 'Mis eventos',
-  'app.home.noEvents.admin': 'Todavía no participas en ningún evento. Crea uno o únete a uno existente («Gestión» → «Participo»).',
-  'app.home.noEvents.member': 'Todavía no participas en ningún evento. Pide un enlace de invitación a un evento.',
-  'app.home.otherEvents': 'Otros eventos',
-  // New event (from a template); {year} is the next year
-  'app.home.create.button': '🎄 Crear',
+  'app.home.going': 'En curso',
+  'app.home.done': 'Finalizados · {n}',
+  'app.home.empty.create': 'Todavía no hay eventos. Crea el tuyo con el botón de abajo o pide un enlace de invitación a un evento.',
+  'app.home.empty.join': 'Todavía no participas en ningún evento. Pide un enlace de invitación a un evento.',
+  // The bot owner in someone else's event (063): notice above "Info" and "Manage"
+  'app.home.guest': 'Estás aquí como propietario del bot: no apareces en las listas del evento y no recibes los mensajes para los administradores. Tus cambios quedan en el registro del evento.',
+  // New event (007: from a template; 063: the creator is the owner, limit); {year} — next year
+  'app.home.create.button': '🎄 Crear evento',
   'app.home.create.title': 'Nuevo evento',
-  'app.home.create.hint': 'El evento tendrá sus propios participantes, enlace de invitación, cartas y sorteo. Puedes llevar varios eventos a la vez.',
+  'app.home.create.hint': 'El evento tendrá sus propios participantes, enlace de invitación, cartas y sorteo. Serás su propietario y podrás nombrar administradores.',
   'app.home.create.name': 'Nombre del evento',
   'app.home.create.placeholder': 'Por ejemplo: Año Nuevo {year} — familia',
   'app.home.create.noTemplate': 'Sin plantilla, desde cero',
   'app.home.create.fromTemplate': 'Con plantilla: {title}',
   'app.home.create.invite': 'Invitar a los participantes de la plantilla',
   'app.home.create.templateHint': 'De la plantilla se copian el presupuesto, el lugar, las notas, las reglas del sorteo y las exclusiones. Las fechas no.',
+  'app.home.create.participate': 'Yo también participo',
+  // Limit (063): {n} — how many more; {limit} — the limit for 12 months, {date} — when a slot frees up
+  'app.home.create.left': {
+    one: 'Puedes crear {n} evento más en 12 meses.',
+    other: 'Puedes crear {n} eventos más en 12 meses.',
+  },
+  'app.home.create.full': 'En 12 meses puedes crear como máximo {limit} eventos. El siguiente, a partir del {date}.',
   'app.home.create.done': '🎄 Evento creado',
   'app.home.create.doneInvited': '🎄 Evento creado, invitaciones: {count}',
   'app.home.create.doneInviteError': '🎄 Evento creado. {error}',
-  // Profile and notifications
-  'app.home.profile.title': 'Perfil',
-  'app.home.profile.editName': '✏️ Cambiar nombre',
-  // Bot and app language; {name} is the language name in that language
-  'app.home.lang.button': '🌐 Idioma',
-  'app.home.lang.auto': 'Como en Telegram ({name})',
-  'app.home.lang.hint': 'El bot y la app estarán en este idioma. «Como en Telegram»: el idioma de tu Telegram.',
-  'app.home.notify.title': 'Notificaciones',
-  'app.home.notify.sound': '🔔 Sonido',
-  'app.home.notify.silent': '🔕 Silencio',
-  'app.home.notify.off': '🚫 Apagado',
-  // "Your name" sheet: title and field label
-  'app.home.name.title': 'Tu nombre',
-  'app.home.name.hint': 'Tu nombre es el mismo en todos los eventos. Lo ven el propietario, los administradores y tu Santa, y en la revelación, también tu destinatario.',
-  'app.home.name.empty': 'Escribe tu nombre',
-  'app.home.name.saved': 'Nombre guardado',
-  // Owner and admins (👑: ownership transfer by the owner or appointment by the bot owner)
-  'app.home.admins.title': 'Propietario y administradores',
-  'app.home.admins.makeOwnerConfirm': '¿Hacer a «{name}» propietario de esta sala? Podrá lo mismo que el propietario: administradores, reinicio y eliminación de eventos, vista de supervisión. Seguirás como propietario del bot y podrás recuperar la sala.',
-  'app.home.admins.transferConfirm': '¿Transferir la propiedad a «{name}»? Seguirás con permisos de administrador, pero solo el nuevo propietario podrá nombrar y quitar administradores.',
-  'app.home.admins.transferred': '👑 Propiedad transferida',
-  'app.home.admins.transfer': 'Transferir la propiedad',
-  'app.home.admins.revoke': 'Quitar permisos de administrador',
-  'app.home.admins.revokeConfirm': '¿Quitar los permisos de administrador a «{name}»?',
-  'app.home.admins.revoked': 'Permisos de administrador quitados',
-  'app.home.admins.grantPick': 'A quién nombrar…',
-  'app.home.admins.grant': '🛠 Nombrar administrador',
-  'app.home.admins.grantConfirm': '¿Nombrar administrador a «{name}»? Podrá crear y gestionar eventos. Solo el propietario podrá ver las asignaciones, en la vista de supervisión.',
-  'app.home.admins.granted': 'Administrador nombrado',
-  'app.home.admins.ownerHint': 'Los administradores crean y gestionan eventos. Solo tú puedes nombrar y quitar administradores y transferir la propiedad (👑).',
-  'app.home.admins.ownerPick': 'A quién hacer propietario…',
-  'app.home.admins.makeOwner': '👑 Hacer propietario',
-  'app.home.admins.onlyOwner': 'Solo el propietario puede nombrar y quitar administradores.',
-  'app.home.admins.onlyOwnerNamed': 'Solo el propietario ({name}) puede nombrar y quitar administradores.',
-  'app.home.admins.logHint': 'Roles, traspasos de participación, eventos eliminados: quién y cuándo.',
 };

@@ -1,4 +1,4 @@
-// Texts of app part 03-home (061): home screen, "Profile", "Notifications", owner and admins
+// Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
   // Leaving an event or a tab: asks only about what is not saved by itself
   'app.home.unsaved': 'Surat atau alamat belum disimpan. Keluar tanpa menyimpan?',
@@ -10,59 +10,31 @@ export default {
   'app.home.finished': 'selesai',
   'app.home.active': 'berlangsung',
   'app.home.notMember': 'kamu tidak ikut',
-  // Home screen
+  // Home screen (063): running and finished events; {n} - number of finished ones
   'app.home.greet': 'Halo, {name}!',
-  'app.home.guest': 'Kamu di sini sebagai pemilik bot: kamu tidak ada di daftar orang ruang ini, dan notifikasi untuk adminnya tidak dikirim kepadamu. Perubahanmu dicatat di log ruang.',
-  'app.home.myEvents': 'Acaraku',
-  'app.home.noEvents.admin': 'Kamu belum ikut acara apa pun. Buat acara atau ikuti acara yang sudah ada («Kelola» → «Aku ikut»).',
-  'app.home.noEvents.member': 'Kamu belum ikut acara apa pun. Minta tautan undangan ke sebuah acara.',
-  'app.home.otherEvents': 'Acara lain',
-  // New event (from a template); {year} — next year
-  'app.home.create.button': '🎄 Buat',
+  'app.home.going': 'Berlangsung',
+  'app.home.done': 'Selesai · {n}',
+  'app.home.empty.create': 'Belum ada acara. Buat acaramu sendiri — tombolnya di bawah — atau minta tautan undangan ke sebuah acara.',
+  'app.home.empty.join': 'Kamu belum ikut acara apa pun. Minta tautan undangan ke sebuah acara.',
+  // Bot owner in someone else's event (063): notice above "Info" and "Manage"
+  'app.home.guest': 'Kamu di sini sebagai pemilik bot: kamu tidak ada di daftar orang acara ini, dan pesan untuk admin tidak dikirim kepadamu. Perubahanmu dicatat di log acara.',
+  // New event (007: from a template; 063: the creator is the owner, limit); {year} is the next year
+  'app.home.create.button': '🎄 Buat acara',
   'app.home.create.title': 'Acara baru',
-  'app.home.create.hint': 'Setiap acara punya peserta, tautan undangan, surat, dan undiannya sendiri. Kamu bisa mengelola beberapa acara sekaligus.',
+  'app.home.create.hint': 'Setiap acara punya peserta, tautan undangan, surat, dan undiannya sendiri. Kamu akan menjadi pemiliknya dan bisa menunjuk admin.',
   'app.home.create.name': 'Nama acara',
   'app.home.create.placeholder': 'Misalnya: Tahun Baru {year} — keluarga',
   'app.home.create.noTemplate': 'Tanpa templat — mulai dari nol',
   'app.home.create.fromTemplate': 'Dari templat: {title}',
   'app.home.create.invite': 'Undang peserta acara templat',
   'app.home.create.templateHint': 'Dari templat disalin anggaran, tempat, catatan, aturan undian, dan pengecualian. Tanggal tidak disalin.',
+  'app.home.create.participate': 'Aku juga ikut',
+  // Limit (063): {n} - how many more are allowed; {limit} - the limit per 12 months, {date} - when a slot frees up
+  'app.home.create.left': {
+    other: 'Kamu masih bisa membuat {n} acara lagi dalam 12 bulan.',
+  },
+  'app.home.create.full': 'Dalam 12 bulan kamu bisa membuat paling banyak {limit} acara. Acara berikutnya bisa dibuat mulai {date}.',
   'app.home.create.done': '🎄 Acara dibuat',
   'app.home.create.doneInvited': '🎄 Acara dibuat, undangan: {count}',
   'app.home.create.doneInviteError': '🎄 Acara dibuat. {error}',
-  // "Profile" and "Notifications"
-  'app.home.profile.title': 'Profil',
-  'app.home.profile.editName': '✏️ Ubah nama',
-  // Bot and app language; name — language name in that language
-  'app.home.lang.button': '🌐 Bahasa',
-  'app.home.lang.auto': 'Sesuai Telegram ({name})',
-  'app.home.lang.hint': 'Bot dan aplikasi akan memakai bahasa ini. «Sesuai Telegram» — bahasa Telegram-mu.',
-  'app.home.notify.title': 'Notifikasi',
-  'app.home.notify.sound': '🔔 Suara',
-  'app.home.notify.silent': '🔕 Senyap',
-  'app.home.notify.off': '🚫 Mati',
-  // "Your name" sheet: title and field label
-  'app.home.name.title': 'Namamu',
-  'app.home.name.hint': 'Namamu sama di semua acara. Nama ini dilihat pemilik, admin, dan Santa-mu, dan saat rahasia terungkap — juga penerima kadomu.',
-  'app.home.name.empty': 'Tulis nama',
-  'app.home.name.saved': 'Nama tersimpan',
-  // Owner and admins
-  'app.home.admins.title': 'Pemilik dan admin',
-  'app.home.admins.makeOwnerConfirm': 'Jadikan «{name}» pemilik ruang ini? Dia bisa melakukan semua tugas pemilik: admin, reset dan hapus acara, tampilan khusus pasangan. Kamu tetap pemilik bot dan bisa mengambil kembali ruang ini.',
-  'app.home.admins.transferConfirm': 'Serahkan hak pemilik ke «{name}»? Kamu tetap menjadi admin, tapi hanya pemilik baru yang bisa menunjuk dan mencopot admin.',
-  'app.home.admins.transferred': '👑 Hak pemilik diserahkan',
-  'app.home.admins.transfer': 'Serahkan hak pemilik',
-  'app.home.admins.revoke': 'Copot hak admin',
-  'app.home.admins.revokeConfirm': 'Copot hak admin dari «{name}»?',
-  'app.home.admins.revoked': 'Hak admin dicopot',
-  'app.home.admins.grantPick': 'Siapa yang ditunjuk…',
-  'app.home.admins.grant': '🛠 Jadikan admin',
-  'app.home.admins.grantConfirm': 'Jadikan «{name}» admin? Dia bisa membuat dan mengelola acara. Pasangan hanya bisa dibuka oleh pemilik di tampilan khusus.',
-  'app.home.admins.granted': 'Admin ditunjuk',
-  'app.home.admins.ownerHint': 'Admin membuat dan mengelola acara. Hanya kamu yang bisa menunjuk dan mencopot admin serta menyerahkan hak pemilik (👑).',
-  'app.home.admins.ownerPick': 'Siapa yang dijadikan pemilik…',
-  'app.home.admins.makeOwner': '👑 Jadikan pemilik',
-  'app.home.admins.onlyOwner': 'Hanya pemilik yang bisa menunjuk dan mencopot admin.',
-  'app.home.admins.onlyOwnerNamed': 'Hanya pemilik yang bisa menunjuk dan mencopot admin — {name}.',
-  'app.home.admins.logHint': 'Peran, pemindahan keikutsertaan, acara yang dihapus — siapa dan kapan.',
 };

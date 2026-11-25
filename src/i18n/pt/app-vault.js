@@ -47,9 +47,8 @@ export default {
   'app.vault.swap.warning': 'Se você trocar, o bot vai avisar quem já viu o presenteado que ele mudou. As marcações de presente e as conversas desses dois pares recomeçam do zero.',
   'app.vault.swap.agree': 'Concordo — trocar mesmo assim',
   'app.vault.swap.confirm': 'Trocar os presenteados de “{a}” e “{b}”? O bot avisará da troca quem já viu o presenteado. Marcações de presente e conversas desses dois pares recomeçam do zero.',
-  // Activity log: event, room common log, bot log
+  // Activity log: event and bot log (063: no shared logs anymore)
   'app.vault.log.event': 'Registro do evento',
-  'app.vault.log.common': 'Registro geral',
   'app.vault.log.bot': 'Registro do bot',
   'app.vault.log.empty': 'Ainda não há entradas.',
   'app.vault.log.hint': 'As últimas 100 entradas, as mais novas no topo.',
@@ -84,7 +83,11 @@ export default {
   'app.vault.audit.transfer': '🔁 Transferência de participação',
   'app.vault.audit.role.grant': '🛠 Administrador nomeado',
   'app.vault.audit.role.revoke': '🛠 Direitos de administrador removidos',
-  'app.vault.audit.owner.transfer': '👑 Direitos de dono transferidos',
+  'app.vault.audit.owner.transfer': '👑 Direitos de dono do bot transferidos',
+  // 063: event ownership and the permission to create events (closed bot)
+  'app.vault.audit.event.owner': '👑 Direitos de dono do evento transferidos',
+  'app.vault.audit.creator.grant': '✍️ Permissão para criar eventos',
+  'app.vault.audit.creator.revoke': '✍️ Permissão para criar eventos retirada',
   'app.vault.audit.owner.link': '👑 Dono pelo link do /setup',
   'app.vault.audit.family.save': '👪 Família salva',
   'app.vault.audit.family.delete': '👪 Família excluída',
@@ -102,7 +105,7 @@ export default {
   'app.vault.audit.support.pass': '↪️ Chamado transferido',
   'app.vault.audit.support.close': '✅ Chamado encerrado',
   'app.vault.audit.support.return': '🔄 Chamado sem responsável de novo',
-  // 051: bot log (and owner change — in the room common log)
+  // 051: bot log and shared logs — before 063 (history)
   'app.vault.audit.company.create': '🚪 Sala criada',
   'app.vault.audit.company.owner': '👑 Novo dono',
   'app.vault.audit.company.link': '🔗 Link de dono',

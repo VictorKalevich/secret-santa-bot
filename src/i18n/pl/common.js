@@ -21,7 +21,6 @@ export default {
   'common.noDraw': 'Losowanie jeszcze się nie odbyło.',
   'common.pairsRace': 'Pary zmieniły się w trakcie tej operacji — spróbuj jeszcze raz.',
   'common.notMember': 'Nie uczestniczysz w tym wydarzeniu.',
-  'common.companyNotFound': 'Nie znaleziono pokoju.',
   'common.writeLetterButton': '✏️ Napisz list',
   'common.replyButton': '↩️ Odpowiedz',
   'common.tooLong': 'Za długo — znaków: {n}, maksimum: {max}.',

@@ -1,10 +1,9 @@
 // Texts of src/api.js (060): check pipeline and action handlers. {owner.nom}, {owner.dat} - "the owner" or "the bot owner"
-// (ownerWord) in the needed form; {word} - the confirmation word of the action.
+// (ownerWord of the event) in the needed form; {word} - the confirmation word of the action.
 export default {
   'api.badInitData': "Impossibile verificare l'accesso. Riapri l'app dalla chat con il bot.",
   'api.unknownAction': "Azione sconosciuta",
   'api.noEvent': "Evento non trovato.",
-  'api.chooseRoom': "Scegli una stanza.",
   // What is not allowed in a finished event (finished field of the action table)
   'api.closed': "L'evento è concluso e non si può più modificare (restano visualizzazione, rivelazione ed eliminazione).",
   'api.letterClosed': "L'evento è concluso: ora la letterina è di sola lettura.",
@@ -19,14 +18,14 @@ export default {
   'api.owner.roles': "Solo {owner.nom} può nominare e revocare gli amministratori.",
   'api.owner.vault': "La vista riservata è accessibile solo {owner.dat}.",
   'api.owner.swap': "Solo {owner.nom} può cambiare i destinatari dopo il sorteggio.",
-  'api.owner.transfer': "Solo {owner.nom} può cedere il ruolo di proprietario.",
+  'api.owner.transfer': "Solo {owner.nom} può cedere la proprietà dell'evento.",
   'api.owner.insert': "Solo {owner.nom} può inserire qualcuno nel sorteggio già fatto.",
   'api.owner.fixed': "Solo {owner.nom} può fissare le coppie.",
   'api.owner.forceCancel': "Solo {owner.nom} può forzare l'annullamento del sorteggio.",
   'api.owner.eventDelete': "Solo {owner.nom} può eliminare l'evento.",
   'api.owner.reset': "Solo {owner.nom} può fare il reset completo.",
   'api.botOwner.transfer': "Solo il proprietario del bot può trasferire la partecipazione su un nuovo account.",
-  'api.botOwner.companyDelete': "Solo il proprietario del bot può eliminare la stanza.",
+  'api.botOwner.rename': "Solo il proprietario del bot può rinominare una persona.",
   'api.botOnly': "Solo per il proprietario del bot.",
   // Handlers
   'api.nameRule': "Il nome deve avere da 1 a 40 caratteri",
@@ -34,8 +33,6 @@ export default {
   'api.lang.unknown': "Questa lingua non esiste.",
   'api.templateNotFound': "Modello non trovato.",
   'api.memberNotFound': "Partecipante non trovato",
-  'api.renameAdmin': "Solo {owner.nom} può rinominare un amministratore.",
-  'api.renameSelfOnly': "Questa persona cambia il nome da sé: «Profilo» → «✏️ Cambia nome».",
   'api.ownerNotTransferred': "Il profilo del proprietario non si trasferisce: il proprietario recupera l'accesso con un nuovo link del proprietario (cambia ADMIN_SECRET → pagina /setup).",
   'api.removeSelf': "Non puoi rimuoverti da qui: disattiva «Partecipo».",
   'api.removeOwner': "Il proprietario non può essere rimosso dall'evento. Prima deve cedere il ruolo di proprietario.",

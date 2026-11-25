@@ -86,6 +86,40 @@ test('в текстах для людей — «комната», а не «ко
   assert.deepEqual(companyWords(bad).map((s) => s.split(': ')[0]), ['src/app/04-companies.js.txt:1', 'src/companies.js:1']);
 });
 
+// 063: комнат нет — слова «комната» (и «компания») нет в текстах для людей ни на одном языке, кроме подписей прежних
+// кодов журнала бота (app.vault.audit.company.*: записи остались как история). Слово языка — из глоссария 061
+const ROOM_WORDS = {
+  ru: /комнат|компани/iu, en: /\brooms?\b/i, es: /\bsalas?\b/i, pt: /\bsalas?\b/i, fr: /\bsalons?\b/i, de: /\bR[aä]um/u,
+  zh: /房间/u, it: /\bstanz[ae]\b/i, tr: /\boda(?!k)/i, id: /\bruang\b/i, pl: /\bpok[óo]j/iu,
+};
+function roomWords(files) {
+  const found = [];
+  for (const [file, text] of files) {
+    const re = ROOM_WORDS[file.split('/')[2]];
+    stripComments(text).split('\n').forEach((line, i) => {
+      if (re.test(line) && !/'app\.vault\.audit\.company\./.test(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 140)}`);
+    });
+  }
+  return found;
+}
+
+test('063: «комнаты» нет в текстах для людей ни на одном языке, кроме подписей прежних кодов журнала', () => {
+  assert.deepEqual(Object.keys(ROOM_WORDS).sort(), readdirSync(new URL('../src/i18n/', import.meta.url), { withFileTypes: true })
+    .filter((d) => d.isDirectory()).map((d) => d.name).sort(), 'слово «комната» — для каждого языка бота');
+  assert.deepEqual(roomWords(DICTS.map((f) => [f, read(f)])), []);
+  // от противного: «комната» в тексте любого языка — нарушение; подпись прежнего кода журнала и комментарий — нет
+  const bad = [
+    ['src/i18n/en/app-home.js', "  'app.home.x': 'Create a room',"],
+    ['src/i18n/de/app-home.js', "  'app.home.x': 'Räume',"],
+    ['src/i18n/zh/app-home.js', "  'app.home.x': '创建房间',"],
+    ['src/i18n/pl/app-home.js', "  'app.home.x': 'Utwórz pokój',"],
+    ['src/i18n/ru/app-home.js', "  'app.home.x': 'Твои комнаты',"],
+    ['src/i18n/en/app-vault.js', "  'app.vault.audit.company.create': '🚪 Room created',\n  // rooms are gone"],
+  ];
+  assert.deepEqual(roomWords(bad).map((s) => s.split(': ')[0]),
+    ['src/i18n/en/app-home.js:1', 'src/i18n/de/app-home.js:1', 'src/i18n/zh/app-home.js:1', 'src/i18n/pl/app-home.js:1', 'src/i18n/ru/app-home.js:1']);
+});
+
 test('кнопки приложения не начинаются с «＋»', () => {
   const app = stripComments(APP);
   const lines = app.split('\n').map((line, i) => [i + 1, line]).filter(([, line]) => /＋|ui\.btn\(\s*['"`]\+/.test(line));
@@ -111,6 +145,7 @@ const BOT_OWNER_ALWAYS = [
   ['src/bot-owner.js', 'Владелец бота разрешил тебе создавать события'],
   ['src/bot-owner.js', 'Владелец бота больше не разрешает тебе создавать'],
   ['src/events.js', 'может владелец бота и те, кому он разрешил'],
+  ['src/companies.js', "'companies.audit.toBotOwner'"], // прежние записи журнала бота о комнатах (словарь истории)
   ['src/roles.js', 'Владелец бота перенёс на этот аккаунт'],
   ['src/roles.js', 'свяжись с владельцем бота'],
   ['src/roles.js', 'Права владельца бота перешли'], // смена владельца бота
@@ -126,7 +161,7 @@ const BOT_OWNER_ALWAYS = [
   // 060: формы ownerWord и отказы только владельцу бота — в словарях (прежде собирались кодом)
   ['src/format.js', "'common.botOwner."],
   ['src/app/02-core.js.txt', "'app.core.botOwner."],
-  ['src/app/02-core.js.txt', "'app.core.role.guest'"], // роль «гость» — всегда владелец бота без строки в комнате
+  ['src/app/02-core.js.txt', "'app.core.role.guest'"], // роль «гость» — всегда владелец бота в чужом событии (063)
   ['src/api.js', "'api.botOwner."],
   ['src/api.js', "'api.botOnly'"],
 ];

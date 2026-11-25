@@ -46,9 +46,8 @@ export default {
   'app.vault.swap.warning': '如果交换，已经查看过收礼人的人会收到机器人的消息，得知收礼人变了。这两组配对的礼物标记和聊天记录都会重新开始。',
   'app.vault.swap.agree': '我同意，仍然交换',
   'app.vault.swap.confirm': '交换“{a}”和“{b}”的收礼人？已经查看过收礼人的人会收到机器人的消息，得知收礼人变了。这两组配对的礼物标记和聊天记录都会重新开始。',
-  // Activity log: event, common room log, bot log
+  // Activity log: event log and bot log (063: no shared logs any more)
   'app.vault.log.event': '活动日志',
-  'app.vault.log.common': '公共日志',
   'app.vault.log.bot': '机器人日志',
   'app.vault.log.empty': '还没有记录。',
   'app.vault.log.hint': '最近 100 条记录，最新的在上面。',
@@ -82,7 +81,11 @@ export default {
   'app.vault.audit.transfer': '🔁 转移了参与记录',
   'app.vault.audit.role.grant': '🛠 任命了管理员',
   'app.vault.audit.role.revoke': '🛠 撤销了管理员权限',
-  'app.vault.audit.owner.transfer': '👑 转让了所有者身份',
+  'app.vault.audit.owner.transfer': '👑 转让了机器人所有者身份',
+  // 063: event ownership and permission to create events (closed bot)
+  'app.vault.audit.event.owner': '👑 转让了活动所有者身份',
+  'app.vault.audit.creator.grant': '✍️ 允许创建活动',
+  'app.vault.audit.creator.revoke': '✍️ 禁止创建活动',
   'app.vault.audit.owner.link': '👑 通过 /setup 链接成为所有者',
   'app.vault.audit.family.save': '👪 保存了家庭',
   'app.vault.audit.family.delete': '👪 删除了家庭',
@@ -100,7 +103,7 @@ export default {
   'app.vault.audit.support.pass': '↪️ 转交了求助',
   'app.vault.audit.support.close': '✅ 关闭了求助',
   'app.vault.audit.support.return': '🔄 求助又没人负责了',
-  // 051: bot log (and owner change in the common room log)
+  // 051: bot log and shared logs - before 063 (history)
   'app.vault.audit.company.create': '🚪 创建了房间',
   'app.vault.audit.company.owner': '👑 新所有者',
   'app.vault.audit.company.link': '🔗 所有者链接',

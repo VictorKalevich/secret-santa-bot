@@ -46,9 +46,8 @@ export default {
   'app.vault.swap.warning': "En cas d'échange, le bot préviendra ceux qui ont déjà découvert leur destinataire qu'il a changé. Les cases du cadeau et les conversations de ces deux paires repartiront de zéro.",
   'app.vault.swap.agree': "D'accord — échanger quand même",
   'app.vault.swap.confirm': "Échanger les destinataires de « {a} » et « {b} » ? Qui a déjà découvert le sien sera prévenu. Cases du cadeau et conversations des deux paires seront remis à zéro.",
-  // Activity log: event, common room log, bot log
+  // Activity log: event and bot log (063: no shared logs anymore)
   'app.vault.log.event': "Journal de l'événement",
-  'app.vault.log.common': "Journal commun",
   'app.vault.log.bot': "Journal du bot",
   'app.vault.log.empty': "Aucune entrée pour l'instant.",
   'app.vault.log.hint': "Les 100 dernières entrées, les plus récentes en haut.",
@@ -82,7 +81,11 @@ export default {
   'app.vault.audit.transfer': "🔁 Transfert de participation",
   'app.vault.audit.role.grant': "🛠 Administrateur nommé",
   'app.vault.audit.role.revoke': "🛠 Droits d'administrateur retirés",
-  'app.vault.audit.owner.transfer': "👑 Droits de propriétaire transmis",
+  'app.vault.audit.owner.transfer': "👑 Droits de propriétaire du bot transmis",
+  // 063: event ownership and the permission to create events (closed bot)
+  'app.vault.audit.event.owner': "👑 Propriété de l'événement transmise",
+  'app.vault.audit.creator.grant': "✍️ Création d'événements autorisée",
+  'app.vault.audit.creator.revoke': "✍️ Création d'événements interdite",
   'app.vault.audit.owner.link': "👑 Propriétaire via le lien /setup",
   'app.vault.audit.family.save': "👪 Famille enregistrée",
   'app.vault.audit.family.delete': "👪 Famille supprimée",
@@ -100,7 +103,7 @@ export default {
   'app.vault.audit.support.pass': "↪️ Question transmise",
   'app.vault.audit.support.close': "✅ Question fermée",
   'app.vault.audit.support.return': "🔄 Question sans responsable",
-  // 051: bot log (and owner change - in the common room log)
+  // 051: bot log and shared logs - before 063 (history)
   'app.vault.audit.company.create': "🚪 Salon créé",
   'app.vault.audit.company.owner': "👑 Nouveau propriétaire",
   'app.vault.audit.company.link': "🔗 Lien de propriétaire",

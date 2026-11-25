@@ -46,9 +46,8 @@ export default {
   'app.vault.swap.warning': 'Po zamianie bot napisze do tych, którzy już otworzyli podopiecznego, że się zmienił. Oznaczenia prezentu i czaty tych dwóch par zaczną się od nowa.',
   'app.vault.swap.agree': 'Zgadzam się — zamień mimo to',
   'app.vault.swap.confirm': 'Zamienić podopiecznych: „{a}” i „{b}”? Kto już otworzył podopiecznego, dostanie od bota wiadomość o zmianie. Oznaczenia prezentu i czaty obu par zaczną się od nowa.',
-  // Activity log: event, shared room log, bot log
+  // Activity log: event log and bot log (063: no shared logs any more)
   'app.vault.log.event': 'Dziennik wydarzenia',
-  'app.vault.log.common': 'Wspólny dziennik',
   'app.vault.log.bot': 'Dziennik bota',
   'app.vault.log.empty': 'Nie ma jeszcze wpisów.',
   'app.vault.log.hint': 'Ostatnie 100 wpisów, najnowsze na górze.',
@@ -82,7 +81,11 @@ export default {
   'app.vault.audit.transfer': '🔁 Przeniesienie udziału',
   'app.vault.audit.role.grant': '🛠 Mianowano administratora',
   'app.vault.audit.role.revoke': '🛠 Odebrano prawa administratora',
-  'app.vault.audit.owner.transfer': '👑 Przekazano prawa właściciela',
+  'app.vault.audit.owner.transfer': '👑 Przekazano prawa właściciela bota',
+  // 063: event ownership and permission to create events (closed bot)
+  'app.vault.audit.event.owner': '👑 Przekazano prawa właściciela wydarzenia',
+  'app.vault.audit.creator.grant': '✍️ Zezwolono na tworzenie wydarzeń',
+  'app.vault.audit.creator.revoke': '✍️ Cofnięto zgodę na tworzenie wydarzeń',
   'app.vault.audit.owner.link': '👑 Właściciel przez link /setup',
   'app.vault.audit.family.save': '👪 Zapisano rodzinę',
   'app.vault.audit.family.delete': '👪 Usunięto rodzinę',
@@ -100,7 +103,7 @@ export default {
   'app.vault.audit.support.pass': '↪️ Przekazano zgłoszenie',
   'app.vault.audit.support.close': '✅ Zamknięto zgłoszenie',
   'app.vault.audit.support.return': '🔄 Zgłoszenie znów nieprzypisane',
-  // 051: bot log (and owner change — in the shared room log)
+  // 051: bot log and shared logs - before 063 (history)
   'app.vault.audit.company.create': '🚪 Utworzono pokój',
   'app.vault.audit.company.owner': '👑 Nowy właściciel',
   'app.vault.audit.company.link': '🔗 Link właściciela',

@@ -46,9 +46,8 @@ export default {
   'app.vault.swap.warning': "Se inverti, il bot avviserà del cambio chi ha già visto il proprio destinatario. Spunte del regalo e chat di queste due coppie ripartiranno da zero.",
   'app.vault.swap.agree': "Ho capito: inverti comunque",
   'app.vault.swap.confirm': "Invertire i destinatari di «{a}» e «{b}»? Chi ha già visto il suo destinatario riceverà un avviso. Spunte e chat di queste due coppie ripartiranno da zero.",
-  // Activity log: event, common room log, bot log
+  // Activity log: event log and bot log (063: no shared logs any more)
   'app.vault.log.event': "Registro dell'evento",
-  'app.vault.log.common': "Registro comune",
   'app.vault.log.bot': "Registro del bot",
   'app.vault.log.empty': "Ancora nessuna voce.",
   'app.vault.log.hint': "Ultime 100 voci, le più recenti in alto.",
@@ -82,7 +81,11 @@ export default {
   'app.vault.audit.transfer': "🔁 Trasferimento della partecipazione",
   'app.vault.audit.role.grant': "🛠 Amministratore nominato",
   'app.vault.audit.role.revoke': "🛠 Ruolo di amministratore revocato",
-  'app.vault.audit.owner.transfer': "👑 Ruolo di proprietario ceduto",
+  'app.vault.audit.owner.transfer': "👑 Ruolo di proprietario del bot ceduto",
+  // 063: event ownership and permission to create events (closed bot)
+  'app.vault.audit.event.owner': "👑 Proprietà dell'evento ceduta",
+  'app.vault.audit.creator.grant': "✍️ Permesso di creare eventi concesso",
+  'app.vault.audit.creator.revoke': "✍️ Permesso di creare eventi revocato",
   'app.vault.audit.owner.link': "👑 Proprietario tramite link /setup",
   'app.vault.audit.family.save': "👪 Famiglia salvata",
   'app.vault.audit.family.delete': "👪 Famiglia eliminata",
@@ -100,7 +103,7 @@ export default {
   'app.vault.audit.support.pass': "↪️ Ticket passato",
   'app.vault.audit.support.close': "✅ Ticket chiuso",
   'app.vault.audit.support.return': "🔄 Ticket di nuovo libero",
-  // 051: bot log (and owner change - in the common room log)
+  // 051: bot log and shared logs - before 063 (history)
   'app.vault.audit.company.create': "🚪 Stanza creata",
   'app.vault.audit.company.owner': "👑 Nuovo proprietario",
   'app.vault.audit.company.link': "🔗 Link del proprietario",

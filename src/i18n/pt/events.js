@@ -2,6 +2,9 @@
 // announcements, event parameters
 export default {
   'events.titleRule': 'O nome do evento deve ter de 1 a 80 caracteres.',
+  // Creating (063): who can and the limit; {limit} — the limit for 12 months, {date} — when a slot frees up
+  'events.createRight': 'Neste bot, podem criar eventos o dono do bot e as pessoas a quem ele permitiu.',
+  'events.limit': 'Em 12 meses dá para criar no máximo {limit} eventos. O próximo — a partir de {date}.',
   // Shared app button under a message about the event (also in src/pairs.js)
   'events.openButton': '🎁 Abrir',
   // Finishing

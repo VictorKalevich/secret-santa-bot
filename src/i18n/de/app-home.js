@@ -1,4 +1,4 @@
-// Texts of app part 03-home (061, German): home screen, "Profile", "Notifications", owner and admins
+// Texts of app part 03-home (061, German): the "My rounds" home screen and the "New round" sheet (063)
 export default {
   // Leaving a round or tab (058): asks only about what is not saved by itself
   'app.home.unsaved': 'Wunschzettel oder Adresse sind nicht gespeichert. Ohne Speichern verlassen?',
@@ -10,59 +10,32 @@ export default {
   'app.home.finished': 'beendet',
   'app.home.active': 'läuft',
   'app.home.notMember': 'du machst nicht mit',
-  // Home screen
+  // Home screen (063): ongoing and finished events; {n} - number of finished ones
   'app.home.greet': 'Hallo, {name}!',
-  'app.home.guest': 'Du bist hier als Bot-Inhaber: In den Listen des Raums tauchst du nicht auf, Benachrichtigungen an seine Admins bekommst du nicht. Deine Änderungen landen im Protokoll des Raums.',
-  'app.home.myEvents': 'Meine Runden',
-  'app.home.noEvents.admin': 'Du machst noch bei keiner Runde mit. Erstelle eine Runde oder tritt einer bestehenden bei («Verwaltung» → «Ich mache mit»).',
-  'app.home.noEvents.member': 'Du machst noch bei keiner Runde mit. Bitte um einen Einladungslink zu einer Runde.',
-  'app.home.otherEvents': 'Andere Runden',
-  // New round (007: from a template); {year} - next year
-  'app.home.create.button': '🎄 Erstellen',
+  'app.home.going': 'Laufend',
+  'app.home.done': 'Beendet · {n}',
+  'app.home.empty.create': 'Noch keine Runden. Erstelle deine eigene – Button unten – oder bitte um einen Einladungslink zu einer Runde.',
+  'app.home.empty.join': 'Du machst noch bei keiner Runde mit. Bitte um einen Einladungslink zu einer Runde.',
+  // The bot owner in someone else's event (063): notice above "Info" and "Manage"
+  'app.home.guest': 'Du bist hier als Bot-Inhaber: In den Listen der Runde tauchst du nicht auf, Nachrichten an die Admins bekommst du nicht. Deine Änderungen landen im Protokoll der Runde.',
+  // New event (007: from a template; 063: the creator is the owner, limit); {year} - next year
+  'app.home.create.button': '🎄 Runde erstellen',
   'app.home.create.title': 'Neue Runde',
-  'app.home.create.hint': 'Jede Runde hat eigene Teilnehmer, einen Einladungslink, Wunschzettel und eine Auslosung. Du kannst mehrere Runden gleichzeitig leiten.',
+  'app.home.create.hint': 'Jede Runde hat eigene Teilnehmer, einen Einladungslink, Wunschzettel und eine Auslosung. Du wirst ihr Inhaber und kannst Admins ernennen.',
   'app.home.create.name': 'Name der Runde',
   'app.home.create.placeholder': 'Zum Beispiel: Neujahr {year} – Familie',
   'app.home.create.noTemplate': 'Ohne Vorlage – ganz neu',
   'app.home.create.fromTemplate': 'Nach Vorlage: {title}',
   'app.home.create.invite': 'Teilnehmer der Vorlage einladen',
   'app.home.create.templateHint': 'Aus der Vorlage werden Budget, Ort, Notizen, Auslosungsregeln und Ausschlüsse übernommen. Daten nicht.',
+  'app.home.create.participate': 'Ich mache auch mit',
+  // Limit (063): {n} - how many more; {limit} - the limit for 12 months, {date} - when a slot frees up
+  'app.home.create.left': {
+    one: 'Du kannst in 12 Monaten noch {n} Runde erstellen.',
+    other: 'Du kannst in 12 Monaten noch {n} Runden erstellen.',
+  },
+  'app.home.create.full': 'In 12 Monaten kannst du höchstens {limit} Runden erstellen. Die nächste – ab dem {date}.',
   'app.home.create.done': '🎄 Runde erstellt',
   'app.home.create.doneInvited': '🎄 Runde erstellt, Einladungen: {count}',
   'app.home.create.doneInviteError': '🎄 Runde erstellt. {error}',
-  // "Profile" and "Notifications"
-  'app.home.profile.title': 'Profil',
-  'app.home.profile.editName': '✏️ Name ändern',
-  // 061: language of the bot and the app; name - the language name in that language
-  'app.home.lang.button': '🌐 Sprache',
-  'app.home.lang.auto': 'Wie in Telegram ({name})',
-  'app.home.lang.hint': 'Bot und App erscheinen in dieser Sprache. «Wie in Telegram» – die Sprache deines Telegram.',
-  'app.home.notify.title': 'Benachrichtigungen',
-  'app.home.notify.sound': '🔔 Ton',
-  'app.home.notify.silent': '🔕 Leise',
-  'app.home.notify.off': '🚫 Aus',
-  // "Your name" sheet (035): title and field label
-  'app.home.name.title': 'Dein Name',
-  'app.home.name.hint': 'Dein Name gilt in allen Runden. Ihn sehen der Inhaber, die Admins und dein Wichtel, nach der Auflösung auch dein Wichtelkind.',
-  'app.home.name.empty': 'Gib deinen Namen ein',
-  'app.home.name.saved': 'Name gespeichert',
-  // Owner and admins (002, 051: crown - transfer by the owner or appointment by the bot owner)
-  'app.home.admins.title': 'Inhaber und Admins',
-  'app.home.admins.makeOwnerConfirm': '«{name}» zum Inhaber dieses Raums machen? Diese Person kann dann alles, was ein Inhaber kann: Admins, Runden zurücksetzen und löschen, Kontrollansicht. Du bleibst Bot-Inhaber und kannst den Raum zurückholen.',
-  'app.home.admins.transferConfirm': 'Inhaberrechte an «{name}» übertragen? Du bleibst Admin, aber Admins ernennen und entfernen kann dann nur der neue Inhaber.',
-  'app.home.admins.transferred': '👑 Inhaberrechte übertragen',
-  'app.home.admins.transfer': 'Inhaberrechte übertragen',
-  'app.home.admins.revoke': 'Admin-Rechte entziehen',
-  'app.home.admins.revokeConfirm': '«{name}» die Admin-Rechte entziehen?',
-  'app.home.admins.revoked': 'Admin-Rechte entzogen',
-  'app.home.admins.grantPick': 'Wen ernennen…',
-  'app.home.admins.grant': '🛠 Zum Admin ernennen',
-  'app.home.admins.grantConfirm': '«{name}» zum Admin ernennen? Diese Person kann dann Runden erstellen und leiten. Die Paare sieht nur der Inhaber in der Kontrollansicht.',
-  'app.home.admins.granted': 'Admin ernannt',
-  'app.home.admins.ownerHint': 'Admins erstellen und leiten Runden. Admins ernennen und entfernen sowie die Inhaberrechte übertragen (👑) kannst nur du.',
-  'app.home.admins.ownerPick': 'Wen zum Inhaber machen…',
-  'app.home.admins.makeOwner': '👑 Zum Inhaber machen',
-  'app.home.admins.onlyOwner': 'Admins ernennen und entfernen kann nur der Inhaber.',
-  'app.home.admins.onlyOwnerNamed': 'Admins ernennen und entfernen kann nur der Inhaber – {name}.',
-  'app.home.admins.logHint': 'Rollen, übertragene Teilnahmen, gelöschte Runden – wer und wann.',
 };

@@ -1,4 +1,4 @@
-// Texts of app part 03-home (060): home screen, "Profile", "Notifications", owner and admins
+// Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
   // Leaving an event or a tab (058): asks only about what is not saved by itself
   'app.home.unsaved': '心愿信或地址还没保存。不保存就离开吗？',
@@ -10,59 +10,31 @@ export default {
   'app.home.finished': '已结束',
   'app.home.active': '进行中',
   'app.home.notMember': '你未参加',
-  // Home screen
+  // Home screen (063): running and finished events; {n} - number of finished ones
   'app.home.greet': '你好，{name}！',
-  'app.home.guest': '你以机器人所有者的身份在这里：房间的名单中没有你，发给房间管理员的通知也不会发给你。你的修改会记录在房间日志中。',
-  'app.home.myEvents': '我的活动',
-  'app.home.noEvents.admin': '你还没有参加任何活动。创建一个活动，或加入已有的活动（“管理” → “我参加”）。',
-  'app.home.noEvents.member': '你还没有参加任何活动。请索取活动的邀请链接。',
-  'app.home.otherEvents': '其他活动',
-  // New event (007: from a template); {year} is the next year
-  'app.home.create.button': '🎄 创建',
+  'app.home.going': '进行中',
+  'app.home.done': '已结束 · {n}',
+  'app.home.empty.create': '还没有活动。创建你自己的活动（按钮在下方），或者索取活动的邀请链接。',
+  'app.home.empty.join': '你还没有参加任何活动。请索取活动的邀请链接。',
+  // Bot owner in someone else's event (063): notice above "Info" and "Manage"
+  'app.home.guest': '你以机器人所有者的身份在这里：活动的名单中没有你，发给管理员的消息也不会发给你。你的修改会记录在活动日志中。',
+  // New event (007: from a template; 063: the creator is the owner, limit); {year} is the next year
+  'app.home.create.button': '🎄 创建活动',
   'app.home.create.title': '新活动',
-  'app.home.create.hint': '每个活动都有自己的参与者、邀请链接、心愿信和抽签。可以同时管理多个活动。',
+  'app.home.create.hint': '每个活动都有自己的参与者、邀请链接、心愿信和抽签。你将成为它的所有者，并可以任命管理员。',
   'app.home.create.name': '活动名称',
   'app.home.create.placeholder': '例如：{year} 新年 · 家人',
   'app.home.create.noTemplate': '不用模板，从头开始',
   'app.home.create.fromTemplate': '模板：{title}',
   'app.home.create.invite': '邀请模板活动的参与者',
   'app.home.create.templateHint': '会从模板复制预算、地点、备注、抽签规则和排除规则，不复制日期。',
+  'app.home.create.participate': '我也参加',
+  // Limit (063): {n} - how many more are allowed; {limit} - the limit per 12 months, {date} - when a slot frees up
+  'app.home.create.left': {
+    other: '12 个月内还可以创建 {n} 个活动。',
+  },
+  'app.home.create.full': '12 个月内最多可以创建 {limit} 个活动。下一个活动可于{date}起创建。',
   'app.home.create.done': '🎄 活动已创建',
   'app.home.create.doneInvited': '🎄 活动已创建，已发出邀请：{count}',
   'app.home.create.doneInviteError': '🎄 活动已创建。{error}',
-  // "Profile" and "Notifications"
-  'app.home.profile.title': '个人资料',
-  'app.home.profile.editName': '✏️ 修改名字',
-  // 061: bot and app language; name is the language name in that language
-  'app.home.lang.button': '🌐 语言',
-  'app.home.lang.auto': '跟随 Telegram（{name}）',
-  'app.home.lang.hint': '机器人和应用将使用这种语言。“跟随 Telegram”即使用你的 Telegram 语言。',
-  'app.home.notify.title': '通知',
-  'app.home.notify.sound': '🔔 有声音',
-  'app.home.notify.silent': '🔕 静音',
-  'app.home.notify.off': '🚫 关闭',
-  // "Your name" sheet (035): title and field label
-  'app.home.name.title': '你的名字',
-  'app.home.name.hint': '所有活动都用同一个名字。所有者、管理员和你的圣诞老人能看到它，揭晓时你的收礼人也会看到。',
-  'app.home.name.empty': '请填写名字',
-  'app.home.name.saved': '名字已保存',
-  // Owner and admins (002, 051: 👑 is the owner passing rights or the bot owner assigning an owner)
-  'app.home.admins.title': '所有者和管理员',
-  'app.home.admins.makeOwnerConfirm': '让“{name}”成为这个房间的所有者？对方将拥有所有者的全部权限：管理员、重置和删除活动、后台查看配对。你仍然是机器人所有者，可以把房间收回。',
-  'app.home.admins.transferConfirm': '把所有者身份转让给“{name}”？你仍然是管理员，但只有新的所有者才能任命和撤销管理员。',
-  'app.home.admins.transferred': '👑 所有者身份已转让',
-  'app.home.admins.transfer': '转让所有者身份',
-  'app.home.admins.revoke': '撤销管理员权限',
-  'app.home.admins.revokeConfirm': '撤销“{name}”的管理员权限？',
-  'app.home.admins.revoked': '管理员权限已撤销',
-  'app.home.admins.grantPick': '任命谁…',
-  'app.home.admins.grant': '🛠 设为管理员',
-  'app.home.admins.grantConfirm': '任命“{name}”为管理员？对方将可以创建和管理活动。只有所有者能在后台查看中看到配对。',
-  'app.home.admins.granted': '管理员已任命',
-  'app.home.admins.ownerHint': '管理员可以创建和管理活动。只有你能任命、撤销管理员和转让所有者身份（👑）。',
-  'app.home.admins.ownerPick': '让谁成为所有者…',
-  'app.home.admins.makeOwner': '👑 设为所有者',
-  'app.home.admins.onlyOwner': '只有所有者可以任命和撤销管理员。',
-  'app.home.admins.onlyOwnerNamed': '只有所有者（{name}）可以任命和撤销管理员。',
-  'app.home.admins.logHint': '角色、参与记录转移、已删除的活动：谁在何时操作。',
 };

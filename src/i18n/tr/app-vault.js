@@ -41,8 +41,8 @@ export default {
   'app.vault.swap.warning': "Değiştirirsen, alıcısını açmış olanlara bot alıcının değiştiğini yazacak. Bu iki eşleşmenin hediye işaretleri ve yazışmaları sıfırlanacak.",
   'app.vault.swap.agree': "Kabul ediyorum — yine de değiştir",
   'app.vault.swap.confirm': "«{a}» ↔ «{b}»: alıcılar değiştirilsin mi? Alıcısını açmış olanlara bot alıcının değiştiğini yazacak. Bu iki eşleşmenin hediye işaretleri ve yazışmaları sıfırlanacak.",
+  // Activity log: event log and bot log (063: no shared logs any more)
   'app.vault.log.event': "Etkinlik günlüğü",
-  'app.vault.log.common': "Ortak günlük",
   'app.vault.log.bot': "Bot günlüğü",
   'app.vault.log.empty': "Henüz kayıt yok.",
   'app.vault.log.hint': "Son 100 kayıt, yeniler üstte.",
@@ -75,7 +75,11 @@ export default {
   'app.vault.audit.transfer': "🔁 Katılım taşındı",
   'app.vault.audit.role.grant': "🛠 Yönetici atandı",
   'app.vault.audit.role.revoke': "🛠 Yöneticilik kaldırıldı",
-  'app.vault.audit.owner.transfer': "👑 Sahiplik devredildi",
+  'app.vault.audit.owner.transfer': "👑 Bot sahipliği devredildi",
+  // 063: event ownership and permission to create events (closed bot)
+  'app.vault.audit.event.owner': "👑 Etkinlik sahipliği devredildi",
+  'app.vault.audit.creator.grant': "✍️ Etkinlik oluşturma izni verildi",
+  'app.vault.audit.creator.revoke': "✍️ Etkinlik oluşturma izni kaldırıldı",
   'app.vault.audit.owner.link': "👑 /setup bağlantısıyla sahip",
   'app.vault.audit.family.save': "👪 Aile kaydedildi",
   'app.vault.audit.family.delete': "👪 Aile silindi",
@@ -93,6 +97,7 @@ export default {
   'app.vault.audit.support.pass': "↪️ Talep devredildi",
   'app.vault.audit.support.close': "✅ Talep kapatıldı",
   'app.vault.audit.support.return': "🔄 Talep yeniden boşta",
+  // 051: bot log and shared logs - before 063 (history)
   'app.vault.audit.company.create': "🚪 Oda oluşturuldu",
   'app.vault.audit.company.owner': "👑 Yeni sahip",
   'app.vault.audit.company.link': "🔗 Sahip bağlantısı",

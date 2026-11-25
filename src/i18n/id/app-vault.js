@@ -46,9 +46,8 @@ export default {
   'app.vault.swap.warning': 'Jika ditukar, bot akan memberi tahu yang sudah membuka penerima kadonya bahwa penerimanya berganti. Tanda kado dan obrolan kedua pasangan ini dimulai dari awal.',
   'app.vault.swap.agree': 'Setuju — tetap tukar',
   'app.vault.swap.confirm': 'Tukar penerima kado «{a}» dan «{b}»? Yang sudah membuka penerimanya akan diberi tahu bot. Tanda kado dan obrolan kedua pasangan ini dimulai dari awal.',
-  // Activity log: event, shared room log, bot log
+  // Activity log: event log and bot log (063: no shared logs any more)
   'app.vault.log.event': 'Log acara',
-  'app.vault.log.common': 'Log umum',
   'app.vault.log.bot': 'Log bot',
   'app.vault.log.empty': 'Belum ada catatan.',
   'app.vault.log.hint': '100 catatan terakhir, yang terbaru di atas.',
@@ -82,7 +81,11 @@ export default {
   'app.vault.audit.transfer': '🔁 Pemindahan keikutsertaan',
   'app.vault.audit.role.grant': '🛠 Admin ditunjuk',
   'app.vault.audit.role.revoke': '🛠 Hak admin dicopot',
-  'app.vault.audit.owner.transfer': '👑 Hak pemilik diserahkan',
+  'app.vault.audit.owner.transfer': '👑 Hak pemilik bot diserahkan',
+  // 063: event ownership and permission to create events (closed bot)
+  'app.vault.audit.event.owner': '👑 Kepemilikan acara diserahkan',
+  'app.vault.audit.creator.grant': '✍️ Diizinkan membuat acara',
+  'app.vault.audit.creator.revoke': '✍️ Izin membuat acara dicabut',
   'app.vault.audit.owner.link': '👑 Pemilik lewat tautan /setup',
   'app.vault.audit.family.save': '👪 Keluarga disimpan',
   'app.vault.audit.family.delete': '👪 Keluarga dihapus',
@@ -100,7 +103,7 @@ export default {
   'app.vault.audit.support.pass': '↪️ Tiket dialihkan',
   'app.vault.audit.support.close': '✅ Tiket ditutup',
   'app.vault.audit.support.return': '🔄 Tiket kembali tanpa penanggung jawab',
-  // Bot log (and owner change — in the shared room log)
+  // 051: bot log and shared logs - before 063 (history)
   'app.vault.audit.company.create': '🚪 Ruang dibuat',
   'app.vault.audit.company.owner': '👑 Pemilik baru',
   'app.vault.audit.company.link': '🔗 Tautan pemilik',

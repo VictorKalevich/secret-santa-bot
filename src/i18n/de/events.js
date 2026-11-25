@@ -2,6 +2,9 @@
 // announcements, round parameters
 export default {
   'events.titleRule': 'Der Name der Runde muss 1 bis 80 Zeichen lang sein.',
+  // Creating (063): who can and the limit; {limit} - the limit for 12 months, {date} - when a slot frees up
+  'events.createRight': 'Runden erstellen dürfen in diesem Bot der Bot-Inhaber und die Personen, denen er es erlaubt hat.',
+  'events.limit': 'In 12 Monaten kannst du höchstens {limit} Runden erstellen. Die nächste – ab dem {date}.',
   // Shared app button under a message about the round (also in src/pairs.js)
   'events.openButton': '🎁 Öffnen',
   // Finishing

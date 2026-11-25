@@ -47,9 +47,8 @@ export default {
   'app.vault.swap.warning': 'Nach dem Tausch schreibt der Bot allen, die ihr Wichtelkind schon angesehen haben, dass es sich geändert hat. Geschenkmarkierungen und Chats dieser zwei Paare beginnen von vorn.',
   'app.vault.swap.agree': 'Einverstanden – trotzdem tauschen',
   'app.vault.swap.confirm': 'Wichtelkinder von «{a}» und «{b}» tauschen? Wer sein Wichtelkind schon angesehen hat, bekommt eine Nachricht. Markierungen und Chats beider Paare starten neu.',
-  // Activity log: round, shared room log, bot log
+  // Activity log: event and bot log (063: no shared logs anymore)
   'app.vault.log.event': 'Protokoll der Runde',
-  'app.vault.log.common': 'Allgemeines Protokoll',
   'app.vault.log.bot': 'Bot-Protokoll',
   'app.vault.log.empty': 'Noch keine Einträge.',
   'app.vault.log.hint': 'Die letzten 100 Einträge, neueste oben.',
@@ -83,7 +82,11 @@ export default {
   'app.vault.audit.transfer': '🔁 Teilnahme übertragen',
   'app.vault.audit.role.grant': '🛠 Admin ernannt',
   'app.vault.audit.role.revoke': '🛠 Admin-Rechte entzogen',
-  'app.vault.audit.owner.transfer': '👑 Inhaberrechte übertragen',
+  'app.vault.audit.owner.transfer': '👑 Bot-Inhaberrechte übertragen',
+  // 063: event ownership and the permission to create events (closed bot)
+  'app.vault.audit.event.owner': '👑 Inhaberrechte der Runde übertragen',
+  'app.vault.audit.creator.grant': '✍️ Runden erstellen erlaubt',
+  'app.vault.audit.creator.revoke': '✍️ Runden erstellen nicht mehr erlaubt',
   'app.vault.audit.owner.link': '👑 Inhaber per Link /setup',
   'app.vault.audit.family.save': '👪 Familie gespeichert',
   'app.vault.audit.family.delete': '👪 Familie gelöscht',
@@ -101,7 +104,7 @@ export default {
   'app.vault.audit.support.pass': '↪️ Anliegen weitergegeben',
   'app.vault.audit.support.close': '✅ Anliegen geschlossen',
   'app.vault.audit.support.return': '🔄 Anliegen wieder ohne Zuständigen',
-  // 051: bot log (and the owner change - in the shared room log)
+  // 051: bot log and shared logs - before 063 (history)
   'app.vault.audit.company.create': '🚪 Raum erstellt',
   'app.vault.audit.company.owner': '👑 Neuer Inhaber',
   'app.vault.audit.company.link': '🔗 Inhaber-Link',

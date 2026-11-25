@@ -2,6 +2,9 @@
 // event settings
 export default {
   'events.titleRule': 'Nazwa wydarzenia — od 1 do 80 znaków.',
+  // Creating (063): who can and the limit; {limit} - the limit per 12 months, {date} - when a slot frees up
+  'events.createRight': 'W tym bocie wydarzenia może tworzyć właściciel bota i osoby, którym na to pozwolił.',
+  'events.limit': 'W ciągu 12 miesięcy można utworzyć najwyżej {limit} wydarzeń. Następne — od {date}.',
   'events.openButton': '🎁 Otwórz',
   // Finishing
   'events.alreadyFinished': 'Wydarzenie jest już zakończone.',

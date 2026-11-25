@@ -24,7 +24,6 @@ export default {
   'common.noDraw': "Il sorteggio non è ancora stato fatto.",
   'common.pairsRace': "Le coppie sono cambiate proprio mentre agivi: riprova.",
   'common.notMember': "Non partecipi a questo evento.",
-  'common.companyNotFound': "Stanza non trovata.",
   // shared
   'common.writeLetterButton': "✏️ Scrivi la letterina",
   'common.replyButton': "↩️ Rispondi",

@@ -2,6 +2,9 @@
 // event parameters
 export default {
   'events.titleRule': '活动名称应为 1 到 80 个字符。',
+  // Creating (063): who can and the limit; {limit} - the limit per 12 months, {date} - when a slot frees up
+  'events.createRight': '在这个机器人中，只有机器人所有者和得到其允许的人可以创建活动。',
+  'events.limit': '12 个月内最多可以创建 {limit} 个活动。下一个活动可于{date}起创建。',
   // Shared app button under an event message (also in src/pairs.js)
   'events.openButton': '🎁 打开',
   // Finishing

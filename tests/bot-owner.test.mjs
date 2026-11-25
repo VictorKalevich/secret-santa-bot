@@ -130,6 +130,20 @@ describe('все события, гость, журнал бота (US6, T057)',
     assert.equal(await call(w, boss, 'admin.audit', { event: A }), '404 Событие не найдено.');
   });
 
+  it('прежние записи комнат с отложенным текстом (061–062) — текстом на языке смотрящего, без ошибок словаря', async () => {
+    const { w } = await world();
+    const owner = { $t: 'companies.audit.ownerChanged', $p: { title: 'Работа', details: { $t: 'companies.audit.byLink', $p: { name: 'Вера' } } } };
+    const deleted = { $t: 'companies.audit.roomDeleted', $p: { title: 'Старая', n: 3 } };
+    for (const [action, details, tx] of [['company.owner', '«Работа»: по ссылке: Вера', owner], ['company.delete', '«Старая», людей: 3', deleted]]) {
+      w.sql(`INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at)
+        VALUES (0, 0, ${boss.id}, '${action}', '${details}', '${JSON.stringify(tx)}', 1)`);
+    }
+    const shown = async (u) => Object.fromEntries((await w.api(u, 'bot.audit')).entries
+      .filter((e) => e.action.startsWith('company.')).map((e) => [e.action, e.details]));
+    assert.deepEqual(await shown(boss), { 'company.owner': '«Работа»: по ссылке: Вера', 'company.delete': '«Старая», людей: 3' });
+    assert.deepEqual(await shown({ ...boss, language_code: 'en' }), { 'company.owner': '“Работа”: via link: Вера', 'company.delete': '“Старая”, people: 3' });
+  });
+
   it('передача прав владельца бота: лимит появляется у прежнего, пропадает у нового; события остаются', async () => {
     const { w, A } = await world();
     assert.deepEqual((await w.api(boss, 'me')).create, { bot: true });

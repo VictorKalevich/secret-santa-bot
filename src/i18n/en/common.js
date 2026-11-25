@@ -24,7 +24,6 @@ export default {
   'common.noDraw': 'The draw hasn’t happened yet.',
   'common.pairsRace': 'The pairs changed at the same time as this action — try again.',
   'common.notMember': 'You’re not a participant in this event.',
-  'common.companyNotFound': 'Room not found.',
   // Shared texts
   'common.writeLetterButton': '✏️ Write a letter',
   'common.replyButton': '↩️ Reply',

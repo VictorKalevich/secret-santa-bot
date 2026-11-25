@@ -20,7 +20,6 @@ export default {
   'common.noDraw': "Çekiliş henüz yapılmadı.",
   'common.pairsRace': "Eşleşmeler bu işlemle aynı anda değişti — tekrar dene.",
   'common.notMember': "Bu etkinliğe katılmıyorsun.",
-  'common.companyNotFound': "Oda bulunamadı.",
   'common.writeLetterButton': "✏️ Mektup yaz",
   'common.replyButton': "↩️ Yanıtla",
   'common.tooLong': "Çok uzun: {n} karakter, en fazla {max}.",

@@ -1,4 +1,4 @@
-// Texts of the app part 03-home (060): home screen, "Profile", "Notifications", owner and admins
+// Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
   // Leaving an event or tab (058): asks only about what will not be saved by itself
   'app.home.unsaved': "La letterina o l'indirizzo non sono salvati. Uscire senza salvare?",
@@ -10,59 +10,32 @@ export default {
   'app.home.finished': "concluso",
   'app.home.active': "in corso",
   'app.home.notMember': "non partecipi",
-  // Home screen
+  // Home screen (063): running and finished events; {n} - number of finished ones
   'app.home.greet': "Ciao, {name}!",
-  'app.home.guest': "Sei qui come proprietario del bot: non compari negli elenchi della stanza e non ricevi le notifiche per i suoi amministratori. Le tue modifiche finiscono nel registro della stanza.",
-  'app.home.myEvents': "I miei eventi",
-  'app.home.noEvents.admin': "Non partecipi ancora a nessun evento. Crea un evento o unisciti a uno esistente («Gestione» → «Partecipo»).",
-  'app.home.noEvents.member': "Non partecipi ancora a nessun evento. Chiedi il link d'invito a un evento.",
-  'app.home.otherEvents': "Altri eventi",
-  // New event (007: from a template); {year} - next year
-  'app.home.create.button': "🎄 Crea",
+  'app.home.going': "In corso",
+  'app.home.done': "Conclusi · {n}",
+  'app.home.empty.create': "Non ci sono ancora eventi. Creane uno tuo (il pulsante è in basso) oppure chiedi il link d'invito a un evento.",
+  'app.home.empty.join': "Non partecipi ancora a nessun evento. Chiedi il link d'invito a un evento.",
+  // Bot owner in someone else's event (063): notice above "Info" and "Manage"
+  'app.home.guest': "Sei qui come proprietario del bot: non compari negli elenchi dell'evento e non ricevi i messaggi per gli amministratori. Le tue modifiche finiscono nel registro dell'evento.",
+  // New event (007: from a template; 063: the creator is the owner, limit); {year} is the next year
+  'app.home.create.button': "🎄 Crea evento",
   'app.home.create.title': "Nuovo evento",
-  'app.home.create.hint': "L'evento avrà i suoi partecipanti, il suo link d'invito, le letterine e il sorteggio. Puoi gestire più eventi contemporaneamente.",
+  'app.home.create.hint': "L'evento avrà i suoi partecipanti, il suo link d'invito, le letterine e il sorteggio. Ne diventerai il proprietario e potrai nominare gli amministratori.",
   'app.home.create.name': "Nome dell'evento",
   'app.home.create.placeholder': "Ad esempio: Capodanno {year} — famiglia",
   'app.home.create.noTemplate': "Senza modello: da zero",
   'app.home.create.fromTemplate': "Dal modello: {title}",
   'app.home.create.invite': "Invita i partecipanti del modello",
   'app.home.create.templateHint': "Dal modello si copiano budget, luogo, note, regole del sorteggio ed esclusioni. Le date no.",
+  'app.home.create.participate': "Partecipo anch'io",
+  // Limit (063): {n} - how many more are allowed; {limit} - the limit per 12 months, {date} - when a slot frees up
+  'app.home.create.left': {
+    one: "Puoi creare ancora {n} evento in 12 mesi.",
+    other: "Puoi creare ancora {n} eventi in 12 mesi.",
+  },
+  'app.home.create.full': "In 12 mesi puoi creare al massimo {limit} eventi. Il prossimo potrai crearlo dal {date}.",
   'app.home.create.done': "🎄 Evento creato",
   'app.home.create.doneInvited': "🎄 Evento creato, inviti: {count}",
   'app.home.create.doneInviteError': "🎄 Evento creato. {error}",
-  // "Profile" and "Notifications"
-  'app.home.profile.title': "Profilo",
-  'app.home.profile.editName': "✏️ Cambia nome",
-  // 061: language of the bot and the app; name - the language name in that language
-  'app.home.lang.button': "🌐 Lingua",
-  'app.home.lang.auto': "Come su Telegram ({name})",
-  'app.home.lang.hint': "Il bot e l'app saranno in questa lingua. «Come su Telegram» è la lingua del tuo Telegram.",
-  'app.home.notify.title': "Notifiche",
-  'app.home.notify.sound': "🔔 Suono",
-  'app.home.notify.silent': "🔕 Muto",
-  'app.home.notify.off': "🚫 Off",
-  // "Your name" sheet (035): title and field label
-  'app.home.name.title': "Il tuo nome",
-  'app.home.name.hint': "Il nome è lo stesso in tutti gli eventi. Lo vedono il proprietario, gli amministratori e il tuo Babbo Natale, e alla rivelazione anche il tuo destinatario.",
-  'app.home.name.empty': "Scrivi un nome",
-  'app.home.name.saved': "Nome salvato",
-  // Owner and admins (002, 051: crown - owner rights transfer or appointment by the bot owner)
-  'app.home.admins.title': "Proprietario e amministratori",
-  'app.home.admins.makeOwnerConfirm': "Rendere «{name}» proprietario della stanza? Potrà gestire amministratori, reset ed eliminazione degli eventi, vista riservata delle coppie. Resti proprietario del bot e puoi riprenderti la stanza.",
-  'app.home.admins.transferConfirm': "Cedere il ruolo di proprietario a «{name}»? Resterai amministratore, ma solo il nuovo proprietario potrà nominare e revocare gli amministratori.",
-  'app.home.admins.transferred': "👑 Ruolo di proprietario ceduto",
-  'app.home.admins.transfer': "Cedi il ruolo di proprietario",
-  'app.home.admins.revoke': "Revoca il ruolo di amministratore",
-  'app.home.admins.revokeConfirm': "Revocare il ruolo di amministratore a «{name}»?",
-  'app.home.admins.revoked': "Ruolo di amministratore revocato",
-  'app.home.admins.grantPick': "Chi nominare…",
-  'app.home.admins.grant': "🛠 Nomina amministratore",
-  'app.home.admins.grantConfirm': "Nominare «{name}» amministratore? Potrà creare e gestire eventi. Le coppie potrà vederle solo il proprietario nella vista riservata.",
-  'app.home.admins.granted': "Amministratore nominato",
-  'app.home.admins.ownerHint': "Gli amministratori creano e gestiscono gli eventi. Solo tu puoi nominare e revocare gli amministratori e cedere il ruolo di proprietario (👑).",
-  'app.home.admins.ownerPick': "Chi rendere proprietario…",
-  'app.home.admins.makeOwner': "👑 Rendi proprietario",
-  'app.home.admins.onlyOwner': "Solo il proprietario può nominare e revocare gli amministratori.",
-  'app.home.admins.onlyOwnerNamed': "Solo il proprietario, {name}, può nominare e revocare gli amministratori.",
-  'app.home.admins.logHint': "Ruoli, trasferimenti di partecipazione, eventi eliminati: chi e quando.",
 };

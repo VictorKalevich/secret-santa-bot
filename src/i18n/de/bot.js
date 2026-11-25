@@ -30,19 +30,15 @@ export default {
   'bot.ownerLink.used': 'Der Inhaber-Link wurde bereits verwendet. Für einen neuen ändere ADMIN_SECRET und öffne die Einrichtungsseite erneut.',
   'bot.ownerLink.hello': '👑 Du bist der Inhaber des Wichtel-Bots: Du erstellst Runden und ernennst Admins.',
   'bot.ownerLink.done': '👑 Du bist jetzt der Bot-Inhaber: Runden und Admins findest du in der App.',
-  // Room owner link (051); {greeting} - greeting of the new owner
-  'bot.roomLink.bot': 'Du bist der Bot-Inhaber – diesen Raum leitest du ohnehin.',
-  'bot.roomLink.already': 'Du bist bereits der Inhaber.',
-  'bot.roomLink.owner': '{greeting} Alles Weitere in der App.',
-  'bot.roomLink.gone': 'Der Inhaber-Link wurde bereits verwendet oder widerrufen. Bitte um einen neuen.',
+  // The former owner link (051) - no longer valid (063)
+  'bot.ownLink.gone': 'Dieser Link gilt nicht mehr. Um mitzumachen, bitte um einen Einladungslink zu einer Runde.',
   // Menu
   'bot.menu.title': '🎄 <b>Wichteln</b>',
-  'bot.menu.noEventsAdmin': 'Du hast keine laufenden Runden. Erstelle eine Runde in der App – dort bekommst du einen Einladungslink.',
-  'bot.menu.noEventsOpen': 'Du machst gerade bei keiner laufenden Runde mit. Erstelle in der App deinen eigenen Raum oder bitte um einen Einladungslink zu einer Runde.',
+  // No ongoing events: can create (063) - and cannot
+  'bot.menu.noEventsCreate': 'Du machst gerade bei keiner laufenden Runde mit. Erstelle in der App deine eigene Runde oder bitte um einen Einladungslink zu einer Runde.',
   'bot.menu.noEvents': 'Du machst gerade bei keiner laufenden Runde mit. Bitte um einen Einladungslink zu einer Runde.',
   'bot.menu.events': 'Deine Runden:',
   'bot.menu.event': '• {title} – {letter}, {draw}',
-  'bot.menu.eventInRoom': '• {title} ({room}) – {letter}, {draw}',
   'bot.menu.letterFilled': 'Wunschzettel ✅',
   'bot.menu.letterEmpty': 'Wunschzettel leer ✏️',
   'bot.menu.drawAhead': 'Auslosung steht noch aus',
@@ -50,8 +46,6 @@ export default {
   'bot.menu.awaitingInsert': 'wartet auf Aufnahme in die Auslosung',
   'bot.menu.finished': '📚 Beendete Runden: {n} – ihr Verlauf ist in der App.',
   'bot.menu.botOwner': '👑 Du bist der Bot-Inhaber – Runden und Admins in der App.',
-  'bot.menu.owner': '👑 Du bist der Inhaber – Runden und Admins in der App.',
-  'bot.menu.admin': '🛠 Du bist Admin – Runden in der App.',
   'bot.menu.toWard': '💬 Wichtelkind · {title}',
   'bot.menu.toSanta': '💬 Wichtel · {title}',
   'bot.menu.notify': '🔔 Benachrichtigungen',

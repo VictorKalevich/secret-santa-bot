@@ -6,6 +6,7 @@ import api from './api.js';
 import bot from './bot.js';
 import botOwner from './bot-owner.js';
 import chat from './chat.js';
+import companies from './companies.js';
 import constraints from './constraints.js';
 import cron from './cron.js';
 import db from './db.js';
@@ -39,6 +40,7 @@ export const AREAS = [
   ['bot', 'bot.js', bot],
   ['botOwner', 'bot-owner.js', botOwner],
   ['chat', 'chat.js', chat],
+  ['companies', 'companies.js', companies],
   ['constraints', 'constraints.js', constraints],
   ['cron', 'cron.js', cron],
   ['db', 'db.js', db],

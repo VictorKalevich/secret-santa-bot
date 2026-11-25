@@ -1,10 +1,9 @@
-// Texts of src/api.js (060): check pipeline and action handlers. {owner.*} — "owner" or "bot owner" (ownerWord);
-// {word} — the confirmation word of the action.
+// Texts of src/api.js (060): check pipeline and action handlers. {owner.nom}, {owner.dat} - "the owner" or "the bot owner"
+// (ownerWord of the event) in the needed form; {word} - the confirmation word of the action.
 export default {
   'api.badInitData': 'Nie udało się zweryfikować logowania. Otwórz aplikację ponownie z czatu z botem.',
   'api.unknownAction': 'Nieznana akcja',
   'api.noEvent': 'Nie znaleziono wydarzenia.',
-  'api.chooseRoom': 'Wybierz pokój.',
   'api.closed': 'Wydarzenie jest zakończone — nie można go już zmieniać (dostępne są podgląd, ujawnienie i usunięcie).',
   'api.letterClosed': 'Wydarzenie jest zakończone: list jest teraz tylko do odczytu.',
   'api.markClosed': 'Wydarzenie jest zakończone: oznaczenie jest tylko do odczytu.',
@@ -16,21 +15,19 @@ export default {
   'api.owner.roles': 'Mianować i odwoływać administratorów może tylko {owner.nom}.',
   'api.owner.vault': 'Podgląd serwisowy jest dostępny tylko dla {owner.gen}.',
   'api.owner.swap': 'Zmieniać podopiecznych po losowaniu może tylko {owner.nom}.',
-  'api.owner.transfer': 'Przekazać prawa właściciela może tylko {owner.nom}.',
+  'api.owner.transfer': 'Przekazać prawa właściciela wydarzenia może tylko {owner.nom}.',
   'api.owner.insert': 'Dopisywać do losowania po jego przeprowadzeniu może tylko {owner.nom}.',
   'api.owner.fixed': 'Ustalać pary może tylko {owner.nom}.',
   'api.owner.forceCancel': 'Wymusić anulowanie losowania może tylko {owner.nom}.',
   'api.owner.eventDelete': 'Usunąć wydarzenie może tylko {owner.nom}.',
   'api.owner.reset': 'Pełny reset może wykonać tylko {owner.nom}.',
   'api.botOwner.transfer': 'Przenosić udział na nowe konto może tylko właściciel bota.',
-  'api.botOwner.companyDelete': 'Usunąć pokój może tylko właściciel bota.',
+  'api.botOwner.rename': 'Zmienić czyjeś imię może tylko właściciel bota.',
   'api.botOnly': 'Tylko dla właściciela bota.',
   'api.nameRule': 'Imię musi mieć od 1 do 40 znaków',
   'api.lang.unknown': 'Nie ma takiego języka.',
   'api.templateNotFound': 'Nie znaleziono wzoru.',
   'api.memberNotFound': 'Nie znaleziono uczestnika',
-  'api.renameAdmin': 'Zmienić imię administratora może tylko {owner.nom}.',
-  'api.renameSelfOnly': 'Imię tej osoby może zmienić tylko ona sama: „Profil” → „✏️ Zmień imię”.',
   'api.ownerNotTransferred': 'Konta właściciela nie da się przenieść: właściciel odzyskuje dostęp przez nowy link właściciela (zmiana ADMIN_SECRET → strona /setup).',
   'api.removeSelf': 'Nie możesz usunąć siebie — wyłącz „Biorę udział”.',
   'api.removeOwner': 'Właściciela nie można usunąć z wydarzenia. Najpierw musi przekazać prawa właściciela.',

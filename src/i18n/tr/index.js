@@ -4,6 +4,7 @@
 import common from './common.js';
 import api from './api.js';
 import bot from './bot.js';
+import botOwner from './bot-owner.js';
 import chat from './chat.js';
 import companies from './companies.js';
 import constraints from './constraints.js';
@@ -26,7 +27,7 @@ import vault from './vault.js';
 import appBoot from './app-boot.js';
 import appCore from './app-core.js';
 import appHome from './app-home.js';
-import appCompanies from './app-companies.js';
+import appSettings from './app-settings.js';
 import appEvent from './app-event.js';
 import appAdmin from './app-admin.js';
 import appVault from './app-vault.js';
@@ -37,6 +38,7 @@ export const AREAS = [
   ['common', 'common.js', common],
   ['api', 'api.js', api],
   ['bot', 'bot.js', bot],
+  ['botOwner', 'bot-owner.js', botOwner],
   ['chat', 'chat.js', chat],
   ['companies', 'companies.js', companies],
   ['constraints', 'constraints.js', constraints],
@@ -59,7 +61,7 @@ export const AREAS = [
   ['app.boot', 'app-boot.js', appBoot],
   ['app.core', 'app-core.js', appCore],
   ['app.home', 'app-home.js', appHome],
-  ['app.companies', 'app-companies.js', appCompanies],
+  ['app.settings', 'app-settings.js', appSettings],
   ['app.event', 'app-event.js', appEvent],
   ['app.admin', 'app-admin.js', appAdmin],
   ['app.vault', 'app-vault.js', appVault],

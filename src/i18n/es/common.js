@@ -21,7 +21,6 @@ export default {
   'common.noDraw': 'Todavía no se ha hecho el sorteo.',
   'common.pairsRace': 'Las asignaciones cambiaron al mismo tiempo que esta acción. Inténtalo de nuevo.',
   'common.notMember': 'No participas en este evento.',
-  'common.companyNotFound': 'Sala no encontrada.',
   'common.writeLetterButton': '✏️ Escribir carta',
   'common.replyButton': '↩️ Responder',
   'common.tooLong': 'Demasiado largo: {n} caracteres, máximo {max}.',

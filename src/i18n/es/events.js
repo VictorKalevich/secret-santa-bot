@@ -1,6 +1,9 @@
 // Spanish: texts of src/events.js (creation, finishing, deletion, reset, invitations, reveal, reminders, announcements).
 export default {
   'events.titleRule': 'El nombre del evento debe tener entre 1 y 80 caracteres.',
+  // Creating (063): who can and the limit; {limit} — the limit for 12 months, {date} — when a slot frees up
+  'events.createRight': 'En este bot pueden crear eventos el propietario del bot y las personas a las que él se lo permitió.',
+  'events.limit': 'En 12 meses puedes crear como máximo {limit} eventos. El siguiente, a partir del {date}.',
   // Common app button under an event message
   'events.openButton': '🎁 Abrir',
   // Finishing

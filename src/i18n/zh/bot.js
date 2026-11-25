@@ -30,19 +30,15 @@ export default {
   'bot.ownerLink.used': '所有者链接已被使用。要获取新链接，请更换 ADMIN_SECRET 并重新打开设置页面。',
   'bot.ownerLink.hello': '👑 你是“神秘圣诞老人”机器人的所有者：可以创建活动并任命管理员。',
   'bot.ownerLink.done': '👑 你现在是机器人所有者了：活动和管理员都在应用中。',
-  // Room owner link (051); {greeting}: greeting of the new owner
-  'bot.roomLink.bot': '你是机器人所有者，这个房间本来就由你管理。',
-  'bot.roomLink.already': '你已经是所有者了。',
-  'bot.roomLink.owner': '{greeting} 一切都在应用中。',
-  'bot.roomLink.gone': '所有者链接已被使用或撤销。请索取新的链接。',
+  // Former owner link (051) - no longer works (063)
+  'bot.ownLink.gone': '这个链接已失效。如果想参加，请索取活动的邀请链接。',
   // Menu
   'bot.menu.title': '🎄 <b>神秘圣诞老人</b>',
-  'bot.menu.noEventsAdmin': '你没有进行中的活动。在应用中创建一个活动，那里会出现邀请链接。',
-  'bot.menu.noEventsOpen': '你目前没有参加任何进行中的活动。可以在应用中创建自己的房间，或者索取活动的邀请链接。',
+  // No running events: can create events (063) - and cannot
+  'bot.menu.noEventsCreate': '你目前没有参加任何进行中的活动。可以在应用中创建自己的活动，或者索取活动的邀请链接。',
   'bot.menu.noEvents': '你目前没有参加任何进行中的活动。请索取活动的邀请链接。',
   'bot.menu.events': '你的活动：',
   'bot.menu.event': '• {title} — {letter}，{draw}',
-  'bot.menu.eventInRoom': '• {title}（{room}）— {letter}，{draw}',
   'bot.menu.letterFilled': '心愿信 ✅',
   'bot.menu.letterEmpty': '心愿信未填写 ✏️',
   'bot.menu.drawAhead': '尚未抽签',
@@ -50,8 +46,6 @@ export default {
   'bot.menu.awaitingInsert': '等待加入抽签',
   'bot.menu.finished': '📚 已结束的活动：{n} 个，记录可在应用中查看。',
   'bot.menu.botOwner': '👑 你是机器人所有者：活动和管理员都在应用中。',
-  'bot.menu.owner': '👑 你是所有者：活动和管理员都在应用中。',
-  'bot.menu.admin': '🛠 你是管理员：活动都在应用中。',
   'bot.menu.toWard': '💬 给收礼人 · {title}',
   'bot.menu.toSanta': '💬 给圣诞老人 · {title}',
   'bot.menu.notify': '🔔 通知',

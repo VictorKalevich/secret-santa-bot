@@ -30,19 +30,15 @@ export default {
   'bot.ownerLink.used': 'Tautan pemilik sudah dipakai. Untuk mendapatkan yang baru, ganti ADMIN_SECRET lalu buka lagi halaman penyiapan.',
   'bot.ownerLink.hello': '👑 Kamu pemilik bot «Secret Santa»: kamu membuat acara dan menunjuk admin.',
   'bot.ownerLink.done': '👑 Sekarang kamu pemilik bot: acara dan admin ada di aplikasi.',
-  // Room owner link; {greeting} — greeting of the new owner
-  'bot.roomLink.bot': 'Kamu pemilik bot — ruang ini memang sudah kamu kelola.',
-  'bot.roomLink.already': 'Kamu sudah menjadi pemilik.',
-  'bot.roomLink.owner': '{greeting} Semuanya ada di aplikasi.',
-  'bot.roomLink.gone': 'Tautan pemilik sudah dipakai atau dicabut. Minta tautan baru.',
+  // Former owner link (051) - no longer works (063)
+  'bot.ownLink.gone': 'Tautan ini sudah tidak berlaku. Untuk ikut, minta tautan undangan ke sebuah acara.',
   // Menu
   'bot.menu.title': '🎄 <b>Secret Santa</b>',
-  'bot.menu.noEventsAdmin': 'Kamu belum punya acara yang sedang berlangsung. Buat acara di aplikasi — tautan undangan akan muncul di sana.',
-  'bot.menu.noEventsOpen': 'Saat ini kamu tidak ikut acara apa pun yang sedang berlangsung. Buat ruangmu sendiri di aplikasi atau minta tautan undangan ke sebuah acara.',
+  // No running events: can create events (063) - and cannot
+  'bot.menu.noEventsCreate': 'Saat ini kamu tidak ikut acara apa pun yang sedang berlangsung. Buat acaramu sendiri di aplikasi atau minta tautan undangan ke sebuah acara.',
   'bot.menu.noEvents': 'Saat ini kamu tidak ikut acara apa pun yang sedang berlangsung. Minta tautan undangan ke sebuah acara.',
   'bot.menu.events': 'Acaramu:',
   'bot.menu.event': '• {title} — {letter}, {draw}',
-  'bot.menu.eventInRoom': '• {title} ({room}) — {letter}, {draw}',
   'bot.menu.letterFilled': 'surat ✅',
   'bot.menu.letterEmpty': 'surat kosong ✏️',
   'bot.menu.drawAhead': 'undian belum dilakukan',
@@ -50,8 +46,6 @@ export default {
   'bot.menu.awaitingInsert': 'menunggu dimasukkan ke undian',
   'bot.menu.finished': '📚 Acara yang sudah selesai: {n} — riwayatnya ada di aplikasi.',
   'bot.menu.botOwner': '👑 Kamu pemilik bot — acara dan admin ada di aplikasi.',
-  'bot.menu.owner': '👑 Kamu pemilik — acara dan admin ada di aplikasi.',
-  'bot.menu.admin': '🛠 Kamu admin — acara ada di aplikasi.',
   'bot.menu.toWard': '💬 Ke penerima kado · {title}',
   'bot.menu.toSanta': '💬 Ke Santa · {title}',
   'bot.menu.notify': '🔔 Notifikasi',

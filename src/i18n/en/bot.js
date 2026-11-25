@@ -30,19 +30,15 @@ export default {
   'bot.ownerLink.used': 'The owner link has already been used. To get a new one, change ADMIN_SECRET and open the setup page again.',
   'bot.ownerLink.hello': '👑 You’re the owner of the Secret Santa bot: you create events and assign admins.',
   'bot.ownerLink.done': '👑 You’re now the bot owner: events and admins are in the app.',
-  // Room owner link (051); {greeting} — greeting of the new owner
-  'bot.roomLink.bot': 'You’re the bot owner — you already run this room.',
-  'bot.roomLink.already': 'You’re already the owner.',
-  'bot.roomLink.owner': '{greeting} Everything is in the app.',
-  'bot.roomLink.gone': 'The owner link has already been used or revoked. Ask for a new one.',
+  // The former owner link (051) — no longer valid (063)
+  'bot.ownLink.gone': 'This link is no longer valid. To participate, ask for an event invite link.',
   // Menu
   'bot.menu.title': '🎄 <b>Secret Santa</b>',
-  'bot.menu.noEventsAdmin': 'You have no ongoing events. Create an event in the app — you’ll get an invite link there.',
-  'bot.menu.noEventsOpen': 'You’re not in any ongoing event right now. Create your own room in the app or ask for an event invite link.',
+  // No ongoing events: can create (063) — and cannot
+  'bot.menu.noEventsCreate': 'You’re not in any ongoing event right now. Create your own event in the app or ask for an event invite link.',
   'bot.menu.noEvents': 'You’re not in any ongoing event right now. Ask for an event invite link.',
   'bot.menu.events': 'Your events:',
   'bot.menu.event': '• {title} — {letter}, {draw}',
-  'bot.menu.eventInRoom': '• {title} ({room}) — {letter}, {draw}',
   'bot.menu.letterFilled': 'letter ✅',
   'bot.menu.letterEmpty': 'letter empty ✏️',
   'bot.menu.drawAhead': 'draw coming up',
@@ -50,8 +46,6 @@ export default {
   'bot.menu.awaitingInsert': 'waiting to be added to the draw',
   'bot.menu.finished': '📚 Finished events: {n} — their history is in the app.',
   'bot.menu.botOwner': '👑 You’re the bot owner — events and admins are in the app.',
-  'bot.menu.owner': '👑 You’re the owner — events and admins are in the app.',
-  'bot.menu.admin': '🛠 You’re an admin — events are in the app.',
   'bot.menu.toWard': '💬 To giftee · {title}',
   'bot.menu.toSanta': '💬 To Santa · {title}',
   'bot.menu.notify': '🔔 Notifications',

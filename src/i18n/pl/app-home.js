@@ -1,4 +1,4 @@
-// Texts of app part 03-home (060): home screen, "Profile", "Notifications", owner and admins
+// Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
   // Leaving an event or a tab (058): asks only about what will not save by itself
   'app.home.unsaved': 'List lub adres nie zostały zapisane. Wyjść bez zapisywania?',
@@ -8,59 +8,34 @@ export default {
   'app.home.finished': 'zakończone',
   'app.home.active': 'trwa',
   'app.home.notMember': 'nie uczestniczysz',
-  // Home screen
+  // Home screen (063): running and finished events; {n} - number of finished ones
   'app.home.greet': 'Cześć, {name}!',
-  'app.home.guest': 'Jesteś tu jako właściciel bota: nie ma Cię na listach pokoju, a powiadomienia dla jego administratorów do Ciebie nie trafiają. Twoje zmiany są zapisywane w dzienniku pokoju.',
-  'app.home.myEvents': 'Moje wydarzenia',
-  'app.home.noEvents.admin': 'Nie uczestniczysz jeszcze w żadnym wydarzeniu. Utwórz wydarzenie albo dołącz do istniejącego („Zarządzanie” → „Biorę udział”).',
-  'app.home.noEvents.member': 'Nie uczestniczysz jeszcze w żadnym wydarzeniu. Poproś o link z zaproszeniem do wydarzenia.',
-  'app.home.otherEvents': 'Inne wydarzenia',
-  // New event (007: from a template); {year} — next year
-  'app.home.create.button': '🎄 Utwórz',
+  'app.home.going': 'Trwają',
+  'app.home.done': 'Zakończone · {n}',
+  'app.home.empty.create': 'Nie ma jeszcze wydarzeń. Utwórz własne — przycisk na dole — albo poproś o link z zaproszeniem do wydarzenia.',
+  'app.home.empty.join': 'Nie uczestniczysz jeszcze w żadnym wydarzeniu. Poproś o link z zaproszeniem do wydarzenia.',
+  // Bot owner in someone else's event (063): notice above "Info" and "Manage"
+  'app.home.guest': 'Jesteś tu jako właściciel bota: nie ma Cię na listach wydarzenia, a wiadomości dla administratorów do Ciebie nie trafiają. Twoje zmiany są zapisywane w dzienniku wydarzenia.',
+  // New event (007: from a template; 063: the creator is the owner, limit); {year} is the next year
+  'app.home.create.button': '🎄 Utwórz wydarzenie',
   'app.home.create.title': 'Nowe wydarzenie',
-  'app.home.create.hint': 'Wydarzenie będzie mieć własnych uczestników, link z zaproszeniem, listy i losowanie. Możesz prowadzić kilka wydarzeń jednocześnie.',
+  'app.home.create.hint': 'Wydarzenie będzie mieć własnych uczestników, link z zaproszeniem, listy i losowanie. Zostaniesz jego właścicielem — możesz mianować administratorów.',
   'app.home.create.name': 'Nazwa wydarzenia',
   'app.home.create.placeholder': 'Np. Nowy Rok {year} — rodzina',
   'app.home.create.noTemplate': 'Bez wzoru — od zera',
   'app.home.create.fromTemplate': 'Na wzór: {title}',
   'app.home.create.invite': 'Zaproś uczestników wzoru',
   'app.home.create.templateHint': 'Ze wzoru kopiowane są budżet, miejsce, notatki, reguły losowania i wykluczenia. Daty — nie.',
+  'app.home.create.participate': 'Też biorę udział',
+  // Limit (063): {n} - how many more are allowed; {limit} - the limit per 12 months, {date} - when a slot frees up
+  'app.home.create.left': {
+    one: 'W ciągu 12 miesięcy możesz utworzyć jeszcze {n} wydarzenie.',
+    few: 'W ciągu 12 miesięcy możesz utworzyć jeszcze {n} wydarzenia.',
+    many: 'W ciągu 12 miesięcy możesz utworzyć jeszcze {n} wydarzeń.',
+    other: 'W ciągu 12 miesięcy możesz utworzyć jeszcze {n} wydarzenia.',
+  },
+  'app.home.create.full': 'W ciągu 12 miesięcy można utworzyć najwyżej {limit} wydarzeń. Następne — od {date}.',
   'app.home.create.done': '🎄 Wydarzenie utworzone',
   'app.home.create.doneInvited': '🎄 Wydarzenie utworzone, zaproszenia: {count}',
   'app.home.create.doneInviteError': '🎄 Wydarzenie utworzone. {error}',
-  // "Profile" and "Notifications"
-  'app.home.profile.title': 'Profil',
-  'app.home.profile.editName': '✏️ Zmień imię',
-  // 061: language of the bot and the app; name — the language name in that language
-  'app.home.lang.button': '🌐 Język',
-  'app.home.lang.auto': 'Jak w Telegramie ({name})',
-  'app.home.lang.hint': 'Bot i aplikacja będą w tym języku. „Jak w Telegramie” — język Twojego Telegrama.',
-  'app.home.notify.title': 'Powiadomienia',
-  'app.home.notify.sound': '🔔 Dźwięk',
-  'app.home.notify.silent': '🔕 Cicho',
-  'app.home.notify.off': '🚫 Wył.',
-  // "Your name" sheet (035): title and field caption
-  'app.home.name.title': 'Twoje imię',
-  'app.home.name.hint': 'Imię jest jedno we wszystkich wydarzeniach. Widzą je właściciel, administratorzy i Twój Mikołaj, a po ujawnieniu — Twój podopieczny.',
-  'app.home.name.empty': 'Wpisz imię',
-  'app.home.name.saved': 'Imię zapisane',
-  // Owner and admins (002, 051)
-  'app.home.admins.title': 'Właściciel i administratorzy',
-  'app.home.admins.makeOwnerConfirm': 'Mianować „{name}” właścicielem tego pokoju? Ta osoba będzie mogła wszystko, co właściciel: administratorzy, reset i usuwanie wydarzeń, podgląd serwisowy par. Pozostaniesz właścicielem bota i możesz odzyskać pokój.',
-  'app.home.admins.transferConfirm': 'Przekazać prawa właściciela osobie „{name}”? Pozostaniesz administratorem, ale mianować i odwoływać administratorów będzie mógł tylko nowy właściciel.',
-  'app.home.admins.transferred': '👑 Prawa właściciela przekazane',
-  'app.home.admins.transfer': 'Przekaż prawa właściciela',
-  'app.home.admins.revoke': 'Odbierz prawa administratora',
-  'app.home.admins.revokeConfirm': 'Odebrać prawa administratora osobie „{name}”?',
-  'app.home.admins.revoked': 'Prawa administratora odebrane',
-  'app.home.admins.grantPick': 'Kogo mianować…',
-  'app.home.admins.grant': '🛠 Mianuj administratorem',
-  'app.home.admins.grantConfirm': 'Mianować „{name}” administratorem? Ta osoba będzie mogła tworzyć i prowadzić wydarzenia. Pary może zobaczyć tylko właściciel w podglądzie serwisowym.',
-  'app.home.admins.granted': 'Administrator mianowany',
-  'app.home.admins.ownerHint': 'Administratorzy tworzą i prowadzą wydarzenia. Mianować i odwoływać administratorów oraz przekazywać prawa właściciela (👑) możesz tylko Ty.',
-  'app.home.admins.ownerPick': 'Kogo mianować właścicielem…',
-  'app.home.admins.makeOwner': '👑 Mianuj właścicielem',
-  'app.home.admins.onlyOwner': 'Mianować i odwoływać administratorów może tylko właściciel.',
-  'app.home.admins.onlyOwnerNamed': 'Mianować i odwoływać administratorów może tylko właściciel — {name}.',
-  'app.home.admins.logHint': 'Role, przeniesienia udziału, usunięte wydarzenia — kto i kiedy.',
 };

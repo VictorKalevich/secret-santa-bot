@@ -24,7 +24,6 @@ export default {
   'common.noDraw': '还没有抽签。',
   'common.pairsRace': '配对在你操作的同时发生了变化，请重试。',
   'common.notMember': '你没有参加这个活动。',
-  'common.companyNotFound': '找不到房间。',
   // shared (060: same text with one meaning, one key)
   'common.writeLetterButton': '✏️ 写心愿信',
   'common.replyButton': '↩️ 回复',

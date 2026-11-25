@@ -2,6 +2,9 @@
 // announcements, event parameters
 export default {
   'events.titleRule': 'Nama acara harus 1 sampai 80 karakter.',
+  // Creating (063): who can and the limit; {limit} - the limit per 12 months, {date} - when a slot frees up
+  'events.createRight': 'Di bot ini, acara bisa dibuat oleh pemilik bot dan orang yang dia izinkan.',
+  'events.limit': 'Dalam 12 bulan kamu bisa membuat paling banyak {limit} acara. Acara berikutnya bisa dibuat mulai {date}.',
   // Shared app button under an event message
   'events.openButton': '🎁 Buka',
   // Finishing

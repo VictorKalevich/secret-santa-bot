@@ -2,6 +2,9 @@
 // announcements, event parameters
 export default {
   'events.titleRule': "Etkinlik adı 1 ile 80 karakter arasında olmalı.",
+  // Creating (063): who can and the limit; {limit} - the limit per 12 months, {date} - when a slot frees up
+  'events.createRight': "Bu botta etkinlikleri bot sahibi ve onun izin verdiği kişiler oluşturabilir.",
+  'events.limit': "12 ay içinde en fazla {limit} etkinlik oluşturulabilir. Sonraki etkinlik {date} tarihinden itibaren oluşturulabilir.",
   'events.openButton': "🎁 Aç",
   'events.alreadyFinished': "Etkinlik zaten bitti.",
   'events.finished': "🏁 <b>{title} etkinliği bitti.</b> Oynadığın için teşekkürler!\n\nNoel Baba'ya mektup artık salt okunur. Yazışma 7 gün daha ({until} tarihine kadar) açık, sonra salt okunur kalacak. Etkinliğin geçmişi uygulamada saklanacak.",

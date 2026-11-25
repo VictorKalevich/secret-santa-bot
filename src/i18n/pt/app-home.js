@@ -1,4 +1,4 @@
-// Texts of app part 03-home (060): home screen, "Profile", "Notifications", owner and admins
+// Texts of app part 03-home (060): the "My events" home screen and the "New event" sheet (063)
 export default {
   // Leaving an event or a tab (058): asks only about what will not save by itself
   'app.home.unsaved': 'A carta ou o endereço não foram salvos. Sair sem salvar?',
@@ -10,59 +10,32 @@ export default {
   'app.home.finished': 'encerrado',
   'app.home.active': 'em andamento',
   'app.home.notMember': 'você não participa',
-  // Home screen
+  // Home screen (063): ongoing and finished events; {n} — number of finished ones
   'app.home.greet': 'Oi, {name}!',
-  'app.home.guest': 'Você está aqui como dono do bot: não aparece nas listas da sala e não recebe as notificações dos administradores dela. Suas alterações ficam no registro da sala.',
-  'app.home.myEvents': 'Meus eventos',
-  'app.home.noEvents.admin': 'Você ainda não participa de nenhum evento. Crie um evento ou entre em um que já existe (“Gerenciar” → “Eu participo”).',
-  'app.home.noEvents.member': 'Você ainda não participa de nenhum evento. Peça o link de convite de um evento.',
-  'app.home.otherEvents': 'Outros eventos',
-  // New event (007: from a template); {year} — next year
-  'app.home.create.button': '🎄 Criar',
+  'app.home.going': 'Em andamento',
+  'app.home.done': 'Encerrados · {n}',
+  'app.home.empty.create': 'Ainda não há eventos. Crie o seu — botão abaixo — ou peça o link de convite de um evento.',
+  'app.home.empty.join': 'Você ainda não participa de nenhum evento. Peça o link de convite de um evento.',
+  // The bot owner in someone else's event (063): notice above "Info" and "Manage"
+  'app.home.guest': 'Você está aqui como dono do bot: não aparece nas listas do evento e não recebe as mensagens para os administradores. Suas alterações ficam no registro do evento.',
+  // New event (007: from a template; 063: the creator is the owner, limit); {year} — next year
+  'app.home.create.button': '🎄 Criar evento',
   'app.home.create.title': 'Novo evento',
-  'app.home.create.hint': 'O evento terá seus próprios participantes, link de convite, cartas e sorteio. Dá para gerenciar vários eventos ao mesmo tempo.',
+  'app.home.create.hint': 'O evento terá seus próprios participantes, link de convite, cartas e sorteio. Você será o dono dele e poderá nomear administradores.',
   'app.home.create.name': 'Nome do evento',
   'app.home.create.placeholder': 'Por exemplo: Ano Novo {year} — família',
   'app.home.create.noTemplate': 'Sem modelo — do zero',
   'app.home.create.fromTemplate': 'Com base em: {title}',
   'app.home.create.invite': 'Convidar os participantes do modelo',
   'app.home.create.templateHint': 'Do modelo são copiados o valor do presente, o local, as observações, as regras do sorteio e as restrições. As datas, não.',
+  'app.home.create.participate': 'Eu também participo',
+  // Limit (063): {n} — how many more; {limit} — the limit for 12 months, {date} — when a slot frees up
+  'app.home.create.left': {
+    one: 'Você ainda pode criar {n} evento em 12 meses.',
+    other: 'Você ainda pode criar {n} eventos em 12 meses.',
+  },
+  'app.home.create.full': 'Em 12 meses dá para criar no máximo {limit} eventos. O próximo — a partir de {date}.',
   'app.home.create.done': '🎄 Evento criado',
   'app.home.create.doneInvited': '🎄 Evento criado, convites: {count}',
   'app.home.create.doneInviteError': '🎄 Evento criado. {error}',
-  // "Profile" and "Notifications"
-  'app.home.profile.title': 'Perfil',
-  'app.home.profile.editName': '✏️ Mudar nome',
-  // 061: bot and app language; name — language name in that language
-  'app.home.lang.button': '🌐 Idioma',
-  'app.home.lang.auto': 'Como no Telegram ({name})',
-  'app.home.lang.hint': 'O bot e o app vão ficar neste idioma. “Como no Telegram” é o idioma do seu Telegram.',
-  'app.home.notify.title': 'Notificações',
-  'app.home.notify.sound': '🔔 Som',
-  'app.home.notify.silent': '🔕 Mudo',
-  'app.home.notify.off': '🚫 Desligado',
-  // "Your name" sheet (035): title and field label
-  'app.home.name.title': 'Seu nome',
-  'app.home.name.hint': 'O nome é o mesmo em todos os eventos. Ele é visto pelo dono, pelos administradores e pelo seu Papai Noel — e, na revelação, pelo seu presenteado.',
-  'app.home.name.empty': 'Escreva um nome',
-  'app.home.name.saved': 'Nome salvo',
-  // Owner and admins (002, 051: 👑 — owner rights transfer or assigning an owner by the bot owner)
-  'app.home.admins.title': 'Dono e administradores',
-  'app.home.admins.makeOwnerConfirm': 'Tornar “{name}” dono desta sala? Poderá fazer tudo o que o dono faz: administradores, zerar e excluir eventos, área restrita dos pares. Você continua como dono do bot e pode pegar a sala de volta.',
-  'app.home.admins.transferConfirm': 'Transferir os direitos de dono para “{name}”? Você continua como administrador, mas só o novo dono poderá nomear e remover administradores.',
-  'app.home.admins.transferred': '👑 Direitos de dono transferidos',
-  'app.home.admins.transfer': 'Transferir direitos de dono',
-  'app.home.admins.revoke': 'Remover direitos de administrador',
-  'app.home.admins.revokeConfirm': 'Remover os direitos de administrador de “{name}”?',
-  'app.home.admins.revoked': 'Direitos de administrador removidos',
-  'app.home.admins.grantPick': 'Quem nomear…',
-  'app.home.admins.grant': '🛠 Nomear administrador',
-  'app.home.admins.grantConfirm': 'Nomear “{name}” administrador? Essa pessoa poderá criar e gerenciar eventos. Os pares só podem ser vistos pelo dono, na área restrita.',
-  'app.home.admins.granted': 'Administrador nomeado',
-  'app.home.admins.ownerHint': 'Os administradores criam e gerenciam eventos. Só você pode nomear e remover administradores e transferir os direitos de dono (👑).',
-  'app.home.admins.ownerPick': 'Quem tornar dono…',
-  'app.home.admins.makeOwner': '👑 Tornar dono',
-  'app.home.admins.onlyOwner': 'Só o dono pode nomear e remover administradores.',
-  'app.home.admins.onlyOwnerNamed': 'Só o dono ({name}) pode nomear e remover administradores.',
-  'app.home.admins.logHint': 'Funções, transferências de participação, eventos excluídos — quem e quando.',
 };

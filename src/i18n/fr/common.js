@@ -24,7 +24,6 @@ export default {
   'common.noDraw': "Le tirage au sort n'a pas encore eu lieu.",
   'common.pairsRace': "Les paires ont changé en même temps que cette action — réessaie.",
   'common.notMember': "Tu ne participes pas à cet événement.",
-  'common.companyNotFound': "Salon introuvable.",
   // Shared texts
   'common.writeLetterButton': "✏️ Écrire ma lettre",
   'common.replyButton': "↩️ Répondre",

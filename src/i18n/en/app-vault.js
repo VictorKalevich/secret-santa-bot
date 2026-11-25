@@ -47,9 +47,8 @@ export default {
   'app.vault.swap.warning': 'If you swap, those who already opened their giftee will be told it changed. Gift marks and chats of these two pairs start over.',
   'app.vault.swap.agree': 'I agree — swap anyway',
   'app.vault.swap.confirm': 'Swap giftees between “{a}” and “{b}”? Those who already opened their giftee will be told it changed. Gift marks and chats of these two pairs start over.',
-  // Activity log: event, the room's general log, bot log
+  // Activity log: event and bot log (063: no shared logs anymore)
   'app.vault.log.event': 'Event log',
-  'app.vault.log.common': 'General log',
   'app.vault.log.bot': 'Bot log',
   'app.vault.log.empty': 'No entries yet.',
   'app.vault.log.hint': 'The last 100 entries, newest first.',
@@ -83,7 +82,11 @@ export default {
   'app.vault.audit.transfer': '🔁 Participation moved',
   'app.vault.audit.role.grant': '🛠 Admin assigned',
   'app.vault.audit.role.revoke': '🛠 Admin rights removed',
-  'app.vault.audit.owner.transfer': '👑 Ownership transferred',
+  'app.vault.audit.owner.transfer': '👑 Bot ownership transferred',
+  // 063: event ownership and the permission to create events (closed bot)
+  'app.vault.audit.event.owner': '👑 Event ownership transferred',
+  'app.vault.audit.creator.grant': '✍️ Allowed to create events',
+  'app.vault.audit.creator.revoke': '✍️ No longer allowed to create events',
   'app.vault.audit.owner.link': '👑 Owner via the /setup link',
   'app.vault.audit.family.save': '👪 Family saved',
   'app.vault.audit.family.delete': '👪 Family deleted',
@@ -101,7 +104,7 @@ export default {
   'app.vault.audit.support.pass': '↪️ Request handed over',
   'app.vault.audit.support.close': '✅ Request closed',
   'app.vault.audit.support.return': '🔄 Request unassigned again',
-  // 051: bot log (and owner change — in the room's general log)
+  // 051: bot log and shared logs — before 063 (history)
   'app.vault.audit.company.create': '🚪 Room created',
   'app.vault.audit.company.owner': '👑 New owner',
   'app.vault.audit.company.link': '🔗 Owner link',
