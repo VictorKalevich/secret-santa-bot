@@ -179,10 +179,6 @@ export default {
   'app.admin.draw.cancelConfirm': '¿Cancelar el sorteo? Se borrarán las asignaciones, las cartas se quedan y la inscripción se volverá a abrir. Los participantes recibirán un aviso.',
   'app.admin.draw.canceled': '↩️ Sorteo cancelado',
   'app.admin.draw.cancelHint': 'Nadie ha visto todavía a su destinatario: puedes cancelar el sorteo, por ejemplo, para añadir a más personas.',
-  'app.admin.draw.reveal': '🎅 Revelar a los Santas (después de la fiesta)',
-  'app.admin.draw.revealed': '🎅 El secreto ya se reveló',
-  'app.admin.draw.revealConfirm': 'Cada participante recibirá un mensaje con quién fue su Santa. Hazlo después del intercambio de regalos. ¿Revelar?',
-  'app.admin.draw.revealSent': 'Enviado: {n}',
 
   // Event settings and schedule
   'app.admin.params.title': 'Ajustes',

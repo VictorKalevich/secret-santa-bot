@@ -179,10 +179,6 @@ export default {
   'app.admin.draw.cancelConfirm': 'Cancelar o sorteio? Os pares serão apagados, as cartas ficam e as inscrições reabrem. Os participantes vão receber um aviso.',
   'app.admin.draw.canceled': '↩️ Sorteio cancelado',
   'app.admin.draw.cancelHint': 'Ninguém viu o presenteado ainda — dá para cancelar o sorteio, por exemplo, para incluir mais pessoas.',
-  'app.admin.draw.reveal': '🎅 Revelar os Papais Noéis (depois da festa)',
-  'app.admin.draw.revealed': '🎅 O segredo já foi revelado',
-  'app.admin.draw.revealConfirm': 'Cada participante vai receber uma mensagem dizendo quem foi seu Papai Noel. Faça isso depois da troca de presentes. Revelar?',
-  'app.admin.draw.revealSent': 'Enviado: {n}',
 
   // Event parameters and schedule
   'app.admin.params.title': 'Configurações',

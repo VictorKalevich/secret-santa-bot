@@ -118,9 +118,10 @@ test('cron: напоминаний Сантам нет; уведомление �
 });
 
 // ---------- приложение: по склейке ----------
-// Что не должно встречаться в коде частей (вне комментариев): вызовы удалённых действий и кнопок, поля удалённых данных
+// Что не должно встречаться в коде частей (вне комментариев): вызовы удалённых действий и кнопок, поля удалённых данных;
+// 065 — кнопки раскрытия Сант нет (раскрытие — только по расписанию, reveal_auto)
 const FORBIDDEN = [
-  ...GONE_ACTIONS.map((a) => `'${a}'`), "'admin.reset.full'", "'admin.event.finish'",
+  ...GONE_ACTIONS.map((a) => `'${a}'`), "'admin.reset.full'", "'admin.event.finish'", "'admin.reveal'", 'app.admin.draw.reveal',
   'howItWorks', 'aboutSections', 'rosterOpen', ...GONE_PARAMS, 'gift_', 'has_delivery', 'shipment', '.delivery',
 ];
 
@@ -143,7 +144,7 @@ function appRules(app) {
   };
 }
 
-test('склейка: нет адреса, отметок, посылки, «Полного сброса», «Завершить», «Как это работает»; ссылка — по регистрации', () => {
+test('склейка: нет адреса, отметок, посылки, «Полного сброса», «Завершить», «Раскрыть Сант» (065), «Как это работает»; ссылка — по регистрации', () => {
   assert.deepEqual(appRules(APP), { removed: [], invite: [], people: [] });
 });
 
@@ -153,7 +154,8 @@ test('от противного: каждое правило находит по
     return appRules(APP.replace(from, to));
   };
   const broken = (rules) => Object.keys(rules).filter((k) => rules[k].length);
-  for (const bad of ["xapi('ward.gift', { ready: true })", "xapi('admin.reset.full')", 'state.ev.delivery_on', 'u.gift_ready', 'howItWorks()']) {
+  for (const bad of ["xapi('ward.gift', { ready: true })", "xapi('admin.reset.full')", 'state.ev.delivery_on', 'u.gift_ready', 'howItWorks()',
+    "xapi('admin.reveal')", "t('app.admin.draw.revealed')"]) {
     assert.deepEqual(broken(appRules(APP + `\n  function spoiled() {\n    return ${bad};\n  }\n`)), ['removed'], bad);
   }
   assert.deepEqual(broken(appRules(APP + "\n  // xapi('ward.gift') — в комментарии не в счёт\n")), []);

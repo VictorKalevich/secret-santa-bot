@@ -177,10 +177,6 @@ export default {
   'app.admin.draw.cancelConfirm': 'Batalkan undian? Pasangan akan dihapus, surat tetap ada, pendaftaran dibuka lagi. Peserta akan diberi tahu.',
   'app.admin.draw.canceled': '↩️ Undian dibatalkan',
   'app.admin.draw.cancelHint': 'Belum ada yang membuka penerima kadonya — undian bisa dibatalkan, misalnya untuk menambah orang.',
-  'app.admin.draw.reveal': '🎅 Ungkap para Santa (setelah perayaan)',
-  'app.admin.draw.revealed': '🎅 Rahasia sudah terungkap',
-  'app.admin.draw.revealConfirm': 'Setiap peserta akan menerima pesan siapa Santa-nya. Lakukan ini setelah tukar kado. Ungkap sekarang?',
-  'app.admin.draw.revealSent': 'Terkirim: {n}',
 
   // Event parameters and schedule
   'app.admin.params.title': 'Pengaturan',

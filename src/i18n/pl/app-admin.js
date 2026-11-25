@@ -183,10 +183,6 @@ export default {
   'app.admin.draw.cancelConfirm': 'Anulować losowanie? Pary zostaną usunięte, listy zostaną, rejestracja znów się otworzy. Uczestnicy dostaną powiadomienie.',
   'app.admin.draw.canceled': '↩️ Losowanie anulowane',
   'app.admin.draw.cancelHint': 'Nikt jeszcze nie otworzył podopiecznego — losowanie można anulować, na przykład żeby dodać osoby.',
-  'app.admin.draw.reveal': '🎅 Ujawnij Mikołajów (po święcie)',
-  'app.admin.draw.revealed': '🎅 Tajemnica już ujawniona',
-  'app.admin.draw.revealConfirm': 'Każdy uczestnik dostanie wiadomość, kto był jego Mikołajem. Zrób to po wręczeniu prezentów. Ujawnić?',
-  'app.admin.draw.revealSent': 'Wysłano: {n}',
 
   // Event settings and schedule
   'app.admin.params.title': 'Ustawienia',

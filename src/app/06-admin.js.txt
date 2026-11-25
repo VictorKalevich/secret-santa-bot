@@ -549,7 +549,7 @@
 
   // --- жеребьёвка
   function adminDraw(p) {
-    const { s, d, me, players, done, evId, xapi, again, refresh } = p;
+    const { s, d, me, players, done, evId, xapi, refresh } = p;
     const drawCard = ui.card();
     if (!s.draw_done) {
       const ring = h('input', { type: 'checkbox', checked: s.ring });
@@ -601,13 +601,6 @@
         });
         drawCard.append(ui.hint(t('app.admin.draw.cancelHint')), cancel);
       }
-      const reveal = ui.btn(s.revealed ? t('app.admin.draw.revealed') : t('app.admin.draw.reveal'), 'secondary', 'ds-btn--block');
-      reveal.disabled = s.revealed; // повторно имена Сант не рассылаются (006)
-      reveal.addEventListener('click', async () => {
-        if (!(await confirmBox(t('app.admin.draw.revealConfirm')))) return;
-        busy(reveal, async () => { const r = await xapi('admin.reveal'); toast(t('app.admin.draw.revealSent', { n: r.count })); await again(); });
-      });
-      drawCard.append(reveal);
     }
     return [ui.section(t('app.admin.draw.title')), drawCard];
   }

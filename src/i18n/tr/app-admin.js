@@ -158,10 +158,6 @@ export default {
   'app.admin.draw.cancelConfirm': "Çekiliş iptal edilsin mi? Eşleşmeler silinecek, mektuplar kalacak, kayıt yeniden açılacak. Katılımcılar bildirim alacak.",
   'app.admin.draw.canceled': "↩️ Çekiliş iptal edildi",
   'app.admin.draw.cancelHint': "Henüz kimse alıcısını açmadı — çekilişi iptal edebilirsin, örneğin yeni kişiler eklemek için.",
-  'app.admin.draw.reveal': "🎅 Noel Babaları açıkla (kutlamadan sonra)",
-  'app.admin.draw.revealed': "🎅 Sır zaten açıklandı",
-  'app.admin.draw.revealConfirm': "Her katılımcı, Noel Baba'sının kim olduğunu bir mesajla öğrenecek. Bunu hediyeler verildikten sonra yap. Açıklansın mı?",
-  'app.admin.draw.revealSent': "Gönderildi: {n}",
 
   'app.admin.params.title': "Ayarlar",
   'app.admin.params.name': "Ad",

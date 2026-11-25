@@ -177,10 +177,6 @@ export default {
   'app.admin.draw.cancelConfirm': '取消抽签？配对会被删除，心愿信保留，报名会重新开放。参与者会收到通知。',
   'app.admin.draw.canceled': '↩️ 抽签已取消',
   'app.admin.draw.cancelHint': '还没有人查看收礼人，可以取消抽签，比如为了加人。',
-  'app.admin.draw.reveal': '🎅 揭晓圣诞老人（节后）',
-  'app.admin.draw.revealed': '🎅 谜底已揭晓',
-  'app.admin.draw.revealConfirm': '每位参与者都会收到消息，得知谁是自己的圣诞老人。请在交换礼物之后再揭晓。现在揭晓吗？',
-  'app.admin.draw.revealSent': '已发送：{n}',
 
   // Event parameters and schedule
   'app.admin.params.title': '设置',

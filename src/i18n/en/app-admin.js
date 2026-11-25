@@ -179,10 +179,6 @@ export default {
   'app.admin.draw.cancelConfirm': 'Cancel the draw? Pairs will be deleted, letters will stay, registration will reopen. Participants will be notified.',
   'app.admin.draw.canceled': '↩️ Draw canceled',
   'app.admin.draw.cancelHint': 'No one has opened their giftee yet — you can cancel the draw, for example, to add people.',
-  'app.admin.draw.reveal': '🎅 Reveal the Santas (after the party)',
-  'app.admin.draw.revealed': '🎅 The secret has been revealed',
-  'app.admin.draw.revealConfirm': 'Every participant will get a message saying who their Santa was. Do this after the gifts are exchanged. Reveal?',
-  'app.admin.draw.revealSent': 'Sent: {n}',
 
   // Event settings and schedule
   'app.admin.params.title': 'Settings',

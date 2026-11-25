@@ -179,10 +179,6 @@ export default {
   'app.admin.draw.cancelConfirm': "Annullare il sorteggio? Le coppie verranno eliminate, le letterine resteranno e le iscrizioni si riapriranno. I partecipanti riceveranno un avviso.",
   'app.admin.draw.canceled': "↩️ Sorteggio annullato",
   'app.admin.draw.cancelHint': "Nessuno ha ancora visto il proprio destinatario: puoi annullare il sorteggio, ad esempio per aggiungere persone.",
-  'app.admin.draw.reveal': "🎅 Rivela i Babbi Natale (dopo la festa)",
-  'app.admin.draw.revealed': "🎅 Il segreto è già svelato",
-  'app.admin.draw.revealConfirm': "Ogni partecipante riceverà un messaggio con il nome del suo Babbo Natale. Fallo dopo lo scambio dei regali. Rivelare?",
-  'app.admin.draw.revealSent': "Inviati: {n}",
 
   // Event parameters and schedule
   'app.admin.params.title': "Impostazioni",

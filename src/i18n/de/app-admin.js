@@ -179,10 +179,6 @@ export default {
   'app.admin.draw.cancelConfirm': 'Auslosung aufheben? Die Paare werden gelöscht, die Wunschzettel bleiben, die Anmeldung öffnet sich wieder. Die Teilnehmer werden benachrichtigt.',
   'app.admin.draw.canceled': '↩️ Auslosung aufgehoben',
   'app.admin.draw.cancelHint': 'Noch niemand hat sein Wichtelkind angesehen – die Auslosung lässt sich aufheben, zum Beispiel um weitere Leute hinzuzufügen.',
-  'app.admin.draw.reveal': '🎅 Wichtel aufdecken (nach dem Fest)',
-  'app.admin.draw.revealed': '🎅 Das Geheimnis ist bereits gelüftet',
-  'app.admin.draw.revealConfirm': 'Jeder Teilnehmer erfährt per Nachricht, wer sein Wichtel war. Mach das nach der Bescherung. Aufdecken?',
-  'app.admin.draw.revealSent': 'Verschickt: {n}',
 
   // Round parameters and schedule
   'app.admin.params.title': 'Einstellungen',

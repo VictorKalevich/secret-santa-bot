@@ -179,10 +179,6 @@ export default {
   'app.admin.draw.cancelConfirm': "Annuler le tirage ? Les paires seront supprimées, les lettres conservées, les inscriptions rouvertes. Les participants seront prévenus.",
   'app.admin.draw.canceled': "↩️ Tirage annulé",
   'app.admin.draw.cancelHint': "Personne n'a encore découvert son destinataire — tu peux annuler le tirage, par exemple pour ajouter des personnes.",
-  'app.admin.draw.reveal': "🎅 Révéler les Pères Noël (après la fête)",
-  'app.admin.draw.revealed': "🎅 Le secret est déjà révélé",
-  'app.admin.draw.revealConfirm': "Chaque participant recevra un message lui indiquant qui était son Père Noël. À faire après la remise des cadeaux. Révéler ?",
-  'app.admin.draw.revealSent': "Envoyé : {n}",
 
   // Event parameters and schedule
   'app.admin.params.title': "Paramètres",
