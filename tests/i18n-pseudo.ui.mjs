@@ -105,7 +105,7 @@ test('060: человек с языком xx — главный экран, «Н
   const home = await openApp(t, anna);
   assert.equal(await home.page.evaluate(() => document.documentElement.lang), PSEUDO);
   await expectPseudo(home.page, 'главный экран', found);
-  // «Настройки» (063) — ⚙️ в шапке: профиль, уведомления, «О боте», раздел владельца бота и его шторки (шторка языка —
+  // «Настройки» (063) — ⚙️ в шапке: профиль, уведомления (064: без «О боте»), раздел владельца бота и его шторки (шторка языка —
   // названия языков на самих языках, в ней кириллица законна)
   await home.page.locator('#heroAction').click();
   await home.page.waitForTimeout(300);
@@ -118,8 +118,8 @@ test('060: человек с языком xx — главный экран, «Н
   const tabs = ev.page.locator('.ds-tab');
   const count = await tabs.count();
   assert.ok(count >= 4, `вкладок: ${count}`);
-  // Шторки вкладок: открытка («Письмо»), журнал действий («Управление»); масок нет с 062
-  const SHEETS = ['Открытка', 'Журнал действий'];
+  // Шторки вкладок: открытка («Письмо», 064 — «Раскрасить письмо»), журнал действий («Управление»); масок нет с 062
+  const SHEETS = ['Раскрасить письмо', 'Журнал действий'];
   const opened = new Set();
   for (let i = 0; i < count; i++) {
     await tabs.nth(i).click();

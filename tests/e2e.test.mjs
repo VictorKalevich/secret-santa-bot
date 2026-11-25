@@ -157,7 +157,9 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
 
   await t.test('ежедневное напоминание по эвенту — раз в сутки', async () => {
     const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
-    await api(owner, 'admin.game', { event: ev.A, title: 'Семья 2026', budget: 'до 50 BYN', deadline: today, event_date: '2026-12-27', place: 'У Маши', notes: '' });
+    // 064: событие с прошедшей датой завершается само — дата вручения всегда впереди
+    const later = new Date(Date.now() + 3 * 3600e3 + 30 * 86400e3).toISOString().slice(0, 10);
+    await api(owner, 'admin.game', { event: ev.A, title: 'Семья 2026', budget: 'до 50 BYN', deadline: today, event_date: later, place: 'У Маши', notes: '' });
     await cron();
     await waitFor(() => texts(ivan).some((x) => /Семья 2026.*пока пустое/s.test(x)), 'напоминание Ивану');
     const n = texts(ivan).length;
@@ -278,14 +280,13 @@ test('сквозной сценарий: эвенты, жеребьёвка, п�
   });
 
   await t.test('005: завершение эвента и окно переписки 7 дней', async () => {
-    await api(masha, 'ward.gift', { event: ev.A, ready: true });
     await api(owner, 'admin.reveal', { event: ev.A });
     await api(owner, 'admin.event.finish', { event: ev.A });
     await waitFor(() => texts(masha).some((x) => /Событие «Семья 2026» завершено/.test(x)), 'сообщение о завершении');
     const r = await api(masha, 'wishlist.save', { event: ev.A, text: 'поздно' }, true);
     assert.equal(r.status, 400);
     assert.match(r.data.error, /завершено/);
-    assert.equal((await api(masha, 'ward.gift', { event: ev.A, ready: false }, true)).status, 400);
+    assert.equal((await api(masha, 'card.set', { event: ev.A, card: 'snow' }, true)).status, 400);
     assert.equal((await api(owner, 'admin.draw.check', { event: ev.A }, true)).status, 400, 'менять завершённый нельзя');
     assert.equal((await api(owner, 'admin.reset.full', { event: ev.A, confirm: 'СБРОС' }, true)).status, 400, 'завершённый не сбрасывается');
     const eg = await api(masha, 'event.get', { event: ev.A });
@@ -636,27 +637,6 @@ test('007: инструменты организатора', { timeout: 300000 }
       assert.match(no.data.error, /уже открыл подопечного/);
     });
 
-    await t.test('US3: «подарок получен» — одно уведомление Санте', async () => {
-      const pairs = await zPairs(E1);
-      const santaOfDina = [...pairs].find(([, wd]) => wd === dina.id)[0];
-      const santa = crew.find((u) => u.id === santaOfDina);
-      const got = () => ztexts(santa).filter((x) => x.includes('получил подарок')).length;
-      await zapi(dina, 'ward.received', { event: E1, received: true });
-      await waitFor(() => got() === 1, 'уведомление Санте');
-      assert.ok(!ztexts(santa).find((x) => x.includes('получил подарок')).includes('Дина'), 'без имени подопечного');
-      assert.equal((await zapi(dina, 'event.get', { event: E1 })).member.gift_received, true);
-      await zapi(dina, 'ward.received', { event: E1, received: false });
-      await zapi(dina, 'ward.received', { event: E1, received: true });
-      await z.cron();
-      await sleep(300);
-      assert.equal(got(), 1, 'повторная отметка не шлёт второе уведомление');
-      const st = await zapi(boss, 'admin.state', { event: E1 });
-      assert.equal(st.users.find((u) => u.id === dina.id).gift_received, true);
-      assert.equal(st.users.filter((u) => u.gift_received).length, 1);
-      noPairs(st);
-      assert.equal((await zapi(boss, 'ward.received', { event: E1, received: true }, true)).status, 403, 'не участник');
-    });
-
     await t.test('US2: автожеребьёвка не прошла — админам причина, дата снята', async () => {
       E2 = (await zapi(boss, 'event.create', { participate: false, title: 'Пустой' })).event.id;
       await zapi(boss, 'admin.participate', { event: E2, on: true });
@@ -694,7 +674,7 @@ test('007: инструменты организатора', { timeout: 300000 }
     });
 
     await t.test('US2: авто-раскрытие и автозавершение после даты вручения', async () => {
-      await zapi(boss, 'admin.game', { event: E1, title: 'Офис 2026', event_date: localIso(-4), reveal_auto: true, finish_auto: true });
+      await zapi(boss, 'admin.game', { event: E1, title: 'Офис 2026', event_date: localIso(-4), reveal_auto: true });
       await z.cron();
       for (const u of crew) await waitFor(() => ztexts(u).some((x) => x.includes('Тайна раскрыта') && x.includes('Офис 2026')), 'раскрытие');
       assert.equal((await zapi(boss, 'admin.state', { event: E1 })).settings.status, 'active', 'за один вызов — одно автодействие');
@@ -776,7 +756,6 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       await z.say(boss, '/start ' + s.adminCode);
       await z.say(boss, boss.name);
       E1 = (await zapi(boss, 'event.create', { participate: false, title: 'По почте' })).event.id;
-      await zapi(boss, 'admin.game', { event: E1, delivery_on: true });
       const code = await zInvite(E1);
       for (const u of crew) { await z.say(u, '/start ' + code); await z.say(u, u.name); }
       // частичное обновление admin.game не стирает остальные параметры
@@ -785,25 +764,14 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       assert.equal((await zapi(boss, 'admin.state', { event: E1 })).settings.budget, 'до 30 BYN');
     });
 
-    await t.test('US1: адрес доставки — сохранение и ограничения', async () => {
-      assert.equal((await zapi(alya, 'event.get', { event: E1 })).event.delivery_on, true);
-      await zapi(alya, 'delivery.save', { event: E1, text: SECRET });
-      for (const u of crew.slice(1)) await zapi(u, 'delivery.save', { event: E1, text: `Адрес ${u.name}` });
-      assert.equal((await zapi(alya, 'event.get', { event: E1 })).member.delivery, SECRET);
-      const long = await zapi(alya, 'delivery.save', { event: E1, text: 'я'.repeat(501) }, true);
-      assert.equal(long.status, 400);
-      assert.match(long.data.error, /максимум 500/);
-      const off = await newEvent('Без адреса', [alya]);
-      assert.equal((await zapi(alya, 'delivery.save', { event: off, text: 'x' }, true)).status, 400);
-      // 009: в эвент без адреса доставки адрес не копируется; в эвент с адресом — предзаполняется
-      assert.equal((await zapi(alya, 'event.get', { event: off })).member.delivery, '', 'в эвенте без адреса адреса нет');
-      assert.equal((await z.query(`SELECT delivery FROM members WHERE event_id = ${off} AND user_id = ${alya.id}`))[0].delivery, '');
-      const on = await newEvent('С адресом', [alya], { delivery_on: true });
-      assert.equal((await zapi(alya, 'event.get', { event: on })).member.delivery, SECRET, 'новое участие предзаполнено адресом');
+    await t.test('064: адреса доставки нет — действие неизвестно, в ответах адреса нет', async () => {
+      const r = await zapi(alya, 'delivery.save', { event: E1, text: SECRET }, true);
+      assert.deepEqual([r.status, r.data.error], [404, 'Неизвестное действие']);
+      const eg = await zapi(alya, 'event.get', { event: E1 });
+      assert.ok(!('delivery_on' in eg.event) && !('delivery' in eg.member), 'event.get без адреса');
       const st = await zapi(boss, 'admin.state', { event: E1 });
-      assert.equal(st.users.find((u) => u.id === alya.id).has_delivery, true);
+      assert.ok(st.users.every((u) => !('has_delivery' in u)), 'панель без адреса');
       noSecret(st, 'admin.state');
-      noSecret(await zapi(boss, 'admin.wishlist', { event: E1, id: alya.id }), 'admin.wishlist');
     });
 
     await t.test('US2 (062): семей нет — «семью» задаёт взаимное исключение', async () => {
@@ -849,20 +817,20 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       assert.equal(c.possible, true);
     });
 
-    await t.test('US1: Санта видит адрес, админ — нет; уведомление об изменении', async () => {
+    await t.test('Санте — уведомление об изменении письма, без текста; админу письма не видно', async () => {
       const p = await pairsSql(E1);
       const santaId = [...p].find(([, w]) => w === alya.id)[0];
       const santa = crew.find((u) => u.id === santaId);
-      const wd = await zapi(santa, 'ward.get', { event: E1 });
-      assert.equal(wd.ward.delivery, SECRET);
-      const before = ztexts(santa).filter((x) => x.includes('обновил письмо или адрес')).length;
-      await zapi(alya, 'delivery.save', { event: E1, text: SECRET + ', подъезд 2' });
+      const notes = () => ztexts(santa).filter((x) => x.includes('обновил письмо Санте')).length;
+      const before = notes();
+      await zapi(alya, 'wishlist.save', { event: E1, text: SECRET });
+      assert.equal((await zapi(santa, 'ward.get', { event: E1 })).ward.wishlist, SECRET);
       // после 20 жеребьёвок в очереди может быть хвост сообщений — cron отправляет его порциями
       await waitFor(async () => {
         await z.cron();
-        return ztexts(santa).filter((x) => x.includes('обновил письмо или адрес')).length === before + 1;
+        return notes() === before + 1;
       }, 'уведомление Санте', 20000);
-      assert.ok(!ztexts(santa).some((x) => x.includes('подъезд 2')), 'уведомление без текста адреса');
+      assert.ok(!ztexts(santa).some((x) => x.includes('АДРЕС-СЕКРЕТ')), 'уведомление без текста письма');
       noSecret(await zapi(boss, 'admin.audit', { event: E1 }), 'журнал');
       noSecret(await zapi(boss, 'admin.state', { event: E1 }), 'admin.state после жеребьёвки');
     });
@@ -1160,18 +1128,18 @@ test('009: исправления перед выкатом', { timeout: 400000 
       assert.deepEqual([n.reveal, n.finish, n['member.remove']], [1, 1, 2], 'в журнале по одной записи на действие');
     });
 
-    await t.test('перенос: адрес нового аккаунта сохраняется, пустой — заменяется старым', async () => {
-      const EA = await newEvent('Почта А', [igor], { delivery_on: true });
-      const EB = await newEvent('Почта Б', [igor], { delivery_on: true });
-      await zapi(igor, 'delivery.save', { event: EA, text: 'Старый адрес А' });
-      await zapi(igor, 'delivery.save', { event: EB, text: 'Старый адрес Б' });
+    await t.test('перенос: письмо нового аккаунта сохраняется, пустое — заменяется старым', async () => {
+      const EA = await newEvent('Письма А', [igor]);
+      const EB = await newEvent('Письма Б', [igor]);
+      await zapi(igor, 'wishlist.save', { event: EA, text: 'Старое письмо А' });
+      await zapi(igor, 'wishlist.save', { event: EB, text: 'Старое письмо Б' });
       const igor2 = { id: 706, name: 'Игорь', username: 'igor2' };
-      await join(igor2, await zInvite(EB)); // в Б — без адреса
+      await join(igor2, await zInvite(EB)); // в Б — без письма
       await join(igor2, await zInvite(EA));
-      await zapi(igor2, 'delivery.save', { event: EA, text: 'Новый адрес' });
+      await zapi(igor2, 'wishlist.save', { event: EA, text: 'Новое письмо' });
       await zapi(boss, 'admin.transfer', { from: igor.id, to: igor2.id });
-      assert.equal((await zapi(igor2, 'event.get', { event: EA })).member.delivery, 'Новый адрес');
-      assert.equal((await zapi(igor2, 'event.get', { event: EB })).member.delivery, 'Старый адрес Б');
+      assert.equal((await zapi(igor2, 'event.get', { event: EA })).member.wishlist, 'Новое письмо');
+      assert.equal((await zapi(igor2, 'event.get', { event: EB })).member.wishlist, 'Старое письмо Б');
     });
   } finally {
     const log = z.log();
@@ -1280,11 +1248,10 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       assert.equal(pre.santa, null);
       assert.deepEqual((await zapi(boss, 'admin.vault.pairs', { event: E, confirm: 'ОТКРЫТЬ' })).pairs, []);
 
-      const V = await newEvent('Сейф', [anya, borya, vera, gena], { delivery_on: true });
+      const V = await newEvent('Сейф', [anya, borya, vera, gena]);
       await zapi(boss, 'admin.participate', { event: V, on: true });
       await staff(V);
       await zapi(vera, 'wishlist.save', { event: V, text: 'Хочу шарф ВЕРА-СЕКРЕТ' });
-      await zapi(vera, 'delivery.save', { event: V, text: 'Минск, ул. Ёлочная, 1' });
       await zapi(boss, 'admin.draw', { event: V });
       const pairs = await pairsSql(V);
       const santaOf = (id) => [...pairs].find(([, ward]) => ward === id)[0];
@@ -1309,7 +1276,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       assert.equal(p.ward.id, pairs.get(vera.id));
       assert.equal(p.santa.id, santaOf(vera.id));
       assert.equal(p.wishlist, 'Хочу шарф ВЕРА-СЕКРЕТ');
-      assert.equal(p.delivery, 'Минск, ул. Ёлочная, 1');
+      assert.ok(!('delivery' in p), 'адреса нет (064)');
       assert.deepEqual(p.chat_with_santa.map((m) => [m.from, m.text]), [['ward', 'Привет, Санта!']]);
       assert.deepEqual(p.chat_with_ward.map((m) => [m.from, m.text]), [['santa', 'Привет от Санты']]);
       assert.ok(p.chat_with_santa[0].created_at > 0, 'с датами');
@@ -1352,11 +1319,11 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
     });
 
     await t.test('владелец может всё, что админ (автотест по всем действиям admin.*)', async () => {
-      // 019: список — из таблицы действий (порядок строк = прежний порядок case); ровно 43 (063: без admin.users и
-      // admin.events.create) — потерю действия видно сразу
+      // 019: список — из таблицы действий (порядок строк = прежний порядок case); ровно 42 (063: без admin.users и
+      // admin.events.create; 064: без admin.remind.santas) — потерю действия видно сразу
       const { ACTIONS } = await import('../src/api.js');
       const actions = Object.keys(ACTIONS).filter((a) => a.startsWith('admin.'));
-      assert.equal(actions.length, 43, `найдено действий: ${actions.length}`);
+      assert.equal(actions.length, 42, `найдено действий: ${actions.length}`);
       // Минимальное тело: без слов подтверждения и без людей — опасные действия получают отказ по данным, а не по правам
       const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
       const P1 = (await zapi(boss, 'event.create', { participate: false, title: 'Права владельца' })).event.id;
@@ -1581,7 +1548,7 @@ test('012: вписывание по группам, принудительна�
       const V = await newEvent('Вписать-012', [anya, borya, vera, gena]);
       await zapi(boss, 'admin.draw', { event: V });
       for (const u of [anya, borya, vera]) await zapi(u, 'ward.get', { event: V });
-      await zapi(vera, 'ward.gift', { event: V, ready: true });
+      z.sql(`UPDATE pairs SET gift_ready = 1 WHERE event_id = ${V} AND santa = ${vera.id}`); // отметка прежнего кода (064)
       const before = await pairsSql(V);
       await zapi(boss, 'admin.registration', { event: V, open: true });
       await join(dasha, await zInvite(V));
@@ -1611,7 +1578,7 @@ test('012: вписывание по группам, принудительна�
 
       // подарки готовы у всех — вписать нельзя, пары те же
       await zapi(eva, 'ward.get', { event: V });
-      for (const u of [anya, borya, gena, dasha, eva]) await zapi(u, 'ward.gift', { event: V, ready: true });
+      z.sql(`UPDATE pairs SET gift_ready = 1 WHERE event_id = ${V}`); // отметки прежнего кода (064)
       await join(zhora, await zInvite(V));
       const blocked = await zapi(boss, 'admin.insert', { event: V, id: zhora.id }, true);
       assert.equal(blocked.status, 400);
@@ -1641,7 +1608,6 @@ test('012: вписывание по группам, принудительна�
       await zapi(boss, 'admin.draw', { event: F });
       await zapi(anya, 'ward.get', { event: F });
       await zapi(anya, 'message.send', { event: F, to: 'ward', text: 'Привет!' });
-      await zapi(borya, 'ward.gift', { event: F, ready: true });
       assert.equal((await zapi(boss, 'admin.state', { event: F })).settings.draw_cancelable, false, 'обычная отмена недоступна');
 
       const byAdmin = await zapi(helper, 'admin.draw.cancel.force', { event: F, confirm: 'ОТМЕНА' }, true);

@@ -105,11 +105,7 @@ try {
   await w.api(admin, 'admin.exclusion.add', { event: A, giver: 101, receiver: 102, mutual: true });
   await w.api(admin, 'admin.fixed.add', { event: A, giver: 103, receiver: 101 }); // 014: блок видит только владелец
   await w.api(admin, 'admin.role.grant', { event: A, id: people[0].id }); // 063: администратор этого события
-  // 008: адрес доставки в эвенте A, заявка в эвент B
-  await w.api(admin, 'admin.game', { event: A, delivery_on: true });
-  for (const p of [admin, ...people.slice(0, 3)]) {
-    await w.api(p, 'delivery.save', { event: A, text: `Минск, Европочта, отделение 15 — ${p.name}, +375 29 000-00-0${p.id % 10}` });
-  }
+  // 008: заявка в эвент B (адреса доставки нет с 064)
   await w.api(admin, 'admin.game', { event: B, approval: true });
   const stepa = { id: 130, name: 'Стёпа', username: 'stepa' };
   await w.say(stepa, '/start ' + codeB);
@@ -377,7 +373,7 @@ try {
     await onPage(problems, 'подсказка названия', admin, null, async (page) => {
       await page.getByRole('button', { name: '🎄 Создать событие', exact: true }).click();
       const hint = await page.locator('.ds-sheet input.ds-input[type="text"]').getAttribute('placeholder');
-      const want = `Например: Новый год ${now.getFullYear() + 1} — семья`;
+      const want = `Новый год ${now.getFullYear() + 1} — семья`; // 064: без «Например: »
       if (hint !== want) problems.push(`подсказка названия — «${hint}», ожидалось «${want}»`);
     });
 
@@ -910,26 +906,28 @@ addEventListener('message', (e) => {
 
     await onPage(problems, 'опасная зона через ту же шторку', admin, L, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Управление' }).click();
-      await page.locator('#main .ds-btn--danger', { hasText: 'Полный сброс' }).click();
-      await page.locator('.ds-sheet__title', { hasText: 'Полный сброс' }).waitFor({ timeout: 3000 });
-      const go = page.locator('.ds-sheet .ds-btn--danger', { hasText: 'Сбросить' });
+      // 064: «Полного сброса» нет — та же шторка со словом у «Удалить событие»
+      if (await page.locator('#main .ds-btn', { hasText: 'Полный сброс' }).count()) problems.push('опасная зона: остался «Полный сброс»');
+      await page.locator('#main .ds-btn--danger', { hasText: 'Удалить событие' }).click();
+      await page.locator('.ds-sheet__title', { hasText: 'Удалить событие' }).waitFor({ timeout: 3000 });
+      const go = page.locator('.ds-sheet .ds-btn--danger', { hasText: 'Удалить навсегда' });
       if (!(await go.isDisabled())) problems.push('опасная зона: кнопка доступна без слова');
-      await page.locator('.ds-sheet .ds-input').fill('СБРОС');
+      await page.locator('.ds-sheet .ds-input').fill('УДАЛИТЬ');
       let asked = '';
       page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
       await go.click();
       await page.waitForTimeout(300);
-      if (asked !== 'Полный сброс: точно? Это нельзя отменить.') problems.push(`опасная зона: второе окно «${asked}»`);
-      if (!member(yulia, L)) problems.push('опасная зона: отказ во втором окне, а событие сброшено');
+      if (asked !== 'Удалить событие: точно? Это нельзя отменить.') problems.push(`опасная зона: второе окно «${asked}»`);
+      if (!member(yulia, L)) problems.push('опасная зона: отказ во втором окне, а событие удалено');
     });
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'имя и выход (035–036): ' + x));
     else console.log('✔ имя и выход (035–036): «Профиль» в «Настройках» над «Уведомлениями», имя — сразу в приветствии; выход — только со словом, без второго окна, организатору — сообщение; после жеребьёвки — подсказка по роли (владелец, админ, участник; до и после раскрытия) и обращение; «Опасная зона» — та же шторка со вторым окном');
   }
 
-  // 037: участники на «Инфо» (specs/037-info-people/contracts/info-people.md). Событие R: владелец (admin), админ people[0]
-  // и восемь новых — десять человек, список свёрнут после восьми; писем — три. Параметр «Участники могут писать друг другу»
-  // включается в «Параметрах» организатором: @username и чат по нажатию (вопрос — окно браузера, переход — window.open)
+  // 037, 064: участники на «Инфо» (specs/037-info-people/contracts/info-people.md). Событие R: владелец (admin), админ
+  // people[0] и восемь новых — десять человек, писем — три. 064: список виден весь, @username — у каждого, у кого он есть,
+  // строки не нажимаются; параметра «Участники могут писать друг другу» нет; после жеребьёвки сводки нет
   async function checkInfoPeople() {
     const problems = [];
     const names = ['Вова', 'Галя', 'Евгений', 'Жанна', 'Зоя', 'Игорь', 'Лена', 'Нина'];
@@ -942,16 +940,17 @@ addEventListener('message', (e) => {
     await w.say(people[0], '/start ' + codeR);
     await w.api(admin, 'admin.role.grant', { event: R, id: people[0].id }); // 063: администратор — участник события
     for (const p of fresh.slice(0, 3)) await w.api(p, 'wishlist.save', { event: R, text: LETTER(p.name) });
-    const SORTED = ['Вова', 'Галя', 'Дмитрий', 'Евгений', 'Жанна', 'Зоя', 'Игорь', 'Лена', 'Маша', 'Нина'];
+    const WANT = ['Вова  @u150  (ты)', 'Галя  @u151', 'Дмитрий  @dima', 'Евгений  @u152', 'Жанна  @u153', 'Зоя  @u154',
+      'Игорь  @u155', 'Лена', 'Маша  @masha', 'Нина  @u157'];
 
-    // Раздел «Участники · 10»: подсказка над списком, карточка списка; переходы по ссылкам — в window.__opened
+    // Раздел «Участники · 10»: подсказка над списком (до жеребьёвки), карточка списка; переходы — в window.__opened
     const section = async (page) => {
       await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
       const title = page.locator('#main .ds-section-title', { hasText: 'Участники · 10' });
       await title.waitFor({ timeout: 3000 });
       await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
       return {
-        hint: title.locator('xpath=following-sibling::*[1]'),
+        next: title.locator('xpath=following-sibling::*[1]'),
         list: title.locator('xpath=following-sibling::*[contains(@class, "ds-card--flush")][1]'),
         opened: () => page.evaluate(() => window.__opened.slice()),
       };
@@ -964,27 +963,23 @@ addEventListener('message', (e) => {
     };
 
     await onPage(problems, 'список до жеребьёвки', vova, R, async (page) => {
-      const { hint, list, opened } = await section(page);
+      const { next, list, opened } = await section(page);
       const rows = await info(page);
       if ('Участников' in rows) problems.push('«О событии»: осталась строка «Участников»');
       if (rows['Владелец'] !== 'Дмитрий') problems.push(`«Владелец»: «${rows['Владелец']}»`);
       if (rows['Администраторы'] !== 'Маша') problems.push(`«Администраторы»: «${rows['Администраторы']}»`);
       if (rows['Автожеребьёвка'] !== 'не установлена') problems.push(`«Автожеребьёвка»: «${rows['Автожеребьёвка']}»`);
-      if ((await hint.textContent()) !== '✉️ Письма написали 3 из 10') problems.push(`прогресс: «${await hint.textContent()}»`);
-      let titles = await rowTitles(list);
-      if (titles.join('|') !== ['Вова  (ты)', ...SORTED.slice(1, 8)].join('|')) problems.push(`свёрнутый список: ${titles.join(', ')}`);
-      const more = list.locator('.ds-list-item--link', { hasText: 'Показать всех (10)' });
-      if (!(await more.count())) problems.push('нет «Показать всех (10)»');
-      if (await list.locator('.ds-list-item--link', { hasNotText: 'Показать всех' }).count()) problems.push('параметр выключен, а строки нажимаются');
-      if ((await list.textContent()).includes('@')) problems.push('параметр выключен, а в списке есть @');
-      await more.click();
-      titles = await rowTitles(list);
-      if (titles.join('|') !== ['Вова  (ты)', ...SORTED.slice(1)].join('|')) problems.push(`раскрытый список: ${titles.join(', ')}`);
-      if (await list.locator('.ds-list-item--link').count()) problems.push('после раскрытия осталась «Показать всех»');
+      if ((await next.textContent()) !== '✉️ Письма написали 3 из 10') problems.push(`прогресс: «${await next.textContent()}»`);
+      const titles = await rowTitles(list);
+      if (titles.join('|') !== WANT.join('|')) problems.push(`список: ${titles.join(', ')}`);
+      if (await list.locator('.ds-list-item--link').count()) problems.push('строки или «Показать всех» нажимаются');
       const chip = async (name) => (await list.locator('.ds-list-item', { hasText: name }).locator('.ds-chip').allTextContents()).join('|');
       if ((await chip('Дмитрий')) !== '👑 владелец') problems.push(`метка владельца: «${await chip('Дмитрий')}»`);
       if ((await chip('Маша')) !== '🛠 администратор') problems.push(`метка администратора: «${await chip('Маша')}»`);
       if ((await chip('Галя')) !== '') problems.push(`у участника метка «${await chip('Галя')}»`);
+      await list.locator('.ds-list-item', { hasText: 'Галя' }).click();
+      await page.waitForTimeout(200);
+      if ((await opened()).length) problems.push('нажатие на строку открыло ссылку');
       const invite = page.locator('#main .ds-card', { has: page.locator('.ds-btn', { hasText: '📨 Пригласить друга' }) });
       if ((await invite.locator('.ds-hint').textContent()) !== 'Позови друга — по ссылке он сразу вступит в событие.') problems.push('приглашение: подсказка');
       await invite.locator('.ds-btn').click();
@@ -993,49 +988,27 @@ addEventListener('message', (e) => {
       if (!url || !url.startsWith('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=')) problems.push(`приглашение: открыто «${url}»`);
     });
 
-    await onPage(problems, 'параметр в «Параметрах»', admin, R, async (page) => {
+    await onPage(problems, 'в «Параметрах» нет «писать друг другу»', admin, R, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Управление' }).click();
-      await page.locator('#main .ds-check', { hasText: 'Участники могут писать друг другу' }).locator('input').check();
-      await page.locator('.ds-btn', { hasText: /^Сохранить$/ }).click();
-      await page.locator('#toast', { hasText: 'Сохранено' }).waitFor({ timeout: 5000 });
-      const on = w.query(`SELECT contacts_on FROM events WHERE id = ${Number(R)}`)[0].contacts_on;
-      if (on !== 1) problems.push(`после «Сохранить» contacts_on = ${on}`);
+      await page.locator('#main .ds-section-title', { hasText: 'Параметры' }).waitFor({ timeout: 3000 });
+      if (await page.locator('#main .ds-check', { hasText: 'писать друг другу' }).count()) problems.push('в «Параметрах» осталась галочка «Участники могут писать друг другу»');
     });
 
     await shot(vova, '34-info-people', { event: R, tab: 'Инфо' });
     await shot(vova, '34-info-people', { event: R, tab: 'Инфо', dark: true });
 
-    await onPage(problems, 'чат с участником', vova, R, async (page) => {
-      const { list, opened } = await section(page);
-      const titles = await rowTitles(list);
-      const want = ['Вова  @u150  (ты)', 'Галя  @u151', 'Дмитрий  @dima', 'Евгений  @u152', 'Жанна  @u153', 'Зоя  @u154', 'Игорь  @u155', 'Лена'];
-      if (titles.join('|') !== want.join('|')) problems.push(`с @username: ${titles.join(', ')}`);
-      if (await list.locator('.ds-list-item--link', { hasText: 'Вова' }).count()) problems.push('своя строка нажимается');
-      if (await list.locator('.ds-list-item--link', { hasText: 'Лена' }).count()) problems.push('строка без @username нажимается');
-      let asked = '';
-      page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
-      await list.locator('.ds-list-item--link', { hasText: 'Галя' }).click();
-      await page.waitForTimeout(200);
-      if (asked !== 'Открыть чат с Галя в Telegram?') problems.push(`вопрос: «${asked}»`);
-      if ((await opened()).length) problems.push('«Отмена» — а чат открыт');
-      page.once('dialog', (d) => d.accept());
-      await list.locator('.ds-list-item--link', { hasText: 'Дмитрий' }).click();
-      await page.waitForTimeout(200);
-      if ((await opened()).join('|') !== 'https://t.me/dima') problems.push(`«ОК» — открыто «${(await opened()).join('|')}»`);
-    });
-
     await w.api(admin, 'admin.registration', { event: R, open: false });
     await w.api(admin, 'admin.draw', { event: R });
-    await w.api(fresh[1], 'ward.gift', { event: R, ready: true });
     await onPage(problems, 'после жеребьёвки', vova, R, async (page) => {
-      const { hint } = await section(page);
-      if ((await hint.textContent()) !== '🎁 Подарки готовы: 1 из 10 · 📦 получено: 0 из 10') problems.push(`прогресс после жеребьёвки: «${await hint.textContent()}»`);
+      const { next } = await section(page);
+      if (!(await next.evaluate((el) => el.classList.contains('ds-card--flush')))) problems.push(`после жеребьёвки над списком: «${await next.textContent()}»`);
+      if (await page.locator('#main', { hasText: /Подарки готовы|получено:/ }).count()) problems.push('после жеребьёвки осталась сводка о подарках');
       if ('Автожеребьёвка' in (await info(page))) problems.push('после жеребьёвки осталась «Автожеребьёвка»');
       if (await page.locator('#main .ds-btn', { hasText: 'Пригласить друга' }).count()) problems.push('регистрация закрыта, а «Пригласить друга» есть');
     });
 
-    if (problems.length) colorProblems.push(...problems.map((x) => 'участники на «Инфо» (037): ' + x));
-    else console.log('✔ участники на «Инфо» (037): «Владелец», «Администраторы» и «Автожеребьёвка» в «О событии», список по алфавиту с «(ты)» и метками, свёрнут после 8, прогресс до и после жеребьёвки; параметр в «Параметрах» — @username и чат после вопроса (не своя строка, не без @username); «Пригласить друга» пересылает ссылку и пропадает при закрытой регистрации');
+    if (problems.length) colorProblems.push(...problems.map((x) => 'участники на «Инфо» (037, 064): ' + x));
+    else console.log('✔ участники на «Инфо» (037, 064): «Владелец», «Администраторы» и «Автожеребьёвка» в «О событии», весь список по алфавиту с @username, «(ты)» и метками, строки не нажимаются, прогресс писем до жеребьёвки и без сводки после; галочки «писать друг другу» нет; «Пригласить друга» пересылает ссылку и пропадает при закрытой регистрации');
   }
 
   // 038: значок у имени и открытка письма — свои люди и событие «Открытки» (другие снимки и проверки не меняются).
@@ -1056,11 +1029,12 @@ addEventListener('message', (e) => {
     await onPage(problems, 'открытка письма', petr, E, async (page) => {
       const ta = page.locator('#main textarea.ds-input--letter');
       await ta.fill(UNSAVED_TEXT);
-      const btn = page.locator('#main .ds-btn', { hasText: '🖼 Открытка' });
-      if ((await btn.textContent()) !== '🖼 Открытка: без открытки') problems.push(`кнопка: «${await btn.textContent()}»`);
+      const btn = page.locator('#main .ds-btn', { hasText: '🎨 Раскрасить письмо' });
+      if ((await btn.textContent()) !== '🎨 Раскрасить письмо') problems.push(`кнопка: «${await btn.textContent()}»`);
       if (await page.locator('#main .ds-postcard').count()) problems.push('без открытки — а редактор на открытке');
       await btn.click();
       const sheet = page.locator('.ds-sheet', { hasText: 'Открытка для письма' });
+      if (await sheet.locator('.ds-hint').count()) problems.push('шторка открытки: осталась подсказка (064)');
       const tiles = await sheet.locator('.ds-choice').allTextContents();
       if (tiles.length !== 16 || tiles[0] !== 'Без открытки') problems.push(`плитки: ${tiles.join(', ')}`);
       if ((await sheet.locator('.ds-choice--selected').textContent()) !== 'Без открытки') problems.push('не отмечено «Без открытки»');
@@ -1074,7 +1048,7 @@ addEventListener('message', (e) => {
       if ((await color(ta, 'color')) !== 'rgb(238, 242, 255)') problems.push(`чернила редактора: ${await color(ta, 'color')}`);
       if ((await color(ta, 'caretColor')) !== 'rgb(238, 242, 255)') problems.push(`каретка редактора: ${await color(ta, 'caretColor')}`);
       if ((await color(ta, 'backgroundColor')) !== 'rgba(0, 0, 0, 0)') problems.push(`фон редактора: ${await color(ta, 'backgroundColor')}`);
-      if ((await btn.textContent()) !== '🖼 Открытка: Звёздная ночь') problems.push(`кнопка после выбора: «${await btn.textContent()}»`);
+      if ((await btn.textContent()) !== '🎨 Раскрасить письмо') problems.push(`кнопка после выбора — с названием: «${await btn.textContent()}»`);
       const row = w.query(`SELECT card, wishlist, wishlist_updated_at FROM members WHERE event_id = ${Number(E)} AND user_id = ${petr.id}`)[0];
       if (row.card !== 'night' || row.wishlist !== '' || row.wishlist_updated_at !== 0) problems.push(`на сервере: ${JSON.stringify(row)}`);
       await btn.click();
@@ -1086,7 +1060,7 @@ addEventListener('message', (e) => {
 
     await shot(petr, '36-letter-postcard', { event: E });
     await shot(petr, '36-letter-postcard', { event: E, dark: true });
-    const openCards = (p) => p.locator('#main .ds-btn', { hasText: '🖼 Открытка' }).click();
+    const openCards = (p) => p.locator('#main .ds-btn', { hasText: '🎨 Раскрасить письмо' }).click();
     await shot(petr, '36-postcards', { event: E, fullPage: false, before: openCards });
     await shot(petr, '36-postcards', { event: E, fullPage: false, dark: true, before: openCards });
 
@@ -1176,7 +1150,7 @@ addEventListener('message', (e) => {
       // «‹» — главный экран с новым приветствием
       await page.locator('#heroBack').click();
       await textIs(page.locator('#heroSub'), 'Привет, Глеб Петров 🐧!', 'приветствие на главном экране после имени');
-    }, { viewport: { width: 390, height: 420 } });
+    }, { viewport: { width: 390, height: 320 } }); // 064: без «О боте» «Настройки» короче — экран ниже, чтобы прокручивались
 
     await onPage(problems, '«Настройки» участника', liza, null, async (page) => {
       await toSettings(page);
@@ -1251,7 +1225,8 @@ addEventListener('message', (e) => {
       await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
       await page.locator('#main .ds-btn', { hasText: 'Написать подопечному' }).waitFor({ timeout: 5000 });
       if (await page.locator('#main .ds-btn', { hasText: '🎭' }).count()) problems.push('на «Подопечном» есть кнопка маски');
-      if (!(await page.locator('#main .ds-hint', { hasText: '«Тайный Санта»' }).count())) problems.push('подсказка переписки без «Тайного Санты»');
+      const hint = (await page.locator('#main .ds-hint').allTextContents()).join('|');
+      if (!hint.split('|').includes('Есть вопрос?')) problems.push(`подсказка переписки (064 — «Есть вопрос?»): ${hint}`);
     });
     await w.api(tima, 'message.send', { event: E, to: 'ward', text: 'Привет!' });
     await onPage(problems, 'переписка у подопечного', ward, E, async (page) => {
@@ -1296,10 +1271,10 @@ addEventListener('message', (e) => {
     };
     setCycle();
     const wardOf = (u) => w.query(`SELECT ward FROM pairs WHERE event_id = ${Number(E)} AND santa = ${u.id}`)[0].ward;
-    const sheet = (page) => page.locator('.ds-sheet', { hasText: 'Управление жеребьёвкой' });
+    const sheet = (page) => page.locator('.ds-sheet', { hasText: 'Обмен подопечными' }); // 064: было «Управление жеребьёвкой»
     const openSwap = async (page) => {
       await page.locator('.ds-tab', { hasText: 'Управление' }).click();
-      await page.locator('#main .ds-btn', { hasText: 'Открыть управление жеребьёвкой' }).click();
+      await page.locator('#main .ds-btn', { hasText: '🔀 Открыть меню обмена' }).click();
       await sheet(page).locator('.ds-check').first().waitFor({ timeout: 5000 });
     };
     const box = (page, u) => sheet(page).locator('label.ds-list-item', { hasText: u.name }).locator('input');
@@ -1381,7 +1356,7 @@ addEventListener('message', (e) => {
     await onPage(problems, 'админ не видит секцию', boris, E, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       await page.locator('.ds-section-title', { hasText: 'Журнал' }).waitFor({ timeout: 5000 });
-      if (await page.locator('.ds-section-title', { hasText: 'Управление жеребьёвкой' }).count()) problems.push('админ видит «Управление жеребьёвкой»');
+      if (await page.locator('.ds-section-title', { hasText: 'Обмен подопечными' }).count()) problems.push('админ видит «Обмен подопечными»');
     });
     await w.api(admin, 'admin.role.revoke', { event: E, id: boris.id });
 
@@ -1585,7 +1560,7 @@ addEventListener('message', (e) => {
       await page.locator('.ds-tab', { hasText: 'Управление' }).click();
       expectSection('владелец, сначала', await section(page), {
         rows: ['Дмитрий: 👑 владелец'],
-        hints: ['Администраторы ведут событие вместе с владельцем. Назначить можно участника события; ✕ — снять права, 👑 — передать владение.'],
+        hints: [], // 064: подсказки владельцу нет
         selects: ['Кого назначить…|Ира|Кира|Лёва', 'Кого сделать владельцем…|Ира|Кира|Лёва'],
         buttons: ['🛠 Назначить администратором', '👑 Передать владение'],
       });
@@ -1655,8 +1630,8 @@ addEventListener('message', (e) => {
     else console.log('✔ владелец и администраторы (063): секция в панели события — назначить участника (окно, сообщение), снять ✕, передать владение 👑 (новый владелец первым, прежний — администратор); у администратора — подсказка без кнопок');
   }
 
-  // 063: «Настройки» — ⚙️ в шапке «Моих событий», «‹» — обратно. Участнику — «Профиль» (имя, «🌐 Язык»), «Уведомления»,
-  // «О боте» (три пункта; «Поддержать проект» — только в открытом боте); владельцу бота ещё «Владелец бота»: «Все события»
+  // 063: «Настройки» — ⚙️ в шапке «Моих событий», «‹» — обратно. Участнику — «Профиль» (имя, «🌐 Язык»), «Уведомления»
+  // (064: без «О боте» и подсказки; «Поддержать проект» — только в открытом боте); владельцу бота ещё «Владелец бота»: «Все события»
   // (новые первыми, выбор открывает событие), «Кто может создавать события» (переключатель — разрешение на сервере и
   // «🎄 Создать событие» у человека; выключение — обратно), журнал бота (записи разрешений сверху), передача прав (выбор
   // и окно; «Отмена» — владелец бота прежний). Снимки — в обеих темах
@@ -1687,7 +1662,7 @@ addEventListener('message', (e) => {
       if (await page.locator('#heroAction').isVisible()) problems.push('«Настройки»: в шапке осталась ⚙️');
       if ((await page.locator('#heroSub').textContent()) !== 'Привет, Петя!') problems.push(`«Настройки»: подзаголовок «${await page.locator('#heroSub').textContent()}»`);
       const t = await titles(page);
-      if (t.join('|') !== 'Профиль|Уведомления|О боте') problems.push(`участник: разделы ${t.join(', ')}`);
+      if (t.join('|') !== 'Профиль|Уведомления') problems.push(`участник: разделы ${t.join(', ')}`);
       if ((await page.locator('#main .ds-text-strong').first().textContent()) !== 'Петя') problems.push('«Профиль»: не своё имя');
       if (!(await tool(page, '✏️ Изменить имя').count())) problems.push('«Профиль»: нет «✏️ Изменить имя»');
       const lang = page.locator('#main .ds-list-item--link', { hasText: '🌐 Язык' });
@@ -1696,9 +1671,9 @@ addEventListener('message', (e) => {
       const modes = await page.locator('#main .ds-segmented__item').allTextContents();
       if (modes.join('|') !== '🔔 Звук|🔕 Тихо|🚫 Выкл') problems.push(`«Уведомления»: ${modes.join(', ')}`);
       if ((await page.locator('#main .ds-segmented__item--on').allTextContents()).join('|') !== '🔔 Звук') problems.push('«Уведомления»: выбран не «🔔 Звук»');
-      const how = await page.locator('#main .ds-section-title', { hasText: 'О боте' }).locator('xpath=following-sibling::*[1]').locator('li').count();
-      if (how !== 3) problems.push(`«О боте»: пунктов ${how}, ожидалось 3`);
-      if (await page.locator('#main .ds-donate').count()) problems.push('закрытый бот: в «О боте» есть «Поддержать проект»');
+      const notifyCard = page.locator('#main .ds-section-title', { hasText: 'Уведомления' }).locator('xpath=following-sibling::*[1]');
+      if (await notifyCard.locator('.ds-hint').count()) problems.push('«Уведомления»: осталась подсказка');
+      if (await page.locator('#main .ds-donate').count()) problems.push('закрытый бот: в «Настройках» есть «Поддержать проект»');
       await lang.click();
       await page.locator('.ds-sheet__title', { hasText: '🌐 Язык' }).waitFor({ timeout: 5000 });
       const langs = await page.locator('.ds-sheet .ds-btn').allTextContents();
@@ -1712,7 +1687,7 @@ addEventListener('message', (e) => {
     await onPage(problems, '«Настройки» владельца бота', admin, null, async (page) => {
       await toSettings(page);
       const t = await titles(page);
-      if (t.join('|') !== 'Профиль|Уведомления|О боте|Владелец бота') problems.push(`владелец бота: разделы ${t.join(', ')}`);
+      if (t.join('|') !== 'Профиль|Уведомления|Владелец бота') problems.push(`владелец бота: разделы ${t.join(', ')}`);
       const tools = await page.locator('#main .ds-section-title', { hasText: 'Владелец бота' }).locator('xpath=following-sibling::*[1]').locator('.ds-btn').allTextContents();
       const TOOLS = ['🗂 Все события', '✍️ Кто может создавать события', '📜 Журнал бота', '👑 Передать права владельца бота'];
       if (tools.join('|') !== TOOLS.join('|')) problems.push(`«Владелец бота»: ${tools.join(', ')}`);
@@ -1788,7 +1763,7 @@ addEventListener('message', (e) => {
     }
 
     if (problems.length) colorProblems.push(...problems.map((x) => '«Настройки» (063): ' + x));
-    else console.log('✔ «Настройки» (063): ⚙️ и «‹»; участнику — профиль, язык, уведомления, «О боте»; владельцу бота — все события (новые первыми, открывают событие), кто может создавать (разрешение и кнопка у человека — туда и обратно), журнал бота, передача прав («Отмена» — прежний владелец)');
+    else console.log('✔ «Настройки» (063): ⚙️ и «‹»; участнику — профиль, язык, уведомления (064: без «О боте»); владельцу бота — все события (новые первыми, открывают событие), кто может создавать (разрешение и кнопка у человека — туда и обратно), журнал бота, передача прав («Отмена» — прежний владелец)');
   }
 
   // 063: главный экран «Мои события». Идёт после проверок, которые создают события: у admin длинный список — «Идут» (по
@@ -1991,8 +1966,9 @@ addEventListener('message', (e) => {
     else console.log('✔ открытый бот (063): незнакомец — пустые «Мои события» с подсказкой и «Создать событие» (обе темы), шторка с лимитом, событие на «Управлении», строка «👑 владелец»; пришедший по ссылке тоже создаёт; на пределе «Создать» недоступна');
   }
 
-  // 053: «Нравится бот?» на «Инфо» — только в открытом боте, сразу под «Нужна помощь?» (или на его месте), перед «Как это
-  // работает»; кнопка — openLink без запросов к Worker (заглушка SDK: скрипт Telegram на страницах прогона заблокирован)
+  // 053: «Нравится бот?» на «Инфо» — только в открытом боте, сразу под «Нужна помощь?» (или на его месте), последним или
+  // перед «Выход из события» (064: «Как это работает» нет); кнопка — openLink без запросов к Worker (заглушка SDK: скрипт
+  // Telegram на страницах прогона заблокирован)
   async function checkDonate() {
     const problems = [];
     const DONATE = 'https://dalink.to/trivial_no';
@@ -2014,7 +1990,7 @@ addEventListener('message', (e) => {
       await page.goto(`${base}/app?event=${event}#tgWebAppData=${encodeURIComponent(initData(user))}`);
       await page.waitForSelector('.ds-tabs:not([hidden])');
       await page.locator('.ds-tab', { hasText: 'Инфо' }).click();
-      await page.locator('#main .ds-section-title', { hasText: 'Как это работает' }).waitFor({ timeout: 5000 });
+      await page.locator('#main .ds-section-title', { hasText: 'Участники' }).waitFor({ timeout: 5000 });
       return page;
     };
     const titles = (page) => page.locator('#main .ds-section-title').allTextContents();
@@ -2023,7 +1999,8 @@ addEventListener('message', (e) => {
       const t = await titles(page);
       const i = t.indexOf('Нравится бот?');
       if (i < 0) return problems.push(`${what}: нет «Нравится бот?» (разделы: ${t.join(' · ')})`);
-      if (t[i + 1] !== 'Как это работает') problems.push(`${what}: после «Нравится бот?» — «${t[i + 1]}»`);
+      if (![undefined, 'Выход из события'].includes(t[i + 1])) problems.push(`${what}: после «Нравится бот?» — «${t[i + 1]}»`);
+      if (t.includes('Как это работает')) problems.push(`${what}: остался «Как это работает»`);
       if (before && t[i - 1] !== before) problems.push(`${what}: перед «Нравится бот?» — «${t[i - 1]}», ожидалось «${before}»`);
       const card = await page.locator('#main .ds-donate').evaluate((el) => [...el.children].map((c) => c.textContent));
       if (JSON.stringify(card) !== JSON.stringify(CARD)) problems.push(`${what}: карточка ${JSON.stringify(card)}`);
@@ -2117,7 +2094,7 @@ addEventListener('message', (e) => {
     }
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'поддержка проекта (053): ' + x));
-    else console.log('✔ поддержка проекта: в открытом боте — под «Нужна помощь?», перед «Как это работает», у организатора и в завершённом; кнопка DonationAlerts в обеих темах, openLink без запросов, 320 точек; в закрытом боте блока нет');
+    else console.log('✔ поддержка проекта: в открытом боте — под «Нужна помощь?», последним или перед «Выход из события» (без «Как это работает»), у организатора и в завершённом; кнопка DonationAlerts в обеих темах, openLink без запросов, 320 точек; в закрытом боте блока нет');
   }
 
   // event — открыть эвент (как из кнопки бота); без него — главный экран «Мои события» (063)
@@ -2164,18 +2141,16 @@ addEventListener('message', (e) => {
   await shot(ward, '10-chat-ward-view', { event: A, fullPage: false, tab: 'Письмо', before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
   await shot(ward, '10-chat-ward-view', { event: A, fullPage: false, tab: 'Письмо', dark: true, before: (p) => p.locator('.ds-btn', { hasText: 'Написать Санте' }).click() });
   await shot(people[1], '05-ward-hidden', { event: A, tab: 'Подопечный' });
-  // 007: объявление во вкладке «Инфо», отметка «получил подарок», журнал действий
+  // 007: объявление во вкладке «Инфо», журнал действий (064: отметки «получил подарок» нет)
   await w.api(admin, 'admin.announce', { event: A, text: 'Собираемся 27 декабря в 18:00 у Маши. Подарки кладём под ёлку, подписываем только именем получателя 🎄' });
-  await w.api(ward, 'ward.received', { event: A, received: true });
   await shot(people[0], '06-info', { event: A, tab: 'Инфо' });
-  await shot(ward, '17-my-gift-received', { event: A, tab: 'Письмо' });
   await shot(admin, '07-admin-after-draw', { event: A, tab: 'Управление' });
   await shot(people[0], '08-admin-as-regular-admin', { event: A, tab: 'Управление' });
   await shot(admin, '08b-admin-not-member', { event: B, tab: 'Управление' });
   // 012: вопрос организатору — «Инфо» → «Нужна помощь?», переписка участника, раздел «Обращения», шторка обращения
-  await w.api(people[2], 'support.send', { event: A, text: 'Не могу найти, где отметить, что подарок готов 🙈' });
-  const sup = await w.api(people[3], 'support.send', { event: A, text: 'Можно поменять адрес доставки после жеребьёвки?' });
-  await w.api(people[0], 'admin.support.send', { event: A, thread: sup.thread, text: 'Да, во вкладке «Письмо» — Санта сразу увидит новый адрес.' });
+  await w.api(people[2], 'support.send', { event: A, text: 'Не могу найти, где написать Санте 🙈' });
+  const sup = await w.api(people[3], 'support.send', { event: A, text: 'Можно поменять письмо после жеребьёвки?' });
+  await w.api(people[0], 'admin.support.send', { event: A, thread: sup.thread, text: 'Да, во вкладке «Письмо» — Санта сразу увидит новое письмо.' });
   await shot(people[3], '24-info-support', { event: A, tab: 'Инфо' });
   const openMySupport = (p) => p.locator('.ds-btn', { hasText: 'Задать вопрос' }).first().click();
   await shot(people[3], '25-support-chat', { event: A, fullPage: false, tab: 'Инфо', before: openMySupport });
@@ -2187,8 +2162,8 @@ addEventListener('message', (e) => {
   await shot(admin, '18-audit', { event: A, fullPage: false, tab: 'Управление', before: (p) => p.locator('.ds-btn', { hasText: 'Журнал действий' }).click() });
   await shot(admin, '11-participant-menu', { event: A, fullPage: false, tab: 'Управление', before: (p) => p.locator('.ds-icon-btn[title="Действия с участником"]').nth(2).click() });
   await shot(admin, '12-danger-zone', { event: A, fullPage: false, tab: 'Управление', before: async (p) => {
-    await p.locator('.ds-btn', { hasText: 'Полный сброс' }).click();
-    await p.locator('.ds-sheet .ds-input').fill('СБРОС');
+    await p.locator('.ds-btn--danger', { hasText: 'Удалить событие' }).click();
+    await p.locator('.ds-sheet .ds-input').fill('УДАЛИТЬ');
   } });
   // 012: принудительная отмена жеребьёвки владельцем (подопечных уже открыли)
   await shot(admin, '28-force-cancel', { event: A, fullPage: false, tab: 'Управление', before: async (p) => {

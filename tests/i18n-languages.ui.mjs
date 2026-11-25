@@ -104,7 +104,7 @@ for (const [user, lang] of [[anna, 'en'], [li, 'zh']]) {
     const home = await openApp(t, user);
     assert.equal(await home.page.evaluate(() => document.documentElement.lang), lang);
     await expectClean(home.page, 'главный экран', found);
-    // «Настройки» (063): профиль, язык, уведомления, «О боте»; у владельца бота (anna) — его раздел и шторки
+    // «Настройки» (063): профиль, язык, уведомления (064: без «О боте»); у владельца бота (anna) — его раздел и шторки
     await home.page.locator('#heroAction').click();
     await home.page.waitForTimeout(300);
     await expectClean(home.page, '«Настройки»', found);
