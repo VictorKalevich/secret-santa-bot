@@ -43,9 +43,9 @@ export default {
   'app.vault.swap.impossible': 'Tych dwóch osób nie można zamienić — wybierz inną parę.',
   'app.vault.swap.breaksOne': '⚠️ Zamiana narusza jedną z zasad losowania.',
   'app.vault.swap.breaksMany': '⚠️ Zamiana narusza kilka zasad losowania.',
-  'app.vault.swap.warning': 'Po zamianie bot napisze do tych, którzy już otworzyli podopiecznego, że się zmienił. Oznaczenia prezentu, maski i czaty tych dwóch par zaczną się od nowa.',
+  'app.vault.swap.warning': 'Po zamianie bot napisze do tych, którzy już otworzyli podopiecznego, że się zmienił. Oznaczenia prezentu i czaty tych dwóch par zaczną się od nowa.',
   'app.vault.swap.agree': 'Zgadzam się — zamień mimo to',
-  'app.vault.swap.confirm': 'Zamienić podopiecznych: „{a}” i „{b}”? Kto już otworzył podopiecznego, dostanie od bota wiadomość o zmianie. Oznaczenia prezentu, maski i czaty obu par zaczną się od nowa.',
+  'app.vault.swap.confirm': 'Zamienić podopiecznych: „{a}” i „{b}”? Kto już otworzył podopiecznego, dostanie od bota wiadomość o zmianie. Oznaczenia prezentu i czaty obu par zaczną się od nowa.',
   // Activity log: event, shared room log, bot log
   'app.vault.log.event': 'Dziennik wydarzenia',
   'app.vault.log.common': 'Wspólny dziennik',

@@ -7,17 +7,18 @@
 // слов подтверждения, людей и текстов) — опасные действия получают отказ по данным, а не по правам. Админ и владелец
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
 //
-// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 040: NEW_ACTIONS_040, 041, 042, 048, 051,
-// 052, 061), проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не
-// сдвигаются; их ответы — новые ключи эталона «035 …», «038 …», «040 …», «041 …», «042 …», «048 …», «051 …», «052 …» (052 —
-// ещё и второй мир, открытый бот: «052 open …») и «061 …».
+// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 041, 042, 048, 051, 052, 061), проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не
+// сдвигаются; их ответы — новые ключи эталона «035 …», «038 …», «041 …», «042 …», «048 …», «051 …», «052 …» (052 —
+// ещё и второй мир, открытый бот: «052 open …») и «061 …». 062: действий семей и маски (040) нет — их ответы из эталона
+// удалены (tests/api-refusals.test.mjs).
 import { startWorld } from './world.mjs';
 
-// 59 действий в порядке прежних `case` в src/api.js: 13 участника, 11 общих админа, 35 — в пределах события
+// 56 действий в порядке прежних `case` в src/api.js: 13 участника, 8 общих админа, 35 — в пределах события (062: без
+// admin.families, admin.family.save, admin.family.delete)
 export const ACTION_LIST = [
   'me', 'notify.set', 'event.get', 'wishlist.save', 'delivery.save', 'ward.get', 'ward.gift', 'ward.received',
   'message.send', 'chat.get', 'support.get', 'support.send', 'support.close',
-  'admin.events.create', 'admin.families', 'admin.family.save', 'admin.family.delete', 'admin.audit', 'admin.users',
+  'admin.events.create', 'admin.audit', 'admin.users',
   'admin.rename', 'admin.transfer', 'admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer',
   'admin.state', 'admin.wishlist', 'admin.game', 'admin.ring', 'admin.registration', 'admin.invite.regen',
   'admin.avoid_previous', 'admin.participate', 'admin.remove', 'admin.removed.allow', 'admin.insert',
@@ -33,8 +34,6 @@ export const UNKNOWN = ['admin.nope', 'nope'];
 export const NEW_ACTIONS = ['name.set', 'event.leave'];
 // 038: значок у имени и открытка письма
 export const NEW_ACTIONS_038 = ['card.set'];
-// 040: маска Санты в переписке
-export const NEW_ACTIONS_040 = ['mask.set'];
 export const NEW_ACTIONS_042 = ['ward.shipment'];
 export const NEW_ACTIONS_041 = ['wishlist.draft', 'wishlist.publish'];
 // 048: обмен подопечных после жеребьёвки — только владелец
@@ -195,20 +194,6 @@ export async function runRefusals() {
     ['card-finished', member, 'card.set', { event: F, card: 'snow' }],
   ];
   for (const [name, user, action, b] of extra038) await record(`038 extra ${name}`, user, action, b);
-
-  // ---------- 040: маска — те же ситуации; не из набора, в завершённом, без подопечного, после раскрытия ----------
-  for (const [name, user, ev] of situations) {
-    for (const a of NEW_ACTIONS_040) await record(`040 ${name} ${a}`, user, a, body(await ev()));
-  }
-  const extra040 = [
-    ['mask-unknown', member, 'mask.set', { event: D, mask: 'nope' }],
-    ['mask-finished', member, 'mask.set', { event: F, mask: 'dragon' }],
-    ['mask-no-ward', member, 'mask.set', { event: E, mask: 'dragon' }],
-    ['mask-ok', member, 'mask.set', { event: D, mask: 'dragon' }],
-  ];
-  for (const [name, user, action, b] of extra040) await record(`040 extra ${name}`, user, action, b);
-  await w.api(boss, 'admin.reveal', { event: D });
-  await record('040 extra mask-revealed', member, 'mask.set', { event: D, mask: 'ghost' });
 
   for (const [name, user, ev] of situations) {
     for (const a of NEW_ACTIONS_041) await record(`041 ${name} ${a}`, user, a, body(await ev()));

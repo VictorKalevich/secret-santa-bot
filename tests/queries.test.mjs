@@ -46,7 +46,6 @@ const BASELINE = {
   'event.get (участник, до жеребьёвки)': [4, 0],
   'admin.exclusion.add': [6, 0],
   'admin.fixed.add': [6, 0],
-  'admin.family.save': [4, 0],
   'admin.game': [4, 0],
   'admin.draw.check': [4, 0],
   'admin.draw (14 человек)': [8, 14],
@@ -83,7 +82,7 @@ const BASELINE = {
 test('запросы: каждое действие сценария не тяжелее базового замера', async () => {
   const { rows, world } = await runQueriesScenario();
   assert.deepEqual(rows.map((r) => r.name), Object.keys(BASELINE), 'тот же набор действий');
-  assert.equal(rows.length, 47);
+  assert.equal(rows.length, 46);
   const worse = [];
   for (const { name, db, tg } of rows) {
     const [maxDb, wantTg] = BASELINE[name];

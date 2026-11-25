@@ -62,11 +62,9 @@ export default {
   'bot.reply.failed': '❌ {error}',
   'bot.reply.toWardSent': '✅ Terkirim ke penerima kado atas nama «Secret Santa».',
   'bot.reply.toSantaSent': '✅ Terkirim ke Santa-mu.',
-  // "Write a message" hint ({mask} — Santa mask)
+  // "Write a message" hint
   'bot.reply.toWard': '✍️ Tulis pesan untuk penerima kado ({title}) — aku akan meneruskannya secara <b>anonim</b>, atas nama «Secret Santa».',
-  'bot.reply.toWardMasked': '✍️ Tulis pesan untuk penerima kado ({title}) — aku akan meneruskannya secara <b>anonim</b>, atas nama «Secret Santa · {mask}».',
   'bot.reply.toSanta': '✍️ Tulis pesan untuk Santa-mu ({title}) — aku akan meneruskannya. Santa tahu siapa kamu, tapi kamu tidak tahu siapa dia.',
-  'bot.reply.toSantaMasked': '✍️ Tulis pesan untuk Santa-mu «{mask}» ({title}) — aku akan meneruskannya. Santa tahu siapa kamu, tapi kamu tidak tahu siapa dia.',
   // Support requests to organizers
   'bot.support.sent': '✅ Pesan terkirim. Balasannya akan datang ke sini.',
   'bot.support.adminsOnly': '❌ Hanya pemilik dan admin yang bisa membalas tiket.',

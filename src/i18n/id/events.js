@@ -19,10 +19,9 @@ export default {
   'events.invite': '📨 <b>Undangan ke acara {title}</b> — Secret Santa.\nTekan tombol untuk ikut.',
   'events.inviteButton': '🎄 Ikut',
   'events.inviteAgain': 'Undangan sudah dikirim — bisa diulang setelah satu menit.',
-  // Reveal: {mask} — Santa mask, {name} — Santa name
+  // Reveal: {name} — Santa name
   'events.alreadyRevealed': 'Rahasia sudah terungkap.',
   'events.revealed': '🎅 <b>Rahasia terungkap!</b>\n\nDi acara {title}, Secret Santa-mu adalah <b>{name}</b>. Selamat merayakan! 🎄',
-  'events.revealedMask': '🎅 <b>Rahasia terungkap!</b>\n\nDi acara {title}, Secret Santa-mu «{mask}» adalah <b>{name}</b>. Selamat merayakan! 🎄',
   // Reminders: empty letter (with and without deadline) and to Santas (with and without the gift date)
   'events.remindAgain': 'Pengingat sudah dikirim — bisa diulang setelah satu menit.',
   'events.remindUnfilled': '⏰ Pengingat: suratmu untuk Santa di acara {title} masih kosong. Isi suratnya supaya Santa lebih mudah memilih kado.',

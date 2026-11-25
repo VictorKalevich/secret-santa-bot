@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': 'Tanda ini terlihat oleh pemilik dan admin',
   'app.event.gift.done': '🎉 Mantap! Kado ditandai siap',
   'app.event.markRemoved': 'Tanda dihapus',
-  // Santa mask; {mask} — emoji and name, mask names come from the server
-  'app.event.mask.santa': 'Secret Santa',
-  'app.event.mask.santaMasked': 'Secret Santa · {mask}',
-  'app.event.mask.worn': 'Santa-mu memakai topeng «{mask}».',
-  'app.event.mask.current': 'Topeng di obrolan: {mask}.',
-  'app.event.mask.button': '🎭 Topeng: {mask}',
-  'app.event.mask.none': 'tanpa topeng',
-  'app.event.mask.noneTile': 'Tanpa topeng',
-  'app.event.mask.title': 'Topeng di obrolan',
-  'app.event.mask.hint': 'Begini penerima kado akan melihatmu di obrolan dan di pesan bot. Siapa di balik topeng, dia akan tahu saat rahasia terungkap. Topeng bisa berbeda di setiap acara.',
-  'app.event.mask.picked': 'Topeng dipilih',
-  'app.event.mask.removed': 'Topeng dilepas',
+  // Santa's name in chat hints
+  'app.event.santa': 'Secret Santa',
   // "Giftee"; in ward.changed {added} and {removed} become ward.added and ward.removed with highlighting
   'app.event.ward.noDrawTitle': 'Undian belum dilakukan',
   'app.event.ward.noDrawText': 'Setelah undian, nama dan surat penerima kadomu akan muncul di sini. Bot akan mengirim notifikasi.',

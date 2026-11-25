@@ -57,9 +57,7 @@ export default {
   'bot.reply.toWardSent': '✅ Wysłano do podopiecznego jako „Tajemniczy Mikołaj”.',
   'bot.reply.toSantaSent': '✅ Wysłano do Twojego Mikołaja.',
   'bot.reply.toWard': '✍️ Napisz wiadomość do podopiecznego ({title}) — przekażę ją <b>anonimowo</b>, jako „Tajemniczy Mikołaj”.',
-  'bot.reply.toWardMasked': '✍️ Napisz wiadomość do podopiecznego ({title}) — przekażę ją <b>anonimowo</b>, jako „Tajemniczy Mikołaj · {mask}”.',
   'bot.reply.toSanta': '✍️ Napisz wiadomość do swojego Mikołaja ({title}) — przekażę ją. Mikołaj Cię zna, a Ty jego — nie.',
-  'bot.reply.toSantaMasked': '✍️ Napisz wiadomość do swojego Mikołaja „{mask}” ({title}) — przekażę ją. Mikołaj Cię zna, a Ty jego — nie.',
   // Requests to the organizers (012)
   'bot.support.sent': '✅ Wiadomość wysłana. Odpowiedź przyjdzie tutaj.',
   'bot.support.adminsOnly': '❌ Na zgłoszenia mogą odpowiadać właściciel i administratorzy.',

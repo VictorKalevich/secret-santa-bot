@@ -1,4 +1,4 @@
-// Texts of src/looks.js (060): postcard and Santa mask names
+// Texts of src/looks.js (060): postcard names
 export default {
   // Letter postcards (looks.card.<id> for each postcard of POSTCARDS)
   'looks.card.snow': '飘雪',
@@ -16,27 +16,4 @@ export default {
   'looks.card.sparkle': '金色闪光',
   'looks.card.nordic': '北欧花纹',
   'looks.card.airmail': '航空信',
-  // Santa masks (looks.mask.<id> for each mask of MASKS)
-  'looks.mask.elf': '小精灵',
-  'looks.mask.wizard': '魔法师',
-  'looks.mask.fairy': '仙女',
-  'looks.mask.genie': '神灯精灵',
-  'looks.mask.dragon': '神龙',
-  'looks.mask.ghost': '小幽灵',
-  'looks.mask.matryoshka': '套娃',
-  'looks.mask.agent': '秘密特工',
-  'looks.mask.ninja': '忍者',
-  'looks.mask.stranger': '神秘人',
-  'looks.mask.superhero': '超级英雄',
-  'looks.mask.robot': '小机器人',
-  'looks.mask.alien': '外星人',
-  'looks.mask.dinosaur': '恐龙',
-  'looks.mask.lion': '狮子',
-  'looks.mask.frog': '青蛙',
-  'looks.mask.turtle': '小乌龟',
-  'looks.mask.octopus': '章鱼',
-  'looks.mask.whale': '鲸鱼',
-  'looks.mask.seal': '海豹',
-  // Mask as text: "🐉 神龙"
-  'looks.maskLabel': '{emoji} {title}',
 };

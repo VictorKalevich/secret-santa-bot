@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': 'und umgekehrt (in beide Richtungen)',
   'app.admin.rules.pickTwo': 'Wähle zwei Personen',
   'app.admin.rules.different': 'Es braucht zwei verschiedene Personen',
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': 'Ausschlüsse',
   'app.admin.exclusions.empty': 'Keine Ausschlüsse – jeder kann jeden beschenken.',
   'app.admin.exclusions.both': '{giver} und {receiver} beschenken sich nicht gegenseitig',
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': 'Nach der Auslosung ändern sich die Ausschlüsse nicht mehr: Sonst ließen sich die Paare über den Austausch von Teilnehmern erraten. Um sie zu ändern, hebe die Auslosung auf (solange niemand sein Wichtelkind angesehen hat).',
   'app.admin.exclusions.afterDraw': 'Nach der Auslosung gelten die Ausschlüsse für künftige Änderungen (Entfernen und Aufnehmen von Teilnehmern), die aktuellen Paare bleiben. Ausschlüsse nach der Auslosung ändern kann nur der Inhaber.',
   'app.admin.exclusions.hint': 'Zum Beispiel Paare oder Mitglieder einer Familie. Der Bot sorgt dafür, dass die Auslosung diese Regeln einhält.',
-  'app.admin.families.title': '👪 Familien berücksichtigen',
-  'app.admin.families.hint': 'Familienmitglieder beschenken sich nicht gegenseitig. Familien legst du auf dem Startbildschirm fest.',
-  'app.admin.families.frozen': 'Nach der Auslosung nicht änderbar',
-  'app.admin.families.on': 'Familien werden berücksichtigt',
-  'app.admin.families.off': 'Familien werden nicht berücksichtigt',
   // Fixed pairs (owner only)
   'app.admin.fixed.title': 'Feste Paare',
   'app.admin.fixed.empty': 'Keine festen Paare – die Auslosung verteilt alle zufällig.',
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': '…wen beschenkt',
   'app.admin.fixed.add': 'Paar festlegen',
   'app.admin.fixed.added': 'Paar festgelegt',
-  'app.admin.fixed.hint': 'Der Bot lost diese Personen auf jeden Fall zusammen. Ein festes Paar geht vor Ausschlüssen und Familien. Diesen Bereich sieht nur der Inhaber.{ring}',
+  'app.admin.fixed.hint': 'Der Bot lost diese Personen auf jeden Fall zusammen. Ein festes Paar geht vor Ausschlüssen. Diesen Bereich sieht nur der Inhaber.{ring}',
   // Addition to the hint with the ring draw on (with a leading space)
   'app.admin.fixed.hintRing': ' Die Kreisauslosung ist an: Ein Paar lässt sich nur in eine Richtung festlegen.',
   // {pairs} - mutual pairs joined with "; "
@@ -270,6 +265,6 @@ export default {
     'Markierungen «Geschenk bereit» und «erhalten»;',
     'alle Chats zwischen Wichteln und Wichtelkindern in dieser Runde.',
   ],
-  'app.admin.danger.cancelKeep': 'Erhalten bleiben Wunschzettel, Adressen, Teilnehmer, Ausschlüsse und Familien. Die Anmeldung öffnet sich wieder, die Teilnehmer werden benachrichtigt.',
+  'app.admin.danger.cancelKeep': 'Erhalten bleiben Wunschzettel, Adressen, Teilnehmer und Ausschlüsse. Die Anmeldung öffnet sich wieder, die Teilnehmer werden benachrichtigt.',
   'app.admin.danger.canceled': '↩️ Auslosung aufgehoben. Paare gelöscht: {n}',
 };

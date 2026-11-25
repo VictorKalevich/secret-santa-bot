@@ -7,7 +7,6 @@ export default {
   'chat.pairChanged': "Eşleşme değişti — ekranı yenile.",
   'chat.pairChangedReply': "🔄 «↩️ Yanıtla» düğmesine bastıktan sonra eşleşme değişti — mesaj gönderilmedi. «↩️ Yanıtla» düğmesine yeniden bas.",
   'chat.santaTitle': "Gizli Noel Baba'n",
-  'chat.santaTitleMask': "Gizli Noel Baba'n «{mask}»",
   'chat.fromSanta': "💬 <b>{santa} ({title}) yazıyor:</b>\n\n{text}",
   'chat.fromWard': "💬 <b>Alıcın sana yazıyor ({title}):</b>\n\n{text}",
   'chat.historyButton': "💬 Tüm yazışma",

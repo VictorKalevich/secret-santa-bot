@@ -9,13 +9,11 @@ export default {
   'pairs.reason.search_exhausted': 'Couldn’t find a match quickly — try again. If it doesn’t work, remove some exclusions or turn off the ring draw.',
   'pairs.reason.fixed_block': 'The fixed pairs get in the way: with them, it’s impossible to match everyone by the rules. {owner.nomCap} can remove some of the fixed pairs.',
   'pairs.reason.too_strict': 'Too many exclusions: it’s impossible to match everyone and follow them all. Remove some exclusions.',
-  // Families block the draw
-  'pairs.familiesBlock': 'The families get in the way: family members don’t give to each other, and it’s impossible to match everyone that way. Turn off “Keep families apart” or the ring draw.',
   // The draw
   'pairs.drawn': '🎄 <b>The draw in {title} is done!</b>\n\nOpen the app and check the “Giftee” tab to find out who you’re giving a gift to. Don’t tell anyone 🤫',
   'pairs.drawnButton': '🎁 See my giftee',
   'pairs.drawFinished': 'The event has finished.',
-  'pairs.drawRace': 'Participants, exclusions or families changed during the draw — try again.',
+  'pairs.drawRace': 'Participants or exclusions changed during the draw — try again.',
   'pairs.notDrawn': 'The draw hasn’t happened.',
   // Pairs after a change of participants: to a new participant and to a Santa with a new giftee
   'pairs.inserted': '🎄 <b>You’re in the game!</b> You’ve been added to the draw in {title} — check the “Giftee” tab 🤫',
@@ -30,7 +28,6 @@ export default {
   // Swapping giftees (048): rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': 'One of the two gives to the other: after the swap, someone would give to themselves.',
   'pairs.swapRule.exclusion': 'Exclusions: one of the two would give to someone they shouldn’t give to.',
-  'pairs.swapRule.family': 'Families: one of the two would give to a member of their own family.',
   'pairs.swapRule.ring': 'Ring draw: a mutual pair would appear — two people would give to each other.',
   'pairs.swapRule.fixed': 'Fixed pairs: the swap would break a pair you fixed.',
   'pairs.swapRule.history': 'Past pairs: one of the two would give to the same person as in the previous event.',

@@ -14,7 +14,6 @@ export default {
   // Chat between Santa and giftee
   'app.sheet.chat.placeholder': 'Pesan…',
   'app.sheet.chat.yourSanta': 'Secret Santa-mu',
-  'app.sheet.chat.yourMasked': '{santa}',
   'app.sheet.chat.santaKnows': 'Santa tahu siapa kamu, tapi kamu tidak tahu siapa dia.',
   'app.sheet.chat.youAre': 'Bagi penerima kado, kamu adalah «{santa}», namamu tidak terungkap.',
   'app.sheet.chat.noDraw': 'Obrolan belum tersedia: undian belum dilakukan.',

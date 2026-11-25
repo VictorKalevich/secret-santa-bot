@@ -9,13 +9,11 @@ export default {
   'pairs.reason.search_exhausted': "Non è stato possibile trovare in fretta una combinazione: riprova. Se non funziona, togli qualche esclusione o disattiva il sorteggio circolare.",
   'pairs.reason.fixed_block': "Le coppie fisse sono d'ostacolo: con loro non si riesce ad assegnare tutti secondo le regole. {owner.nomCap} può togliere alcune coppie fisse.",
   'pairs.reason.too_strict': "Troppe esclusioni: non si riesce ad assegnare tutti rispettandole. Togli qualche esclusione.",
-  // Participant without a name in the reason
-  'pairs.familiesBlock': "Le famiglie sono d'ostacolo: chi è della stessa famiglia non si fa regali e così non si riesce ad assegnare tutti. Disattiva «Considera le famiglie» o il sorteggio circolare.",
   // Draw
   'pairs.drawn': "🎄 <b>Il sorteggio dell'evento {title} è fatto!</b>\n\nApri l'app e guarda nella scheda «Destinatario» a chi fai il regalo. Non dirlo a nessuno 🤫",
   'pairs.drawnButton': "🎁 Scopri il destinatario",
   'pairs.drawFinished': "L'evento è concluso.",
-  'pairs.drawRace': "Partecipanti, esclusioni o famiglie sono cambiati durante il sorteggio: riprova.",
+  'pairs.drawRace': "Partecipanti o esclusioni sono cambiati durante il sorteggio: riprova.",
   'pairs.notDrawn': "Il sorteggio non è stato fatto.",
   // Pairs after the membership change: to the new participant and to a Santa with a new giftee
   'pairs.inserted': "🎄 <b>Sei in gioco!</b> Il sorteggio dell'evento {title} è stato fatto anche per te: guarda nella scheda «Destinatario» 🤫",
@@ -30,7 +28,6 @@ export default {
   // Giftee swap (048): rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': "Uno dei due fa il regalo all'altro: dopo l'inversione qualcuno farebbe il regalo a se stesso.",
   'pairs.swapRule.exclusion': "Esclusioni: uno dei due farebbe il regalo a chi, per le esclusioni, non dovrebbe.",
-  'pairs.swapRule.family': "Famiglie: uno dei due farebbe il regalo a qualcuno della propria famiglia.",
   'pairs.swapRule.ring': "Sorteggio circolare: comparirebbe una coppia reciproca, due persone si farebbero il regalo a vicenda.",
   'pairs.swapRule.fixed': "Coppie fisse: l'inversione romperebbe una coppia che hai fissato.",
   'pairs.swapRule.history': "Coppie passate: uno dei due farebbe il regalo alla stessa persona dell'evento precedente.",

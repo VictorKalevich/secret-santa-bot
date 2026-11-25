@@ -7,10 +7,9 @@ export default {
   'chat.noSanta': 'The draw hasn’t happened for you yet.',
   'chat.pairChanged': 'The pair has changed — refresh the screen.',
   'chat.pairChangedReply': '🔄 The pair changed after you tapped “Reply” — the message wasn’t sent. Tap “↩️ Reply” again.',
-  // How the giftee sees Santa in bot messages: without a mask and with one (040)
+  // How the giftee sees Santa in bot messages
   'chat.santaTitle': 'Your Secret Santa',
-  'chat.santaTitleMask': 'Your Secret Santa “{mask}”',
-  // Message to the other side: {santa} — chat.santaTitle*, {title} — event name, {text} — message text
+  // Message to the other side: {santa} — chat.santaTitle, {title} — event name, {text} — message text
   'chat.fromSanta': '💬 <b>{santa} ({title}) writes:</b>\n\n{text}',
   'chat.fromWard': '💬 <b>Your giftee ({title}) writes:</b>\n\n{text}',
   'chat.historyButton': '💬 Whole chat',

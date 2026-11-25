@@ -26,7 +26,7 @@ export default {
   'app.companies.new.placeholder': 'Например: Работа',
   'app.companies.new.done': '🚪 Комната создана',
   'app.companies.new.hintOwn': 'Ты станешь владельцем комнаты: создаёшь события, приглашаешь людей, назначаешь администраторов. Название увидят все люди комнаты.',
-  'app.companies.new.hintBot': 'У комнаты свои люди, события, семьи и администраторы. Её можно вести самому или отдать владельцу по ссылке.',
+  'app.companies.new.hintBot': 'У комнаты свои люди, события и администраторы. Её можно вести самому или отдать владельцу по ссылке.',
   // Шторка «Комната» владельца бота: кто ведёт
   'app.companies.lead.title': 'Кто ведёт',
   'app.companies.lead.you': 'Ты',
@@ -50,7 +50,7 @@ export default {
   'app.companies.delete.hasEvents': 'В комнате есть события — сначала удали их.',
   'app.companies.delete.button': '🗑 Удалить комнату',
   'app.companies.delete.title': 'Удалить комнату',
-  'app.companies.delete.lines': ['её люди, администраторы и семьи;', 'общий журнал комнаты.'],
+  'app.companies.delete.lines': ['её люди и администраторы;', 'общий журнал комнаты.'],
   'app.companies.delete.keepBot': 'Событий в комнате нет. Её владелец и администраторы получат сообщение.',
   'app.companies.delete.keepOwn': 'Событий в комнате нет. Её администраторы получат сообщение.',
   'app.companies.delete.done': 'Комната удалена',

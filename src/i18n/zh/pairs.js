@@ -9,13 +9,11 @@ export default {
   'pairs.reason.search_exhausted': '没能很快找到合适的分配，请再试一次。如果还不行，请删掉部分排除规则或关闭环形抽签。',
   'pairs.reason.fixed_block': '固定配对造成了冲突：有了它们，无法按规则为所有人分配。{owner.nomCap}可以移除部分固定配对。',
   'pairs.reason.too_strict': '排除规则太多了：无法在遵守所有规则的前提下为所有人分配。请删掉部分排除规则。',
-  // A participant without a name in a reason
-  'pairs.familiesBlock': '家庭规则造成了冲突：同一家庭的成员互不送礼，这样无法为所有人分配。请关闭“考虑家庭”或环形抽签。',
   // Draw
   'pairs.drawn': '🎄 <b>活动 {title} 已完成抽签！</b>\n\n打开应用，在“收礼人”页面看看你要给谁送礼物。不要告诉任何人哦 🤫',
   'pairs.drawnButton': '🎁 查看收礼人',
   'pairs.drawFinished': '活动已结束。',
-  'pairs.drawRace': '抽签期间参与者、排除规则或家庭发生了变化，请重试。',
+  'pairs.drawRace': '抽签期间参与者或排除规则发生了变化，请重试。',
   'pairs.notDrawn': '还没有抽签。',
   // Pairs after a change of members: to the new participant and to Santa with a new giftee
   'pairs.inserted': '🎄 <b>你加入游戏了！</b>活动 {title} 已为你完成抽签，去“收礼人”页面看看吧 🤫',
@@ -30,7 +28,6 @@ export default {
   // Swapping giftees (048): rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': '两人中有一人送礼给另一人：交换后会有人送礼给自己。',
   'pairs.swapRule.exclusion': '排除规则：两人中会有人送礼给按规则不该送的人。',
-  'pairs.swapRule.family': '家庭：两人中会有人送礼给自己的家人。',
   'pairs.swapRule.ring': '环形抽签：会出现互相送礼的配对，两人会互相送礼。',
   'pairs.swapRule.fixed': '固定配对：交换会拆散你设置的固定配对。',
   'pairs.swapRule.history': '以往配对：两人中会有人送礼给上次活动中送过的同一个人。',

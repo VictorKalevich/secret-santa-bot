@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': '反之亦然（双向）',
   'app.admin.rules.pickTwo': '请选择两个人',
   'app.admin.rules.different': '需要两个不同的人',
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': '排除规则',
   'app.admin.exclusions.empty': '没有排除规则：任何人都可以送礼给任何人。',
   'app.admin.exclusions.both': '{giver} 和 {receiver} 互不送礼',
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': '抽签后不能修改排除规则：否则可以根据参与者的变动推算出配对。要修改，请取消抽签（在还没有人查看收礼人之前）。',
   'app.admin.exclusions.afterDraw': '抽签后，排除规则对之后的调整（移除和加入参与者）生效，现有配对不变。抽签后只有所有者可以修改排除规则。',
   'app.admin.exclusions.hint': '例如情侣或同一家庭的成员。机器人不会让抽签违反这些规则。',
-  'app.admin.families.title': '👪 考虑家庭',
-  'app.admin.families.hint': '同一家庭的成员互不送礼。家庭在主页设置。',
-  'app.admin.families.frozen': '抽签后不能修改',
-  'app.admin.families.on': '会考虑家庭',
-  'app.admin.families.off': '不考虑家庭',
   // Fixed pairs (owner only)
   'app.admin.fixed.title': '固定配对',
   'app.admin.fixed.empty': '没有固定配对：抽签会随机分配所有人。',
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': '…送礼给谁',
   'app.admin.fixed.add': '添加固定配对',
   'app.admin.fixed.added': '配对已固定',
-  'app.admin.fixed.hint': '抽签时机器人一定会让这两人配对。固定配对优先于排除规则和家庭。只有所有者能看到这一部分。{ring}',
+  'app.admin.fixed.hint': '抽签时机器人一定会让这两人配对。固定配对优先于排除规则。只有所有者能看到这一部分。{ring}',
   // Addition to the hint with the ring draw (leading space in Russian)
   'app.admin.fixed.hintRing': '环形抽签已开启：配对只能单向固定。',
   // {pairs}: mutual pairs joined with "; "
@@ -268,6 +263,6 @@ export default {
     '“礼物已备好”和“已收到”标记；',
     '这个活动中圣诞老人和收礼人的全部聊天记录。',
   ],
-  'app.admin.danger.cancelKeep': '心愿信、地址、参与者、排除规则和家庭都会保留。报名会重新开放，参与者会收到通知。',
+  'app.admin.danger.cancelKeep': '心愿信、地址、参与者和排除规则都会保留。报名会重新开放，参与者会收到通知。',
   'app.admin.danger.canceled': '↩️ 抽签已取消。已删除配对：{n}',
 };

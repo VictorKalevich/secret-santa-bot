@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': 'Die Markierung sehen der Inhaber und die Admins',
   'app.event.gift.done': '🎉 Super! Das Geschenk ist als bereit markiert',
   'app.event.markRemoved': 'Markierung entfernt',
-  // Santa mask (040); {mask} - "🐉 Drache", mask names come from the server
-  'app.event.mask.santa': 'Wichtel',
-  'app.event.mask.santaMasked': 'Wichtel · {mask}',
-  'app.event.mask.worn': 'Dein Wichtel trägt die Maske «{mask}».',
-  'app.event.mask.current': 'Maske im Chat: {mask}.',
-  'app.event.mask.button': '🎭 Maske: {mask}',
-  'app.event.mask.none': 'ohne Maske',
-  'app.event.mask.noneTile': 'Ohne Maske',
-  'app.event.mask.title': 'Maske im Chat',
-  'app.event.mask.hint': 'So sieht dich dein Wichtelkind im Chat und in den Nachrichten des Bots. Wer hinter der Maske steckt, erfährt es bei der Auflösung. Die Maske gilt jeweils nur für eine Runde.',
-  'app.event.mask.picked': 'Maske gewählt',
-  'app.event.mask.removed': 'Maske abgenommen',
+  // Santa's name in chat hints
+  'app.event.santa': 'Wichtel',
   // "Giftee"; in ward.changed the words ward.added and ward.removed with highlighting replace {added} and {removed}
   'app.event.ward.noDrawTitle': 'Die Auslosung hat noch nicht stattgefunden',
   'app.event.ward.noDrawText': 'Nach der Auslosung erscheinen hier der Name und der Wunschzettel deines Wichtelkinds. Der Bot schickt dir eine Benachrichtigung.',

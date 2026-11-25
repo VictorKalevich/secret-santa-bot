@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': "Le propriétaire et les administrateurs voient cette case",
   'app.event.gift.done': "🎉 Super ! Le cadeau est marqué comme prêt",
   'app.event.markRemoved': "Case décochée",
-  // Santa's mask (040); {mask} - "🐉 Dragon", mask names come from the server
-  'app.event.mask.santa': "Père Noël secret",
-  'app.event.mask.santaMasked': "Père Noël secret · {mask}",
-  'app.event.mask.worn': "Ton Père Noël porte le masque « {mask} ».",
-  'app.event.mask.current': "Masque dans la conversation : {mask}.",
-  'app.event.mask.button': "🎭 Masque : {mask}",
-  'app.event.mask.none': "sans masque",
-  'app.event.mask.noneTile': "Sans masque",
-  'app.event.mask.title': "Masque dans la conversation",
-  'app.event.mask.hint': "C'est ainsi que ton destinataire te verra dans la conversation et dans les messages du bot. Il découvrira qui se cache derrière le masque à la révélation. Chaque événement a son propre masque.",
-  'app.event.mask.picked': "Masque choisi",
-  'app.event.mask.removed': "Masque retiré",
+  // Santa's name in chat hints
+  'app.event.santa': "Père Noël secret",
   // "Giftee"; in ward.changed {added} and {removed} are replaced with ward.added and ward.removed, highlighted
   'app.event.ward.noDrawTitle': "Le tirage n'a pas encore eu lieu",
   'app.event.ward.noDrawText': "Après le tirage, le nom et la lettre de ton destinataire apparaîtront ici. Le bot te préviendra.",

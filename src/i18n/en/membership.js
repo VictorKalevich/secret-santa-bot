@@ -1,13 +1,7 @@
-// Texts of src/membership.js (061, English): joining, join requests, families, "I'm participating", leaving
+// Texts of src/membership.js (061, English): joining, join requests, "I'm participating", leaving
 export default {
-  // Families (008): rules and freezing the members while a draw is in progress (009)
-  'membership.familyNameRule': 'The family name must be 1 to 40 characters.',
-  'membership.familySize': 'A family must have 2 to {max} people.',
-  'membership.familyNotFound': 'Family not found.',
   'membership.memberNotFound': 'Participant not found.',
-  'membership.alreadyInFamily': '{name} is already in the family “{family}”.',
-  'membership.familyFrozen': 'The family members can’t be changed while “{title}” is ongoing with the draw done: otherwise the pairs could be figured out from participant replacements. You can make changes after it finishes.',
-  // Log: family — name and members, "I'm participating"
+  // Log: family — name and members (records before 062), "I'm participating"
   'membership.audit.familySave': '“{name}”: {people}',
   'membership.audit.familyDelete': '“{name}”',
   'membership.audit.isParticipant': 'participating',

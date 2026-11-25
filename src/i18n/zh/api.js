@@ -9,7 +9,6 @@ export default {
   'api.closed': '活动已结束，不能再修改（仍可查看、揭晓和删除）。',
   'api.letterClosed': '活动已结束：心愿信现在只能查看。',
   'api.markClosed': '活动已结束：标记只能查看。',
-  'api.maskClosed': '活动已结束：面具不能再更换。',
   // Confirmation word (field confirm): refusal without the word
   'api.confirm.delete': '要删除，请输入“{word}”。',
   'api.confirm.leave': '要退出，请输入“{word}”。',

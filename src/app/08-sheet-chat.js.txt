@@ -214,14 +214,8 @@
     let lastId = 0;
     let live = null;
     const shown = new Set();
-    // 040: маска пары — подопечному в заголовке, Санте в подсказке; сначала из экрана события, затем из каждого ответа
-    const title = h('span', {}, withWhom === 'ward' ? t('app.event.chat.wardTitle') : t('app.sheet.chat.yourSanta'));
-    const note = ui.hint(withWhom === 'ward' ? '' : t('app.sheet.chat.santaKnows'));
-    const showMask = (mask) => {
-      if (withWhom === 'ward') note.textContent = t('app.sheet.chat.youAre', { santa: maskedSanta(mask) });
-      else title.textContent = t('app.sheet.chat.yourMasked', { santa: maskedSanta(mask) });
-    };
-    showMask(withWhom === 'ward' ? (state.wardCache && state.wardCache.evId === evId ? state.wardCache.d.mask : '') : state.member && state.member.santa_mask);
+    const title = withWhom === 'ward' ? t('app.event.chat.wardTitle') : t('app.sheet.chat.yourSanta');
+    const note = ui.hint(withWhom === 'ward' ? t('app.sheet.chat.youAre', { santa: t('app.event.santa') }) : t('app.sheet.chat.santaKnows'));
 
     const bubble = (m) => {
       const el = h('div', { class: 'ds-chat__msg ' + (m.mine ? 'ds-chat__msg--mine' : 'ds-chat__msg--theirs') },
@@ -246,7 +240,6 @@
     const load = async () => {
       const d = await api('chat.get', { event: evId, with: withWhom, after: lastId });
       if (d.state !== 'ok') { list.replaceChildren(h('div', { class: 'ds-chat__empty' }, t('app.sheet.chat.noDraw'))); return; }
-      showMask(d.mask);
       setWritable(d.writable);
       for (const m of d.messages) lastId = Math.max(lastId, m.id);
       if (!shown.size && !d.messages.length) {

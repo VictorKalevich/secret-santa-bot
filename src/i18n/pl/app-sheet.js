@@ -11,10 +11,9 @@ export default {
   // Reply field and message feed
   'app.sheet.send': 'Wyślij',
   'app.sheet.noMessages': 'Brak wiadomości.',
-  // Santa and giftee chat (003, mask — 040)
+  // Santa and giftee chat (003)
   'app.sheet.chat.placeholder': 'Wiadomość…',
   'app.sheet.chat.yourSanta': 'Twój Tajemniczy Mikołaj',
-  'app.sheet.chat.yourMasked': 'Twój {santa}',
   'app.sheet.chat.santaKnows': 'Mikołaj Cię zna, a Ty jego — nie.',
   'app.sheet.chat.youAre': 'Dla podopiecznego jesteś „{santa}”, Twoje imię pozostaje ukryte.',
   'app.sheet.chat.noDraw': 'Czat jest niedostępny: losowanie jeszcze się nie odbyło.',

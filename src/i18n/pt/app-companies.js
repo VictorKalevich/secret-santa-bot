@@ -26,7 +26,7 @@ export default {
   'app.companies.new.placeholder': 'Por exemplo: Trabalho',
   'app.companies.new.done': '🚪 Sala criada',
   'app.companies.new.hintOwn': 'Você vai ser o dono da sala: cria eventos, convida pessoas e nomeia administradores. O nome será visto por todas as pessoas da sala.',
-  'app.companies.new.hintBot': 'A sala tem suas próprias pessoas, eventos, famílias e administradores. Você pode gerenciá-la ou passá-la para um dono por link.',
+  'app.companies.new.hintBot': 'A sala tem suas próprias pessoas, eventos e administradores. Você pode gerenciá-la ou passá-la para um dono por link.',
   // "Room" sheet of the bot owner: who runs it
   'app.companies.lead.title': 'Quem gerencia',
   'app.companies.lead.you': 'Você',
@@ -50,7 +50,7 @@ export default {
   'app.companies.delete.hasEvents': 'A sala tem eventos — exclua-os primeiro.',
   'app.companies.delete.button': '🗑 Excluir sala',
   'app.companies.delete.title': 'Excluir sala',
-  'app.companies.delete.lines': ['as pessoas, os administradores e as famílias da sala;', 'o registro geral da sala.'],
+  'app.companies.delete.lines': ['as pessoas e os administradores da sala;', 'o registro geral da sala.'],
   'app.companies.delete.keepBot': 'A sala não tem eventos. O dono e os administradores dela vão receber uma mensagem.',
   'app.companies.delete.keepOwn': 'A sala não tem eventos. Os administradores dela vão receber uma mensagem.',
   'app.companies.delete.done': 'Sala excluída',

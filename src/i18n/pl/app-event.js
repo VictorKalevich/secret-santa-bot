@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': 'Oznaczenie widzą właściciel i administratorzy',
   'app.event.gift.done': '🎉 Świetnie! Prezent oznaczony jako gotowy',
   'app.event.markRemoved': 'Oznaczenie usunięte',
-  // Santa's mask (040); {mask} — "🐉 Smok", mask names come from the server
-  'app.event.mask.santa': 'Tajemniczy Mikołaj',
-  'app.event.mask.santaMasked': 'Tajemniczy Mikołaj · {mask}',
-  'app.event.mask.worn': 'Twój Mikołaj występuje w masce „{mask}”.',
-  'app.event.mask.current': 'Maska na czacie: {mask}.',
-  'app.event.mask.button': '🎭 Maska: {mask}',
-  'app.event.mask.none': 'bez maski',
-  'app.event.mask.noneTile': 'Bez maski',
-  'app.event.mask.title': 'Maska na czacie',
-  'app.event.mask.hint': 'Tak podopieczny zobaczy Cię na czacie i w wiadomościach bota. Kto kryje się pod maską, dowie się po ujawnieniu tajemnicy. Maska jest osobna w każdym wydarzeniu.',
-  'app.event.mask.picked': 'Maska wybrana',
-  'app.event.mask.removed': 'Maska zdjęta',
+  // Santa's name in chat hints
+  'app.event.santa': 'Tajemniczy Mikołaj',
   // "Giftee"; in ward.changed {added} and {removed} are replaced with ward.added and ward.removed, highlighted
   'app.event.ward.noDrawTitle': 'Losowanie jeszcze się nie odbyło',
   'app.event.ward.noDrawText': 'Po losowaniu pojawi się tu imię i list Twojego podopiecznego. Bot wyśle powiadomienie.',

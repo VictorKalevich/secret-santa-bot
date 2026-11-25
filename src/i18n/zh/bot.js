@@ -62,11 +62,9 @@ export default {
   'bot.reply.failed': '❌ {error}',
   'bot.reply.toWardSent': '✅ 已以“神秘圣诞老人”的名义发送给收礼人。',
   'bot.reply.toSantaSent': '✅ 已发送给你的圣诞老人。',
-  // "Write a message" hint (040: {mask}: Santa mask)
+  // "Write a message" hint
   'bot.reply.toWard': '✍️ 给收礼人写条消息（{title}），我会以“神秘圣诞老人”的名义<b>匿名</b>转达。',
-  'bot.reply.toWardMasked': '✍️ 给收礼人写条消息（{title}），我会以“神秘圣诞老人 · {mask}”的名义<b>匿名</b>转达。',
   'bot.reply.toSanta': '✍️ 给你的圣诞老人写条消息（{title}），我会转达。圣诞老人知道你是谁，你却不知道对方是谁。',
-  'bot.reply.toSantaMasked': '✍️ 给你的圣诞老人“{mask}”写条消息（{title}），我会转达。圣诞老人知道你是谁，你却不知道对方是谁。',
   // Requests to organizers (012)
   'bot.support.sent': '✅ 消息已发送。回复会发到这里。',
   'bot.support.adminsOnly': '❌ 只有所有者和管理员可以回复求助。',

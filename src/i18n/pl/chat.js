@@ -6,9 +6,8 @@ export default {
   'chat.noSanta': 'Losowanie dla Ciebie jeszcze się nie odbyło.',
   'chat.pairChanged': 'Para się zmieniła — odśwież ekran.',
   'chat.pairChangedReply': '🔄 Para zmieniła się po naciśnięciu „Odpowiedz” — wiadomość nie została wysłana. Naciśnij „↩️ Odpowiedz” jeszcze raz.',
-  // How the giftee sees Santa in bot messages: without and with a mask (040)
+  // How the giftee sees Santa in bot messages
   'chat.santaTitle': 'Twój Tajemniczy Mikołaj',
-  'chat.santaTitleMask': 'Twój Tajemniczy Mikołaj „{mask}”',
   'chat.fromSanta': '💬 <b>{santa} ({title}) pisze:</b>\n\n{text}',
   'chat.fromWard': '💬 <b>Pisze do Ciebie Twój podopieczny ({title}):</b>\n\n{text}',
   'chat.historyButton': '💬 Cały czat',

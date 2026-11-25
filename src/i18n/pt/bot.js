@@ -62,11 +62,9 @@ export default {
   'bot.reply.failed': '❌ {error}',
   'bot.reply.toWardSent': '✅ Enviado ao presenteado em nome do “Papai Noel secreto”.',
   'bot.reply.toSantaSent': '✅ Enviado ao seu Papai Noel.',
-  // "Write a message" hint (040: {mask} — Santa mask)
+  // "Write a message" hint
   'bot.reply.toWard': '✍️ Escreva uma mensagem para o presenteado ({title}) — vou repassá-la <b>anonimamente</b>, em nome do “Papai Noel secreto”.',
-  'bot.reply.toWardMasked': '✍️ Escreva uma mensagem para o presenteado ({title}) — vou repassá-la <b>anonimamente</b>, em nome do “Papai Noel secreto · {mask}”.',
   'bot.reply.toSanta': '✍️ Escreva uma mensagem para seu Papai Noel ({title}) — vou repassá-la. Ele sabe quem você é, mas você não sabe quem ele é.',
-  'bot.reply.toSantaMasked': '✍️ Escreva uma mensagem para seu Papai Noel “{mask}” ({title}) — vou repassá-la. Ele sabe quem você é, mas você não sabe quem ele é.',
   // Support requests to organizers (012)
   'bot.support.sent': '✅ Mensagem enviada. A resposta vai chegar aqui.',
   'bot.support.adminsOnly': '❌ Só o dono e os administradores podem responder chamados.',

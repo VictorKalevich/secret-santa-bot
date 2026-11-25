@@ -36,10 +36,10 @@ function rowProblems(name, row) {
   return p;
 }
 
-test('таблица действий: 77 строк (24 действия участника, 48 admin.*, 5 bot.*), каждая — по правилам', () => {
+test('таблица действий: 73 строки (23 действия участника, 45 admin.*, 5 bot.*), каждая — по правилам', () => {
   const names = Object.keys(ACTIONS);
-  assert.equal(names.length, 77);
-  assert.equal(names.filter((a) => a.startsWith('admin.')).length, 48);
+  assert.equal(names.length, 73);
+  assert.equal(names.filter((a) => a.startsWith('admin.')).length, 45);
   assert.deepEqual(names.filter((a) => a.startsWith('bot.')).sort(), ['bot.audit', 'bot.company.create', 'bot.company.delete', 'bot.company.link', 'bot.owner.transfer']);
   assert.deepEqual(names.flatMap((n) => rowProblems(n, ACTIONS[n])), []);
 });

@@ -1,4 +1,4 @@
-// Texts of src/looks.js (061): names of postcards and Santa masks
+// Texts of src/looks.js (061): names of postcards
 export default {
   // Letter postcards (looks.card.<id>)
   'looks.card.snow': 'Hujan salju',
@@ -16,27 +16,4 @@ export default {
   'looks.card.sparkle': 'Gemerlap emas',
   'looks.card.nordic': 'Motif Skandinavia',
   'looks.card.airmail': 'Pos udara',
-  // Santa masks (looks.mask.<id>)
-  'looks.mask.elf': 'Elf',
-  'looks.mask.wizard': 'Penyihir',
-  'looks.mask.fairy': 'Peri',
-  'looks.mask.genie': 'Jin',
-  'looks.mask.dragon': 'Naga',
-  'looks.mask.ghost': 'Hantu',
-  'looks.mask.matryoshka': 'Matryoshka',
-  'looks.mask.agent': 'Agen rahasia',
-  'looks.mask.ninja': 'Ninja',
-  'looks.mask.stranger': 'Sosok misterius',
-  'looks.mask.superhero': 'Pahlawan super',
-  'looks.mask.robot': 'Robot',
-  'looks.mask.alien': 'Alien',
-  'looks.mask.dinosaur': 'Dinosaurus',
-  'looks.mask.lion': 'Singa',
-  'looks.mask.frog': 'Katak',
-  'looks.mask.turtle': 'Kura-kura',
-  'looks.mask.octopus': 'Gurita',
-  'looks.mask.whale': 'Paus',
-  'looks.mask.seal': 'Anjing laut',
-  // Mask as text: emoji and name
-  'looks.maskLabel': '{emoji} {title}',
 };

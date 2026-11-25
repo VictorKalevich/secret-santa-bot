@@ -431,7 +431,7 @@
 
   // --- исключения
   function adminExclusions(p) {
-    const { s, d, me, done, xapi, again } = p;
+    const { s, d, me, done, xapi } = p;
     if (done) return [];
     // 009: после жеребьёвки исключения только для чтения — по заменам можно было бы вычислить пары.
     // Владелец пары видит и так — для него заморозки нет (010)
@@ -447,22 +447,8 @@
         toast(t('app.admin.exclusions.added'));
       },
     });
-    // 008: семьи эвента и правило «Учитывать семьи»
-    const famCard = ui.card();
-    const famOn = h('input', { type: 'checkbox', checked: s.families_on, disabled: s.draw_done });
-    bindToggle(famOn, async (on) => {
-      await xapi('admin.game', { families_on: on });
-      toast(on ? t('app.admin.families.on') : t('app.admin.families.off'));
-      await again();
-    });
-    famCard.append(ui.toggleRow(t('app.admin.families.title'), s.draw_done ? t('app.admin.families.frozen') : t('app.admin.families.hint'), famOn));
-    for (const f of d.families) {
-      famCard.append(h('div', { class: s.families_on ? 'ds-text-sm' : 'ds-text-sm ds-text-muted' },
-        h('b', {}, f.name + ': '), f.members.map((id) => nameOf(p, id)).join(', ')));
-    }
     return [
       ui.section(t('app.admin.exclusions.title')),
-      famCard,
       exList,
       exFrozen
         ? ui.hint(t('app.admin.exclusions.frozen'), 'ds-hint--inset')

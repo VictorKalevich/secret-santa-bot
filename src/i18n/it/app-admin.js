@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': "e viceversa (in entrambi i sensi)",
   'app.admin.rules.pickTwo': "Scegli due persone",
   'app.admin.rules.different': "Servono due persone diverse",
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': "Esclusioni",
   'app.admin.exclusions.empty': "Nessuna esclusione: chiunque può fare il regalo a chiunque.",
   'app.admin.exclusions.both': "{giver} e {receiver} non si fanno regali a vicenda",
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': "Dopo il sorteggio le esclusioni non cambiano: altrimenti dalle sostituzioni si potrebbero dedurre le coppie. Per modificarle, annulla il sorteggio (finché nessuno ha visto il proprio destinatario).",
   'app.admin.exclusions.afterDraw': "Dopo il sorteggio le esclusioni valgono per le sostituzioni future (rimozione e inserimento di partecipanti); le coppie attuali non cambiano. Dopo il sorteggio solo il proprietario può modificare le esclusioni.",
   'app.admin.exclusions.hint': "Ad esempio, partner o membri della stessa famiglia. Il bot non permetterà al sorteggio di violare queste regole.",
-  'app.admin.families.title': "👪 Considera le famiglie",
-  'app.admin.families.hint': "Chi è della stessa famiglia non si fa regali. Le famiglie si impostano nella schermata principale.",
-  'app.admin.families.frozen': "Non modificabile dopo il sorteggio",
-  'app.admin.families.on': "Famiglie considerate",
-  'app.admin.families.off': "Famiglie non considerate",
   // Fixed pairs (owner only)
   'app.admin.fixed.title': "Coppie fisse",
   'app.admin.fixed.empty': "Nessuna coppia fissa: il sorteggio assegnerà tutti a caso.",
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': "…a chi fa il regalo",
   'app.admin.fixed.add': "Fissa la coppia",
   'app.admin.fixed.added': "Coppia fissata",
-  'app.admin.fixed.hint': "Il bot abbinerà di sicuro queste persone nel sorteggio. Una coppia fissa conta più di esclusioni e famiglie. Questa sezione è visibile solo al proprietario.{ring}",
+  'app.admin.fixed.hint': "Il bot abbinerà di sicuro queste persone nel sorteggio. Una coppia fissa conta più delle esclusioni. Questa sezione è visibile solo al proprietario.{ring}",
   // Addition to the hint when the ring draw is on (starts with a space)
   'app.admin.fixed.hintRing': " Il sorteggio circolare è attivo: una coppia si può fissare in un solo senso.",
   // {pairs} - mutual pairs separated by "; "
@@ -270,6 +265,6 @@ export default {
     "le spunte «regalo pronto» e «ricevuto»;",
     "tutte le chat tra Babbi Natale e destinatari in questo evento.",
   ],
-  'app.admin.danger.cancelKeep': "Restano letterine, indirizzi, partecipanti, esclusioni e famiglie. Le iscrizioni si riapriranno e i partecipanti riceveranno un avviso.",
+  'app.admin.danger.cancelKeep': "Restano letterine, indirizzi, partecipanti ed esclusioni. Le iscrizioni si riapriranno e i partecipanti riceveranno un avviso.",
   'app.admin.danger.canceled': "↩️ Sorteggio annullato. Coppie eliminate: {n}",
 };

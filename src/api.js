@@ -20,15 +20,13 @@ import { checkDraw, runDraw, removeMember, insertMember, cancelDraw, forceCancel
 import { sendChatMessage, chatHistory } from './chat.js';
 import { grantAdmin, revokeAdmin, transferBotOwnership, transferAccount } from './roles.js';
 import { createCompany, createOwnCompany, setLabel, setCompanyOwner, ownerLink, deleteCompany, botAudit, openBot } from './companies.js';
-import {
-  saveFamily, deleteFamily, decideRequest, familiesList, participate, allowRemoved, leaveEvent, LEAVE_FINISHED,
-} from './membership.js';
+import { decideRequest, participate, allowRemoved, leaveEvent, LEAVE_FINISHED } from './membership.js';
 import { vaultPerson, vaultPairs } from './vault.js';
 import {
   participantView, sendFromUser, closeByUser, adminThread, take, sendFromAdmin, pass, closeByAdmin,
 } from './support.js';
 import {
-  homeView, eventView, saveWishlist, writeLetterDraft, saveDelivery, wardView, setGiftReady, setGiftReceived, setCard, setMask,
+  homeView, eventView, saveWishlist, writeLetterDraft, saveDelivery, wardView, setGiftReady, setGiftReceived, setCard,
 } from './participant.js';
 import { adminState, memberLetter, usersList, renameUser, companyCountQuery } from './panel.js';
 import { changeExclusions, changeFixed } from './constraints.js';
@@ -163,8 +161,6 @@ export const ACTIONS = {
   'ward.gift': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReady(ctx, ev, body.ready)) },
   'ward.shipment': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await saveShipment(ctx, ev, body)) },
   'ward.received': { role: MEMBER, event: true, finished: MARK_CLOSED, run: async (ctx, body, ev) => out(await setGiftReceived(ctx, ev, body.received)) },
-  // 040: маска Санты в переписке — из набора src/looks.js, до раскрытия, без журнала и сообщений
-  'mask.set': { role: MEMBER, event: true, finished: 'api.maskClosed', run: async (ctx, body, ev) => out(await setMask(ctx, ev, body.mask)) },
   // Переписка в завершённом — 7 суток (chat.js)
   'message.send': {
     role: MEMBER,
@@ -213,19 +209,6 @@ export const ACTIONS = {
       const r = await createEvent(ctx, body.title, ctx.me.tg_id, { from, invite: !!body.invite });
       return out(r, () => ({ event: publicEvent(r.event), invited: r.invited, invite_error: r.inviteError }));
     },
-  },
-  // Семьи (008) — общие для компании (050); адресов и пар здесь нет
-  'admin.families': { role: ADMIN, company: true, run: (ctx) => familiesList(ctx) },
-  // Владелец видит пары и так — заморозка семей против вычисления пар на него не действует (010, FR-1008)
-  'admin.family.save': {
-    role: ADMIN,
-    company: true,
-    run: async (ctx, body) => out(await saveFamily(ctx, ctx.me.tg_id, { id: body.id, name: body.name, members: body.members }), none),
-  },
-  'admin.family.delete': {
-    role: ADMIN,
-    company: true,
-    run: async (ctx, body) => out(await deleteFamily(ctx, ctx.me.tg_id, body.id), none),
   },
   // Без поля event — общий журнал компании, с ним — журнал события (несуществующее — 404)
   'admin.audit': {

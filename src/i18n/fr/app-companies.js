@@ -26,7 +26,7 @@ export default {
   'app.companies.new.placeholder': "Par exemple : Travail",
   'app.companies.new.done': "🚪 Salon créé",
   'app.companies.new.hintOwn': "Tu deviendras propriétaire du salon : tu crées des événements, invites des gens et nommes des administrateurs. Tous les membres du salon verront son nom.",
-  'app.companies.new.hintBot': "Un salon a ses propres membres, événements, familles et administrateurs. Tu peux le gérer toi-même ou le confier à un propriétaire via un lien.",
+  'app.companies.new.hintBot': "Un salon a ses propres membres, événements et administrateurs. Tu peux le gérer toi-même ou le confier à un propriétaire via un lien.",
   // Bot owner's "Room" sheet: who runs it
   'app.companies.lead.title': "Qui gère",
   'app.companies.lead.you': "Toi",
@@ -50,7 +50,7 @@ export default {
   'app.companies.delete.hasEvents': "Le salon contient des événements — supprime-les d'abord.",
   'app.companies.delete.button': "🗑 Supprimer le salon",
   'app.companies.delete.title': "Supprimer le salon",
-  'app.companies.delete.lines': ["ses membres, administrateurs et familles ;", "le journal commun du salon."],
+  'app.companies.delete.lines': ["ses membres et administrateurs ;", "le journal commun du salon."],
   'app.companies.delete.keepBot': "Le salon ne contient aucun événement. Son propriétaire et ses administrateurs recevront un message.",
   'app.companies.delete.keepOwn': "Le salon ne contient aucun événement. Ses administrateurs recevront un message.",
   'app.companies.delete.done': "Salon supprimé",

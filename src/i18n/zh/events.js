@@ -19,10 +19,9 @@ export default {
   'events.invite': '📨 <b>活动 {title} 的邀请</b> · 神秘圣诞老人。\n点击按钮参加。',
   'events.inviteButton': '🎄 参加',
   'events.inviteAgain': '邀请已经发出，一分钟后才能再发。',
-  // Reveal: {mask} is the Santa mask (040), {name} the Santa name
+  // Reveal: {name} the Santa name
   'events.alreadyRevealed': '谜底已经揭晓了。',
   'events.revealed': '🎅 <b>谜底揭晓！</b>\n\n在活动 {title} 中，你的神秘圣诞老人是 <b>{name}</b>。节日快乐！🎄',
-  'events.revealedMask': '🎅 <b>谜底揭晓！</b>\n\n在活动 {title} 中，你的神秘圣诞老人“{mask}”是 <b>{name}</b>。节日快乐！🎄',
   // Reminders: empty letter (with and without a deadline) and to Santas (with and without a gift date)
   'events.remindAgain': '提醒已经发出，一分钟后才能再发。',
   'events.remindUnfilled': '⏰ 提醒：你在活动 {title} 中给圣诞老人的心愿信还是空的。写一写吧，这样圣诞老人更容易挑选礼物。',

@@ -1,4 +1,4 @@
-// Тексты src/looks.js (060): названия открыток и масок Санты
+// Тексты src/looks.js (060): названия открыток
 export default {
   // Открытки письма (looks.card.<id> — у каждой открытки набора POSTCARDS)
   'looks.card.snow': 'Снегопад',
@@ -16,27 +16,4 @@ export default {
   'looks.card.sparkle': 'Золотые блёстки',
   'looks.card.nordic': 'Скандинавский узор',
   'looks.card.airmail': 'Авиапочта',
-  // Маски Санты (looks.mask.<id> — у каждой маски набора MASKS)
-  'looks.mask.elf': 'Эльф',
-  'looks.mask.wizard': 'Волшебник',
-  'looks.mask.fairy': 'Фея',
-  'looks.mask.genie': 'Джинн',
-  'looks.mask.dragon': 'Дракон',
-  'looks.mask.ghost': 'Привидение',
-  'looks.mask.matryoshka': 'Матрёшка',
-  'looks.mask.agent': 'Тайный агент',
-  'looks.mask.ninja': 'Ниндзя',
-  'looks.mask.stranger': 'Незнакомец',
-  'looks.mask.superhero': 'Супергерой',
-  'looks.mask.robot': 'Робот',
-  'looks.mask.alien': 'Пришелец',
-  'looks.mask.dinosaur': 'Динозавр',
-  'looks.mask.lion': 'Лев',
-  'looks.mask.frog': 'Лягушка',
-  'looks.mask.turtle': 'Черепаха',
-  'looks.mask.octopus': 'Осьминог',
-  'looks.mask.whale': 'Кит',
-  'looks.mask.seal': 'Тюлень',
-  // Маска текстом: «🐉 Дракон»
-  'looks.maskLabel': '{emoji} {title}',
 };

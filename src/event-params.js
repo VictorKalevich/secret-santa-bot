@@ -1,7 +1,7 @@
 // Параметры события — один список (029): из него строятся создание события, полный сброс, сохранение параметров
 // (src/events.js) и перечень полей, допустимых к записи (EVENT_FIELDS, src/db.js). Импорт — только format.js (он без импортов).
 // Новая колонка events — строка в EVENT_PARAMS (параметр) или в служебных ниже: тест tests/server-shape.test.mjs
-// сверяет оба списка со схемой и умолчания — с DEFAULT схемы.
+// сверяет списки со схемой и умолчания — с DEFAULT схемы.
 //   kind — 'text' (обрезается до max символов), 'date' (YYYY-MM-DD или ''), 'flag' (0/1);
 //   default — значение нового и сброшенного события;
 //   template — копируется из события-образца (даты — нет, 007);
@@ -22,7 +22,6 @@ export const EVENT_PARAMS = {
   delivery_on: { kind: 'flag', default: 0, template: true }, // 008
   approval: { kind: 'flag', default: 0, template: true },
   rejoin: { kind: 'flag', default: 1, template: true }, // 010
-  families_on: { kind: 'flag', default: 1, template: true, beforeDraw: 'eventParams.familiesAfterDraw' },
   reveal_auto: { kind: 'flag', default: 0, template: true },
   finish_auto: { kind: 'flag', default: 0, template: true },
   ring: { kind: 'flag', default: 1, template: true, own: true },
@@ -39,6 +38,9 @@ export const EVENT_STATE_RESET = {
   finish_warned: '', checked_on: '',
 };
 export const EVENT_SERVICE = ['id', 'company_id', 'title', 'created_at', 'created_by', 'invite_code', ...Object.keys(EVENT_STATE_RESET)];
+// Колонки, которые код больше не читает и не пишет (062: «Учитывать семьи» — семьи стали исключениями событий). Остаются в
+// схеме, пока возможен откат на прежний код (docs/todo.md).
+export const EVENT_RETIRED = ['families_on'];
 
 // Значение параметра из тела запроса — как его хранит база
 export function paramValue(spec, raw) {

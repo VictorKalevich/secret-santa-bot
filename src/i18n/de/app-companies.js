@@ -26,7 +26,7 @@ export default {
   'app.companies.new.placeholder': 'Zum Beispiel: Arbeit',
   'app.companies.new.done': '🚪 Raum erstellt',
   'app.companies.new.hintOwn': 'Du wirst Inhaber des Raums: Du erstellst Runden, lädst Leute ein und ernennst Admins. Den Namen sehen alle Personen im Raum.',
-  'app.companies.new.hintBot': 'Ein Raum hat eigene Personen, Runden, Familien und Admins. Du kannst ihn selbst leiten oder per Link einem Inhaber übergeben.',
+  'app.companies.new.hintBot': 'Ein Raum hat eigene Personen, Runden und Admins. Du kannst ihn selbst leiten oder per Link einem Inhaber übergeben.',
   // "Room" sheet of the bot owner: who leads
   'app.companies.lead.title': 'Wer leitet',
   'app.companies.lead.you': 'Du',
@@ -50,7 +50,7 @@ export default {
   'app.companies.delete.hasEvents': 'Im Raum gibt es Runden – lösche sie zuerst.',
   'app.companies.delete.button': '🗑 Raum löschen',
   'app.companies.delete.title': 'Raum löschen',
-  'app.companies.delete.lines': ['seine Personen, Admins und Familien;', 'das allgemeine Protokoll des Raums.'],
+  'app.companies.delete.lines': ['seine Personen und Admins;', 'das allgemeine Protokoll des Raums.'],
   'app.companies.delete.keepBot': 'Im Raum gibt es keine Runden. Sein Inhaber und die Admins bekommen eine Nachricht.',
   'app.companies.delete.keepOwn': 'Im Raum gibt es keine Runden. Seine Admins bekommen eine Nachricht.',
   'app.companies.delete.done': 'Raum gelöscht',

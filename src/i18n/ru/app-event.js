@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': 'Отметку видят владелец и администраторы',
   'app.event.gift.done': '🎉 Отлично! Подарок отмечен как готовый',
   'app.event.markRemoved': 'Отметка снята',
-  // Маска Санты (040); {mask} — «🐉 Дракон», названия масок — с сервера
-  'app.event.mask.santa': 'Тайный Санта',
-  'app.event.mask.santaMasked': 'Тайный Санта · {mask}',
-  'app.event.mask.worn': 'Твой Санта — в маске «{mask}».',
-  'app.event.mask.current': 'Маска в переписке: {mask}.',
-  'app.event.mask.button': '🎭 Маска: {mask}',
-  'app.event.mask.none': 'без маски',
-  'app.event.mask.noneTile': 'Без маски',
-  'app.event.mask.title': 'Маска в переписке',
-  'app.event.mask.hint': 'Так подопечный увидит тебя в переписке и в сообщениях бота. Кто под маской, он узнает, когда раскроется тайна. Маска своя в каждом событии.',
-  'app.event.mask.picked': 'Маска выбрана',
-  'app.event.mask.removed': 'Маска снята',
+  // Имя Санты в подсказках переписки
+  'app.event.santa': 'Тайный Санта',
   // «Подопечный»; в ward.changed на месте {added} и {removed} встают слова ward.added и ward.removed с подсветкой
   'app.event.ward.noDrawTitle': 'Жеребьёвка ещё не проведена',
   'app.event.ward.noDrawText': 'После жеребьёвки здесь появится имя и письмо твоего подопечного. Бот пришлёт уведомление.',

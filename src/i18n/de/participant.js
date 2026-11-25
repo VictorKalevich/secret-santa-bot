@@ -1,9 +1,7 @@
-// Texts of src/participant.js (061, German): wish list, delivery address, postcard, mask, gift marks
+// Texts of src/participant.js (061, German): wish list, delivery address, postcard, gift marks
 export default {
-  // Postcard and mask: value not from the set
+  // Postcard: value not from the set
   'participant.noCard': 'Diese Karte gibt es nicht – wähle eine aus der Liste.',
-  'participant.noMask': 'Diese Maske gibt es nicht – wähle eine aus der Liste.',
-  'participant.maskRevealed': 'Das Geheimnis ist bereits gelüftet – die Maske lässt sich nicht mehr ändern.',
   // Wish list and drafts (041)
   'participant.draftsOn': 'Entwürfe sind eingeschaltet. Öffne den Wunschzettel erneut, um ihn zu veröffentlichen.',
   'participant.draftsOff': 'Entwürfe sind ausgeschaltet. Öffne den Wunschzettel erneut.',

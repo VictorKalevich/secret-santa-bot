@@ -1,6 +1,6 @@
 // Компании, шаг 1 (050, specs/050-company-scope/): данные и права — в пределах компании. Здесь — статические правила по
-// src/*.js (права не читаются из общего признака users.is_admin, семьи и прошлые пары — с компанией, у журнала нет
-// сферы-нуля) и сценарии двух компаний на «мире».
+// src/*.js (права не читаются из общего признака users.is_admin, прошлые пары — с компанией, строки семей сервер не
+// читает (062), у журнала нет сферы-нуля) и сценарии двух компаний на «мире».
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -23,14 +23,12 @@ const WRITES_USER_ADMIN = /^\s*UPDATE\s+users\s+SET\s+is_admin\b/i;
 const userAdminReads = (src) => stringLiterals(src)
   .filter((s) => READS_USER_ADMIN.some((re) => re.test(s)) && !WRITES_USER_ADMIN.test(s));
 
-// 2. Семьи и прошлые пары — всегда с компанией
+// 2. Прошлые пары — всегда с компанией; строк семей сервер не читает (062: семьи стали исключениями событий, таблицы
+// остались ради отката — их знает только REGISTRY)
+const FAMILY_TABLE = /\b(?:FROM|JOIN)\s+famil(?:ies|y_members)\b/i;
 function familyProblems(src) {
   const bad = [];
-  for (const m of src.matchAll(/\bfamilyRowsQuery\(([^()]*)\)/g)) {
-    if (m[1].split(',').filter((a) => a.trim()).length < 2) bad.push(m[0]);
-  }
-  const def = /familyRowsQuery\s*=\s*\(db, companyId\)[^;]*FROM family_members WHERE company_id = \?/;
-  if (/familyRowsQuery\s*=/.test(src) && !def.test(src)) bad.push('familyRowsQuery без company_id');
+  for (const lit of stringLiterals(src)) if (FAMILY_TABLE.test(lit)) bad.push('строки семей: ' + lit.trim().slice(0, 40));
   const prev = /const previousPairsQuery = [\s\S]*?;\n/.exec(src)?.[0];
   if (prev !== undefined && !/e\.company_id = \?/.test(prev)) bad.push('previousPairsQuery без компании');
   return bad;
@@ -51,14 +49,14 @@ describe('компании: статические правила по src/*.js'
     assert.equal(userAdminReads('const ok = users.filter((u) => u.is_admin);').length, 0, 'код JS, не SQL');
   });
 
-  it('семьи и прошлые пары — с компанией — и «от противного»', () => {
+  it('прошлые пары — с компанией, семьи не читаются — и «от противного»', () => {
     const bad = sources().flatMap(([f, src]) => familyProblems(src).map((s) => `${f}: ${s}`));
     assert.deepEqual(bad, []);
     const all = sources().map(([, s]) => s).join('\n');
-    assert.ok(/familyRowsQuery\(db, ev\.company_id\)/.test(all) && /const previousPairsQuery = /.test(all), 'правило что-то проверяет');
-    assert.deepEqual(familyProblems('x = familyRowsQuery(db);'), ['familyRowsQuery(db)']);
-    assert.deepEqual(familyProblems("export const familyRowsQuery = (db) => db.prepare('SELECT user_id, family_id FROM family_members');"),
-      ['familyRowsQuery без company_id']);
+    assert.ok(/const previousPairsQuery = /.test(all), 'правило что-то проверяет');
+    assert.deepEqual(familyProblems("const q = (db, c) => db.prepare('SELECT user_id, family_id FROM family_members WHERE company_id = ?');"),
+      ['строки семей: SELECT user_id, family_id FROM family_me']);
+    assert.equal(familyProblems('const q = `SELECT f.name FROM events e JOIN families f ON f.company_id = e.company_id`;').length, 1);
     assert.deepEqual(familyProblems('const previousPairsQuery = (db, ev) => db.prepare(`SELECT 1 FROM pairs p JOIN events e WHERE p.event_id != ?`);\n'),
       ['previousPairsQuery без компании']);
   });
@@ -204,15 +202,14 @@ describe('компании: две компании не видят друг д�
     assert.deepEqual([r.status, r.data.error], [403, 'Ты не участвуешь в этом событии.']);
   });
 
-  it('T024: списки — ни события, ни человека, ни семьи, ни записи чужой компании', async () => {
+  it('T024: списки — ни события, ни человека, ни записи чужой компании', async () => {
     for (const s of [z.A, z.B]) {
       s.ev2 = await z.event(s.company, 'Второе ' + s.title, [s.people[0], s.people[1]]);
-      await z.w.api(s.adm, 'admin.family.save', { company: s.company, name: 'Семья ' + s.title, members: [s.people[0].id, s.people[1].id] });
     }
     for (const s of [z.A, z.B]) {
       const o = s.other;
-      // Имена людей, событий и семей другой компании (двойной человек и владелец бота есть в обеих)
-      const foreign = [...everyone(o).map((u) => u.name), 'Событие ' + o.title, 'Второе ' + o.title, 'Семья ' + o.title];
+      // Имена людей и событий другой компании (двойной человек и владелец бота есть в обеих)
+      const foreign = [...everyone(o).map((u) => u.name), 'Событие ' + o.title, 'Второе ' + o.title];
       const leaks = (what, data) => {
         const text = JSON.stringify(data);
         assert.deepEqual(foreign.filter((n) => text.includes(n)), [], what);
@@ -223,14 +220,11 @@ describe('компании: две компании не видят друг д�
       assert.deepEqual((await z.w.api(s.people[2], 'me')).events.map((e) => e.id), [s.ev], 'me участника');
       const st = await z.w.api(s.adm, 'admin.state', { event: s.ev });
       assert.deepEqual(st.other_events.map((e) => e.id), [s.ev2]);
-      assert.deepEqual(st.families.map((f) => f.name), ['Семья ' + s.title]);
+      assert.ok(!('families' in st), 'семей нет (062)');
       leaks('admin.state', st);
       const users = await z.w.api(s.adm, 'admin.users', { company: s.company });
       leaks('admin.users', users);
       assert.ok(users.users.some((u) => u.id === s.people[3].id));
-      const families = await z.w.api(s.adm, 'admin.families', { company: s.company });
-      assert.deepEqual(families.families.map((f) => f.name), ['Семья ' + s.title]);
-      leaks('admin.families', families);
       const audit = await z.w.api(s.adm, 'admin.audit', { company: s.company });
       assert.ok(audit.entries.some((e) => e.action === 'role.grant' && e.details === s.adm.name), 'свои записи есть');
       leaks('admin.audit', audit);
@@ -349,15 +343,11 @@ describe('компании: владелец бота — гость компа�
     assert.deepEqual(denied, []);
   });
 
-  it('его нет в «Организаторах», людях и семьях Б; журнал Б подписан его именем', async () => {
+  it('его нет в «Организаторах» и людях Б; журнал Б подписан его именем', async () => {
     const { roster } = await z.w.api(z.B.people[0], 'event.get', { event: z.B.ev });
     assert.ok(roster.organizers.some((o) => o.id === z.B.adm.id));
     assert.ok(!roster.organizers.some((o) => o.id === boss.id));
     assert.ok(!(await z.w.api(z.B.adm, 'admin.users', { company: z.B.company })).users.some((u) => u.id === boss.id));
-    const fam = await z.w.api(z.B.adm, 'admin.family.save', { company: z.B.company, name: 'С гостем', members: [z.B.people[0].id, boss.id] }, true);
-    assert.deepEqual([fam.status, fam.data.error], [400, 'Участник не найден.']);
-    const families = await z.w.api(z.B.adm, 'admin.families', { company: z.B.company });
-    assert.ok(!families.users.some((u) => u.id === boss.id));
     const general = (await z.w.api(z.B.adm, 'admin.audit', { company: z.B.company })).entries;
     assert.ok(general.some((e) => e.action === 'role.grant' && e.actor_name === boss.name));
     const ofEvent = (await z.w.api(z.B.adm, 'admin.audit', { event: z.B.ev })).entries;
@@ -402,24 +392,6 @@ describe('компании: один человек в двух компания
     assert.deepEqual(z.invariants(), []);
   });
 
-  it('T029: семья в А не мешает жеребьёвке в Б; в Б у них может быть своя семья', async () => {
-    const z = await twoCompanies();
-    const { w } = z;
-    const [p, q] = z.A.people;
-    await w.api(z.A.adm, 'admin.family.save', { company: z.A.company, name: 'Пара А', members: [p.id, q.id] });
-    // «от противного»: в А эти двое друг другу не дарят
-    const inA = await z.event(z.A.company, 'Двое в А', [p, q]);
-    await w.api(boss, 'admin.ring', { event: inA, on: false });
-    assert.equal((await w.api(boss, 'admin.draw', { event: inA }, true)).status, 400);
-    const inB = await z.event(z.B.company, 'Двое в Б', [p, q]);
-    await w.api(boss, 'admin.ring', { event: inB, on: false });
-    assert.equal((await w.api(boss, 'admin.draw', { event: inB }, true)).status, 200);
-    await w.api(boss, 'admin.family.save', { company: z.B.company, name: 'Пара Б', members: [p.id, q.id] });
-    assert.deepEqual(w.query('SELECT company_id FROM family_members WHERE user_id = ? ORDER BY company_id', p.id).map((r) => r.company_id),
-      [z.A.company, z.B.company]);
-    assert.deepEqual(z.invariants(), []);
-  });
-
   it('T029: прошлые пары А не дают правила history в обмене события Б', async () => {
     const z = await twoCompanies();
     const { w } = z;
@@ -444,24 +416,24 @@ describe('компании: один человек в двух компания
     assert.deepEqual(z.invariants(), []);
   });
 
-  it('T029: семья А меняется между проверкой и записью жеребьёвки Б — жеребьёвка записана; семья Б — нет', async () => {
+  it('T029: исключения события А меняются между проверкой и записью жеребьёвки в Б — записана; свои — нет', async () => {
     const z = await twoCompanies();
     const { w } = z;
     const people = z.A.people;
-    await w.api(z.A.adm, 'admin.family.save', { company: z.A.company, name: 'Семья А', members: [people[0].id, people[1].id] });
+    await w.api(boss, 'admin.exclusion.add', { event: z.A.ev, giver: people[0].id, receiver: people[1].id });
     const first = await z.event(z.B.company, 'Гонка', people);
     w.beforeWrite('UPDATE events SET draw_done = 1', () => {
-      w.sql(`DELETE FROM family_members WHERE company_id = ${z.A.company} AND user_id = ${people[0].id}`);
+      w.sql(`DELETE FROM exclusions WHERE event_id = ${z.A.ev}`);
     });
     assert.equal((await w.api(boss, 'admin.draw', { event: first }, true)).status, 200);
-    // «от противного»: семья Б между проверкой и записью — жеребьёвка не записывается
-    await w.api(boss, 'admin.family.save', { company: z.B.company, name: 'Семья Б', members: [people[2].id, people[3].id] });
+    // «от противного»: исключение самого события между проверкой и записью — жеребьёвка не записывается
     const second = await z.event(z.B.company, 'Гонка 2', people);
+    await w.api(boss, 'admin.exclusion.add', { event: second, giver: people[2].id, receiver: people[3].id });
     w.beforeWrite('UPDATE events SET draw_done = 1', () => {
-      w.sql(`DELETE FROM family_members WHERE company_id = ${z.B.company} AND user_id = ${people[2].id}`);
+      w.sql(`DELETE FROM exclusions WHERE event_id = ${second}`);
     });
     const r = await w.api(boss, 'admin.draw', { event: second }, true);
-    assert.deepEqual([r.status, r.data.error], [400, 'Участники, исключения или семьи изменились во время жеребьёвки — попробуй ещё раз.']);
+    assert.deepEqual([r.status, r.data.error], [400, 'Участники или исключения изменились во время жеребьёвки — попробуй ещё раз.']);
     assert.equal(w.query('SELECT COUNT(*) AS n FROM pairs WHERE event_id = ?', second)[0].n, 0);
     assert.deepEqual(z.invariants(), []);
   });

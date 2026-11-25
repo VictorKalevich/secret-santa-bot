@@ -18,10 +18,9 @@ export default {
   'events.invite': '📨 <b>Zaproszenie do wydarzenia {title}</b> — Tajemniczy Mikołaj.\nNaciśnij przycisk, aby wziąć udział.',
   'events.inviteButton': '🎄 Biorę udział',
   'events.inviteAgain': 'Zaproszenia zostały już wysłane — ponowić można za minutę.',
-  // Reveal: {mask} — Santa's mask (040), {name} — Santa's name
+  // Reveal: {name} — Santa's name
   'events.alreadyRevealed': 'Tajemnica została już ujawniona.',
   'events.revealed': '🎅 <b>Tajemnica ujawniona!</b>\n\nW wydarzeniu {title} Twoim Tajemniczym Mikołajem jest <b>{name}</b>. Wesołych Świąt! 🎄',
-  'events.revealedMask': '🎅 <b>Tajemnica ujawniona!</b>\n\nW wydarzeniu {title} Twoim Tajemniczym Mikołajem „{mask}” jest <b>{name}</b>. Wesołych Świąt! 🎄',
   // Reminders: empty letter (with and without a deadline) and to Santas (with and without a gift date)
   'events.remindAgain': 'Przypomnienie zostało już wysłane — ponowić można za minutę.',
   'events.remindUnfilled': '⏰ Przypomnienie: Twój list do Mikołaja w wydarzeniu {title} jest wciąż pusty. Wypełnij go, żeby Mikołajowi łatwiej było wybrać prezent.',

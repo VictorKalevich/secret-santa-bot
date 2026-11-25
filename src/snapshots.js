@@ -1,4 +1,4 @@
-// Снимки жеребьёвки (020): по чему считались пары — участники, исключения, семьи (010) и закреплённые пары (014).
+// Снимки жеребьёвки (020): по чему считались пары — участники, исключения и закреплённые пары (014; семей с 062 нет).
 // Жеребьёвка записывается, только если снимок в базе в момент записи тот же, что при расчёте (009, FR-922): условие
 // захвата в runDraw (src/pairs.js). У каждого снимка рядом формула в коде (js — по строкам, уже прочитанным checkDraw,
 // без запросов) и то же выражение в запросе (sql, один параметр — id события); паритет — tests/snapshots.test.mjs.
@@ -13,9 +13,6 @@ const Q = 2 ** 52;
 const add = (acc, x) => (acc + x) % Q;
 const SUM = (x) => `(COALESCE(SUM(${x}), 0) % ${Q})`;
 const PRODUCT = (a, b) => `(${a} % ${M}) * (${b} % ${M})`;
-
-// Зарегистрированные участники события — как в жеребьёвке
-const PARTICIPANTS = 'SELECT m.user_id FROM members m JOIN users u ON u.tg_id = m.user_id WHERE m.event_id = ? AND u.registered = 1';
 
 // Связи «кто → кому» (исключения, закреплённые пары): число, суммы дарящих и получателей и сумма произведений — она
 // различает перестановку партнёров ({А→Б, В→Г} и {А→Г, В→Б} дают одни и те же суммы)
@@ -40,8 +37,7 @@ function links(table) {
 const exclusions = links('exclusions');
 const fixed = links('fixed_pairs');
 
-// data = { ids — зарегистрированные участники, exclusions — все исключения события, families — строки «человек — семья»
-// компании события (050: familyRowsQuery(db, ev.company_id)), fixed — закреплённые пары события }
+// data = { ids — зарегистрированные участники, exclusions — все исключения события, fixed — закреплённые пары события }
 export const SNAPSHOTS = {
   members: {
     js({ ids }) {
@@ -53,44 +49,23 @@ export const SNAPSHOTS = {
             WHERE m.event_id = ? AND u.registered = 1)`,
   },
   exclusions: { js: (data) => exclusions.js(data.exclusions), sql: exclusions.sql },
-  // Строки семей участников в компании события (050): число, Σ(человек × семья), Σ семья — смена семьи меняет снимок,
-  // семьи других компаний — нет. Компания — через событие, параметр по-прежнему один
-  families: {
-    js({ ids, families }) {
-      const set = new Set(ids);
-      let count = 0;
-      let mixed = 0;
-      let fams = 0;
-      for (const r of families) {
-        if (!set.has(r.user_id)) continue;
-        count += 1;
-        mixed = add(mixed, (r.user_id % M) * (r.family_id % M));
-        fams = add(fams, r.family_id);
-      }
-      return `${count}:${mixed}:${fams}`;
-    },
-    sql: `(SELECT COUNT(*) || ':' || ${SUM(PRODUCT('fm.user_id', 'fm.family_id'))} || ':' || ${SUM('fm.family_id')}
-             FROM events e JOIN family_members fm ON fm.company_id = e.company_id
-            WHERE e.id = ? AND fm.user_id IN (${PARTICIPANTS.replace('m.event_id = ?', 'm.event_id = e.id')}))`,
-  },
   fixed: { js: (data) => fixed.js(data.fixed), sql: fixed.sql },
 };
 
-// Снимок для записи жеребьёвки; семьи сравниваются, только если правило семей включено (010)
-export function drawSnapshot(ev, data) {
+// Снимок для записи жеребьёвки
+export function drawSnapshot(data) {
   return {
     members: SNAPSHOTS.members.js(data),
     exclusions: SNAPSHOTS.exclusions.js(data),
-    families: ev.families_on ? SNAPSHOTS.families.js(data) : '',
     fixed: SNAPSHOTS.fixed.js(data),
   };
 }
 
 // Условие «снимок в базе тот же» для захвата жеребьёвки: { sql, args }
 export function snapshotGuard(eventId, snap) {
-  const { members, exclusions: ex, families, fixed: fx } = SNAPSHOTS;
+  const { members, exclusions: ex, fixed: fx } = SNAPSHOTS;
   return {
-    sql: `${members.sql} = ? AND ${ex.sql} = ? AND (? = '' OR ${families.sql} = ?) AND ${fx.sql} = ?`,
-    args: [eventId, snap.members, eventId, snap.exclusions, snap.families, eventId, snap.families, eventId, snap.fixed],
+    sql: `${members.sql} = ? AND ${ex.sql} = ? AND ${fx.sql} = ?`,
+    args: [eventId, snap.members, eventId, snap.exclusions, eventId, snap.fixed],
   };
 }

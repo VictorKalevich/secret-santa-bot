@@ -1,13 +1,7 @@
-// Texts of src/membership.js (060): joining, join requests, families, "I take part", leaving
+// Texts of src/membership.js (060): joining, join requests, "I take part", leaving
 export default {
-  // Families (008): rules and frozen membership while a drawn event is running (009)
-  'membership.familyNameRule': "Le nom de la famille doit compter de 1 à 40 caractères.",
-  'membership.familySize': "Une famille compte de 2 à {max} personnes.",
-  'membership.familyNotFound': "Famille introuvable.",
   'membership.memberNotFound': "Participant introuvable.",
-  'membership.alreadyInFamily': "{name} fait déjà partie de la famille « {family} ».",
-  'membership.familyFrozen': "La composition de la famille ne peut pas changer tant que l'événement « {title} », dont le tirage a eu lieu, est en cours : sinon, on pourrait deviner les paires d'après les remplacements. Modifications possibles après sa fin.",
-  // Log: family - name and members, "I take part"
+  // Log: family - name and members (records before 062), "I take part"
   'membership.audit.familySave': "« {name} » : {people}",
   'membership.audit.familyDelete': "« {name} »",
   'membership.audit.isParticipant': "participe",

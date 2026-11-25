@@ -68,8 +68,8 @@ describe('обмен без нарушений (US1)', () => {
   let checked;
   before(async () => {
     z = await world();
-    // У пар p1→p2 и p4→p5 — ход подарка, маска, посылка и переписка; у p5→adm — тоже переписка (её обмен не трогает)
-    z.w.sql(`UPDATE pairs SET seen_text = 'письмо', gift_ready = 1, mask = 'dragon', gift_sent = 1, sent_date = '2026-12-01',
+    // У пар p1→p2 и p4→p5 — ход подарка, посылка и переписка; у p5→adm — тоже переписка (её обмен не трогает)
+    z.w.sql(`UPDATE pairs SET seen_text = 'письмо', gift_ready = 1, gift_sent = 1, sent_date = '2026-12-01',
       carrier = 'Белпочта', tracking = 'TRACK-1', gift_received = 1, gift_received_at = 5 WHERE event_id = ${z.ev} AND santa IN (${p1.id}, ${p4.id})`);
     for (const [santa, ward] of [[p1.id, p2.id], [p4.id, p5.id], [p5.id, adm.id]]) {
       z.w.sql(`INSERT INTO messages (event_id, santa, ward, sender, text, created_at) VALUES (${z.ev}, ${santa}, ${ward}, 'santa', 'привет', 1)`);
@@ -101,7 +101,7 @@ describe('обмен без нарушений (US1)', () => {
       const [row] = z.w.query('SELECT * FROM pairs WHERE event_id = ? AND santa = ?', z.ev, santa);
       assert.equal(row.seen_text, null);
       for (const col of ['gift_ready', 'gift_sent', 'gift_received', 'gift_received_at']) assert.equal(row[col], 0, col);
-      for (const col of ['mask', 'sent_date', 'carrier', 'tracking']) assert.equal(row[col], '', col);
+      for (const col of ['sent_date', 'carrier', 'tracking']) assert.equal(row[col], '', col);
     }
     const msgs = z.w.query('SELECT santa, ward FROM messages WHERE event_id = ?', z.ev).map((m) => `${m.santa}→${m.ward}`);
     assert.deepEqual(msgs, [`${p5.id}→${adm.id}`]);
@@ -189,57 +189,61 @@ describe('обмен вопреки правилам (US2) и невозможн
     const c = await z.check(p1, p2);
     assert.equal(c.possible, false);
     assert.deepEqual(c.rules, [{ rule: 'self', text: ruleText('self') }]);
-    const r = await z.swap(p1, p2, { version: c.version, agree: ['self', 'exclusion', 'family', 'ring', 'fixed', 'history'] });
+    const r = await z.swap(p1, p2, { version: c.version, agree: ['self', 'exclusion', 'ring', 'fixed', 'history'] });
     assert.equal(r.status, 400);
     assert.equal(r.data.error, SELF);
     assert.equal(z.pairs().get(p1.id), p2.id);
   });
 
-  it('исключение, семья, закреплённая пара и прошлое событие — каждое правило отдельно и вместе, в своём порядке', async () => {
+  it('исключение, закреплённая пара и прошлое событие — каждое правило отдельно и вместе, в своём порядке; семья — не правило (062)', async () => {
     // p1 и p4: новые связки p1→p5 и p4→p2
     z.w.sql(`INSERT INTO exclusions (event_id, giver, receiver) VALUES (${z.ev}, ${p1.id}, ${p5.id})`);
     assert.deepEqual(await rulesOf(p1, p4), ['exclusion']);
     z.w.sql(`DELETE FROM exclusions WHERE event_id = ${z.ev}`);
 
-    await z.w.api(boss, 'admin.family.save', { name: 'Семья', members: [p4.id, p2.id] });
-    assert.deepEqual(await rulesOf(p1, p4), ['family']);
-    z.w.sql(`UPDATE events SET families_on = 0 WHERE id = ${z.ev}`);
-    assert.deepEqual(await rulesOf(p1, p4), [], 'семьи не учитываются — не нарушение');
-    z.w.sql(`UPDATE events SET families_on = 1 WHERE id = ${z.ev}`);
+    // Строки семей и колонка «Учитывать семьи» остались в схеме ради отката — правилом обмена они не считаются
+    z.w.sql(`INSERT INTO families (id, company_id, name, created_at) VALUES (1, 1, 'Семья', 0);
+      INSERT INTO family_members (company_id, user_id, family_id) VALUES (1, ${p4.id}, 1), (1, ${p2.id}, 1);
+      UPDATE events SET families_on = 1 WHERE id = ${z.ev}`);
+    assert.deepEqual(await rulesOf(p1, p4), [], 'семья — не нарушение');
+    // Бывшая семья — исключение p4 → p2 (так её переносит миграция 0023)
+    z.w.sql(`INSERT INTO exclusions (event_id, giver, receiver) VALUES (${z.ev}, ${p4.id}, ${p2.id})`);
+    assert.deepEqual(await rulesOf(p1, p4), ['exclusion']);
 
     z.w.sql(`INSERT INTO fixed_pairs (event_id, giver, receiver) VALUES (${z.ev}, ${p1.id}, ${p2.id})`);
-    assert.deepEqual(await rulesOf(p1, p4), ['family', 'fixed']);
+    assert.deepEqual(await rulesOf(p1, p4), ['exclusion', 'fixed']);
     z.w.sql(`DELETE FROM fixed_pairs WHERE event_id = ${z.ev}`);
     z.w.sql(`INSERT INTO fixed_pairs (event_id, giver, receiver) VALUES (${z.ev}, ${p1.id}, ${p3.id})`);
-    assert.deepEqual(await rulesOf(p1, p4), ['family'], 'закреплённая пара, которая и так не действовала, — не нарушение');
+    assert.deepEqual(await rulesOf(p1, p4), ['exclusion'], 'закреплённая пара, которая и так не действовала, — не нарушение');
     z.w.sql(`DELETE FROM fixed_pairs WHERE event_id = ${z.ev}`);
 
     const prev = (await z.w.api(boss, 'admin.events.create', { title: 'Прошлое' })).event.id;
     z.w.sql(`UPDATE events SET created_at = 1 WHERE id = ${prev}`);
     z.w.sql(`INSERT INTO pairs (event_id, santa, ward) VALUES (${prev}, ${p1.id}, ${p5.id})`);
-    assert.deepEqual(await rulesOf(p1, p4), ['family', 'history']);
+    assert.deepEqual(await rulesOf(p1, p4), ['exclusion', 'history']);
     z.w.sql(`UPDATE events SET avoid_previous = 0 WHERE id = ${z.ev}`);
-    assert.deepEqual(await rulesOf(p1, p4), ['family'], '«не повторять» выключено — не нарушение');
+    assert.deepEqual(await rulesOf(p1, p4), ['exclusion'], '«не повторять» выключено — не нарушение');
     z.w.sql(`UPDATE events SET avoid_previous = 1 WHERE id = ${z.ev}`);
 
-    z.w.sql(`INSERT INTO exclusions (event_id, giver, receiver) VALUES (${z.ev}, ${p4.id}, ${p2.id})`);
+    z.w.sql(`INSERT INTO exclusions (event_id, giver, receiver) VALUES (${z.ev}, ${p1.id}, ${p5.id})`);
     z.w.sql(`INSERT INTO fixed_pairs (event_id, giver, receiver) VALUES (${z.ev}, ${p4.id}, ${p5.id})`);
     const c = await z.check(p1, p4);
-    assert.deepEqual(c.rules.map((r) => r.rule), ['exclusion', 'family', 'fixed', 'history']);
-    assert.deepEqual(c.rules.map((r) => r.text), ['exclusion', 'family', 'fixed', 'history'].map(ruleText));
+    assert.deepEqual(c.rules.map((r) => r.rule), ['exclusion', 'fixed', 'history']);
+    assert.deepEqual(c.rules.map((r) => r.text), ['exclusion', 'fixed', 'history'].map(ruleText));
     for (const name of NAMES) assert.ok(!JSON.stringify(c).includes(name), 'без имён: ' + name);
   });
 
   it('без согласия на каждое нарушение — отказ, пары прежние; с согласием — обмен', async () => {
     const c = await z.check(p1, p4);
     const before = [...z.pairs()];
-    for (const agree of [undefined, [], ['exclusion', 'family', 'fixed']]) {
+    for (const agree of [undefined, [], ['exclusion', 'fixed'], ['exclusion', 'family', 'fixed']]) {
       const r = await z.swap(p1, p4, { version: c.version, agree });
       assert.equal(r.status, 400);
       assert.equal(r.data.error, CHANGED);
     }
     assert.deepEqual([...z.pairs()], before);
-    const ok = await z.swap(p1, p4, { version: c.version, agree: c.rules.map((r) => r.rule) });
+    // Лишнее согласие (в том числе прежнее правило family) не мешает
+    const ok = await z.swap(p1, p4, { version: c.version, agree: [...c.rules.map((r) => r.rule), 'family'] });
     assert.equal(ok.status, 200, ok.text);
     assert.equal(z.pairs().get(p1.id), p5.id);
     assert.deepEqual(z.audit('draw.swap'), ['пар изменено: 2']);
@@ -328,14 +332,15 @@ test('swapRules: чистая функция на малых примерах', 
   assert.deepEqual(swapRules(m([[1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 1]]), 1, 4, { ring: true }), []);
   assert.deepEqual(swapRules(cycle, 1, 3, { exclusions: [{ giver: 3, receiver: 2 }] }), ['exclusion']);
   assert.deepEqual(swapRules(cycle, 1, 3, { exclusions: [{ giver: 2, receiver: 3 }] }), [], 'запрет в обратную сторону не мешает');
-  assert.deepEqual(swapRules(cycle, 1, 3, { families: [{ giver: 1, receiver: 4 }] }), ['family']);
+  assert.deepEqual(swapRules(cycle, 1, 3, { families: [{ giver: 1, receiver: 4 }] }), [], 'семей нет (062)');
   assert.deepEqual(swapRules(cycle, 1, 3, { fixed: [{ giver: 4, receiver: 5 }] }), [], 'чужая закреплённая пара');
   assert.deepEqual(swapRules(cycle, 1, 3, { fixed: [{ giver: 3, receiver: 4 }] }), ['fixed']);
   assert.deepEqual(swapRules(cycle, 1, 3, { history: [{ giver: 1, receiver: 4 }] }), ['history']);
   assert.deepEqual(swapRules(cycle, 1, 3, {
-    ring: true, exclusions: [{ giver: 1, receiver: 4 }], families: [{ giver: 3, receiver: 2 }],
+    ring: true, exclusions: [{ giver: 1, receiver: 4 }],
     fixed: [{ giver: 1, receiver: 2 }], history: [{ giver: 3, receiver: 2 }],
-  }), ['exclusion', 'family', 'ring', 'fixed', 'history']);
+  }), ['exclusion', 'ring', 'fixed', 'history']);
+  assert.deepEqual(Object.keys(SWAP_RULES), ['self', 'exclusion', 'ring', 'fixed', 'history']);
 });
 
 test('приложение: секция только владельцу после жеребьёвки, шторка зовёт оба действия и «Подробнее», метка «не открыл» (049)', () => {

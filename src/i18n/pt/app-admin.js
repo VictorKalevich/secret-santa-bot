@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': 'e vice-versa (nos dois sentidos)',
   'app.admin.rules.pickTwo': 'Escolha duas pessoas',
   'app.admin.rules.different': 'Precisam ser duas pessoas diferentes',
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': 'Restrições',
   'app.admin.exclusions.empty': 'Sem restrições — qualquer pessoa pode presentear qualquer outra.',
   'app.admin.exclusions.both': '{giver} e {receiver} não se presenteiam',
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': 'Depois do sorteio, as restrições não mudam: senão, pelas trocas de participantes, daria para descobrir os pares. Para mudá-las, cancele o sorteio (enquanto ninguém tiver visto o presenteado).',
   'app.admin.exclusions.afterDraw': 'Depois do sorteio, as restrições valem para trocas futuras (remoção e inclusão de participantes); os pares atuais não mudam. Depois do sorteio, só o dono pode mudar as restrições.',
   'app.admin.exclusions.hint': 'Por exemplo, casais ou membros da mesma família. O bot não deixa o sorteio violar essas regras.',
-  'app.admin.families.title': '👪 Considerar famílias',
-  'app.admin.families.hint': 'Membros da mesma família não se presenteiam. As famílias são definidas na tela inicial.',
-  'app.admin.families.frozen': 'Não muda depois do sorteio',
-  'app.admin.families.on': 'As famílias são consideradas',
-  'app.admin.families.off': 'As famílias não são consideradas',
   // Fixed pairs (owner only)
   'app.admin.fixed.title': 'Pares fixos',
   'app.admin.fixed.empty': 'Sem pares fixos — o sorteio distribui todos aleatoriamente.',
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': '…quem ele presenteia',
   'app.admin.fixed.add': 'Fixar par',
   'app.admin.fixed.added': 'Par fixado',
-  'app.admin.fixed.hint': 'No sorteio, o bot vai juntar essas pessoas com certeza. Um par fixo vale mais que as restrições e as famílias. Só o dono tem acesso a este bloco.{ring}',
+  'app.admin.fixed.hint': 'No sorteio, o bot vai juntar essas pessoas com certeza. Um par fixo vale mais que as restrições. Só o dono tem acesso a este bloco.{ring}',
   // Addition to the hint when the ring draw is on (with a leading space)
   'app.admin.fixed.hintRing': ' O sorteio em círculo está ativado: um par só pode ser fixado em um sentido.',
   // {pairs} — mutual pairs separated by "; "
@@ -270,6 +265,6 @@ export default {
     'as marcações “presente pronto” e “recebido”;',
     'todas as conversas entre Papais Noéis e presenteados neste evento.',
   ],
-  'app.admin.danger.cancelKeep': 'Ficam as cartas, os endereços, os participantes, as restrições e as famílias. As inscrições reabrem, e os participantes vão receber um aviso.',
+  'app.admin.danger.cancelKeep': 'Ficam as cartas, os endereços, os participantes e as restrições. As inscrições reabrem, e os participantes vão receber um aviso.',
   'app.admin.danger.canceled': '↩️ Sorteio cancelado. Pares apagados: {n}',
 };

@@ -43,9 +43,9 @@ export default {
   'app.vault.swap.impossible': "Impossible d'échanger ces deux-là — choisis une autre paire.",
   'app.vault.swap.breaksOne': "⚠️ L'échange enfreint l'un des principes du tirage.",
   'app.vault.swap.breaksMany': "⚠️ L'échange enfreint plusieurs principes du tirage.",
-  'app.vault.swap.warning': "En cas d'échange, le bot préviendra ceux qui ont déjà découvert leur destinataire qu'il a changé. Les cases du cadeau, les masques et les conversations de ces deux paires repartiront de zéro.",
+  'app.vault.swap.warning': "En cas d'échange, le bot préviendra ceux qui ont déjà découvert leur destinataire qu'il a changé. Les cases du cadeau et les conversations de ces deux paires repartiront de zéro.",
   'app.vault.swap.agree': "D'accord — échanger quand même",
-  'app.vault.swap.confirm': "Échanger les destinataires de « {a} » et « {b} » ? Qui a déjà découvert le sien sera prévenu. Cases du cadeau, masques et conversations des deux paires seront remis à zéro.",
+  'app.vault.swap.confirm': "Échanger les destinataires de « {a} » et « {b} » ? Qui a déjà découvert le sien sera prévenu. Cases du cadeau et conversations des deux paires seront remis à zéro.",
   // Activity log: event, common room log, bot log
   'app.vault.log.event': "Journal de l'événement",
   'app.vault.log.common': "Journal commun",

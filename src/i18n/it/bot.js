@@ -62,11 +62,9 @@ export default {
   'bot.reply.failed': "❌ {error}",
   'bot.reply.toWardSent': "✅ Inviato al destinatario da «Babbo Natale segreto».",
   'bot.reply.toSantaSent': "✅ Inviato al tuo Babbo Natale.",
-  // "Write a message" hint (040: {mask} - Santa's mask)
+  // "Write a message" hint
   'bot.reply.toWard': "✍️ Scrivi un messaggio al destinatario ({title}): lo inoltrerò in modo <b>anonimo</b>, a nome di «Babbo Natale segreto».",
-  'bot.reply.toWardMasked': "✍️ Scrivi un messaggio al destinatario ({title}): lo inoltrerò in modo <b>anonimo</b>, a nome di «Babbo Natale segreto · {mask}».",
   'bot.reply.toSanta': "✍️ Scrivi un messaggio al tuo Babbo Natale ({title}): glielo inoltrerò. Lui sa chi sei, tu invece non sai chi è.",
-  'bot.reply.toSantaMasked': "✍️ Scrivi un messaggio al tuo Babbo Natale «{mask}» ({title}): glielo inoltrerò. Lui sa chi sei, tu invece non sai chi è.",
   // Tickets to the organizers (012)
   'bot.support.sent': "✅ Messaggio inviato. La risposta arriverà qui.",
   'bot.support.adminsOnly': "❌ Ai ticket possono rispondere il proprietario e gli amministratori.",

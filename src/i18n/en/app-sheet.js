@@ -11,10 +11,9 @@ export default {
   // Reply field and message feed
   'app.sheet.send': 'Send',
   'app.sheet.noMessages': 'No messages.',
-  // Santa and giftee chat (003, mask — 040)
+  // Santa and giftee chat (003)
   'app.sheet.chat.placeholder': 'Message…',
   'app.sheet.chat.yourSanta': 'Your Secret Santa',
-  'app.sheet.chat.yourMasked': 'Your {santa}',
   'app.sheet.chat.santaKnows': 'Santa knows who you are, but you don’t know who they are.',
   'app.sheet.chat.youAre': 'To your giftee you’re “{santa}” — your name stays hidden.',
   'app.sheet.chat.noDraw': 'Chat isn’t available: the draw hasn’t happened yet.',

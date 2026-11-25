@@ -1,13 +1,7 @@
-// Spanish: texts of src/membership.js (joining, join requests, families, "I take part", leaving).
+// Spanish: texts of src/membership.js (joining, join requests, "I take part", leaving).
 export default {
-  // Families
-  'membership.familyNameRule': 'El nombre de la familia debe tener entre 1 y 40 caracteres.',
-  'membership.familySize': 'Una familia debe tener entre 2 y {max} personas.',
-  'membership.familyNotFound': 'Familia no encontrada.',
   'membership.memberNotFound': 'Participante no encontrado.',
-  'membership.alreadyInFamily': '{name} ya está en la familia «{family}».',
-  'membership.familyFrozen': 'No se pueden cambiar los miembros de la familia mientras el evento «{title}» tenga el sorteo hecho: si no, por los cambios de participantes se podrían deducir las asignaciones. Podrás cambiarlos cuando termine.',
-  // Activity log: family name and members, "I take part"
+  // Activity log: family name and members (records before 062), "I take part"
   'membership.audit.familySave': '«{name}»: {people}',
   'membership.audit.familyDelete': '«{name}»',
   'membership.audit.isParticipant': 'participa',

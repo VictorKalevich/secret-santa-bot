@@ -5,7 +5,6 @@ import { msg, q, escapeHtml, shortTitle, appUrl, cleanText, CHAT_READ_ONLY } fro
 import { tx } from './i18n/index.js';
 import { chatWritable } from './status.js';
 import { no } from './result.js';
-import { maskLabel } from './looks.js';
 
 // Лимит письма и сообщения переписки: одно сообщение Telegram вмещает 4096 символов (UTF-16, как String.length),
 // 96 оставляем под заголовок уведомления (003, FR-309).
@@ -13,21 +12,14 @@ export const MAX_CHARS = 4000;
 // Отказ «слишком длинно» для письма, переписки и обращений (019: один текст)
 export const tooLong = (n) => tx('chat.tooLong', { n, max: MAX_CHARS });
 
-// mask — маска пары (040): Санте — своя, подопечному — его Санты
 export async function chatPair(db, eventId, userId, withWhom) {
   if (withWhom === 'ward') {
     const p = await pairOfSanta(db, eventId, userId);
-    return p ? { santa: userId, ward: p.ward, me: 'santa', other: p.ward, mask: p.mask } : null;
+    return p ? { santa: userId, ward: p.ward, me: 'santa', other: p.ward } : null;
   }
   const p = await pairOfWard(db, eventId, userId);
-  return p ? { santa: p.santa, ward: userId, me: 'ward', other: p.santa, mask: p.mask } : null;
+  return p ? { santa: p.santa, ward: userId, me: 'ward', other: p.santa } : null;
 }
-
-// «Твой Тайный Санта «🐉 Дракон»» — так подопечный видит Санту в сообщениях бота (040); без маски — как раньше
-export const santaTitle = (mask) => {
-  const label = maskLabel(mask);
-  return label ? tx('chat.santaTitleMask', { mask: label }) : tx('chat.santaTitle');
-};
 
 function chatButtons(settings, ev, recipientSide) {
   // recipientSide — кто получает: подопечный отвечает Санте, Санта — подопечному
@@ -58,11 +50,10 @@ export async function sendChatMessage(ctx, ev, fromId, to, rawText, { expectOthe
   if (expectOther && pair.other !== expectOther) return { ...no(PAIR_CHANGED), pairChanged: true };
   const settings = await ctx.settings();
   const now = Date.now();
-  // Заголовок + текст до MAX_CHARS всегда помещаются в одно сообщение Telegram: название эвента сокращаем (и с самой
-  // длинной маской, 040, — тест mask)
+  // Заголовок + текст до MAX_CHARS всегда помещаются в одно сообщение Telegram: название эвента сокращаем
   const title = q({ title: shortTitle(ev.title) });
   const notice = pair.me === 'santa'
-    ? tx('chat.fromSanta', { santa: santaTitle(pair.mask), title, text: escapeHtml(text) })
+    ? tx('chat.fromSanta', { santa: tx('chat.santaTitle'), title, text: escapeHtml(text) })
     : tx('chat.fromWard', { title, text: escapeHtml(text) });
   // Пара могла смениться (удаление или вписывание участника) между проверкой и записью: тогда ничего не пишем
   const pairAlive = 'EXISTS (SELECT 1 FROM pairs WHERE event_id = ? AND santa = ? AND ward = ?)';
@@ -98,7 +89,7 @@ export const unreadByEventQuery = (db, userId) => db.prepare(UNREAD_SQL + ' GROU
 export const unreadByEventFrom = (rows) => Object.fromEntries(rows.map((r) => [r.event_id, (r.from_ward || 0) + (r.from_santa || 0)]));
 
 // chat.get: история переписки с подопечным или Сантой; сообщения собеседника помечаются прочитанными.
-// Только текст и «моё/не моё» — без ID и имён собеседника (Конституция, принцип I); маска пары (040).
+// Только текст и «моё/не моё» — без ID и имён собеседника (Конституция, принцип I).
 export async function chatHistory(ctx, ev, withWhom, after) {
   const db = ctx.db;
   const pair = await chatPair(db, ev.id, ctx.me.tg_id, withWhom);
@@ -117,7 +108,6 @@ export async function chatHistory(ctx, ev, withWhom, after) {
   return {
     state: 'ok',
     counterpart: withWhom,
-    mask: pair.mask,
     writable: chatWritable(ev),
     messages: results.map((m) => ({ id: m.id, mine: m.sender === pair.me, text: m.text, created_at: m.created_at })),
   };

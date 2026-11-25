@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': '所有者和管理员能看到这个标记',
   'app.event.gift.done': '🎉 太好了！礼物已标记为备好',
   'app.event.markRemoved': '标记已取消',
-  // Santa mask (040); {mask} is "🐉 神龙", mask names come from the server
-  'app.event.mask.santa': '神秘圣诞老人',
-  'app.event.mask.santaMasked': '神秘圣诞老人 · {mask}',
-  'app.event.mask.worn': '你的圣诞老人戴着面具“{mask}”。',
-  'app.event.mask.current': '聊天中的面具：{mask}。',
-  'app.event.mask.button': '🎭 面具：{mask}',
-  'app.event.mask.none': '不戴面具',
-  'app.event.mask.noneTile': '不戴面具',
-  'app.event.mask.title': '聊天中的面具',
-  'app.event.mask.hint': '收礼人在聊天和机器人消息中看到的你就是这样。面具下是谁，要等谜底揭晓时才知道。每个活动的面具各自独立。',
-  'app.event.mask.picked': '已选择面具',
-  'app.event.mask.removed': '已摘下面具',
+  // Santa's name in chat hints
+  'app.event.santa': '神秘圣诞老人',
   // "Giftee"; in ward.changed, {added} and {removed} become the highlighted words ward.added and ward.removed
   'app.event.ward.noDrawTitle': '还没有抽签',
   'app.event.ward.noDrawText': '抽签后，这里会显示你的收礼人的名字和心愿信。机器人会通知你。',

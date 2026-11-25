@@ -7,10 +7,9 @@ export default {
   'chat.noSanta': '你还没有参与抽签。',
   'chat.pairChanged': '配对已变化，请刷新页面。',
   'chat.pairChangedReply': '🔄 你点了“回复”之后配对发生了变化，消息未发送。请再点一次“↩️ 回复”。',
-  // How the giftee sees Santa in bot messages: without and with a mask (040)
+  // How the giftee sees Santa in bot messages
   'chat.santaTitle': '你的神秘圣诞老人',
-  'chat.santaTitleMask': '你的神秘圣诞老人“{mask}”',
-  // Message to the other side: {santa} is chat.santaTitle*, {title} the event title, {text} the message text
+  // Message to the other side: {santa} is chat.santaTitle, {title} the event title, {text} the message text
   'chat.fromSanta': '💬 <b>{santa}（{title}）说：</b>\n\n{text}',
   'chat.fromWard': '💬 <b>你的收礼人（{title}）说：</b>\n\n{text}',
   'chat.historyButton': '💬 全部聊天记录',

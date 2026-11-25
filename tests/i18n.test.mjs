@@ -14,7 +14,7 @@ import {
 } from './support/i18n-rules.mjs';
 import { APP } from './support/app-source.mjs';
 import { PSEUDO, pseudoLanguage } from './support/pseudo.mjs';
-import { POSTCARDS, MASKS } from '../src/looks.js';
+import { POSTCARDS } from '../src/looks.js';
 import { SWAP_RULES } from '../src/pairs.js';
 import { AREAS as RU_AREAS } from '../src/i18n/ru/index.js';
 import { languageProblems, loadLanguage, valueProblems } from './support/i18n-lang-rules.mjs';
@@ -384,15 +384,15 @@ describe('семейства ключей — по источнику кодов
   const dict = dictionary();
   const membersOf = (prefix) => [...dict.keys()].filter((k) => k.startsWith(prefix)).map((k) => k.slice(prefix.length)).sort();
   const src = (f) => read(f);
-  // Коды таблицы «## Коды журнала» docs/api.md
+  // Коды таблицы «## Коды журнала» docs/api.md и строки «Прежние коды» (062: записи остались в журнале, новые не пишутся)
   const auditCodes = () => {
     const doc = read('docs/api.md');
     const chapter = doc.slice(doc.indexOf('\n## Коды журнала'), doc.indexOf('\n## ', doc.indexOf('\n## Коды журнала') + 5));
-    return [...chapter.matchAll(/^\| `([a-z_.]+)` \|/gm)].map((m) => m[1]);
+    const old = /^Прежние коды[^\n]*/m.exec(chapter)?.[0] ?? '';
+    return [...chapter.matchAll(/^\| `([a-z_.]+)` \|/gm), ...old.matchAll(/`([a-z_.]+)`/g)].map((m) => m[1]);
   };
   const FAMILIES = [
     ['looks.card.', () => POSTCARDS.map((c) => c.id)],
-    ['looks.mask.', () => MASKS.map((m) => m.id)],
     ['app.vault.audit.', auditCodes],
     ['pairs.reason.', () => [...src('src/draw.js').matchAll(/type: '([a-z_]+)'/g)].map((m) => m[1])],
     ['pairs.swapRule.', () => Object.keys(SWAP_RULES)],
@@ -419,7 +419,7 @@ describe('семейства ключей — по источнику кодов
       for (const m of stripComments(read(f)).matchAll(/\b(?:t|tx|tl)\(\s*'([A-Za-z.]+\.)'\s*\+/g)) used.add(m[1]);
     }
     const listed = new Set(FAMILIES.map(([p]) => p));
-    assert.ok(used.size >= 7, [...used].join(', '));
+    assert.ok(used.size >= 6, [...used].join(', '));
     assert.deepEqual([...used].filter((f) => !listed.has(f)), []);
     for (const [rule, key] of Object.entries(SWAP_RULES)) assert.equal(key, 'pairs.swapRule.' + rule);
   });

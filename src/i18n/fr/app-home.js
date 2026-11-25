@@ -1,4 +1,4 @@
-// Texts of app part 03-home (060): home screen, "Profile", "Notifications", families, owner and admins
+// Texts of app part 03-home (060): home screen, "Profile", "Notifications", owner and admins
 export default {
   // Leaving an event or tab (058): asks only about what will not be saved by itself
   'app.home.unsaved': "La lettre ou l'adresse n'est pas enregistrée. Partir sans enregistrer ?",
@@ -38,7 +38,6 @@ export default {
   'app.home.lang.auto': "Comme dans Telegram ({name})",
   'app.home.lang.hint': "Le bot et l'appli seront dans cette langue. « Comme dans Telegram » : la langue de ton Telegram.",
   'app.home.notify.title': "Notifications",
-  'app.home.notify.hint': "Quand ton destinataire modifie sa lettre (dans n'importe quel événement), le bot te prévient — sans nom ni détails.",
   'app.home.notify.sound': "🔔 Son",
   'app.home.notify.silent': "🔕 Muet",
   'app.home.notify.off': "🚫 Désactivé",
@@ -47,20 +46,6 @@ export default {
   'app.home.name.hint': "Ton nom est le même dans tous les événements. Le propriétaire, les administrateurs et ton Père Noël le voient, et à la révélation, ton destinataire aussi.",
   'app.home.name.empty': "Écris ton nom",
   'app.home.name.saved': "Nom enregistré",
-  // Families (008); "New family" - button and sheet title
-  'app.home.families.title': "Familles",
-  'app.home.families.empty': "Aucune famille pour l'instant.",
-  'app.home.families.edit': "Modifier la famille",
-  'app.home.families.new': "Nouvelle famille",
-  'app.home.families.hint': "Les membres d'une même famille ne s'offrent rien, dans aucun événement (si « Tenir compte des familles » y est activé). Une personne — une seule famille.",
-  'app.home.families.family': "Famille",
-  'app.home.families.name': "Nom de la famille",
-  'app.home.families.placeholder': "Par exemple : les Martin",
-  'app.home.families.members': "Qui fait partie de la famille (les membres d'autres familles ne sont pas affichés) :",
-  'app.home.families.saved': "Famille enregistrée",
-  'app.home.families.delete': "🗑 Supprimer la famille",
-  'app.home.families.deleteConfirm': "Supprimer la famille « {name} » ? Les tirages déjà effectués ne changeront pas.",
-  'app.home.families.deleted': "Famille supprimée",
   // Owner and admins (002, 051: crown - owner transfer or appointment by the bot owner)
   'app.home.admins.title': "Propriétaire et administrateurs",
   'app.home.admins.makeOwnerConfirm': "Nommer « {name} » propriétaire de ce salon ? Pleins pouvoirs : administrateurs, réinitialisation et suppression d'événements, vue de contrôle. Tu resteras propriétaire du bot et pourras reprendre le salon.",

@@ -1,4 +1,4 @@
-// Правила пар (019): исключения «кто кому не дарит», закреплённые пары владельца (014), семьи как исключения (008).
+// Правила пар (019): исключения «кто кому не дарит» и закреплённые пары владельца (014).
 // Снимки этих правил для условия записи жеребьёвки — src/snapshots.js (020); жеребьёвка и замены — src/pairs.js.
 
 import { getEvent, memberQuery, drawMembersQuery, fixedPairsQuery } from './db.js';
@@ -129,22 +129,3 @@ export async function changeFixed(ctx, ev, { add, giver: rawGiver, receiver: raw
   return { ok: true };
 }
 
-// ---------- семьи как исключения (008) ----------
-
-// Пары «не дарят друг другу» между членами одной семьи среди ids — если в эвенте включено правило семей.
-// rows — строки «человек — семья» (familyRowsQuery), прочитанные вызывающим в его пакете чтений (019).
-export function familyExclusions(ev, ids, rows) {
-  if (!ev.families_on || ids.length < 2) return [];
-  const set = new Set(ids);
-  const byFamily = new Map();
-  for (const r of rows) {
-    if (!set.has(r.user_id)) continue;
-    if (!byFamily.has(r.family_id)) byFamily.set(r.family_id, []);
-    byFamily.get(r.family_id).push(r.user_id);
-  }
-  const out = [];
-  for (const list of byFamily.values()) {
-    for (const a of list) for (const b of list) if (a !== b) out.push({ giver: a, receiver: b });
-  }
-  return out;
-}

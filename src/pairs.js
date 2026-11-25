@@ -1,10 +1,9 @@
 // Пары эвента: проверка и проведение жеребьёвки, отмена, удаление и вписывание участника после жеребьёвки.
 
 import {
-  getEvent, drawMembersQuery, pairsQuery, pairLinksQuery, exclusionsQuery, familyRowsQuery, fixedPairsQuery,
+  getEvent, drawMembersQuery, pairsQuery, pairLinksQuery, exclusionsQuery, fixedPairsQuery,
   markRemovedStmt, memberDataDeleteStmts,
 } from './db.js';
-import { familyExclusions } from './constraints.js';
 import { atomic, closedParens } from './claim.js';
 import { drawSnapshot, snapshotGuard } from './snapshots.js';
 import { planDraw, pairRules, removeFromAssignment, insertIntoAssignment } from './draw.js';
@@ -60,8 +59,6 @@ export async function checkDraw(ctx, ev) {
   const r = await ctx.read({
     members: drawMembersQuery(db, ev.id),
     exclusions: exclusionsQuery(db, ev.id),
-    // 008: семьи — как исключения; строки семей читаются один раз — и для исключений, и для снимка (010)
-    families: ev.families_on && familyRowsQuery(db, ev.company_id),
     previous: ev.avoid_previous && previousPairsQuery(db, ev),
     // 014: закреплённые пары владельца (planDraw сам берёт только пары участников жеребьёвки)
     fixed: fixedPairsQuery(db, ev.id),
@@ -70,29 +67,24 @@ export async function checkDraw(ctx, ev) {
   const ids = people.map((u) => u.user_id);
   const allEx = r.exclusions;
   const own = allEx.filter((e) => ids.includes(e.giver) && ids.includes(e.receiver));
-  const famRows = r.families;
-  const families = familyExclusions(ev, ids, famRows);
   const prev = ev.avoid_previous ? previousPairs(r.previous, ids) : [];
   const history = prev.map((p) => ({ giver: p.santa, receiver: p.ward }));
   const ring = !!ev.ring;
   const fixed = r.fixed;
-  // 009, FR-923: попытки (с историей, без неё, «мешают ли закреплённые пары и семьи») делят один бюджет поиска
-  const { familiesBlock, ...res } = planDraw(ids, { own, families, history, fixed }, Math.random, { ring });
+  // 009, FR-923: попытки (с историей, без неё, «мешают ли закреплённые пары») делят один бюджет поиска
+  const res = planDraw(ids, { own, history, fixed }, Math.random, { ring });
   const byId = Object.fromEntries(people.map((u) => [u.user_id, u]));
   return {
     people,
     byId,
     res,
     ring,
-    // Снимок того, по чему считались пары (009, FR-922; семьи — 010, FR-1019; закреплённые пары — 014): runDraw
-    // записывает пары, только если он не изменился. По уже прочитанным строкам, без запросов (020: src/snapshots.js).
-    snapshot: drawSnapshot(ev, { ids, exclusions: allEx, families: famRows, fixed }),
+    // Снимок того, по чему считались пары (009, FR-922; закреплённые пары — 014): runDraw записывает пары, только если он
+    // не изменился. По уже прочитанным строкам, без запросов (020: src/snapshots.js).
+    snapshot: drawSnapshot({ ids, exclusions: allEx, fixed }),
     // Учтены ли прошлые пары, наружу не сообщается: по этому признаку можно вычислить пары прошлого (009, FR-904)
     emptyWishlists: people.filter((u) => u.wishlist_blank).map((u) => u.name),
-    problems: res.ok ? [] : [
-      ...(familiesBlock ? [tx('pairs.familiesBlock')] : []),
-      ...res.problems.map((p) => describeProblem(p, byId, ctx.ownerWord())),
-    ],
+    problems: res.ok ? [] : res.problems.map((p) => describeProblem(p, byId, ctx.ownerWord())),
   };
 }
 
@@ -112,8 +104,8 @@ export async function runDraw(ctx, ev, { actor = 0, action = 'draw' } = {}) {
   const mine = atomic(db, 'EXISTS (SELECT 1 FROM events WHERE id = ? AND draw_token = ?)', ev.id, token);
   mine.claim(db.prepare(
     `UPDATE events SET draw_done = 1, draw_at = ?, draw_token = ?, registration_open = 0, revealed = 0, checked_on = ''
-      WHERE id = ? AND draw_done = 0 AND status = 'active' AND ring = ? AND families_on = ? AND ${same.sql}`
-  ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ev.families_on ? 1 : 0, ...same.args));
+      WHERE id = ? AND draw_done = 0 AND status = 'active' AND ring = ? AND ${same.sql}`
+  ).bind(Date.now(), token, ev.id, check.ring ? 1 : 0, ...same.args));
   mine.where('DELETE FROM pairs WHERE event_id = ?', ev.id);
   for (const [santa, ward] of check.res.pairs) {
     mine.select('INSERT INTO pairs (event_id, santa, ward, seen_text, notified_at, gift_ready) SELECT ?, ?, ?, NULL, ?, 0',
@@ -206,7 +198,6 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
     pairs: done && pairsQuery(db, ev.id),
     fixed: done && fixedPairsQuery(db, ev.id),
     exclusions: done && exclusionsQuery(db, ev.id),
-    families: done && ev.families_on && familyRowsQuery(db, ev.company_id),
   });
   const { members } = read;
   const target = members.find((m) => m.user_id === userId);
@@ -217,7 +208,7 @@ export async function removeMember(ctx, ev, userId, { notify = true, actor = 0, 
     if (rows.some((p) => p.santa === userId || p.ward === userId)) {
       // 014: закреплённые пары оставшихся не ломаются (пары с уходящим уже не действуют)
       const fixed = read.fixed.filter((f) => f.giver !== userId && f.receiver !== userId);
-      const isAllowed = pairRules([...read.exclusions, ...familyExclusions(ev, members.map((m) => m.user_id), read.families)], fixed);
+      const isAllowed = pairRules(read.exclusions, fixed);
       const r = removeFromAssignment(pairsToMap(rows), userId, isAllowed, Math.random, { ring: !!ev.ring });
       if (!r) {
         return no(tx('pairs.removeBlocked'));
@@ -260,14 +251,12 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
     members: drawMembersQuery(db, ev.id),
     rows: pairsQuery(db, ev.id),
     ownEx: exclusionsQuery(db, ev.id),
-    families: ev.families_on && familyRowsQuery(db, ev.company_id),
     chats: db.prepare('SELECT DISTINCT santa, ward FROM messages WHERE event_id = ?').bind(ev.id),
     fixed: fixedPairsQuery(db, ev.id), // 014: вписывание не разрывает закреплённых пар
   });
   const { members, rows, ownEx, chats, fixed } = read;
   const u = members.find((x) => x.user_id === userId);
   if (!u || !u.registered) return no(tx('membership.memberNotFound'));
-  const famEx = familyExclusions(ev, members.map((m) => m.user_id), read.families);
   if (rows.some((p) => p.santa === userId)) return no(tx('pairs.alreadyInDraw'));
   const talked = new Set(chats.map((m) => `${m.santa}:${m.ward}`));
   const bySanta = new Map(rows.map((p) => [p.santa, p]));
@@ -275,7 +264,7 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
     const p = bySanta.get(a);
     return insertRank(p, p && talked.has(`${p.santa}:${p.ward}`));
   };
-  const r = insertIntoAssignment(pairsToMap(rows), userId, pairRules([...ownEx, ...famEx], fixed), Math.random, { ring: !!ev.ring, rank });
+  const r = insertIntoAssignment(pairsToMap(rows), userId, pairRules(ownEx, fixed), Math.random, { ring: !!ev.ring, rank });
   if (!r) return no(INSERT_BLOCKED);
   // Группа выбранного Санты проверяется ещё раз в захвате (research R2): если он только что открыл подопечного или
   // отметил подарок, пары не меняются — «попробуй ещё раз»
@@ -297,7 +286,6 @@ export async function insertMember(ctx, ev, userId, actor = 0) {
 export const SWAP_RULES = {
   self: 'pairs.swapRule.self',
   exclusion: 'pairs.swapRule.exclusion',
-  family: 'pairs.swapRule.family',
   ring: 'pairs.swapRule.ring',
   fixed: 'pairs.swapRule.fixed',
   history: 'pairs.swapRule.history',
@@ -305,8 +293,8 @@ export const SWAP_RULES = {
 const SWAP_REVEALED = tx('pairs.swapRevealed');
 
 // Нарушения обмена подопечных a и b (pairs — Map Санта → подопечный): меняются только связки a → w(b) и b → w(a).
-// self — кто-то дарил бы сам себе: обмен невозможен, остальное не считается. families, history — пары { giver, receiver }.
-export function swapRules(pairs, a, b, { exclusions = [], families = [], ring = false, fixed = [], history = [] } = {}) {
+// self — кто-то дарил бы сам себе: обмен невозможен, остальное не считается. exclusions, history — пары { giver, receiver }.
+export function swapRules(pairs, a, b, { exclusions = [], ring = false, fixed = [], history = [] } = {}) {
   const wa = pairs.get(a);
   const wb = pairs.get(b);
   if (wa === b || wb === a) return ['self'];
@@ -315,7 +303,6 @@ export function swapRules(pairs, a, b, { exclusions = [], families = [], ring = 
   const after = new Map(pairs).set(a, wb).set(b, wa);
   const rules = [];
   if (hit(exclusions)) rules.push('exclusion');
-  if (hit(families)) rules.push('family');
   if (ring && (pairs.get(wb) === a || pairs.get(wa) === b)) rules.push('ring');
   // Закреплённая пара, которая действовала, а после обмена — нет
   if (fixed.some((f) => pairs.get(f.giver) === f.receiver && after.get(f.giver) !== f.receiver)) rules.push('fixed');
@@ -333,7 +320,6 @@ async function swapData(ctx, ev, a, b) {
     members: drawMembersQuery(db, ev.id),
     rows: pairsQuery(db, ev.id),
     exclusions: exclusionsQuery(db, ev.id),
-    families: ev.families_on && familyRowsQuery(db, ev.company_id),
     fixed: fixedPairsQuery(db, ev.id),
     previous: ev.avoid_previous && previousPairsQuery(db, ev),
   });
@@ -341,11 +327,9 @@ async function swapData(ctx, ev, a, b) {
   if (!pairs.has(a) || !pairs.has(b)) return no(tx('pairs.notInDraw'));
   const ids = r.members.filter((m) => m.registered).map((m) => m.user_id);
   const history = ev.avoid_previous ? previousPairs(r.previous, ids).map((p) => ({ giver: p.santa, receiver: p.ward })) : [];
-  const rules = swapRules(pairs, a, b, {
-    exclusions: r.exclusions, families: familyExclusions(ev, ids, r.families), ring: !!ev.ring, fixed: r.fixed, history,
-  });
+  const rules = swapRules(pairs, a, b, { exclusions: r.exclusions, ring: !!ev.ring, fixed: r.fixed, history });
   // Снимок правил — в условии записи, как у жеребьёвки: обмен не запишется по правилам, изменившимся во время вызова
-  const snapshot = drawSnapshot(ev, { ids, exclusions: r.exclusions, families: r.families, fixed: r.fixed });
+  const snapshot = drawSnapshot({ ids, exclusions: r.exclusions, fixed: r.fixed });
   return { ok: true, members: r.members, rows: r.rows, pairs, rules, snapshot };
 }
 
@@ -371,8 +355,8 @@ export async function swapWards(ctx, ev, { a, b, version, agree }, actor) {
   if (d.rules.some((rule) => !agreed.includes(rule))) return no(tx('pairs.swapRulesChanged'));
   const same = snapshotGuard(ev.id, d.snapshot);
   const { a: change, version: claim } = pairsVersion(ctx.db, ev,
-    `revealed = 0 AND status = 'active' AND families_on = ? AND avoid_previous = ? AND ${same.sql}`,
-    ev.families_on ? 1 : 0, ev.avoid_previous ? 1 : 0, ...same.args);
+    `revealed = 0 AND status = 'active' AND avoid_previous = ? AND ${same.sql}`,
+    ev.avoid_previous ? 1 : 0, ...same.args);
   // 049: о смене пишем только Санте, открывшему прежнего подопечного, — по строке пары в момент записи, до её удаления
   const settings = await ctx.settings();
   for (const santa of [a, b]) {

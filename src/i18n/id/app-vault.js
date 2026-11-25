@@ -43,9 +43,9 @@ export default {
   'app.vault.swap.impossible': 'Kedua orang ini tidak bisa ditukar — pilih pasangan lain.',
   'app.vault.swap.breaksOne': '⚠️ Penukaran ini melanggar salah satu prinsip undian.',
   'app.vault.swap.breaksMany': '⚠️ Penukaran ini melanggar beberapa prinsip undian.',
-  'app.vault.swap.warning': 'Jika ditukar, bot akan memberi tahu yang sudah membuka penerima kadonya bahwa penerimanya berganti. Tanda kado, topeng, dan obrolan kedua pasangan ini dimulai dari awal.',
+  'app.vault.swap.warning': 'Jika ditukar, bot akan memberi tahu yang sudah membuka penerima kadonya bahwa penerimanya berganti. Tanda kado dan obrolan kedua pasangan ini dimulai dari awal.',
   'app.vault.swap.agree': 'Setuju — tetap tukar',
-  'app.vault.swap.confirm': 'Tukar penerima kado «{a}» dan «{b}»? Yang sudah membuka penerimanya akan diberi tahu bot. Tanda kado, topeng, dan obrolan kedua pasangan ini dimulai dari awal.',
+  'app.vault.swap.confirm': 'Tukar penerima kado «{a}» dan «{b}»? Yang sudah membuka penerimanya akan diberi tahu bot. Tanda kado dan obrolan kedua pasangan ini dimulai dari awal.',
   // Activity log: event, shared room log, bot log
   'app.vault.log.event': 'Log acara',
   'app.vault.log.common': 'Log umum',

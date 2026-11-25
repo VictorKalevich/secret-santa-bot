@@ -9,13 +9,11 @@ export default {
   'pairs.reason.search_exhausted': 'Pembagian pasangan tidak bisa ditemukan dengan cepat — coba lagi. Kalau tetap gagal, hapus sebagian pengecualian atau matikan undian melingkar.',
   'pairs.reason.fixed_block': 'Pasangan tetap menghalangi: dengan pasangan ini semua orang tidak bisa dibagi sesuai aturan. {owner.nomCap} bisa menghapus sebagian pasangan tetap.',
   'pairs.reason.too_strict': 'Terlalu banyak pengecualian: semua orang tidak bisa dibagi sambil mematuhinya. Hapus sebagian pengecualian.',
-  // Families block the draw
-  'pairs.familiesBlock': 'Keluarga menghalangi: anggota satu keluarga tidak saling memberi kado, dan dengan begitu semua orang tidak bisa dibagi. Matikan «Perhitungkan keluarga» atau undian melingkar.',
   // Draw
   'pairs.drawn': '🎄 <b>Undian di acara {title} sudah dilakukan!</b>\n\nBuka aplikasi dan lihat tab «Penerima» untuk tahu kepada siapa kamu memberi kado. Jangan bilang siapa-siapa 🤫',
   'pairs.drawnButton': '🎁 Lihat penerima kado',
   'pairs.drawFinished': 'Acara sudah selesai.',
-  'pairs.drawRace': 'Peserta, pengecualian, atau keluarga berubah saat undian — coba lagi.',
+  'pairs.drawRace': 'Peserta atau pengecualian berubah saat undian — coba lagi.',
   'pairs.notDrawn': 'Undian belum dilakukan.',
   // Pairs after a change of members: to the new participant and to a Santa with a new giftee
   'pairs.inserted': '🎄 <b>Kamu ikut bermain!</b> Undian acara {title} untukmu sudah dilakukan — lihat tab «Penerima» 🤫',
@@ -30,7 +28,6 @@ export default {
   // Swapping giftees: rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': 'Salah satu dari keduanya memberi kado ke yang lain: setelah ditukar, seseorang akan memberi kado ke dirinya sendiri.',
   'pairs.swapRule.exclusion': 'Pengecualian: salah satu dari keduanya akan memberi kado ke orang yang menurut pengecualian tidak boleh ia beri kado.',
-  'pairs.swapRule.family': 'Keluarga: salah satu dari keduanya akan memberi kado ke anggota keluarganya sendiri.',
   'pairs.swapRule.ring': 'Undian melingkar: akan muncul pasangan timbal balik — dua orang saling memberi kado.',
   'pairs.swapRule.fixed': 'Pasangan tetap: penukaran akan memutus pasangan yang kamu tetapkan.',
   'pairs.swapRule.history': 'Pasangan sebelumnya: salah satu dari keduanya akan memberi kado ke orang yang sama seperti di acara sebelumnya.',

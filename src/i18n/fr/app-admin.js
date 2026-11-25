@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': "et inversement (dans les deux sens)",
   'app.admin.rules.pickTwo': "Choisis deux personnes",
   'app.admin.rules.different': "Il faut deux personnes différentes",
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': "Exclusions",
   'app.admin.exclusions.empty': "Aucune exclusion — n'importe qui peut offrir à n'importe qui.",
   'app.admin.exclusions.both': "{giver} et {receiver} ne s'offrent rien",
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': "Après le tirage, les exclusions ne changent plus : sinon, on pourrait deviner les paires d'après les remplacements. Pour les modifier, annule le tirage (tant que personne n'a découvert son destinataire).",
   'app.admin.exclusions.afterDraw': "Après le tirage, les exclusions s'appliquent aux futurs remplacements (retrait ou ajout de participants), les paires actuelles ne changent pas. Seul le propriétaire peut modifier les exclusions après le tirage.",
   'app.admin.exclusions.hint': "Par exemple, les couples ou les membres d'une même famille. Le bot empêchera le tirage d'enfreindre ces règles.",
-  'app.admin.families.title': "👪 Tenir compte des familles",
-  'app.admin.families.hint': "Les membres d'une même famille ne s'offrent rien. Les familles se définissent sur l'écran d'accueil.",
-  'app.admin.families.frozen': "Non modifiable après le tirage",
-  'app.admin.families.on': "Familles prises en compte",
-  'app.admin.families.off': "Familles non prises en compte",
   // Fixed pairs (owner only)
   'app.admin.fixed.title': "Paires imposées",
   'app.admin.fixed.empty': "Aucune paire imposée — le tirage répartira tout le monde au hasard.",
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': "…à qui il offre",
   'app.admin.fixed.add': "Imposer la paire",
   'app.admin.fixed.added': "Paire imposée",
-  'app.admin.fixed.hint': "Le bot réunira forcément ces personnes lors du tirage. Une paire imposée passe avant les exclusions et les familles. Ce bloc n'est visible que par le propriétaire.{ring}",
+  'app.admin.fixed.hint': "Le bot réunira forcément ces personnes lors du tirage. Une paire imposée passe avant les exclusions. Ce bloc n'est visible que par le propriétaire.{ring}",
   // Addition to the hint when the ring draw is on (with a leading space)
   'app.admin.fixed.hintRing': " Le tirage en cercle est activé : une paire ne peut être imposée que dans un sens.",
   // {pairs} - mutual pairs joined with "; "
@@ -270,6 +265,6 @@ export default {
     "cases « cadeau prêt » et « reçu » ;",
     "toutes les conversations entre Pères Noël et destinataires de cet événement.",
   ],
-  'app.admin.danger.cancelKeep': "Les lettres, adresses, participants, exclusions et familles sont conservés. Les inscriptions rouvriront, les participants seront prévenus.",
+  'app.admin.danger.cancelKeep': "Les lettres, adresses, participants et exclusions sont conservés. Les inscriptions rouvriront, les participants seront prévenus.",
   'app.admin.danger.canceled': "↩️ Tirage annulé. Paires supprimées : {n}",
 };

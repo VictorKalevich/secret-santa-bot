@@ -62,11 +62,9 @@ export default {
   'bot.reply.failed': '❌ {error}',
   'bot.reply.toWardSent': '✅ Sent to your giftee from “Secret Santa”.',
   'bot.reply.toSantaSent': '✅ Sent to your Santa.',
-  // "Write a message" hint (040: {mask} — Santa's mask)
+  // "Write a message" hint
   'bot.reply.toWard': '✍️ Write a message to your giftee ({title}) — I’ll pass it on <b>anonymously</b>, from “Secret Santa”.',
-  'bot.reply.toWardMasked': '✍️ Write a message to your giftee ({title}) — I’ll pass it on <b>anonymously</b>, from “Secret Santa · {mask}”.',
   'bot.reply.toSanta': '✍️ Write a message to your Santa ({title}) — I’ll pass it on. Santa knows who you are, but you don’t know who they are.',
-  'bot.reply.toSantaMasked': '✍️ Write a message to your Santa “{mask}” ({title}) — I’ll pass it on. Santa knows who you are, but you don’t know who they are.',
   // Support requests to organizers (012)
   'bot.support.sent': '✅ Message sent. The reply will come here.',
   'bot.support.adminsOnly': '❌ Only the owner and admins can answer support requests.',

@@ -44,9 +44,9 @@ export default {
   'app.vault.swap.impossible': 'Não dá para trocar esses dois — escolha outro par.',
   'app.vault.swap.breaksOne': '⚠️ A troca viola um dos princípios do sorteio.',
   'app.vault.swap.breaksMany': '⚠️ A troca viola vários princípios do sorteio.',
-  'app.vault.swap.warning': 'Se você trocar, o bot vai avisar quem já viu o presenteado que ele mudou. As marcações de presente, as máscaras e as conversas desses dois pares recomeçam do zero.',
+  'app.vault.swap.warning': 'Se você trocar, o bot vai avisar quem já viu o presenteado que ele mudou. As marcações de presente e as conversas desses dois pares recomeçam do zero.',
   'app.vault.swap.agree': 'Concordo — trocar mesmo assim',
-  'app.vault.swap.confirm': 'Trocar os presenteados de “{a}” e “{b}”? O bot avisará da troca quem já viu o presenteado. Marcações de presente, máscaras e conversas desses dois pares recomeçam do zero.',
+  'app.vault.swap.confirm': 'Trocar os presenteados de “{a}” e “{b}”? O bot avisará da troca quem já viu o presenteado. Marcações de presente e conversas desses dois pares recomeçam do zero.',
   // Activity log: event, room common log, bot log
   'app.vault.log.event': 'Registro do evento',
   'app.vault.log.common': 'Registro geral',

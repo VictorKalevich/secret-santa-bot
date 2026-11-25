@@ -157,7 +157,6 @@
     }
     if (m.has_santa) {
       if (m.shipment) nodes.push(h('section', { id: 'myShipment' }, ui.section(t('app.event.shipment.mine')), shipmentCard(m.shipment)));
-      const santaMask = maskLabel(m.santa_mask); // 040
       // 007: подопечный отмечает «получил подарок»; Санта узнает об этом (без имени)
       const got = h('input', { type: 'checkbox', checked: m.gift_received, disabled: !state.can.edit_letter });
       const evId = state.evId;
@@ -169,8 +168,7 @@
       });
       nodes.push(h('div', { class: 'ds-card' }, ui.toggleRow(t('app.event.received.title'), t('app.event.received.sub'), got)));
       nodes.push(ui.section(t('app.event.chat.santaTitle')),
-        ui.card(ui.hint(t('app.event.chat.santaHint')),
-          santaMask ? h('div', { class: 'ds-text-sm' }, t('app.event.mask.worn', { mask: santaMask })) : null, chatButton('santa')));
+        ui.card(ui.hint(t('app.event.chat.santaHint')), chatButton('santa')));
     }
     main.replaceChildren(...nodes.filter(Boolean));
   }
@@ -332,25 +330,6 @@
     openSheet(t('app.event.card.title'), [ui.hint(t('app.event.card.hint')), grid]);
   }
 
-  // Маска Санты в переписке (040): «🐉 Дракон» по набору с сервера ('' — без маски или её нет в наборе) и имя, под
-  // которым подопечный видит Санту
-  const maskLabel = (id) => { const m = state.looks.masks.find((x) => x.id === id); return m ? m.emoji + ' ' + m.title : ''; };
-  const maskedSanta = (mask) => (maskLabel(mask) ? t('app.event.mask.santaMasked', { mask: maskLabel(mask) }) : t('app.event.mask.santa'));
-  // Шторка «Маска в переписке» (040): «без маски» и маски набора, выбранная обведена; saved(id из ответа)
-  function openMaskSheet(current, saved) {
-    const grid = h('div', { class: 'ds-choices ds-choices--labeled' });
-    const pick = (mask) => busy([...grid.children], async () => {
-      const r = await eapi('mask.set', { mask });
-      closeSheet();
-      toast(t(r.mask ? 'app.event.mask.picked' : 'app.event.mask.removed'));
-      saved(r.mask);
-    });
-    const tile = (id, emoji, title) => h('button', { class: 'ds-choice' + (id === current ? ' ds-choice--selected' : ''), onclick: () => pick(id) },
-      emoji, h('span', { class: 'ds-choice__label' }, title));
-    grid.append(tile('', null, t('app.event.mask.noneTile')), ...state.looks.masks.map((m) => tile(m.id, m.emoji, m.title)));
-    openSheet(t('app.event.mask.title'), [ui.hint(t('app.event.mask.hint')), grid]);
-  }
-
   const renderWard = screen(async ({ cached = false } = {}) => {
     const nav = state.nav, evId = state.evId;
     let d = cached && state.wardCache && state.wardCache.evId === evId ? state.wardCache.d : null;
@@ -389,17 +368,6 @@
       letter = postcard(d.ward.card, h('div', { class: 'ds-letter' }, text));
     }
 
-    // 040: маска — пока событие идёт и тайна не раскрыта; потом только показывается
-    const chatHint = ui.hint('');
-    const maskCtl = !finished() && !state.ev.revealed ? ui.btn('', 'secondary', 'ds-btn--block')
-      : maskLabel(d.mask) ? ui.hint(t('app.event.mask.current', { mask: maskLabel(d.mask) })) : null;
-    const showMask = () => {
-      chatHint.textContent = t('app.event.chat.wardHint', { santa: maskedSanta(d.mask) });
-      if (maskCtl && maskCtl.tagName === 'BUTTON') maskCtl.textContent = t('app.event.mask.button', { mask: maskLabel(d.mask) || t('app.event.mask.none') });
-    };
-    if (maskCtl && maskCtl.tagName === 'BUTTON') maskCtl.addEventListener('click', () => openMaskSheet(d.mask, (mask) => { d.mask = mask; showMask(); }));
-    showMask();
-
     const gift = h('input', { type: 'checkbox', checked: d.gift_ready, disabled: finished() || d.shipment?.sent });
     bindToggle(gift, async (on) => {
       await api('ward.gift', { event: evId, ready: on });
@@ -420,7 +388,7 @@
       h('div', { class: 'ds-card' }, ui.toggleRow(t('app.event.gift.title'), t('app.event.gift.sub'), gift)),
       d.shipment ? outgoingShipment(d, evId) : null,
       ui.section(t('app.event.chat.wardTitle')),
-      ui.card(chatHint, maskCtl, chatButton('ward')),
+      ui.card(ui.hint(t('app.event.chat.wardHint', { santa: t('app.event.santa') })), chatButton('ward')),
     ].filter(Boolean));
   });
 

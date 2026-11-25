@@ -26,7 +26,7 @@ export default {
   'app.companies.new.placeholder': 'Misalnya: Kantor',
   'app.companies.new.done': '🚪 Ruang dibuat',
   'app.companies.new.hintOwn': 'Kamu akan menjadi pemilik ruang: membuat acara, mengundang orang, menunjuk admin. Nama ruang akan terlihat oleh semua orang di ruang ini.',
-  'app.companies.new.hintBot': 'Setiap ruang punya orang, acara, keluarga, dan admin sendiri. Kamu bisa mengelolanya sendiri atau menyerahkannya ke pemilik lewat tautan.',
+  'app.companies.new.hintBot': 'Setiap ruang punya orang, acara, dan admin sendiri. Kamu bisa mengelolanya sendiri atau menyerahkannya ke pemilik lewat tautan.',
   // "Room" sheet of the bot owner: who runs it
   'app.companies.lead.title': 'Siapa yang mengelola',
   'app.companies.lead.you': 'Kamu',
@@ -50,7 +50,7 @@ export default {
   'app.companies.delete.hasEvents': 'Masih ada acara di ruang ini — hapus dulu acaranya.',
   'app.companies.delete.button': '🗑 Hapus ruang',
   'app.companies.delete.title': 'Hapus ruang',
-  'app.companies.delete.lines': ['orang, admin, dan keluarga di dalamnya;', 'log umum ruang ini.'],
+  'app.companies.delete.lines': ['orang dan admin di dalamnya;', 'log umum ruang ini.'],
   'app.companies.delete.keepBot': 'Tidak ada acara di ruang ini. Pemilik dan admin ruang akan menerima pesan.',
   'app.companies.delete.keepOwn': 'Tidak ada acara di ruang ini. Admin ruang akan menerima pesan.',
   'app.companies.delete.done': 'Ruang dihapus',

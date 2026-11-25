@@ -9,7 +9,6 @@ export default {
   'api.closed': 'Acara sudah selesai — tidak bisa diubah lagi (masih bisa dilihat, diungkap, dan dihapus).',
   'api.letterClosed': 'Acara sudah selesai: surat sekarang hanya bisa dibaca.',
   'api.markClosed': 'Acara sudah selesai: tanda ini hanya bisa dibaca.',
-  'api.maskClosed': 'Acara sudah selesai: topeng tidak bisa diganti lagi.',
   // Confirmation word missing
   'api.confirm.delete': 'Untuk menghapus, ketik kata {word}.',
   'api.confirm.leave': 'Untuk keluar, ketik kata {word}.',

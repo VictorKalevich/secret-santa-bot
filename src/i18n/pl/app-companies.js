@@ -24,7 +24,7 @@ export default {
   'app.companies.new.placeholder': 'Np. Praca',
   'app.companies.new.done': '🚪 Pokój utworzony',
   'app.companies.new.hintOwn': 'Zostaniesz właścicielem pokoju: tworzysz wydarzenia, zapraszasz ludzi, mianujesz administratorów. Nazwę zobaczą wszyscy w pokoju.',
-  'app.companies.new.hintBot': 'Pokój ma własnych ludzi, wydarzenia, rodziny i administratorów. Możesz prowadzić go samodzielnie albo przekazać właścicielowi przez link.',
+  'app.companies.new.hintBot': 'Pokój ma własnych ludzi, wydarzenia i administratorów. Możesz prowadzić go samodzielnie albo przekazać właścicielowi przez link.',
   // Bot owner's "Room" sheet: who runs it
   'app.companies.lead.title': 'Kto prowadzi',
   'app.companies.lead.you': 'Ty',
@@ -48,7 +48,7 @@ export default {
   'app.companies.delete.hasEvents': 'W pokoju są wydarzenia — najpierw je usuń.',
   'app.companies.delete.button': '🗑 Usuń pokój',
   'app.companies.delete.title': 'Usuń pokój',
-  'app.companies.delete.lines': ['jego ludzie, administratorzy i rodziny;', 'wspólny dziennik pokoju.'],
+  'app.companies.delete.lines': ['jego ludzie i administratorzy;', 'wspólny dziennik pokoju.'],
   'app.companies.delete.keepBot': 'W pokoju nie ma wydarzeń. Jego właściciel i administratorzy dostaną wiadomość.',
   'app.companies.delete.keepOwn': 'W pokoju nie ma wydarzeń. Jego administratorzy dostaną wiadomość.',
   'app.companies.delete.done': 'Pokój usunięty',

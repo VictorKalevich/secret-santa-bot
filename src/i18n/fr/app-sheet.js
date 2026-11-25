@@ -11,10 +11,9 @@ export default {
   // Reply field and message feed
   'app.sheet.send': "Envoyer",
   'app.sheet.noMessages': "Aucun message.",
-  // Santa-giftee chat (003, mask - 040)
+  // Santa-giftee chat (003)
   'app.sheet.chat.placeholder': "Message…",
   'app.sheet.chat.yourSanta': "Ton Père Noël secret",
-  'app.sheet.chat.yourMasked': "Ton {santa}",
   'app.sheet.chat.santaKnows': "Ton Père Noël sait qui tu es, mais toi, tu ne le sais pas.",
   'app.sheet.chat.youAre': "Pour ton destinataire, tu es « {santa} », ton nom reste secret.",
   'app.sheet.chat.noDraw': "Conversation indisponible : le tirage n'a pas encore eu lieu.",

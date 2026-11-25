@@ -23,7 +23,7 @@ async function join(w, u, code) {
 }
 
 // Колонки пар: у Санты — его статусы, у подопечного — его. Новая колонка в pairs — решить, чья она, здесь.
-// Маска (040) — выбор Санты: остаётся у него
+// Маска (040) — выбор Санты: остаётся у него (с 062 код её не пишет, колонка осталась ради отката)
 const SANTA_COLS = ['seen_text', 'notified_at', 'gift_ready', 'mask', 'gift_sent', 'sent_date', 'carrier', 'tracking', 'shipment_version'];
 const WARD_COLS = ['gift_received', 'gift_received_at'];
 
@@ -73,7 +73,7 @@ before(async () => {
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
   E1 = (await w.api(boss, 'admin.events.create', { title: 'Тайна' })).event.id;
-  await w.api(boss, 'admin.game', { event: E1, delivery_on: true, families_on: true, budget: '50 р.' });
+  await w.api(boss, 'admin.game', { event: E1, delivery_on: true, budget: '50 р.' });
   const code1 = inviteOf(await w.api(boss, 'admin.state', { event: E1 }));
   for (const u of [adm, adm2, ...people]) await join(w, u, code1);
   await w.api(boss, 'admin.role.grant', { id: adm.id });
@@ -86,7 +86,9 @@ before(async () => {
     await w.api(u, 'wishlist.save', { event: E1, text: letter(i) });
     await w.api(u, 'delivery.save', { event: E1, text: address(i) });
   }
-  await w.api(adm, 'admin.family.save', { name: 'Семья', members: [people[0].id, people[1].id] });
+  // Бывшая семья — взаимное исключение (062)
+  await w.api(adm, 'admin.exclusion.add', { event: E1, giver: people[0].id, receiver: people[1].id });
+  await w.api(adm, 'admin.exclusion.add', { event: E1, giver: people[1].id, receiver: people[0].id });
   await w.api(adm, 'admin.exclusion.add', { event: E1, giver: people[2].id, receiver: people[3].id });
   await w.api(adm, 'admin.draw', { event: E1 });
   // Статусы, которые видит админ: открыл подопечного, подарок готов, подарок получен; переписка; обращение
@@ -95,7 +97,6 @@ before(async () => {
   const { shipment } = await w.api(people[0], 'ward.get', { event: E1 });
   await w.api(people[0], 'ward.shipment', { event: E1, version: shipment.version, sent: true, tracking: 'PRIVATE-042' });
   for (const u of [people[5], people[6]]) await w.api(u, 'ward.received', { event: E1, received: true });
-  for (const [i, u] of people.slice(0, 5).entries()) await w.api(u, 'mask.set', { event: E1, mask: ['dragon', 'agent', 'ghost', 'robot', 'whale'][i] });
   await w.api(people[1], 'message.send', { event: E1, to: 'ward', text: 'Привет, подопечный!' });
   await w.api(people[2], 'message.send', { event: E1, to: 'santa', text: 'Привет, Санта!' });
   await w.api(people[6], 'support.send', { event: E1, text: 'Вопрос организатору: метка обращения S7Q.' });
@@ -118,7 +119,6 @@ async function views() {
       ['admin.audit E1', 'admin.audit', { event: E1 }],
       ['admin.audit', 'admin.audit', {}],
       ['admin.users', 'admin.users', {}],
-      ['admin.families', 'admin.families', {}],
       ['event.get E1', 'event.get', { event: E1 }],
       ['event.get E2', 'event.get', { event: E2 }],
       ['me', 'me', {}],

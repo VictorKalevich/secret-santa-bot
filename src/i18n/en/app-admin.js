@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': 'and vice versa (both ways)',
   'app.admin.rules.pickTwo': 'Choose two people',
   'app.admin.rules.different': 'Two different people are needed',
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': 'Exclusions',
   'app.admin.exclusions.empty': 'No exclusions — anyone can give to anyone.',
   'app.admin.exclusions.both': '{giver} and {receiver} don’t give to each other',
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': 'Exclusions can’t be changed after the draw: otherwise the pairs could be figured out from participant replacements. To change them, cancel the draw (while no one has opened their giftee).',
   'app.admin.exclusions.afterDraw': 'After the draw, exclusions apply to future replacements (removing and adding participants); current pairs don’t change. Only the owner can change exclusions after the draw.',
   'app.admin.exclusions.hint': 'For example, couples or members of the same family. The bot won’t let the draw break these rules.',
-  'app.admin.families.title': '👪 Keep families apart',
-  'app.admin.families.hint': 'Members of the same family don’t give to each other. Families are set up on the home screen.',
-  'app.admin.families.frozen': 'Can’t be changed after the draw',
-  'app.admin.families.on': 'Families are kept apart',
-  'app.admin.families.off': 'Families aren’t taken into account',
   // Fixed pairs (owner only)
   'app.admin.fixed.title': 'Fixed pairs',
   'app.admin.fixed.empty': 'No fixed pairs — the draw will match everyone at random.',
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': '…gives to',
   'app.admin.fixed.add': 'Add fixed pair',
   'app.admin.fixed.added': 'Fixed pair added',
-  'app.admin.fixed.hint': 'The bot will always match these people in the draw. A fixed pair takes priority over exclusions and families. Only the owner can see this block.{ring}',
+  'app.admin.fixed.hint': 'The bot will always match these people in the draw. A fixed pair takes priority over exclusions. Only the owner can see this block.{ring}',
   // Addition to the hint when the ring draw is on (starts with a space)
   'app.admin.fixed.hintRing': ' Ring draw is on: a pair can be fixed in one direction only.',
   // {pairs} — mutual pairs separated by "; "
@@ -270,6 +265,6 @@ export default {
     '“gift ready” and “received” marks;',
     'all Santa and giftee chats in this event.',
   ],
-  'app.admin.danger.cancelKeep': 'Letters, addresses, participants, exclusions and families stay. Registration reopens, and participants will be notified.',
+  'app.admin.danger.cancelKeep': 'Letters, addresses, participants and exclusions stay. Registration reopens, and participants will be notified.',
   'app.admin.danger.canceled': '↩️ Draw canceled. Pairs deleted: {n}',
 };

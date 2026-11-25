@@ -43,9 +43,9 @@ export default {
   'app.vault.swap.impossible': "Questi due non si possono invertire: scegli un'altra coppia.",
   'app.vault.swap.breaksOne': "⚠️ L'inversione viola una delle regole del sorteggio.",
   'app.vault.swap.breaksMany': "⚠️ L'inversione viola più regole del sorteggio.",
-  'app.vault.swap.warning': "Se inverti, il bot avviserà del cambio chi ha già visto il proprio destinatario. Spunte del regalo, maschere e chat di queste due coppie ripartiranno da zero.",
+  'app.vault.swap.warning': "Se inverti, il bot avviserà del cambio chi ha già visto il proprio destinatario. Spunte del regalo e chat di queste due coppie ripartiranno da zero.",
   'app.vault.swap.agree': "Ho capito: inverti comunque",
-  'app.vault.swap.confirm': "Invertire i destinatari di «{a}» e «{b}»? Chi ha già visto il suo destinatario riceverà un avviso. Spunte, maschere e chat di queste due coppie ripartiranno da zero.",
+  'app.vault.swap.confirm': "Invertire i destinatari di «{a}» e «{b}»? Chi ha già visto il suo destinatario riceverà un avviso. Spunte e chat di queste due coppie ripartiranno da zero.",
   // Activity log: event, common room log, bot log
   'app.vault.log.event': "Registro dell'evento",
   'app.vault.log.common': "Registro comune",

@@ -1,11 +1,6 @@
-// Texts of src/membership.js (060): joining, join requests, families, "I take part", leaving
+// Texts of src/membership.js (060): joining, join requests, "I take part", leaving
 export default {
-  'membership.familyNameRule': "Aile adı 1 ile 40 karakter arasında olmalı.",
-  'membership.familySize': "Ailede 2 ile {max} arasında kişi olmalı.",
-  'membership.familyNotFound': "Aile bulunamadı.",
   'membership.memberNotFound': "Katılımcı bulunamadı.",
-  'membership.alreadyInFamily': "{name} zaten «{family}» ailesinde.",
-  'membership.familyFrozen': "Çekilişi yapılmış «{title}» etkinliği sürerken aile üyeleri değiştirilemez: aksi halde katılımcı değişikliklerinden eşleşmeler tahmin edilebilirdi. Değişiklikler etkinlik bittikten sonra yapılabilir.",
   'membership.audit.familySave': "«{name}»: {people}",
   'membership.audit.familyDelete': "«{name}»",
   'membership.audit.isParticipant': "katılıyor",

@@ -8,7 +8,7 @@ import { render, t, DEFAULT_LANG } from './i18n/index.js';
 // Схема базы создаётся и меняется только миграциями (папка migrations/, 006).
 // Код лишь проверяет, что миграции применены, и никогда не создаёт и не удаляет таблицы.
 // Индексы, от которых код не зависит, версию не поднимают (0008, 031): бот работает и до такой миграции.
-export const REQUIRED_SCHEMA = 22;
+export const REQUIRED_SCHEMA = 23;
 
 export class SchemaError extends Error {
   constructor(found) {
@@ -308,7 +308,7 @@ export async function isRemoved(db, eventId, userId) {
 export const pairsQuery = (db, eventId) => db.prepare('SELECT * FROM pairs WHERE event_id = ?').bind(eventId);
 // Только связи «Санта → подопечный» (раскрытие, служебный просмотр) — без увиденного письма; маска (040) — для сообщения
 // о раскрытии, служебный просмотр и отмена жеребьёвки её не отдают
-export const pairLinksQuery = (db, eventId) => db.prepare('SELECT santa, ward, mask FROM pairs WHERE event_id = ?').bind(eventId);
+export const pairLinksQuery = (db, eventId) => db.prepare('SELECT santa, ward FROM pairs WHERE event_id = ?').bind(eventId);
 // Панель: статусы пар; «открыл подопечного» — признаком, без текста увиденного письма
 export const panelPairsQuery = (db, eventId) =>
   db.prepare('SELECT santa, ward, gift_ready, gift_received, gift_sent, seen_text IS NOT NULL AS seen FROM pairs WHERE event_id = ?').bind(eventId);
@@ -327,8 +327,6 @@ export async function pairOfWard(db, eventId, ward) {
   return pairOfWardQuery(db, eventId, ward).first();
 }
 
-// Семьи (008): строки «человек — семья» компании события (050; фильтр по участникам — familyExclusions в constraints.js)
-export const familyRowsQuery = (db, companyId) => db.prepare('SELECT user_id, family_id FROM family_members WHERE company_id = ?').bind(companyId);
 export const exclusionsQuery = (db, eventId) => db.prepare('SELECT giver, receiver FROM exclusions WHERE event_id = ?').bind(eventId);
 // Закреплённые пары владельца (014): «giver обязательно дарит receiver». Наружу — только владельцу.
 export const fixedPairsQuery = (db, eventId) => db.prepare('SELECT giver, receiver FROM fixed_pairs WHERE event_id = ?').bind(eventId);
@@ -394,6 +392,10 @@ export function auditStmt(db, sphere, actor, action, details = '') {
     .prepare(`INSERT INTO audit (event_id, company_id, actor, action, details, details_tx, created_at) VALUES (?, ${s.company}, ?, ?, ?, ?, ?)`)
     .bind(s.event, ...s.args, actor || 0, action, ...auditDetails(details), Date.now());
 }
+
+// Подробности прежних записей журнала, которые код больше не пишет (062: семьи): запись с details_tx (061) показывается по
+// этим ключам на языке смотрящего — из словарей они не удаляются
+export const AUDIT_HISTORY = ['membership.audit.familySave', 'membership.audit.familyDelete'];
 
 // Последние записи: события (число), общие записи компании ({ company }) или журнал бота (BOT_LOG); t — переводчик
 // вызывающего (имя бота и безымянного; 061 — подробности новых записей на его языке, прежние — как записаны)
@@ -543,8 +545,9 @@ export const REGISTRY = {
     // Сам себе не отвечает: такое обращение снова ничьё
     transferAfter: [{ sql: 'UPDATE support_threads SET assignee = 0, taken_at = 0 WHERE assignee = user_id', args: () => [] }],
   },
+  // 008: семьи — общие для компании (050); если новый аккаунт уже в семье этой компании — остаётся его семья. 062: семьи
+  // стали исключениями событий, таблицы пусты и кодом не пишутся — остаются в схеме ради отката (docs/todo.md)
   families: { company: 'company_id', people: { created_by: ACTOR }, onCompanyDelete: 'delete', onTransfer: 'update' },
-  // 008: семьи — общие для компании (050); если новый аккаунт уже в семье этой компании — остаётся его семья
   family_members: {
     company: 'company_id', via: { column: 'family_id', parent: 'families' }, people: { user_id: MEMBER }, onCompanyDelete: 'delete', onTransfer: 'dedupe',
   },

@@ -26,7 +26,7 @@ export default {
   'app.companies.new.placeholder': '例如：同事',
   'app.companies.new.done': '🚪 房间已创建',
   'app.companies.new.hintOwn': '你将成为房间所有者：可以创建活动、邀请好友、任命管理员。房间里的所有人都能看到名称。',
-  'app.companies.new.hintBot': '每个房间都有自己的成员、活动、家庭和管理员。你可以自己管理，也可以通过链接交给所有者。',
+  'app.companies.new.hintBot': '每个房间都有自己的成员、活动和管理员。你可以自己管理，也可以通过链接交给所有者。',
   // Bot owner's "Room" sheet: who runs it
   'app.companies.lead.title': '由谁管理',
   'app.companies.lead.you': '你',
@@ -50,7 +50,7 @@ export default {
   'app.companies.delete.hasEvents': '房间里还有活动，请先删除它们。',
   'app.companies.delete.button': '🗑 删除房间',
   'app.companies.delete.title': '删除房间',
-  'app.companies.delete.lines': ['房间的成员、管理员和家庭；', '房间的公共日志。'],
+  'app.companies.delete.lines': ['房间的成员和管理员；', '房间的公共日志。'],
   'app.companies.delete.keepBot': '房间里没有活动。房间所有者和管理员会收到通知。',
   'app.companies.delete.keepOwn': '房间里没有活动。房间管理员会收到通知。',
   'app.companies.delete.done': '房间已删除',

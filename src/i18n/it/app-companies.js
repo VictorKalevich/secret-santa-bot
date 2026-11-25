@@ -26,7 +26,7 @@ export default {
   'app.companies.new.placeholder': "Ad esempio: Lavoro",
   'app.companies.new.done': "🚪 Stanza creata",
   'app.companies.new.hintOwn': "Diventerai il proprietario della stanza: crei eventi, inviti persone, nomini amministratori. Il nome lo vedranno tutte le persone della stanza.",
-  'app.companies.new.hintBot': "Ogni stanza ha le sue persone, i suoi eventi, famiglie e amministratori. Puoi gestirla tu o affidarla a un proprietario tramite link.",
+  'app.companies.new.hintBot': "Ogni stanza ha le sue persone, i suoi eventi e i suoi amministratori. Puoi gestirla tu o affidarla a un proprietario tramite link.",
   // Bot owner's "Room" sheet: who leads it
   'app.companies.lead.title': "Chi la gestisce",
   'app.companies.lead.you': "Tu",
@@ -50,7 +50,7 @@ export default {
   'app.companies.delete.hasEvents': "Nella stanza ci sono eventi: prima eliminali.",
   'app.companies.delete.button': "🗑 Elimina la stanza",
   'app.companies.delete.title': "Elimina la stanza",
-  'app.companies.delete.lines': ["le sue persone, gli amministratori e le famiglie;", "il registro comune della stanza."],
+  'app.companies.delete.lines': ["le sue persone e gli amministratori;", "il registro comune della stanza."],
   'app.companies.delete.keepBot': "Nella stanza non ci sono eventi. Il proprietario e gli amministratori riceveranno un messaggio.",
   'app.companies.delete.keepOwn': "Nella stanza non ci sono eventi. I suoi amministratori riceveranno un messaggio.",
   'app.companies.delete.done': "Stanza eliminata",

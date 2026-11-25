@@ -1,9 +1,7 @@
-// Spanish: texts of src/participant.js (letter, shipping address, postcard, mask, gift marks).
+// Spanish: texts of src/participant.js (letter, shipping address, postcard, gift marks).
 export default {
-  // Postcard and mask: value not from the set
+  // Postcard: value not from the set
   'participant.noCard': 'Esa postal no existe: elige una de la lista.',
-  'participant.noMask': 'Esa máscara no existe: elige una de la lista.',
-  'participant.maskRevealed': 'El secreto ya se reveló: ya no puedes cambiar la máscara.',
   // Letter and drafts
   'participant.draftsOn': 'Se activaron los borradores. Vuelve a abrir la carta para publicarla.',
   'participant.draftsOff': 'Se desactivaron los borradores. Vuelve a abrir la carta.',

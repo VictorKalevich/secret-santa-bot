@@ -1,4 +1,4 @@
-// Texts of app part 03-home (061): home screen, "Profile", "Notifications", families, owner and admins
+// Texts of app part 03-home (061): home screen, "Profile", "Notifications", owner and admins
 export default {
   // Leaving an event or a tab: asks only about what is not saved by itself
   'app.home.unsaved': 'Surat atau alamat belum disimpan. Keluar tanpa menyimpan?',
@@ -38,7 +38,6 @@ export default {
   'app.home.lang.auto': 'Sesuai Telegram ({name})',
   'app.home.lang.hint': 'Bot dan aplikasi akan memakai bahasa ini. «Sesuai Telegram» — bahasa Telegram-mu.',
   'app.home.notify.title': 'Notifikasi',
-  'app.home.notify.hint': 'Saat penerima kado mengubah suratnya (di acara mana pun), bot akan memberi tahu — tanpa nama dan detail.',
   'app.home.notify.sound': '🔔 Suara',
   'app.home.notify.silent': '🔕 Senyap',
   'app.home.notify.off': '🚫 Mati',
@@ -47,20 +46,6 @@ export default {
   'app.home.name.hint': 'Namamu sama di semua acara. Nama ini dilihat pemilik, admin, dan Santa-mu, dan saat rahasia terungkap — juga penerima kadomu.',
   'app.home.name.empty': 'Tulis nama',
   'app.home.name.saved': 'Nama tersimpan',
-  // Families; "New family" — button and sheet title
-  'app.home.families.title': 'Keluarga',
-  'app.home.families.empty': 'Belum ada keluarga.',
-  'app.home.families.edit': 'Ubah keluarga',
-  'app.home.families.new': 'Keluarga baru',
-  'app.home.families.hint': 'Anggota satu keluarga tidak saling memberi kado di acara mana pun (jika di acara itu «Perhitungkan keluarga» aktif). Satu orang — satu keluarga.',
-  'app.home.families.family': 'Keluarga',
-  'app.home.families.name': 'Nama keluarga',
-  'app.home.families.placeholder': 'Misalnya: Keluarga Wijaya',
-  'app.home.families.members': 'Siapa saja di keluarga ini (orang dari keluarga lain tidak ditampilkan):',
-  'app.home.families.saved': 'Keluarga tersimpan',
-  'app.home.families.delete': '🗑 Hapus keluarga',
-  'app.home.families.deleteConfirm': 'Hapus keluarga «{name}»? Undian yang sudah dilakukan tidak akan berubah.',
-  'app.home.families.deleted': 'Keluarga dihapus',
   // Owner and admins
   'app.home.admins.title': 'Pemilik dan admin',
   'app.home.admins.makeOwnerConfirm': 'Jadikan «{name}» pemilik ruang ini? Dia bisa melakukan semua tugas pemilik: admin, reset dan hapus acara, tampilan khusus pasangan. Kamu tetap pemilik bot dan bisa mengambil kembali ruang ini.',

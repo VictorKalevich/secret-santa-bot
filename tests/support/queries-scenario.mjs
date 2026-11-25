@@ -52,7 +52,6 @@ async function scenario() {
   await w.api(people[0], 'event.get', { event: ev.id }); note('event.get (участник, до жеребьёвки)');
   await w.api(adm, 'admin.exclusion.add', { event: ev.id, giver: people[0].id, receiver: people[1].id, mutual: true }); note('admin.exclusion.add');
   await w.api(boss, 'admin.fixed.add', { event: ev.id, giver: people[2].id, receiver: people[3].id }); note('admin.fixed.add');
-  await w.api(boss, 'admin.family.save', { name: 'Ивановы', members: [people[4].id, people[5].id] }); note('admin.family.save');
   await w.api(adm, 'admin.game', { event: ev.id, title: 'Новый год 🎄', budget: '50 р.', event_date: '2026-12-31' }); note('admin.game');
   await w.api(adm, 'admin.draw.check', { event: ev.id }); note('admin.draw.check');
   const d = await w.api(adm, 'admin.draw', { event: ev.id }); note('admin.draw (14 человек)');

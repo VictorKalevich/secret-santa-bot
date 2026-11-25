@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': 'The owner and admins see this mark',
   'app.event.gift.done': '🎉 Great! Gift marked as ready',
   'app.event.markRemoved': 'Mark removed',
-  // Santa's mask (040); {mask} — "🐉 Dragon", mask names come from the server
-  'app.event.mask.santa': 'Secret Santa',
-  'app.event.mask.santaMasked': 'Secret Santa · {mask}',
-  'app.event.mask.worn': 'Your Santa is wearing a mask: {mask}.',
-  'app.event.mask.current': 'Chat mask: {mask}.',
-  'app.event.mask.button': '🎭 Mask: {mask}',
-  'app.event.mask.none': 'none',
-  'app.event.mask.noneTile': 'No mask',
-  'app.event.mask.title': 'Chat mask',
-  'app.event.mask.hint': 'This is how your giftee will see you in the chat and in bot messages. They’ll find out who’s behind the mask when the secret is revealed. Each event has its own mask.',
-  'app.event.mask.picked': 'Mask selected',
-  'app.event.mask.removed': 'Mask removed',
+  // Santa's name in chat hints
+  'app.event.santa': 'Secret Santa',
   // "Giftee"; in ward.changed the words ward.added and ward.removed are highlighted in place of {added} and {removed}
   'app.event.ward.noDrawTitle': 'The draw hasn’t happened yet',
   'app.event.ward.noDrawText': 'After the draw, your giftee’s name and letter will appear here. The bot will notify you.',

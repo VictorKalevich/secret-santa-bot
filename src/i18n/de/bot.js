@@ -62,11 +62,9 @@ export default {
   'bot.reply.failed': '❌ {error}',
   'bot.reply.toWardSent': '✅ An dein Wichtelkind gesendet – als «Wichtel».',
   'bot.reply.toSantaSent': '✅ An deinen Wichtel gesendet.',
-  // "Write a message" hint (040: {mask} - Santa mask)
+  // "Write a message" hint
   'bot.reply.toWard': '✍️ Schreib deinem Wichtelkind ({title}) – ich leite die Nachricht <b>anonym</b> weiter, als «Wichtel».',
-  'bot.reply.toWardMasked': '✍️ Schreib deinem Wichtelkind ({title}) – ich leite die Nachricht <b>anonym</b> weiter, als «Wichtel · {mask}».',
   'bot.reply.toSanta': '✍️ Schreib deinem Wichtel ({title}) – ich leite die Nachricht weiter. Dein Wichtel weiß, wer du bist, du aber nicht, wer er ist.',
-  'bot.reply.toSantaMasked': '✍️ Schreib deinem Wichtel «{mask}» ({title}) – ich leite die Nachricht weiter. Dein Wichtel weiß, wer du bist, du aber nicht, wer er ist.',
   // Requests to the organizers (012)
   'bot.support.sent': '✅ Nachricht gesendet. Die Antwort kommt hierher.',
   'bot.support.adminsOnly': '❌ Auf Anliegen antworten können nur der Inhaber und die Admins.',

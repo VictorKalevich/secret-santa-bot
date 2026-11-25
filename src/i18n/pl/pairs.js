@@ -9,12 +9,11 @@ export default {
   'pairs.reason.search_exhausted': 'Nie udało się szybko dobrać przydziału — spróbuj jeszcze raz. Jeśli się nie uda, usuń część wykluczeń albo wyłącz losowanie w kręgu.',
   'pairs.reason.fixed_block': 'Przeszkadzają ustalone pary: z nimi nie da się przydzielić wszystkich zgodnie z regułami. {owner.nomCap} może usunąć część ustalonych par.',
   'pairs.reason.too_strict': 'Za dużo wykluczeń: nie da się przydzielić wszystkich tak, by ich nie złamać. Usuń część wykluczeń.',
-  'pairs.familiesBlock': 'Przeszkadzają rodziny: członkowie jednej rodziny nie obdarowują się nawzajem i nie da się tak przydzielić wszystkich. Wyłącz „Uwzględniaj rodziny” albo losowanie w kręgu.',
   // Draw
   'pairs.drawn': '🎄 <b>Losowanie w wydarzeniu {title} przeprowadzone!</b>\n\nOtwórz aplikację i zajrzyj do zakładki „Podopieczny”, żeby się dowiedzieć, komu dajesz prezent. Nikomu nie mów 🤫',
   'pairs.drawnButton': '🎁 Poznaj podopiecznego',
   'pairs.drawFinished': 'Wydarzenie jest zakończone.',
-  'pairs.drawRace': 'W trakcie losowania zmienili się uczestnicy, wykluczenia lub rodziny — spróbuj jeszcze raz.',
+  'pairs.drawRace': 'W trakcie losowania zmienili się uczestnicy lub wykluczenia — spróbuj jeszcze raz.',
   'pairs.notDrawn': 'Losowanie się nie odbyło.',
   // Pairs after a change of members: to the new participant and to a Santa with a new giftee
   'pairs.inserted': '🎄 <b>Jesteś w grze!</b> Losowanie w wydarzeniu {title} zostało dla Ciebie przeprowadzone — zajrzyj do zakładki „Podopieczny” 🤫',
@@ -29,7 +28,6 @@ export default {
   // Giftee swap (048): rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': 'Jedna z tych osób obdarowuje drugą: po zamianie ktoś dawałby prezent samemu sobie.',
   'pairs.swapRule.exclusion': 'Wykluczenia: jedna z tych dwóch osób obdarowywałaby kogoś, kogo według wykluczeń obdarowywać nie powinna.',
-  'pairs.swapRule.family': 'Rodziny: jedna z tych dwóch osób obdarowywałaby członka swojej rodziny.',
   'pairs.swapRule.ring': 'Losowanie w kręgu: powstanie para wzajemna — dwie osoby będą się obdarowywać nawzajem.',
   'pairs.swapRule.fixed': 'Ustalone pary: zamiana rozerwie ustaloną przez Ciebie parę.',
   'pairs.swapRule.history': 'Poprzednie pary: jedna z tych dwóch osób obdarowywałaby tę samą osobę co w poprzednim wydarzeniu.',

@@ -1,4 +1,4 @@
-// Texts of app part 03-home (061, German): home screen, "Profile", "Notifications", families, owner and admins
+// Texts of app part 03-home (061, German): home screen, "Profile", "Notifications", owner and admins
 export default {
   // Leaving a round or tab (058): asks only about what is not saved by itself
   'app.home.unsaved': 'Wunschzettel oder Adresse sind nicht gespeichert. Ohne Speichern verlassen?',
@@ -38,7 +38,6 @@ export default {
   'app.home.lang.auto': 'Wie in Telegram ({name})',
   'app.home.lang.hint': 'Bot und App erscheinen in dieser Sprache. «Wie in Telegram» – die Sprache deines Telegram.',
   'app.home.notify.title': 'Benachrichtigungen',
-  'app.home.notify.hint': 'Wenn dein Wichtelkind seinen Wunschzettel ändert (in einer beliebigen Runde), sagt dir der Bot Bescheid – ohne Namen und Details.',
   'app.home.notify.sound': '🔔 Ton',
   'app.home.notify.silent': '🔕 Leise',
   'app.home.notify.off': '🚫 Aus',
@@ -47,20 +46,6 @@ export default {
   'app.home.name.hint': 'Dein Name gilt in allen Runden. Ihn sehen der Inhaber, die Admins und dein Wichtel, nach der Auflösung auch dein Wichtelkind.',
   'app.home.name.empty': 'Gib deinen Namen ein',
   'app.home.name.saved': 'Name gespeichert',
-  // Families (008); "New family" - button and sheet title
-  'app.home.families.title': 'Familien',
-  'app.home.families.empty': 'Noch keine Familien.',
-  'app.home.families.edit': 'Familie bearbeiten',
-  'app.home.families.new': 'Neue Familie',
-  'app.home.families.hint': 'Familienmitglieder beschenken sich in keiner Runde gegenseitig (wenn dort «Familien berücksichtigen» eingeschaltet ist). Jede Person gehört zu höchstens einer Familie.',
-  'app.home.families.family': 'Familie',
-  'app.home.families.name': 'Name der Familie',
-  'app.home.families.placeholder': 'Zum Beispiel: Familie Müller',
-  'app.home.families.members': 'Wer gehört zur Familie (Personen aus anderen Familien werden hier nicht angezeigt):',
-  'app.home.families.saved': 'Familie gespeichert',
-  'app.home.families.delete': '🗑 Familie löschen',
-  'app.home.families.deleteConfirm': 'Familie «{name}» löschen? Bereits erfolgte Auslosungen ändern sich nicht.',
-  'app.home.families.deleted': 'Familie gelöscht',
   // Owner and admins (002, 051: crown - transfer by the owner or appointment by the bot owner)
   'app.home.admins.title': 'Inhaber und Admins',
   'app.home.admins.makeOwnerConfirm': '«{name}» zum Inhaber dieses Raums machen? Diese Person kann dann alles, was ein Inhaber kann: Admins, Runden zurücksetzen und löschen, Kontrollansicht. Du bleibst Bot-Inhaber und kannst den Raum zurückholen.',

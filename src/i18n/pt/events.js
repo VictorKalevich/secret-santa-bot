@@ -19,10 +19,9 @@ export default {
   'events.invite': '📨 <b>Convite para o evento {title}</b> — Amigo Secreto.\nToque no botão para participar.',
   'events.inviteButton': '🎄 Participar',
   'events.inviteAgain': 'Os convites já foram enviados — dá para repetir daqui a um minuto.',
-  // Reveal: {mask} — Santa mask (040), {name} — Santa name
+  // Reveal: {name} — Santa name
   'events.alreadyRevealed': 'O segredo já foi revelado.',
   'events.revealed': '🎅 <b>Segredo revelado!</b>\n\nNo evento {title}, seu Papai Noel secreto é <b>{name}</b>. Boas festas! 🎄',
-  'events.revealedMask': '🎅 <b>Segredo revelado!</b>\n\nNo evento {title}, seu Papai Noel secreto “{mask}” é <b>{name}</b>. Boas festas! 🎄',
   // Reminders: empty letter (with and without a deadline) and to Santas (with and without the exchange date)
   'events.remindAgain': 'O lembrete já foi enviado — dá para repetir daqui a um minuto.',
   'events.remindUnfilled': '⏰ Lembrete: sua carta ao Papai Noel no evento {title} ainda está vazia. Preencha para facilitar a escolha do presente.',

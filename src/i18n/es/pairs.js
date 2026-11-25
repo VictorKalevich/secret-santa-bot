@@ -9,12 +9,11 @@ export default {
   'pairs.reason.search_exhausted': 'No se pudo encontrar una asignación rápidamente: inténtalo otra vez. Si no funciona, quita algunas exclusiones o desactiva el sorteo circular.',
   'pairs.reason.fixed_block': 'Lo impiden las asignaciones fijas: con ellas no se puede repartir a todos según las reglas. {owner.nomCap} puede quitar algunas asignaciones fijas.',
   'pairs.reason.too_strict': 'Demasiadas exclusiones: no se puede repartir a todos respetándolas. Quita algunas exclusiones.',
-  'pairs.familiesBlock': 'Lo impiden las familias: los miembros de una familia no se regalan entre sí, y así no se puede repartir a todos. Desactiva «Tener en cuenta familias» o el sorteo circular.',
   // Draw
   'pairs.drawn': '🎄 <b>¡Sorteo del evento {title} hecho!</b>\n\nAbre la app y mira la pestaña «Destinatario» para saber a quién le regalas. No se lo cuentes a nadie 🤫',
   'pairs.drawnButton': '🎁 Ver mi destinatario',
   'pairs.drawFinished': 'El evento ha finalizado.',
-  'pairs.drawRace': 'Los participantes, las exclusiones o las familias cambiaron durante el sorteo: inténtalo otra vez.',
+  'pairs.drawRace': 'Los participantes o las exclusiones cambiaron durante el sorteo: inténtalo otra vez.',
   'pairs.notDrawn': 'El sorteo no está hecho.',
   // Assignments after a change of participants: to the new participant and to a Santa with a new giftee
   'pairs.inserted': '🎄 <b>¡Ya estás en el juego!</b> Ya se hizo tu sorteo en el evento {title}: mira la pestaña «Destinatario» 🤫',
@@ -29,7 +28,6 @@ export default {
   // Giftee swap: rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': 'Uno de los dos le regala al otro: tras el cambio, alguien se regalaría a sí mismo.',
   'pairs.swapRule.exclusion': 'Exclusiones: uno de los dos le regalaría a alguien a quien, por las exclusiones, no debe regalar.',
-  'pairs.swapRule.family': 'Familias: uno de los dos le regalaría a un miembro de su familia.',
   'pairs.swapRule.ring': 'Sorteo circular: aparecería un regalo recíproco, dos personas se regalarían entre sí.',
   'pairs.swapRule.fixed': 'Asignaciones fijas: el cambio rompería una asignación que fijaste.',
   'pairs.swapRule.history': 'Asignaciones anteriores: uno de los dos le regalaría a la misma persona que en el evento anterior.',

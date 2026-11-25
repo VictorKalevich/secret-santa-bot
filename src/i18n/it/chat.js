@@ -7,10 +7,9 @@ export default {
   'chat.noSanta': "Il sorteggio per te non è ancora stato fatto.",
   'chat.pairChanged': "La coppia è cambiata: aggiorna la schermata.",
   'chat.pairChangedReply': "🔄 La coppia è cambiata dopo che hai toccato «Rispondi»: il messaggio non è stato inviato. Tocca di nuovo «↩️ Rispondi».",
-  // How the giftee sees Santa in bot messages: without and with a mask (040)
+  // How the giftee sees Santa in bot messages
   'chat.santaTitle': "Il tuo Babbo Natale segreto",
-  'chat.santaTitleMask': "Il tuo Babbo Natale segreto «{mask}»",
-  // Message to the other side: {santa} - chat.santaTitle*, {title} - event title, {text} - message text
+  // Message to the other side: {santa} - chat.santaTitle, {title} - event title, {text} - message text
   'chat.fromSanta': "💬 <b>{santa} ({title}) scrive:</b>\n\n{text}",
   'chat.fromWard': "💬 <b>Ti scrive il tuo destinatario ({title}):</b>\n\n{text}",
   'chat.historyButton': "💬 Tutta la chat",

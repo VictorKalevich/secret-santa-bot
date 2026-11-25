@@ -11,10 +11,9 @@ export default {
   // Reply field and message feed
   'app.sheet.send': "Invia",
   'app.sheet.noMessages': "Nessun messaggio.",
-  // Chat between Santa and giftee (003, mask - 040)
+  // Chat between Santa and giftee (003)
   'app.sheet.chat.placeholder': "Messaggio…",
   'app.sheet.chat.yourSanta': "Il tuo Babbo Natale segreto",
-  'app.sheet.chat.yourMasked': "Il tuo {santa}",
   'app.sheet.chat.santaKnows': "Babbo Natale sa chi sei, tu invece non sai chi è.",
   'app.sheet.chat.youAre': "Per il destinatario sei «{santa}», il tuo nome resta segreto.",
   'app.sheet.chat.noDraw': "Chat non disponibile: il sorteggio non è ancora stato fatto.",

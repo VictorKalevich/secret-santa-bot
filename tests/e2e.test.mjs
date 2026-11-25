@@ -714,7 +714,7 @@ test('007: инструменты организатора', { timeout: 300000 }
   }
 });
 
-// 008: адрес доставки, семьи, заявки на вступление. Отдельный мир.
+// 008: адрес доставки, семьи (с 062 — взаимные исключения), заявки на вступление. Отдельный мир.
 test('008: адрес доставки, семьи, заявки', { timeout: 400000 }, async (t) => {
   const z = await startWorld();
   const zapi = (...a) => z.api(...a);
@@ -778,21 +778,18 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       noSecret(await zapi(boss, 'admin.wishlist', { event: E1, id: alya.id }), 'admin.wishlist');
     });
 
-    await t.test('US2: семьи — управление', async () => {
+    await t.test('US2 (062): семей нет — «семью» задаёт взаимное исключение', async () => {
       assert.equal((await zapi(alya, 'admin.families', {}, true)).status, 403);
-      await zapi(boss, 'admin.family.save', { name: 'Ивановы', members: [alya.id, borya.id] });
-      const dup = await zapi(boss, 'admin.family.save', { name: 'Петровы', members: [borya.id, vika.id] }, true);
-      assert.equal(dup.status, 400);
-      assert.match(dup.data.error, /Боря уже в семье «Ивановы»/);
-      assert.equal((await zapi(boss, 'admin.family.save', { name: 'Один', members: [vika.id] }, true)).status, 400);
-      const f = await zapi(boss, 'admin.families');
-      assert.deepEqual(f.families.map((x) => [x.name, x.members.map((m) => m.id).sort()]), [['Ивановы', [alya.id, borya.id]]]);
+      const gone = await zapi(boss, 'admin.family.save', { name: 'Ивановы', members: [alya.id, borya.id] }, true);
+      assert.equal(gone.status, 404);
+      await zapi(boss, 'admin.exclusion.add', { event: E1, giver: alya.id, receiver: borya.id, mutual: true });
       const st = await zapi(boss, 'admin.state', { event: E1 });
-      assert.equal(st.settings.families_on, true);
-      assert.deepEqual(st.families.map((x) => x.members.sort()), [[alya.id, borya.id]]);
+      assert.ok(!('families' in st) && !('families_on' in st.settings), 'панель без семей');
+      assert.equal((await z.query('SELECT COUNT(*) AS n FROM families'))[0].n, 0);
+      assert.equal(st.exclusions.length, 2);
     });
 
-    await t.test('US2: 20 жеребьёвок соблюдают семью; замена тоже', async () => {
+    await t.test('US2: 20 жеребьёвок соблюдают исключение; замена тоже', async () => {
       for (let i = 0; i < 20; i++) {
         await zapi(boss, 'admin.draw', { event: E1 });
         const p = await pairsSql(E1);
@@ -801,9 +798,9 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
         assert.notEqual(p.get(borya.id), alya.id, `жеребьёвка ${i}: Боря → Аля`);
         if (i < 19) await zapi(boss, 'admin.draw.cancel', { event: E1 });
       }
-      const no = await zapi(boss, 'admin.game', { event: E1, families_on: false }, true);
-      assert.equal(no.status, 400);
-      assert.match(no.data.error, /правило семей/);
+      // прежний параметр «Учитывать семьи» игнорируется
+      await zapi(boss, 'admin.game', { event: E1, families_on: false });
+      assert.equal((await z.query(`SELECT COUNT(*) AS n FROM exclusions WHERE event_id = ${E1}`))[0].n, 2);
       await zapi(boss, 'admin.remove', { event: E1, id: dasha.id });
       const p = await pairsSql(E1);
       assert.equal(p.size, 4);
@@ -811,12 +808,15 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       assert.notEqual(p.get(borya.id), alya.id);
     });
 
-    await t.test('US2: понятная причина и выключатель семей', async () => {
+    await t.test('US2: понятная причина — исключения, без «семей»', async () => {
       const E3 = await newEvent('Тесно', [alya, borya, vika]);
       let c = await zapi(boss, 'admin.draw.check', { event: E3 });
+      assert.equal(c.possible, true, 'исключения другого события не действуют');
+      await zapi(boss, 'admin.exclusion.add', { event: E3, giver: alya.id, receiver: borya.id, mutual: true });
+      c = await zapi(boss, 'admin.draw.check', { event: E3 });
       assert.equal(c.possible, false);
-      assert.match(c.problems[0], /Мешают семьи/);
-      await zapi(boss, 'admin.game', { event: E3, families_on: false });
+      assert.ok(!/семь/i.test(c.problems.join(' ')), c.problems.join(' '));
+      await zapi(boss, 'admin.exclusion.del', { event: E3, giver: alya.id, receiver: borya.id, mutual: true });
       c = await zapi(boss, 'admin.draw.check', { event: E3 });
       assert.equal(c.possible, true);
     });
@@ -839,15 +839,13 @@ test('008: адрес доставки, семьи, заявки', { timeout: 40
       noSecret(await zapi(boss, 'admin.state', { event: E1 }), 'admin.state после жеребьёвки');
     });
 
-    await t.test('US2: перенос участия переносит семью', async () => {
+    await t.test('US2: перенос участия переносит исключения', async () => {
       await zapi(boss, 'admin.registration', { event: E1, open: true });
       await z.say(borya2, '/start ' + (await zInvite(E1)));
       await z.say(borya2, borya2.name);
       await zapi(boss, 'admin.transfer', { from: borya.id, to: borya2.id });
-      const f = await zapi(boss, 'admin.families');
-      assert.deepEqual(f.families[0].members.map((m) => m.id).sort(), [alya.id, borya2.id]);
-      const g = (await zapi(boss, 'admin.audit', {})).entries.map((e) => e.action);
-      assert.ok(g.includes('family.save'));
+      const ex = (await z.query(`SELECT giver, receiver FROM exclusions WHERE event_id = ${E1}`)).map((r) => `${r.giver}→${r.receiver}`).sort();
+      assert.deepEqual(ex, [`${alya.id}→${borya2.id}`, `${borya2.id}→${alya.id}`].sort());
     });
 
     await t.test('US3: заявки — принять кнопкой в чате, отклонить в панели', async () => {
@@ -957,7 +955,7 @@ test('009: исправления перед выкатом', { timeout: 400000 
       await zapi(boss, 'admin.role.grant', { id: helper.id });
     });
 
-    await t.test('тайна: админу исключения и семьи после жеребьёвки заморожены, себя не вписать', async () => {
+    await t.test('тайна: админу исключения после жеребьёвки заморожены, себя не вписать', async () => {
       await zapi(boss, 'admin.exclusion.add', { event: E1, giver: zhenya.id, receiver: zoya.id });
       await zapi(boss, 'admin.draw', { event: E1 });
       for (const action of ['admin.exclusion.add', 'admin.exclusion.del']) {
@@ -968,18 +966,6 @@ test('009: исправления перед выкатом', { timeout: 400000 
       const add2 = await zapi(helper, 'admin.exclusion.add', { event: E1, giver: igor.id, receiver: liza.id, mutual: true }, true);
       assert.equal(add2.status, 400);
       assert.deepEqual((await zapi(boss, 'admin.state', { event: E1 })).exclusions, [{ giver: zhenya.id, receiver: zoya.id }]);
-
-      // семья из двух участников идущего эвента с жеребьёвкой — нельзя
-      const fam = await zapi(helper, 'admin.family.save', { name: 'Пара', members: [zhenya.id, zoya.id] }, true);
-      assert.equal(fam.status, 400);
-      assert.match(fam.data.error, /Состав семьи нельзя менять, пока идёт событие «Тайна»/);
-      // в эвенте только один член семьи — исключения там не меняются, можно
-      await zapi(helper, 'admin.family.save', { name: 'Родня', members: [zhenya.id, boss.id] });
-      let f = (await zapi(helper, 'admin.families')).families.find((x) => x.name === 'Родня');
-      await zapi(helper, 'admin.family.save', { id: f.id, name: 'Родные', members: [zhenya.id, boss.id] }); // переименование
-      const grow = await zapi(helper, 'admin.family.save', { id: f.id, name: 'Родные', members: [zhenya.id, boss.id, zoya.id] }, true);
-      assert.equal(grow.status, 400, 'добавить второго участника эвента в семью нельзя');
-      assert.equal((await zapi(helper, 'admin.family.delete', { id: f.id })).ok, true, 'в эвенте один член семьи — удалить можно');
 
       // вписать себя нельзя: вписывает только владелец (012)
       const self = await zapi(helper, 'admin.insert', { event: E1, id: helper.id }, true);
@@ -1310,10 +1296,6 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       assert.ok((await zapi(boss, 'admin.state', { event: V })).exclusions.some((e) => e.giver === anya.id && e.receiver === borya.id));
       await zapi(boss, 'admin.exclusion.del', { event: V, giver: anya.id, receiver: borya.id });
       assert.equal((await zapi(helper, 'admin.exclusion.add', { event: V, giver: gena.id, receiver: vera.id }, true)).status, 400);
-      assert.equal((await zapi(helper, 'admin.family.save', { name: 'Пара-010', members: [anya.id, borya.id] }, true)).status, 400);
-      await zapi(boss, 'admin.family.save', { name: 'Пара-010', members: [anya.id, borya.id] });
-      const fam = (await zapi(boss, 'admin.families')).families.find((f) => f.name === 'Пара-010');
-      await zapi(boss, 'admin.family.delete', { id: fam.id });
 
       const V4 = await newEvent('Вписать', [anya, borya, vera]);
       await zapi(boss, 'admin.draw', { event: V4 });
@@ -1332,7 +1314,7 @@ test('010: права владельца', { timeout: 400000 }, async (t) => {
       // 019: список — из таблицы действий (порядок строк = прежний порядок case); ровно 48 (048) — потерю действия видно сразу
       const { ACTIONS } = await import('../src/api.js');
       const actions = Object.keys(ACTIONS).filter((a) => a.startsWith('admin.'));
-      assert.equal(actions.length, 48, `найдено действий: ${actions.length}`);
+      assert.equal(actions.length, 45, `найдено действий: ${actions.length}`);
       // Минимальное тело: без слов подтверждения и без людей — опасные действия получают отказ по данным, а не по правам
       const body = (event) => ({ event, id: 0, from: 0, to: 0, giver: 0, receiver: 0 });
       const P1 = (await zapi(boss, 'admin.events.create', { title: 'Права владельца' })).event.id;

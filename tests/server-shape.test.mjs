@@ -6,7 +6,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { startWorld, restoreFetch } from './support/world.mjs';
-import { EVENT_PARAMS, EVENT_SERVICE, EVENT_STATE_RESET, eventDefaults } from '../src/event-params.js';
+import { EVENT_PARAMS, EVENT_SERVICE, EVENT_STATE_RESET, EVENT_RETIRED, eventDefaults } from '../src/event-params.js';
 
 after(restoreFetch);
 
@@ -17,18 +17,20 @@ const boss = { id: 9001, name: 'Владелец', username: 'boss' };
 // DEFAULT колонки, как его хранит база: число или строка без кавычек (нет умолчания — undefined)
 const schemaDefault = (v) => (v === null ? undefined : /^'.*'$/.test(v) ? v.slice(1, -1) : Number(v));
 
-// columns — строки PRAGMA table_info(events); → список расхождений
-function paramProblems(columns, params = EVENT_PARAMS, service = EVENT_SERVICE) {
+// columns — строки PRAGMA table_info(events); → список расхождений. retired — колонки, которые код больше не читает и
+// не пишет (062: остались ради отката)
+function paramProblems(columns, params = EVENT_PARAMS, service = EVENT_SERVICE, retired = EVENT_RETIRED) {
   const out = [];
   const names = new Set(columns.map((c) => c.name));
   for (const c of columns) {
     const p = params[c.name];
     const s = service.includes(c.name);
-    if (!p && !s) out.push(`колонка ${c.name} не описана: ни параметр, ни служебная`);
-    if (p && s) out.push(`колонка ${c.name} описана дважды`);
+    const r = retired.includes(c.name);
+    if (!p && !s && !r) out.push(`колонка ${c.name} не описана: ни параметр, ни служебная`);
+    if ((p ? 1 : 0) + (s ? 1 : 0) + (r ? 1 : 0) > 1) out.push(`колонка ${c.name} описана дважды`);
     if (p && schemaDefault(c.dflt_value) !== p.default) out.push(`параметр ${c.name}: умолчание ${JSON.stringify(p.default)}, в схеме ${c.dflt_value}`);
   }
-  for (const k of [...Object.keys(params), ...service]) if (!names.has(k)) out.push(`${k} описан, но колонки нет`);
+  for (const k of [...Object.keys(params), ...service, ...retired]) if (!names.has(k)) out.push(`${k} описан, но колонки нет`);
   return out;
 }
 
@@ -60,6 +62,10 @@ describe('029: параметры события', () => {
     assert.ok(!('company_id' in EVENT_STATE_RESET));
     assert.deepEqual(paramProblems(columns, EVENT_PARAMS, EVENT_SERVICE.filter((c) => c !== 'company_id')),
       ['колонка company_id не описана: ни параметр, ни служебная']);
+    // 062: «Учитывать семьи» — колонка осталась, код её не читает и не пишет
+    assert.deepEqual(EVENT_RETIRED, ['families_on']);
+    assert.ok(!('families_on' in EVENT_PARAMS));
+    assert.deepEqual(paramProblems(columns, EVENT_PARAMS, EVENT_SERVICE, []), ['колонка families_on не описана: ни параметр, ни служебная']);
   });
 
   it('от противного: новая колонка, лишняя строка списка и другое умолчание — замечены', () => {
@@ -67,6 +73,8 @@ describe('029: параметры события', () => {
     assert.match(paramProblems(columns, { ...EVENT_PARAMS, gift_wrap: { kind: 'flag', default: 0 } }).join('\n'), /gift_wrap описан, но колонки нет/);
     assert.match(paramProblems(columns, { ...EVENT_PARAMS, rejoin: { kind: 'flag', default: 0 } }).join('\n'), /параметр rejoin/);
     assert.match(paramProblems(columns, EVENT_PARAMS, [...EVENT_SERVICE, 'budget']).join('\n'), /budget описана дважды/);
+    assert.match(paramProblems(columns, EVENT_PARAMS, EVENT_SERVICE, ['families_on', 'budget']).join('\n'), /budget описана дважды/);
+    assert.match(paramProblems(columns, EVENT_PARAMS, EVENT_SERVICE, ['families_on', 'gift_wrap']).join('\n'), /gift_wrap описан, но колонки нет/);
   });
 
   it('подготовка: у образца каждый параметр отличается от умолчания', () => {

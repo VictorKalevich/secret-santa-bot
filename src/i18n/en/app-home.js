@@ -1,4 +1,4 @@
-// Texts of the app part 03-home (061, English): home screen, "Profile", "Notifications", families, owner and admins
+// Texts of the app part 03-home (061, English): home screen, "Profile", "Notifications", owner and admins
 export default {
   // Leaving an event or a tab (058): asks only about what won't be saved by itself
   'app.home.unsaved': 'Your letter or address isn’t saved. Leave without saving?',
@@ -38,7 +38,6 @@ export default {
   'app.home.lang.auto': 'Same as Telegram ({name})',
   'app.home.lang.hint': 'The bot and the app will use this language. “Same as Telegram” is the language of your Telegram.',
   'app.home.notify.title': 'Notifications',
-  'app.home.notify.hint': 'When your giftee changes their letter (in any event), the bot will tell you — without names or details.',
   'app.home.notify.sound': '🔔 Sound',
   'app.home.notify.silent': '🔕 Silent',
   'app.home.notify.off': '🚫 Off',
@@ -47,20 +46,6 @@ export default {
   'app.home.name.hint': 'One name for all events. The owner, admins and your Santa see it — and so does your giftee after the reveal.',
   'app.home.name.empty': 'Enter your name',
   'app.home.name.saved': 'Name saved',
-  // Families (008); "New family" — button and sheet title
-  'app.home.families.title': 'Families',
-  'app.home.families.empty': 'No families yet.',
-  'app.home.families.edit': 'Edit family',
-  'app.home.families.new': 'New family',
-  'app.home.families.hint': 'Members of the same family don’t give to each other in any event (if “Keep families apart” is on in the event). One person — one family.',
-  'app.home.families.family': 'Family',
-  'app.home.families.name': 'Family name',
-  'app.home.families.placeholder': 'For example: The Smiths',
-  'app.home.families.members': 'Who’s in the family (people from other families aren’t shown here):',
-  'app.home.families.saved': 'Family saved',
-  'app.home.families.delete': '🗑 Delete family',
-  'app.home.families.deleteConfirm': 'Delete the family “{name}”? Draws that already happened won’t change.',
-  'app.home.families.deleted': 'Family deleted',
   // Owner and admins (002, 051)
   'app.home.admins.title': 'Owner and admins',
   'app.home.admins.makeOwnerConfirm': 'Make “{name}” the owner of this room? They’ll be able to do all the owner can: admins, resetting and deleting events, the service view of pairs. You stay the bot owner and can take the room back.',

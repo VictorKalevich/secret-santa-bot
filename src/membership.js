@@ -1,5 +1,4 @@
-// Участие в эвентах (008): семьи — постоянные группы исключений, заявки на вступление с одобрением.
-// 050: семьи — в пределах компании (ctx — контекст компании); человек, которого бот принял по ссылке события, — человек
+// Участие в эвентах (008): заявки на вступление с одобрением. 050: человек, которого бот принял по ссылке события, — человек
 // компании события (joinCompanyStmt в том же пакете, что вступление или заявка).
 
 import {
@@ -7,146 +6,12 @@ import {
   memberDataDeleteStmts, eventQuery, memberQuery,
 } from './db.js';
 import {
-  msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, oneLine, NOT_MEMBER, ADMIN_ONLY,
+  msg, q, escapeHtml, openAppButton, appKeyboard, displayName, adminRecipients, NOT_MEMBER, ADMIN_ONLY,
 } from './format.js';
-import { tx, tjoin } from './i18n/index.js';
+import { tx } from './i18n/index.js';
 import { isFinished } from './status.js';
 import { atomic } from './claim.js';
 import { no } from './result.js';
-
-// ---------- семьи ----------
-
-const FAMILY_MAX = 20;
-const FAMILY_NOT_FOUND = tx('membership.familyNotFound');
-
-// Состав семьи меняет исключения во всех идущих эвентах компании, где есть двое её членов. После жеребьёвки это
-// позволило бы вычислить пары по заменам (009, FR-902), поэтому членство людей такого эвента заморожено до его завершения.
-// changed — люди, чьё членство меняется; family — все члены семьи до и после изменения.
-async function frozenFamilyEvent(db, companyId, changed, family) {
-  if (!changed.length) return null;
-  const list = (a) => a.map(() => '?').join(',');
-  return db
-    .prepare(
-      `SELECT e.title FROM events e
-        WHERE e.company_id = ? AND e.status = 'active' AND e.draw_done = 1 AND e.families_on = 1
-          AND EXISTS (SELECT 1 FROM members m WHERE m.event_id = e.id AND m.user_id IN (${list(changed)}))
-          AND (SELECT COUNT(*) FROM members m WHERE m.event_id = e.id AND m.user_id IN (${list(family)})) >= 2
-        LIMIT 1`
-    )
-    .bind(companyId, ...changed, ...family)
-    .first();
-}
-
-const familyFrozen = (ev) => tx('membership.familyFrozen', { title: ev.title });
-
-async function familyMembers(db, familyId) {
-  const { results } = await db.prepare('SELECT user_id FROM family_members WHERE family_id = ?').bind(familyId).all();
-  return results.map((r) => r.user_id);
-}
-
-// Сохранение изменит семью: другое название или другой состав (n — число людей нового состава). Параметры: id,
-// название, id, n, id, люди
-const familyChanges = (n) =>
-  `EXISTS (SELECT 1 FROM families WHERE id = ? AND name IS NOT ?)
-    OR (SELECT COUNT(*) FROM family_members WHERE family_id = ?) <> ?
-    OR EXISTS (SELECT 1 FROM family_members WHERE family_id = ? AND user_id NOT IN (${Array(n).fill('?').join(',')}))`;
-
-// Действует владелец бота — заморозка против вычисления пар на него не распространяется (010, FR-1008)
-export async function saveFamily(ctx, actor, { id = 0, name, members }) {
-  const db = ctx.db;
-  const cid = ctx.company.id;
-  const clean = oneLine(name);
-  if (!clean || clean.length > 40) return no(tx('membership.familyNameRule'));
-  const ids = [...new Set((Array.isArray(members) ? members : []).map(Number).filter(Boolean))];
-  if (ids.length < 2 || ids.length > FAMILY_MAX) return no(tx('membership.familySize', { max: FAMILY_MAX }));
-  id = Number(id) || 0;
-  const old = id ? await db.prepare('SELECT id, name FROM families WHERE id = ? AND company_id = ?').bind(id, cid).first() : null;
-  if (id && !old) return no(FAMILY_NOT_FOUND);
-  // Члены семьи — люди компании (гость — не человек компании)
-  const users = (await ctx.users()).filter((u) => !u.guest);
-  const byId = Object.fromEntries(users.map((u) => [u.tg_id, u]));
-  for (const uid of ids) if (!byId[uid]?.registered) return no(tx('membership.memberNotFound'));
-  // Один человек — одна семья в компании (FR-805)
-  const alreadyIn = async () => {
-    const { results: taken } = await db
-      .prepare(`SELECT fm.user_id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id
-                 WHERE fm.company_id = ? AND fm.family_id != ? AND fm.user_id IN (${ids.map(() => '?').join(',')})`)
-      .bind(cid, id, ...ids)
-      .all();
-    return taken.length ? no(tx('membership.alreadyInFamily', { name: displayName(byId[taken[0].user_id]), family: taken[0].name })) : null;
-  };
-  const taken = await alreadyIn();
-  if (taken) return taken;
-  // Переименование без смены состава разрешено всегда
-  const before = id ? await familyMembers(db, id) : [];
-  const changed = [...ids.filter((x) => !before.includes(x)), ...before.filter((x) => !ids.includes(x))];
-  // Без изменений — успех без записи (034)
-  if (old && old.name === clean && !changed.length) return { ok: true };
-  const frozen = (await ctx.isOwner()) ? null : await frozenFamilyEvent(db, cid, changed, [...new Set([...before, ...ids])]);
-  if (frozen) return no(familyFrozen(frozen));
-  const now = Date.now();
-  // Новая семья в остальных операторах batch — по автору и времени создания
-  const famId = id ? '?' : '(SELECT MAX(id) FROM families WHERE created_by = ? AND created_at = ?)';
-  const famArgs = id ? [id] : [actor, now];
-  const stmts = id
-    ? [db.prepare('UPDATE families SET name = ? WHERE id = ?').bind(clean, id), db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(id)]
-    : [db.prepare('INSERT INTO families (company_id, name, created_by, created_at) VALUES (?, ?, ?, ?)').bind(cid, clean, actor, now)];
-  for (const uid of ids) {
-    stmts.push(db.prepare(`INSERT INTO family_members (company_id, user_id, family_id) VALUES (?, ?, ${famId})`).bind(cid, uid, ...famArgs));
-  }
-  const details = tx('membership.audit.familySave', { name: clean, people: tjoin(', ', ids.map((x) => displayName(byId[x]))) });
-  try {
-    if (id) {
-      // Запись журнала — по прежнему состоянию, перед изменением (034): из одинаковых одновременных сохранений (даже в
-      // одну миллисекунду) её пишет только первое — второе видит уже сохранённую семью
-      const a = atomic(db, familyChanges(ids.length), id, clean, id, ids.length, id, ...ids);
-      a.audit({ company: cid }, actor, 'family.save', details);
-      a.add(...stmts);
-      await a.run();
-    } else await db.batch([...stmts, auditStmt(db, { company: cid }, actor, 'family.save', details)]);
-  } catch (e) {
-    // Одновременное сохранение (024): человек уже попал в другую семью — пакет откатился целиком; ответ — тот же, что
-    // при последовательном повторе. Прочие ошибки — как раньше.
-    if (!/UNIQUE constraint failed: family_members/.test(String(e?.message))) throw e;
-    const taken = await alreadyIn();
-    if (taken) return taken;
-    throw e;
-  }
-  return { ok: true };
-}
-
-export async function deleteFamily(ctx, actor, id) {
-  const db = ctx.db;
-  const cid = ctx.company.id;
-  const fam = await db.prepare('SELECT * FROM families WHERE id = ? AND company_id = ?').bind(Number(id) || 0, cid).first();
-  if (!fam) return no(FAMILY_NOT_FOUND);
-  const all = await familyMembers(db, fam.id);
-  const frozen = (await ctx.isOwner()) ? null : await frozenFamilyEvent(db, cid, all, all);
-  if (frozen) return no(familyFrozen(frozen));
-  await db.batch([
-    db.prepare('DELETE FROM family_members WHERE family_id = ?').bind(fam.id),
-    db.prepare('DELETE FROM families WHERE id = ?').bind(fam.id),
-    auditStmt(db, { company: cid }, actor, 'family.delete', tx('membership.audit.familyDelete', { name: fam.name })),
-  ]);
-  return { ok: true };
-}
-
-// admin.families: семьи компании и её люди (без гостя); адресов и пар здесь нет
-export async function familiesList(ctx) {
-  const db = ctx.db;
-  const cid = ctx.company.id;
-  const [users, fams, rows] = await Promise.all([
-    ctx.users(),
-    db.prepare('SELECT id, name FROM families WHERE company_id = ? ORDER BY name').bind(cid).all().then((r) => r.results),
-    db.prepare('SELECT user_id, family_id FROM family_members WHERE company_id = ?').bind(cid).all().then((r) => r.results),
-  ]);
-  const famOf = Object.fromEntries(rows.map((r) => [r.user_id, r.family_id]));
-  const reg = users.filter((u) => u.registered && !u.guest);
-  return {
-    families: fams.map((f) => ({ id: f.id, name: f.name, members: reg.filter((u) => famOf[u.tg_id] === f.id).map((u) => ({ id: u.tg_id, name: u.name })) })),
-    users: reg.map((u) => ({ id: u.tg_id, name: u.name, family_id: famOf[u.tg_id] || 0 })),
-  };
-}
 
 // ---------- участие админа и возврат удалённых (019: из api.js) ----------
 

@@ -376,7 +376,9 @@ async function rich() {
   await w.api(adm, 'admin.exclusion.add', { event: B, giver: p2.id, receiver: p1.id });
   await w.api(boss, 'admin.fixed.add', { event: A, giver: p3.id, receiver: p1.id });
   await w.api(boss, 'admin.fixed.add', { event: A, giver: p2.id, receiver: p5.id });
-  await w.api(boss, 'admin.family.save', { name: 'Семья', members: [p1.id, p4.id] });
+  // Семья — строками, как их оставил прежний код (062: действий с семьями нет, построители REGISTRY их по-прежнему убирают)
+  w.sql(`INSERT INTO families (id, company_id, name, created_by, created_at) VALUES (1, 1, 'Семья', ${boss.id}, 0);
+    INSERT INTO family_members (company_id, user_id, family_id) VALUES (1, ${p1.id}, 1), (1, ${p4.id}, 1)`);
   // Обращения: у p1 — закрытое им самим (с ответом админа) и новое открытое; у p2 — в A и в B
   await w.api(p1, 'support.send', { event: A, text: 'вопрос' });
   const th = w.query('SELECT id FROM support_threads WHERE user_id = ?', p1.id)[0].id;

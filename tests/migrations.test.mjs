@@ -57,7 +57,9 @@ async function filledWorld() {
   await w.api(adm, 'admin.ring', { event: E, on: false });
   await w.api(adm, 'admin.exclusion.add', { event: E, giver: p[0].id, receiver: p[1].id });
   await w.api(boss, 'admin.fixed.add', { event: E, giver: p[2].id, receiver: p[3].id });
-  await w.api(boss, 'admin.family.save', { name: 'Ивановы', members: [p[4].id, p[5].id] });
+  // Семья — строками, как их оставил прежний код (062: действий с семьями нет)
+  w.sql(`INSERT INTO families (id, company_id, name, created_at) VALUES (1, 1, 'Ивановы', 1);
+    INSERT INTO family_members (company_id, user_id, family_id) VALUES (1, ${p[4].id}, 1), (1, ${p[5].id}, 1)`);
   await w.api(adm, 'admin.announce', { event: E, text: 'Всем привет' });
   await w.api(adm, 'admin.draw', { event: E });
   for (const u of p) await w.api(u, 'ward.get', { event: E });

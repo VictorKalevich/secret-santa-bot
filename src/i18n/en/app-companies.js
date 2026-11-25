@@ -25,7 +25,7 @@ export default {
   'app.companies.new.placeholder': 'For example: Work',
   'app.companies.new.done': '🚪 Room created',
   'app.companies.new.hintOwn': 'You’ll be the room owner: you create events, invite people and assign admins. Everyone in the room will see its name.',
-  'app.companies.new.hintBot': 'A room has its own people, events, families and admins. You can run it yourself or hand it to an owner with a link.',
+  'app.companies.new.hintBot': 'A room has its own people, events and admins. You can run it yourself or hand it to an owner with a link.',
   // "Room" sheet of the bot owner: who runs it
   'app.companies.lead.title': 'Who runs it',
   'app.companies.lead.you': 'You',
@@ -49,7 +49,7 @@ export default {
   'app.companies.delete.hasEvents': 'The room has events — delete them first.',
   'app.companies.delete.button': '🗑 Delete room',
   'app.companies.delete.title': 'Delete room',
-  'app.companies.delete.lines': ['its people, admins and families;', 'the room’s general log.'],
+  'app.companies.delete.lines': ['its people and admins;', 'the room’s general log.'],
   'app.companies.delete.keepBot': 'The room has no events. Its owner and admins will get a message.',
   'app.companies.delete.keepOwn': 'The room has no events. Its admins will get a message.',
   'app.companies.delete.done': 'Room deleted',

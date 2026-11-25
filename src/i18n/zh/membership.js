@@ -1,13 +1,7 @@
-// Texts of src/membership.js (060): joining, join requests, families, "I take part", leaving
+// Texts of src/membership.js (060): joining, join requests, "I take part", leaving
 export default {
-  // Families (008): rules and freezing members while a drawn event is running (009)
-  'membership.familyNameRule': '家庭名称应为 1 到 40 个字符。',
-  'membership.familySize': '家庭成员应为 2 到 {max} 人。',
-  'membership.familyNotFound': '找不到家庭。',
   'membership.memberNotFound': '找不到参与者。',
-  'membership.alreadyInFamily': '{name} 已经在家庭“{family}”中了。',
-  'membership.familyFrozen': '活动“{title}”已经抽签且仍在进行，暂时不能修改家庭成员：否则可以根据参与者的变动推算出配对。请在活动结束后再修改。',
-  // Log: family name and members, "I take part"
+  // Log: family name and members (records before 062), "I take part"
   'membership.audit.familySave': '“{name}”：{people}',
   'membership.audit.familyDelete': '“{name}”',
   'membership.audit.isParticipant': '参加',

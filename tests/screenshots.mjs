@@ -104,12 +104,11 @@ try {
   await w.api(admin, 'admin.exclusion.add', { event: A, giver: 101, receiver: 102, mutual: true });
   await w.api(admin, 'admin.fixed.add', { event: A, giver: 103, receiver: 101 }); // 014: блок видит только владелец
   await w.api(admin, 'admin.role.grant', { id: people[0].id });
-  // 008: адрес доставки в эвенте A, семья, заявка в эвент B
+  // 008: адрес доставки в эвенте A, заявка в эвент B
   await w.api(admin, 'admin.game', { event: A, delivery_on: true });
   for (const p of [admin, ...people.slice(0, 3)]) {
     await w.api(p, 'delivery.save', { event: A, text: `Минск, Европочта, отделение 15 — ${p.name}, +375 29 000-00-0${p.id % 10}` });
   }
-  await w.api(admin, 'admin.family.save', { name: 'Ивановы', members: [103, 104] });
   await w.api(admin, 'admin.game', { event: B, approval: true });
   const stepa = { id: 130, name: 'Стёпа', username: 'stepa' };
   await w.say(stepa, '/start ' + codeB);
@@ -1121,7 +1120,6 @@ addEventListener('message', (e) => {
     const code = await inv(E);
     for (const p of [gleb, liza, mila]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     await w.api(admin, 'admin.role.grant', { id: gleb.id });
-    await w.api(admin, 'admin.family.save', { name: 'Глебовы', members: [gleb.id, mila.id] });
     const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
     const scrollY = (page) => page.evaluate(() => Math.round(window.scrollY));
     // Один из узлов loc — ровно want (ждёт до 3 с: разделы перечитываются после ответа сервера)
@@ -1133,9 +1131,7 @@ addEventListener('message', (e) => {
 
     await onPage(problems, 'главный экран организатора', gleb, null, async (page) => {
       const meRow = page.locator('#main .ds-list-item', { hasText: '(ты)' }).locator('.ds-list-item__title');
-      const family = page.locator('#main .ds-list-item', { hasText: 'Глебовы' }).locator('.ds-hint');
       await meRow.waitFor({ timeout: 5000 });
-      await family.waitFor({ timeout: 5000 });
       if ((await page.locator('#heroSub').textContent()) !== 'Привет, Глеб!') problems.push(`приветствие до смены имени: «${await page.locator('#heroSub').textContent()}»`);
       const editName = page.getByRole('button', { name: '✏️ Изменить имя' });
       await editName.scrollIntoViewIfNeeded();
@@ -1148,7 +1144,6 @@ addEventListener('message', (e) => {
       await toastIs(page, 'Имя сохранено');
       if (await page.locator('#main .ds-spinner').count()) problems.push('после смены имени — загрузчик на главном экране');
       await textIs(meRow, 'Глеб Петров 🐧  (ты)', '«Владелец и администраторы» после имени');
-      await textIs(family, 'Глеб Петров 🐧, Мила', '«Семьи» после имени');
       await textIs(page.locator('#heroSub'), 'Привет, Глеб Петров 🐧!', 'приветствие после имени');
       await textIs(page.locator('#main .ds-text-strong'), 'Глеб Петров 🐧', '«Профиль» после имени');
       if (Math.abs((await scrollY(page)) - y) > 1) problems.push(`прокрутка после имени: ${await scrollY(page)}, была ${y}`);
@@ -1197,86 +1192,51 @@ addEventListener('message', (e) => {
   // 039: тап мимо поля снимает фокус (клавиатура iOS прячется). Синтетические события указателя фокус сами не снимают —
   // снимает только обработчик приложения: тап по заголовку, ленте переписки, подсказке шторки — фокус снят; сдвиг пальца,
   // отменённое касание, тап по кнопке и по самому полю — фокус остаётся.
-  // 040: маска Санты в переписке. Санта выбирает маску на «Подопечном» (шторка — «Без маски» и 20 масок, выбранная
-  // отмечена), кнопка и подсказки — с маской; подопечный видит её в «Письме» и в заголовке переписки, смена маски
-  // доходит до открытой переписки опросом; после раскрытия у Санты маска — только подсказкой. Свои люди и событие «Маски».
-  async function checkMask() {
+  // 062: масок и семей нет. Главный экран — без «Семей» и без подсказки над кнопками «Уведомлений»; «Подопечный» — без
+  // кнопки маски, подсказка про «Тайного Санту»; переписка у подопечного — «Твой Тайный Санта»; «Управление» — без
+  // «Учитывать семьи». Скриншоты — в обеих темах.
+  async function checkNoMasksFamilies() {
     const problems = [];
-    const [tima, ulya, fedya] = [['Тима', 'tima'], ['Уля', 'ulya'], ['Федя', 'fedya']].map(([name, username], i) => ({ id: 200 + i, name, username }));
-    const E = (await w.api(admin, 'admin.events.create', { title: 'Маски' })).event.id;
+    const ppl = [['Тима', 'tima'], ['Уля', 'ulya'], ['Фёдор', 'fedor']].map(([name, username], i) => ({ id: 200 + i, name, username }));
+    const [tima] = ppl;
+    const E = (await w.api(admin, 'admin.events.create', { title: 'Без масок' })).event.id;
     const code = await inv(E);
-    for (const p of [tima, ulya, fedya]) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
+    for (const p of ppl) { await w.say(p, '/start ' + code); await w.say(p, p.name); }
     await w.api(admin, 'admin.draw', { event: E });
-    const wardId = w.query(`SELECT ward FROM pairs WHERE event_id = ${Number(E)} AND santa = ${tima.id}`)[0].ward;
-    const ward = [ulya, fedya].find((p) => p.id === wardId);
-    const toastIs = (page, text) => page.locator('#toast', { hasText: text }).waitFor({ timeout: 5000 });
-    const maskBtn = (page) => page.locator('#main .ds-btn', { hasText: '🎭 Маска' });
-    const chatHint = (page) => page.locator('#main .ds-hint', { hasText: 'Есть вопрос?' });
+    const ward = ppl.find((p) => p.id === w.query(`SELECT ward FROM pairs WHERE event_id = ${Number(E)} AND santa = ${tima.id}`)[0].ward);
 
-    await onPage(problems, 'Санта выбирает маску', tima, E, async (page) => {
+    await onPage(problems, 'главный экран', admin, null, async (page) => {
+      await page.locator('.ds-section-title', { hasText: 'Уведомления' }).waitFor({ timeout: 5000 });
+      if (await page.locator('.ds-section-title', { hasText: 'Семьи' }).count()) problems.push('на главном экране есть «Семьи»');
+      if (await page.getByRole('button', { name: 'Новая семья' }).count()) problems.push('на главном экране есть «Новая семья»');
+      if (await page.locator('#main .ds-hint', { hasText: 'Когда подопечный' }).count()) problems.push('над «Уведомлениями» есть подсказка');
+      if (!(await page.locator('#main .ds-segmented').count())) problems.push('нет кнопок режима уведомлений');
+    });
+    await onPage(problems, '«Подопечный»', tima, E, async (page) => {
       await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
-      const btn = maskBtn(page);
-      await btn.waitFor({ timeout: 3000 });
-      if ((await btn.textContent()) !== '🎭 Маска: без маски') problems.push(`кнопка: «${await btn.textContent()}»`);
-      if (!(await chatHint(page).textContent()).includes('для него ты «Тайный Санта», имя')) problems.push(`подсказка без маски: «${await chatHint(page).textContent()}»`);
-      await btn.click();
-      const sheet = page.locator('.ds-sheet', { hasText: 'Маска в переписке' });
-      const tiles = await sheet.locator('.ds-choice').allTextContents();
-      if (tiles.length !== 21 || tiles[0] !== 'Без маски' || tiles[5] !== '🐉Дракон') problems.push(`плитки: ${tiles.join(', ')}`);
-      if ((await sheet.locator('.ds-choice--selected').textContent()) !== 'Без маски') problems.push('не отмечено «Без маски»');
-      const tile = sheet.locator('.ds-choice', { hasText: 'Дракон' });
-      const label = tile.locator('.ds-choice__label');
-      const [tileBox, labelBox] = [await tile.boundingBox(), await label.boundingBox()];
-      if (!(labelBox.y > tileBox.y + tileBox.height / 3)) problems.push('подпись плитки не под эмодзи');
-      await tile.click();
-      await toastIs(page, 'Маска выбрана');
-      if ((await btn.textContent()) !== '🎭 Маска: 🐉 Дракон') problems.push(`кнопка после выбора: «${await btn.textContent()}»`);
-      if (!(await chatHint(page).textContent()).includes('для него ты «Тайный Санта · 🐉 Дракон», имя')) problems.push(`подсказка с маской: «${await chatHint(page).textContent()}»`);
-      if (w.query(`SELECT mask FROM pairs WHERE event_id = ${Number(E)} AND santa = ${tima.id}`)[0].mask !== 'dragon') problems.push('маска не сохранена на сервере');
-      await btn.click();
-      if ((await page.locator('.ds-sheet .ds-choice--selected').textContent()) !== '🐉Дракон') problems.push('выбранная маска не отмечена');
-      await page.locator('.ds-sheet .ds-icon-btn', { hasText: '✕' }).click();
-      await page.locator('#main .ds-btn', { hasText: 'Написать подопечному' }).click();
-      const note = page.locator('.ds-sheet--full .ds-hint').first();
-      if ((await note.textContent()) !== 'Для подопечного ты — «Тайный Санта · 🐉 Дракон», имя не раскрывается.') problems.push(`подсказка переписки Санты: «${await note.textContent()}»`);
+      await page.locator('#main .ds-btn', { hasText: 'Написать подопечному' }).waitFor({ timeout: 5000 });
+      if (await page.locator('#main .ds-btn', { hasText: '🎭' }).count()) problems.push('на «Подопечном» есть кнопка маски');
+      if (!(await page.locator('#main .ds-hint', { hasText: '«Тайный Санта»' }).count())) problems.push('подсказка переписки без «Тайного Санты»');
     });
-    const openMasks = (p) => maskBtn(p).click();
-    await shot(tima, '38-mask-sheet', { event: E, tab: 'Подопечный', fullPage: false, before: openMasks });
-    await shot(tima, '38-mask-sheet', { event: E, tab: 'Подопечный', fullPage: false, dark: true, before: openMasks });
-
-    await w.api(tima, 'message.send', { event: E, to: 'ward', text: 'Привет! Угадаешь, кто я?' });
-    const openSantaChat = async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Письмо' }).click();
-      await page.locator('#main .ds-btn', { hasText: 'Написать Санте' }).click();
-      await page.locator('.ds-sheet--full .ds-chat__msg').first().waitFor({ timeout: 3000 });
-    };
-    await onPage(problems, 'подопечный видит маску', ward, E, async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Письмо' }).click();
-      const line = page.locator('#main .ds-text-sm', { hasText: 'Твой Санта — в маске' });
-      await line.waitFor({ timeout: 3000 });
-      if ((await line.textContent()) !== 'Твой Санта — в маске «🐉 Дракон».') problems.push(`«Письмо»: «${await line.textContent()}»`);
-      await openSantaChat(page);
-      const title = page.locator('.ds-sheet--full .ds-sheet__title');
-      if ((await title.textContent()) !== 'Твой Тайный Санта · 🐉 Дракон') problems.push(`заголовок переписки: «${await title.textContent()}»`);
-      await w.api(tima, 'mask.set', { event: E, mask: 'agent' });
-      try {
-        await page.locator('.ds-sheet--full .ds-sheet__title', { hasText: 'Тайный агент' }).waitFor({ timeout: 9000 });
-      } catch (e) { problems.push(`заголовок после смены маски: «${await title.textContent()}»`); }
-      await w.api(tima, 'mask.set', { event: E, mask: 'dragon' });
+    await w.api(tima, 'message.send', { event: E, to: 'ward', text: 'Привет!' });
+    await onPage(problems, 'переписка у подопечного', ward, E, async (page) => {
+      await page.locator('#main .ds-btn', { hasText: 'Написать Санте' }).first().click();
+      const title = page.locator('.ds-sheet .ds-sheet__title');
+      await title.waitFor({ timeout: 5000 });
+      if ((await title.textContent()) !== 'Твой Тайный Санта') problems.push(`заголовок переписки: «${await title.textContent()}»`);
     });
-    await shot(ward, '38-mask-chat', { event: E, fullPage: false, before: openSantaChat });
-    await shot(ward, '38-mask-chat', { event: E, fullPage: false, dark: true, before: openSantaChat });
-
-    await w.api(admin, 'admin.reveal', { event: E });
-    await onPage(problems, 'после раскрытия', tima, E, async (page) => {
-      await page.locator('.ds-tab', { hasText: 'Подопечный' }).click();
-      await chatHint(page).waitFor({ timeout: 3000 });
-      if (await maskBtn(page).count()) problems.push('после раскрытия есть кнопка маски');
-      if (!(await page.locator('#main .ds-hint', { hasText: 'Маска в переписке: 🐉 Дракон.' }).count())) problems.push('после раскрытия нет подсказки с маской');
+    await onPage(problems, '«Управление»', admin, E, async (page) => {
+      await page.locator('.ds-tab', { hasText: 'Управление' }).click();
+      await page.locator('.ds-section-title', { hasText: 'Журнал' }).waitFor({ timeout: 5000 });
+      if (await page.getByText('Учитывать семьи').count()) problems.push('в «Управлении» есть «Учитывать семьи»');
     });
+    for (const dark of [false, true]) {
+      await shot(admin, '62-home', { fullPage: false, dark });
+      await shot(tima, '62-ward', { event: E, tab: 'Подопечный', fullPage: false, dark });
+    }
 
-    if (problems.length) colorProblems.push(...problems.map((x) => 'маска Санты (040): ' + x));
-    else console.log('✔ маска Санты (040): шторка — «Без маски» и 20 масок с подписью под эмодзи, выбранная отмечена; кнопка, подсказки «Подопечного» и переписки Санты — с маской; у подопечного маска в «Письме» и в заголовке переписки, смена доходит опросом; после раскрытия — только подсказка');
+    if (problems.length) colorProblems.push(...problems.map((x) => 'без масок и семей (062): ' + x));
+    else console.log('✔ без масок и семей (062): главный экран без «Семей» и подсказки над «Уведомлениями», «Подопечный» без маски, переписка — «Твой Тайный Санта», «Управление» без «Учитывать семьи»');
   }
 
   // 048: управление жеребьёвкой — секция только владельцу; шторка без пар; плашка владельцу-участнику; нарушение —
@@ -1435,12 +1395,17 @@ addEventListener('message', (e) => {
       await expect(page, 'шторка имени: тап по подсказке', '.ds-sheet .ds-input', ['.ds-sheet .ds-hint', 'Имя одно'], {}, false);
     });
 
-    await onPage(problems, 'новая семья', admin, null, async (page) => {
-      await page.getByRole('button', { name: 'Новая семья' }).click();
+    // Форма нового события: поле с крестиком, образец и отметка «пригласить» (062: прежде — форма семьи)
+    const openCreate = async (page, how = 'click') => {
+      await page.getByRole('button', { name: '🎄 Создать', exact: true })[how]();
       const sheet = page.locator('.ds-sheet');
-      const members = sheet.getByRole('checkbox');
-      await members.nth(0).check();
-      await members.nth(1).check();
+      await sheet.locator('select').selectOption({ index: 1 });
+      const invite = sheet.getByRole('checkbox');
+      if (!(await invite.isEnabled()) || !(await invite.isChecked())) throw new Error('отметка «пригласить» после выбора образца');
+      return { sheet, invite };
+    };
+    await onPage(problems, 'новое событие', admin, null, async (page) => {
+      const { sheet, invite } = await openCreate(page);
       const name = sheet.getByRole('textbox');
       const clear = sheet.getByRole('button', { name: /Очистить/ });
       if (await clear.count()) throw new Error('крестик виден в пустом поле');
@@ -1450,8 +1415,8 @@ addEventListener('message', (e) => {
       if (!hit || hit.width < 44 || hit.height < 44 || hit.x + hit.width > field.x + field.width ||
           hit.y < field.y || hit.y + hit.height > field.y + field.height) throw new Error('размер или положение кнопки очистки');
       await clear.click({ position: { x: 3, y: 3 } });
-      if (await name.inputValue() || await clear.count() || !(await members.nth(1).isChecked())) throw new Error('очистка названия семьи');
-      await name.fill('Ивановы');
+      if (await name.inputValue() || await clear.count() || !(await invite.isChecked())) throw new Error('очистка названия события');
+      await name.fill('Праздник');
       const clickedBackdrop = await name.evaluate((field) => {
         const sheet = field.closest('.ds-sheet');
         const title = sheet.querySelector('.ds-sheet__title');
@@ -1466,11 +1431,11 @@ addEventListener('message', (e) => {
         sheet.style.transform = '';
         return target === sheet.parentElement;
       });
-      if (!clickedBackdrop) problems.push('новая семья: после скрытия клавиатуры тап не попал на фон');
-      if (!(await sheet.count())) problems.push('новая семья: тап по заголовку закрыл шторку');
+      if (!clickedBackdrop) problems.push('новое событие: после скрытия клавиатуры тап не попал на фон');
+      if (!(await sheet.count())) problems.push('новое событие: тап по заголовку закрыл шторку');
       else {
-        if ((await name.inputValue()) !== 'Ивановы' || (await sheet.locator('input:checked').count()) !== 2) {
-          problems.push('новая семья: название или выбранные участники потерялись');
+        if ((await name.inputValue()) !== 'Праздник' || !(await invite.isChecked())) {
+          problems.push('новое событие: название или отметка «пригласить» потерялись');
         }
         await page.mouse.click(10, 10); // Фон над шторкой (максимальная высота шторки — 88vh).
         await sheet.waitFor({ state: 'detached' });
@@ -1500,18 +1465,17 @@ addEventListener('message', (e) => {
         if ((await field.inputValue()) !== word) throw new Error('потерян текст «' + word + '»');
       }
       await page.evaluate(() => document.addEventListener('click', () => { window.sheetClicks++; }, true));
-      await page.getByRole('button', { name: 'Новая семья' }).tap();
-      const members = sheet.getByRole('checkbox');
-      await members.nth(0).check();
-      await members.nth(1).check();
-      await checkTap(title, 'Ивановы', false);
-      await checkTap(title, 'Иванавы', true);
-      await checkTap(sheet.locator('.ds-row').filter({ has: page.getByRole('checkbox') }).first(), 'Петравы', true, true);
-      if (!(await members.nth(0).isChecked()) || !(await members.nth(1).isChecked())) throw new Error('сброшен выбор семьи');
-      await sheet.locator('[title="Закрыть"]').tap();
-      await page.getByRole('button', { name: '🎄 Создать', exact: true }).tap();
+      const { invite } = await openCreate(page, 'tap');
       await checkTap(title, 'Праздник', false);
       await checkTap(title, 'Празник', true);
+      // Край подсказки под отметкой «пригласить» — не элемент управления (подпись отметки фокус оставляет и переключает её)
+      await checkTap(sheet.locator('.ds-hint').last(), 'Праздники', true, true);
+      if (!(await invite.isChecked())) throw new Error('сброшена отметка «пригласить»');
+      await sheet.locator('[title="Закрыть"]').tap();
+      await sheet.waitFor({ state: 'detached' });
+      await page.getByRole('button', { name: '✏️ Изменить имя' }).tap();
+      await checkTap(title, 'Админ', false);
+      await checkTap(title, 'Адмен', true);
       await sheet.locator('[title="Закрыть"]').tap();
       await sheet.waitFor({ state: 'detached' });
     }, { hasTouch: true, isMobile: true });
@@ -1527,7 +1491,7 @@ addEventListener('message', (e) => {
     });
 
     if (problems.length) colorProblems.push(...problems.map((x) => 'клавиатура (039): ' + x));
-    else console.log('✔ клавиатура: тап снимает фокус; в формах семьи и события обычный и незавершённый ввод сохраняются, выбранные участники остаются отмеченными');
+    else console.log('✔ клавиатура: тап снимает фокус; в формах события и имени обычный и незавершённый ввод сохраняются, отметка «пригласить» остаётся');
   }
 
   // 051: компании (контракт specs/051-companies/contracts/companies.md, раздел 5). Идёт последней: вторая компания меняет
@@ -2021,7 +1985,7 @@ addEventListener('message', (e) => {
   await checkLooks();
   await checkNames();
   await checkKeyboard();
-  await checkMask();
+  await checkNoMasksFamilies();
   await checkSwap();
   await checkCsp();
   await checkCompanies();

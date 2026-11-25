@@ -1,4 +1,4 @@
-// Spanish: app part 03-home (home screen, profile, notifications, families, owner and admins).
+// Spanish: app part 03-home (home screen, profile, notifications, owner and admins).
 export default {
   // Leaving an event or a tab: asks only about what will not be saved by itself
   'app.home.unsaved': 'La carta o la dirección no están guardadas. ¿Salir sin guardar?',
@@ -38,7 +38,6 @@ export default {
   'app.home.lang.auto': 'Como en Telegram ({name})',
   'app.home.lang.hint': 'El bot y la app estarán en este idioma. «Como en Telegram»: el idioma de tu Telegram.',
   'app.home.notify.title': 'Notificaciones',
-  'app.home.notify.hint': 'Cuando tu destinatario cambie su carta (en cualquier evento), el bot te avisará, sin nombre ni detalles.',
   'app.home.notify.sound': '🔔 Sonido',
   'app.home.notify.silent': '🔕 Silencio',
   'app.home.notify.off': '🚫 Apagado',
@@ -47,20 +46,6 @@ export default {
   'app.home.name.hint': 'Tu nombre es el mismo en todos los eventos. Lo ven el propietario, los administradores y tu Santa, y en la revelación, también tu destinatario.',
   'app.home.name.empty': 'Escribe tu nombre',
   'app.home.name.saved': 'Nombre guardado',
-  // Families; "Nueva familia" is a button and a sheet title
-  'app.home.families.title': 'Familias',
-  'app.home.families.empty': 'Todavía no hay familias.',
-  'app.home.families.edit': 'Editar familia',
-  'app.home.families.new': 'Nueva familia',
-  'app.home.families.hint': 'Los miembros de una familia no se regalan entre sí en ningún evento (si el evento tiene activado «Tener en cuenta familias»). Cada persona, una sola familia.',
-  'app.home.families.family': 'Familia',
-  'app.home.families.name': 'Nombre de la familia',
-  'app.home.families.placeholder': 'Por ejemplo: Los García',
-  'app.home.families.members': 'Quién está en la familia (aquí no se muestran las personas de otras familias):',
-  'app.home.families.saved': 'Familia guardada',
-  'app.home.families.delete': '🗑 Eliminar familia',
-  'app.home.families.deleteConfirm': '¿Eliminar la familia «{name}»? Los sorteos ya hechos no cambiarán.',
-  'app.home.families.deleted': 'Familia eliminada',
   // Owner and admins (👑: ownership transfer by the owner or appointment by the bot owner)
   'app.home.admins.title': 'Propietario y administradores',
   'app.home.admins.makeOwnerConfirm': '¿Hacer a «{name}» propietario de esta sala? Podrá lo mismo que el propietario: administradores, reinicio y eliminación de eventos, vista de supervisión. Seguirás como propietario del bot y podrás recuperar la sala.',

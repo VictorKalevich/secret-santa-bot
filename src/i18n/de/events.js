@@ -19,10 +19,9 @@ export default {
   'events.invite': '📨 <b>Einladung zur Runde {title}</b> – Wichteln.\nTippe auf den Button, um mitzumachen.',
   'events.inviteButton': '🎄 Mitmachen',
   'events.inviteAgain': 'Die Einladungen sind bereits verschickt – wiederholen kannst du es in einer Minute.',
-  // Reveal: {mask} - Santa mask (040), {name} - Santa name
+  // Reveal: {name} - Santa name
   'events.alreadyRevealed': 'Das Geheimnis ist bereits gelüftet.',
   'events.revealed': '🎅 <b>Das Geheimnis ist gelüftet!</b>\n\nDein Wichtel in der Runde {title} ist <b>{name}</b>. Frohes Fest! 🎄',
-  'events.revealedMask': '🎅 <b>Das Geheimnis ist gelüftet!</b>\n\nHinter deinem Wichtel «{mask}» in der Runde {title} steckt <b>{name}</b>. Frohes Fest! 🎄',
   // Reminders: empty wish list (with and without deadline) and to Santas (with and without gift date)
   'events.remindAgain': 'Die Erinnerung ist bereits verschickt – wiederholen kannst du es in einer Minute.',
   'events.remindUnfilled': '⏰ Erinnerung: Dein Wunschzettel in der Runde {title} ist noch leer. Füll ihn aus, damit dein Wichtel leichter ein Geschenk findet.',

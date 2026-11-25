@@ -1,4 +1,4 @@
-// Texts of src/looks.js (061, German): names of postcards and Santa masks
+// Texts of src/looks.js (061, German): names of postcards
 export default {
   // Wish list postcards (looks.card.<id> - for every postcard of POSTCARDS)
   'looks.card.snow': 'Schneefall',
@@ -16,27 +16,4 @@ export default {
   'looks.card.sparkle': 'Goldglitzer',
   'looks.card.nordic': 'Norwegermuster',
   'looks.card.airmail': 'Luftpost',
-  // Santa masks (looks.mask.<id> - for every mask of MASKS)
-  'looks.mask.elf': 'Elf',
-  'looks.mask.wizard': 'Zauberer',
-  'looks.mask.fairy': 'Fee',
-  'looks.mask.genie': 'Flaschengeist',
-  'looks.mask.dragon': 'Drache',
-  'looks.mask.ghost': 'Gespenst',
-  'looks.mask.matryoshka': 'Matroschka',
-  'looks.mask.agent': 'Geheimagent',
-  'looks.mask.ninja': 'Ninja',
-  'looks.mask.stranger': 'Unbekannter',
-  'looks.mask.superhero': 'Superheld',
-  'looks.mask.robot': 'Roboter',
-  'looks.mask.alien': 'Alien',
-  'looks.mask.dinosaur': 'Dino',
-  'looks.mask.lion': 'Löwe',
-  'looks.mask.frog': 'Frosch',
-  'looks.mask.turtle': 'Schildkröte',
-  'looks.mask.octopus': 'Krake',
-  'looks.mask.whale': 'Wal',
-  'looks.mask.seal': 'Robbe',
-  // Mask as text: "🐉 Drache"
-  'looks.maskLabel': '{emoji} {title}',
 };

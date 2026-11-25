@@ -9,13 +9,11 @@ export default {
   'pairs.reason.search_exhausted': "Impossible de trouver rapidement une répartition — réessaie. Si ça ne marche pas, retire quelques exclusions ou désactive le tirage en cercle.",
   'pairs.reason.fixed_block': "Les paires imposées bloquent : avec elles, impossible de répartir tout le monde selon les règles. {owner.nomCap} peut retirer certaines paires imposées.",
   'pairs.reason.too_strict': "Trop d'exclusions : impossible de répartir tout le monde en les respectant. Retire quelques exclusions.",
-  // Participant without a name in the reason
-  'pairs.familiesBlock': "Les familles bloquent : les membres d'une même famille ne s'offrent rien, et la répartition est impossible ainsi. Désactive « Tenir compte des familles » ou le tirage en cercle.",
   // Draw
   'pairs.drawn': "🎄 <b>Le tirage au sort de l'événement {title} a eu lieu !</b>\n\nOuvre l'appli et va dans l'onglet « Destinataire » pour découvrir à qui tu offres un cadeau. Ne le dis à personne 🤫",
   'pairs.drawnButton': "🎁 Découvrir mon destinataire",
   'pairs.drawFinished': "L'événement est terminé.",
-  'pairs.drawRace': "Les participants, les exclusions ou les familles ont changé pendant le tirage — réessaie.",
+  'pairs.drawRace': "Les participants ou les exclusions ont changé pendant le tirage — réessaie.",
   'pairs.notDrawn': "Le tirage n'a pas eu lieu.",
   // Pairs after a change of members: to the new participant and to a Santa with a new giftee
   'pairs.inserted': "🎄 <b>Tu es dans le jeu !</b> Le tirage de l'événement {title} est fait pour toi — va voir l'onglet « Destinataire » 🤫",
@@ -30,7 +28,6 @@ export default {
   // Giftee swap (048): rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': "L'un des deux offre à l'autre : après l'échange, quelqu'un s'offrirait un cadeau à lui-même.",
   'pairs.swapRule.exclusion': "Exclusions : l'un des deux offrirait à quelqu'un à qui il ne doit pas offrir.",
-  'pairs.swapRule.family': "Familles : l'un des deux offrirait à un membre de sa famille.",
   'pairs.swapRule.ring': "Tirage en cercle : une paire réciproque apparaîtrait — deux personnes s'offriraient mutuellement.",
   'pairs.swapRule.fixed': "Paires imposées : l'échange casserait une paire que tu as imposée.",
   'pairs.swapRule.history': "Paires passées : l'un des deux offrirait à la même personne que lors de l'événement précédent.",

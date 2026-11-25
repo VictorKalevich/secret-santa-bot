@@ -44,9 +44,9 @@ export default {
   'app.vault.swap.impossible': 'These two can’t be swapped — choose another pair.',
   'app.vault.swap.breaksOne': '⚠️ The swap breaks one of the draw rules.',
   'app.vault.swap.breaksMany': '⚠️ The swap breaks several draw rules.',
-  'app.vault.swap.warning': 'If you swap, those who already opened their giftee will be told it changed. Gift marks, masks and chats of these two pairs start over.',
+  'app.vault.swap.warning': 'If you swap, those who already opened their giftee will be told it changed. Gift marks and chats of these two pairs start over.',
   'app.vault.swap.agree': 'I agree — swap anyway',
-  'app.vault.swap.confirm': 'Swap giftees between “{a}” and “{b}”? Those who already opened their giftee will be told it changed. Gift marks, masks and chats of these two pairs start over.',
+  'app.vault.swap.confirm': 'Swap giftees between “{a}” and “{b}”? Those who already opened their giftee will be told it changed. Gift marks and chats of these two pairs start over.',
   // Activity log: event, the room's general log, bot log
   'app.vault.log.event': 'Event log',
   'app.vault.log.common': 'General log',

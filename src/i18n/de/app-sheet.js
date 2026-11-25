@@ -11,10 +11,9 @@ export default {
   // Reply field and message feed
   'app.sheet.send': 'Senden',
   'app.sheet.noMessages': 'Keine Nachrichten.',
-  // Chat between Santa and giftee (003, mask - 040)
+  // Chat between Santa and giftee (003)
   'app.sheet.chat.placeholder': 'Nachricht…',
   'app.sheet.chat.yourSanta': 'Dein Wichtel',
-  'app.sheet.chat.yourMasked': 'Dein {santa}',
   'app.sheet.chat.santaKnows': 'Dein Wichtel weiß, wer du bist – du aber nicht, wer er ist.',
   'app.sheet.chat.youAre': 'Für dein Wichtelkind bist du «{santa}», dein Name bleibt geheim.',
   'app.sheet.chat.noDraw': 'Chat nicht verfügbar: Die Auslosung hat noch nicht stattgefunden.',

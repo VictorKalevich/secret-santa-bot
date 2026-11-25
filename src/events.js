@@ -12,7 +12,6 @@ import { t, tx, tdate, DEFAULT_LANG } from './i18n/index.js';
 import { CHAT_GRACE_MS, isFinished } from './status.js';
 import { atomic } from './claim.js';
 import { no } from './result.js';
-import { maskLabel } from './looks.js';
 
 // Повторные нажатия (024): та же рассылка по желанию в том же событии чаще раза в минуту — повтор. Условие — по
 // прежнему состоянию: сообщения — перед опорой (объявление или запись журнала), опора — захват, последней. Время —
@@ -171,11 +170,8 @@ export async function revealAll(ctx, ev, actor = 0) {
   shown.claim(db.prepare('UPDATE events SET revealed = ? WHERE id = ? AND revealed = 0 AND draw_done = 1 AND draw_token = ?')
     .bind(mark, ev.id, cur.draw_token));
   for (const p of rows) {
-    const mask = maskLabel(p.mask); // 040: «твой Тайный Санта «🐉 Дракон» — Боря»
     const name = escapeHtml(byId[p.santa]?.name || '?');
-    shown.enqueue(p.ward, msg(
-      mask ? tx('events.revealedMask', { title: q(ev), mask, name }) : tx('events.revealed', { title: q(ev), name })
-    ));
+    shown.enqueue(p.ward, msg(tx('events.revealed', { title: q(ev), name })));
   }
   shown.audit(ev.id, actor, 'reveal', tx('events.auditText.pairs', { n: rows.length }));
   if (!(await shown.run()).won) {

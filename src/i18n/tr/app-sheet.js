@@ -10,7 +10,6 @@ export default {
   'app.sheet.noMessages': "Mesaj yok.",
   'app.sheet.chat.placeholder': "Mesaj…",
   'app.sheet.chat.yourSanta': "Gizli Noel Baba'n",
-  'app.sheet.chat.yourMasked': "{santa}",
   'app.sheet.chat.santaKnows': "Noel Baba'n seni tanıyor, sen onu tanımıyorsun.",
   'app.sheet.chat.youAre': "Alıcına «{santa}» olarak görünürsün, ismin gizli kalır.",
   'app.sheet.chat.noDraw': "Yazışma kullanılamıyor: çekiliş henüz yapılmadı.",

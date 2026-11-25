@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': 'O dono e os administradores veem esta marcação',
   'app.event.gift.done': '🎉 Ótimo! Presente marcado como pronto',
   'app.event.markRemoved': 'Marcação removida',
-  // Santa mask (040); {mask} — "🐉 Dragão", mask names come from the server
-  'app.event.mask.santa': 'Papai Noel secreto',
-  'app.event.mask.santaMasked': 'Papai Noel secreto · {mask}',
-  'app.event.mask.worn': 'Seu Papai Noel está com a máscara “{mask}”.',
-  'app.event.mask.current': 'Máscara na conversa: {mask}.',
-  'app.event.mask.button': '🎭 Máscara: {mask}',
-  'app.event.mask.none': 'sem máscara',
-  'app.event.mask.noneTile': 'Sem máscara',
-  'app.event.mask.title': 'Máscara na conversa',
-  'app.event.mask.hint': 'É assim que o presenteado vai ver você na conversa e nas mensagens do bot. Quem está por trás da máscara ele só vai saber na revelação. A máscara é diferente em cada evento.',
-  'app.event.mask.picked': 'Máscara escolhida',
-  'app.event.mask.removed': 'Máscara removida',
+  // Santa's name in chat hints
+  'app.event.santa': 'Papai Noel secreto',
   // "Giftee"; in ward.changed the words ward.added and ward.removed with highlighting take the place of {added} and {removed}
   'app.event.ward.noDrawTitle': 'O sorteio ainda não foi feito',
   'app.event.ward.noDrawText': 'Depois do sorteio, aqui vão aparecer o nome e a carta do seu presenteado. O bot vai avisar.',

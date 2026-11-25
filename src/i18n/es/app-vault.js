@@ -43,9 +43,9 @@ export default {
   'app.vault.swap.impossible': 'No se puede hacer el cambio entre estos dos: elige a otros dos participantes.',
   'app.vault.swap.breaksOne': '⚠️ El cambio rompe uno de los principios del sorteo.',
   'app.vault.swap.breaksMany': '⚠️ El cambio rompe varios principios del sorteo.',
-  'app.vault.swap.warning': 'Si haces el cambio, el bot avisará a quien ya había visto a su destinatario. Las marcas de regalo, las máscaras y los chats de ambas asignaciones se reinician.',
+  'app.vault.swap.warning': 'Si haces el cambio, el bot avisará a quien ya había visto a su destinatario. Las marcas de regalo y los chats de ambas asignaciones se reinician.',
   'app.vault.swap.agree': 'Acepto: cambiar de todos modos',
-  'app.vault.swap.confirm': '¿Intercambiar destinatarios entre «{a}» y «{b}»? El bot avisará a quien ya había visto a su destinatario. Marcas de regalo, máscaras y chats de ambos se reinician.',
+  'app.vault.swap.confirm': '¿Intercambiar destinatarios entre «{a}» y «{b}»? El bot avisará a quien ya había visto a su destinatario. Marcas de regalo y chats de ambos se reinician.',
   // Activity log: event, room general log, bot log
   'app.vault.log.event': 'Registro del evento',
   'app.vault.log.common': 'Registro general',

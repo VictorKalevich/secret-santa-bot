@@ -17,7 +17,6 @@ export default {
   'events.inviteAgain': "Davetler zaten gönderildi — bir dakika sonra tekrarlayabilirsin.",
   'events.alreadyRevealed': "Sır zaten açıklandı.",
   'events.revealed': "🎅 <b>Sır açıklandı!</b>\n\n{title} etkinliğinde Gizli Noel Baba'n: <b>{name}</b>. Mutlu yıllar! 🎄",
-  'events.revealedMask': "🎅 <b>Sır açıklandı!</b>\n\n{title} etkinliğinde «{mask}» maskeli Gizli Noel Baba'n: <b>{name}</b>. Mutlu yıllar! 🎄",
   'events.remindAgain': "Hatırlatma zaten gönderildi — bir dakika sonra tekrarlayabilirsin.",
   'events.remindUnfilled': "⏰ Hatırlatma: {title} etkinliğinde Noel Baba'ya mektubun hâlâ boş. Noel Baba'n hediyeyi daha kolay seçsin diye mektubunu doldur.",
   'events.remindUnfilledBy': "⏰ Hatırlatma: {title} etkinliğinde Noel Baba'ya mektubun hâlâ boş. Noel Baba'n hediyeyi daha kolay seçsin diye mektubunu <b>{date}</b> tarihine kadar doldur.",

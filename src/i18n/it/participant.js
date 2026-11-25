@@ -1,9 +1,7 @@
-// Texts of src/participant.js (060): letter, delivery address, postcard, mask, gift marks
+// Texts of src/participant.js (060): letter, delivery address, postcard, gift marks
 export default {
-  // Postcard and mask: value not from the set
+  // Postcard: value not from the set
   'participant.noCard': "Questa cartolina non esiste: scegline una dall'elenco.",
-  'participant.noMask': "Questa maschera non esiste: scegline una dall'elenco.",
-  'participant.maskRevealed': "Il segreto è già svelato: la maschera non si può più cambiare.",
   // Letter and drafts (041)
   'participant.draftsOn': "Le bozze sono attive. Riapri la letterina per pubblicarla.",
   'participant.draftsOff': "Le bozze sono disattivate. Riapri la letterina.",

@@ -19,10 +19,9 @@ export default {
   'events.invite': "📨 <b>Invitation à l'événement {title}</b> — Père Noël secret.\nAppuie sur le bouton pour participer.",
   'events.inviteButton': "🎄 Participer",
   'events.inviteAgain': "Les invitations sont déjà envoyées — tu pourras recommencer dans une minute.",
-  // Reveal: {mask} - Santa's mask (040), {name} - Santa's name
+  // Reveal: {name} - Santa's name
   'events.alreadyRevealed': "Le secret est déjà révélé.",
   'events.revealed': "🎅 <b>Le secret est révélé !</b>\n\nDans l'événement {title}, ton Père Noël secret est <b>{name}</b>. Joyeuses fêtes ! 🎄",
-  'events.revealedMask': "🎅 <b>Le secret est révélé !</b>\n\nDans l'événement {title}, ton Père Noël secret « {mask} » est <b>{name}</b>. Joyeuses fêtes ! 🎄",
   // Reminders: empty letter (with and without deadline) and to Santas (with and without the gift date)
   'events.remindAgain': "Le rappel est déjà envoyé — tu pourras recommencer dans une minute.",
   'events.remindUnfilled': "⏰ Rappel : ta lettre au Père Noël dans l'événement {title} est encore vide. Remplis-la pour l'aider à choisir ton cadeau.",

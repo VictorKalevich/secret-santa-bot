@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': 'i na odwrót (w obie strony)',
   'app.admin.rules.pickTwo': 'Wybierz dwie osoby',
   'app.admin.rules.different': 'Potrzebne są dwie różne osoby',
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': 'Wykluczenia',
   'app.admin.exclusions.empty': 'Brak wykluczeń — każdy może obdarować każdego.',
   'app.admin.exclusions.both': '{giver} i {receiver} nie obdarowują się nawzajem',
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': 'Po losowaniu wykluczeń nie można zmieniać: inaczej po zmianach uczestników dałoby się odgadnąć pary. Aby je zmienić, anuluj losowanie (dopóki nikt nie otworzył podopiecznego).',
   'app.admin.exclusions.afterDraw': 'Po losowaniu wykluczenia działają przy przyszłych zmianach (usuwanie i dopisywanie uczestników), obecne pary się nie zmieniają. Zmieniać wykluczenia po losowaniu może tylko właściciel.',
   'app.admin.exclusions.hint': 'Na przykład pary lub członkowie jednej rodziny. Bot nie pozwoli, by losowanie złamało te reguły.',
-  'app.admin.families.title': '👪 Uwzględniaj rodziny',
-  'app.admin.families.hint': 'Członkowie jednej rodziny nie obdarowują się nawzajem. Rodziny ustawia się na ekranie głównym.',
-  'app.admin.families.frozen': 'Po losowaniu nie można zmienić',
-  'app.admin.families.on': 'Rodziny są uwzględniane',
-  'app.admin.families.off': 'Rodziny nie są uwzględniane',
   // Fixed pairs (owner only)
   'app.admin.fixed.title': 'Ustalone pary',
   'app.admin.fixed.empty': 'Brak ustalonych par — losowanie przydzieli wszystkich losowo.',
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': '…kogo obdarowuje',
   'app.admin.fixed.add': 'Ustal parę',
   'app.admin.fixed.added': 'Para ustalona',
-  'app.admin.fixed.hint': 'Bot na pewno połączy te osoby w losowaniu. Ustalona para jest ważniejsza niż wykluczenia i rodziny. Ten blok jest dostępny tylko dla właściciela.{ring}',
+  'app.admin.fixed.hint': 'Bot na pewno połączy te osoby w losowaniu. Ustalona para jest ważniejsza niż wykluczenia. Ten blok jest dostępny tylko dla właściciela.{ring}',
   // Addition to the hint with the ring draw (leading space)
   'app.admin.fixed.hintRing': ' Losowanie w kręgu jest włączone: parę można ustalić tylko w jedną stronę.',
   // {pairs} — mutual pairs joined with "; "
@@ -274,6 +269,6 @@ export default {
     'oznaczenia „prezent gotowy” i „prezent dotarł”;',
     'wszystkie czaty Mikołajów z podopiecznymi w tym wydarzeniu.',
   ],
-  'app.admin.danger.cancelKeep': 'Zostaną listy, adresy, uczestnicy, wykluczenia i rodziny. Rejestracja znów się otworzy, uczestnicy dostaną powiadomienie.',
+  'app.admin.danger.cancelKeep': 'Zostaną listy, adresy, uczestnicy i wykluczenia. Rejestracja znów się otworzy, uczestnicy dostaną powiadomienie.',
   'app.admin.danger.canceled': '↩️ Losowanie anulowane. Usunięto par: {n}',
 };

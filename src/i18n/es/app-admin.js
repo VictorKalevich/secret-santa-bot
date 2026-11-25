@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': 'y al revés (en ambos sentidos)',
   'app.admin.rules.pickTwo': 'Elige a dos personas',
   'app.admin.rules.different': 'Tienen que ser dos personas distintas',
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': 'Exclusiones',
   'app.admin.exclusions.empty': 'No hay exclusiones: cualquiera puede regalar a cualquiera.',
   'app.admin.exclusions.both': '{giver} y {receiver} no se regalan entre sí',
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': 'Después del sorteo, las exclusiones no cambian: si no, por los cambios de participantes se podrían deducir las asignaciones. Para cambiarlas, cancela el sorteo (mientras nadie haya visto a su destinatario).',
   'app.admin.exclusions.afterDraw': 'Después del sorteo, las exclusiones se aplican a los cambios futuros (eliminar y añadir participantes); las asignaciones actuales no cambian. Solo el propietario puede cambiar las exclusiones después del sorteo.',
   'app.admin.exclusions.hint': 'Por ejemplo, parejas o miembros de una misma familia. El bot no dejará que el sorteo rompa estas reglas.',
-  'app.admin.families.title': '👪 Tener en cuenta familias',
-  'app.admin.families.hint': 'Los miembros de una familia no se regalan entre sí. Las familias se configuran en la pantalla principal.',
-  'app.admin.families.frozen': 'No cambia después del sorteo',
-  'app.admin.families.on': 'Se tienen en cuenta las familias',
-  'app.admin.families.off': 'No se tienen en cuenta las familias',
   // Fixed assignments (owner only)
   'app.admin.fixed.title': 'Asignaciones fijas',
   'app.admin.fixed.empty': 'No hay asignaciones fijas: el sorteo repartirá a todos al azar.',
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': '…a quién regala',
   'app.admin.fixed.add': 'Fijar asignación',
   'app.admin.fixed.added': 'Asignación fijada',
-  'app.admin.fixed.hint': 'El bot emparejará a estas personas sí o sí en el sorteo. Una asignación fija tiene prioridad sobre las exclusiones y las familias. Este bloque solo lo ve el propietario.{ring}',
+  'app.admin.fixed.hint': 'El bot emparejará a estas personas sí o sí en el sorteo. Una asignación fija tiene prioridad sobre las exclusiones. Este bloque solo lo ve el propietario.{ring}',
   // Addition to the hint with the ring draw (leading space)
   'app.admin.fixed.hintRing': ' El sorteo circular está activado: una asignación solo se puede fijar en un sentido.',
   // {pairs} are mutual assignments joined with "; "
@@ -270,6 +265,6 @@ export default {
     'las marcas «regalo listo» y «recibido»;',
     'todos los chats entre Santas y destinatarios de este evento.',
   ],
-  'app.admin.danger.cancelKeep': 'Se conservan las cartas, direcciones, participantes, exclusiones y familias. La inscripción se volverá a abrir y los participantes recibirán un aviso.',
+  'app.admin.danger.cancelKeep': 'Se conservan las cartas, direcciones, participantes y exclusiones. La inscripción se volverá a abrir y los participantes recibirán un aviso.',
   'app.admin.danger.canceled': '↩️ Sorteo cancelado. Asignaciones eliminadas: {n}',
 };

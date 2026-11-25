@@ -19,10 +19,9 @@ export default {
   'events.invite': "📨 <b>Invito all'evento {title}</b> — Babbo Natale segreto.\nTocca il pulsante per partecipare.",
   'events.inviteButton': "🎄 Partecipa",
   'events.inviteAgain': "Gli inviti sono già stati inviati: potrai ripetere tra un minuto.",
-  // Reveal: {mask} - Santa's mask (040), {name} - Santa's name
+  // Reveal: {name} - Santa's name
   'events.alreadyRevealed': "Il segreto è già stato svelato.",
   'events.revealed': "🎅 <b>Il segreto è svelato!</b>\n\nNell'evento {title} il tuo Babbo Natale segreto è <b>{name}</b>. Buone feste! 🎄",
-  'events.revealedMask': "🎅 <b>Il segreto è svelato!</b>\n\nNell'evento {title} il tuo Babbo Natale segreto «{mask}» è <b>{name}</b>. Buone feste! 🎄",
   // Reminders: empty letter (with and without a deadline) and to Santas (with and without the exchange date)
   'events.remindAgain': "Il promemoria è già stato inviato: potrai ripetere tra un minuto.",
   'events.remindUnfilled': "⏰ Promemoria: la tua letterina a Babbo Natale nell'evento {title} è ancora vuota. Compilala, così sarà più facile scegliere il regalo.",

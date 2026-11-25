@@ -158,7 +158,7 @@ describe('051: создание компании (US1)', () => {
       await z.ok(u, 'me');
       await z.ok(u, 'event.get', { event: ev });
     }
-    for (const a of ['admin.users', 'admin.audit', 'admin.families']) await z.ok(p1, a, { company: c });
+    for (const a of ['admin.users', 'admin.audit']) await z.ok(p1, a, { company: c });
     await z.ok(p1, 'admin.state', { event: ev });
     await z.ok(p1, 'admin.audit', { event: ev });
     await z.ok(p1, 'admin.announce', { event: ev, text: 'Привет всем' });
@@ -502,7 +502,9 @@ describe('051: удаление компании и журнал бота (US6)'
     const ev = await z.event(C, 'Ненадолго', [o, p]);
     await z.ok(boss, 'admin.owner.transfer', { company: C, id: o.id });
     await z.ok(o, 'admin.role.grant', { company: C, id: p.id });
-    await z.ok(o, 'admin.family.save', { company: C, name: 'Семья', members: [o.id, p.id] });
+    // Семья — строками, как их оставил прежний код (062): удаление комнаты убирает и их
+    z.w.sql(`INSERT INTO families (id, company_id, name, created_at) VALUES (1, ${C}, 'Семья', 0);
+      INSERT INTO family_members (company_id, user_id, family_id) VALUES (${C}, ${o.id}, 1), (${C}, ${p.id}, 1)`);
     await z.ok(o, 'admin.event.delete', { event: ev, confirm: 'УДАЛИТЬ' });
     const word = await z.w.api(boss, 'bot.company.delete', { company: C }, true);
     assert.deepEqual([word.status, word.data.error], [400, 'Для удаления введи слово УДАЛИТЬ.']);

@@ -11,10 +11,9 @@ export default {
   // Reply field and message feed
   'app.sheet.send': '发送',
   'app.sheet.noMessages': '没有消息。',
-  // Santa and giftee chat (003, mask 040)
+  // Santa and giftee chat (003)
   'app.sheet.chat.placeholder': '消息…',
   'app.sheet.chat.yourSanta': '你的神秘圣诞老人',
-  'app.sheet.chat.yourMasked': '你的{santa}',
   'app.sheet.chat.santaKnows': '圣诞老人知道你是谁，你却不知道对方是谁。',
   'app.sheet.chat.youAre': '对收礼人来说，你是“{santa}”，不会透露你的名字。',
   'app.sheet.chat.noDraw': '暂时无法聊天：还没有抽签。',

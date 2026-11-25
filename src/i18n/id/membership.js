@@ -1,13 +1,7 @@
-// Texts of src/membership.js (061): joining, join requests, families, "I take part", leaving
+// Texts of src/membership.js (061): joining, join requests, "I take part", leaving
 export default {
-  // Families: rules and frozen members while a draw is running
-  'membership.familyNameRule': 'Nama keluarga harus 1 sampai 40 karakter.',
-  'membership.familySize': 'Keluarga harus terdiri dari 2 sampai {max} orang.',
-  'membership.familyNotFound': 'Keluarga tidak ditemukan.',
   'membership.memberNotFound': 'Peserta tidak ditemukan.',
-  'membership.alreadyInFamily': '{name} sudah ada di keluarga «{family}».',
-  'membership.familyFrozen': 'Anggota keluarga tidak bisa diubah selama acara «{title}» dengan undian yang sudah dilakukan masih berlangsung: kalau tidak, pasangan bisa ditebak dari pergantian peserta. Perubahan bisa dilakukan setelah acara itu selesai.',
-  // Log: family name and members, "I take part"
+  // Log: family name and members (records before 062), "I take part"
   'membership.audit.familySave': '«{name}»: {people}',
   'membership.audit.familyDelete': '«{name}»',
   'membership.audit.isParticipant': 'ikut',

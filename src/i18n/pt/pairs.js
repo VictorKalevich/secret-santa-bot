@@ -9,13 +9,11 @@ export default {
   'pairs.reason.search_exhausted': 'Não foi possível encontrar uma distribuição rapidamente — tente de novo. Se não der, remova algumas restrições ou desative o sorteio em círculo.',
   'pairs.reason.fixed_block': 'Os pares fixos atrapalham: com eles, não dá para distribuir todos seguindo as regras. {owner.nomCap} pode remover alguns pares fixos.',
   'pairs.reason.too_strict': 'Restrições demais: não dá para distribuir todos respeitando todas elas. Remova algumas restrições.',
-  // Participant without a name in the reason
-  'pairs.familiesBlock': 'As famílias atrapalham: membros da mesma família não se presenteiam, e assim não dá para distribuir todos. Desative “Considerar famílias” ou o sorteio em círculo.',
   // Draw
   'pairs.drawn': '🎄 <b>O sorteio do evento {title} foi feito!</b>\n\nAbra o app e veja a aba “Presenteado” para descobrir quem você vai presentear. Não conte para ninguém 🤫',
   'pairs.drawnButton': '🎁 Ver presenteado',
   'pairs.drawFinished': 'O evento foi encerrado.',
-  'pairs.drawRace': 'Participantes, restrições ou famílias mudaram durante o sorteio — tente de novo.',
+  'pairs.drawRace': 'Participantes ou restrições mudaram durante o sorteio — tente de novo.',
   'pairs.notDrawn': 'O sorteio não foi feito.',
   // Pairs after a change of members: to the new participant and to a Santa with a new giftee
   'pairs.inserted': '🎄 <b>Você está no jogo!</b> O sorteio do evento {title} foi feito para você — veja a aba “Presenteado” 🤫',
@@ -30,7 +28,6 @@ export default {
   // Swapping giftees (048): rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': 'Um dos dois presenteia o outro: depois da troca, alguém presentearia a si mesmo.',
   'pairs.swapRule.exclusion': 'Restrições: um dos dois vai presentear alguém que, pelas restrições, não deveria.',
-  'pairs.swapRule.family': 'Famílias: um dos dois vai presentear alguém da própria família.',
   'pairs.swapRule.ring': 'Sorteio em círculo: vai surgir um par mútuo — dois vão se presentear.',
   'pairs.swapRule.fixed': 'Pares fixos: a troca vai desfazer um par que você fixou.',
   'pairs.swapRule.history': 'Pares anteriores: um dos dois vai presentear a mesma pessoa do evento anterior.',

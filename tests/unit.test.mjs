@@ -119,23 +119,6 @@ test('бюджет: запросы к Telegram учитываются, пост�
   assert.equal(env.meter.enqueued, true);
 });
 
-// 010, FR-1019: снимок семей — то же выражение считает SQL в условии записи жеребьёвки (паритет — snapshots.test.mjs)
-test('снимок семей: порядок не важен, смена семьи меняет снимок, не-участники не влияют', async () => {
-  const { SNAPSHOTS } = await import('../src/snapshots.js');
-  const familySnapshot = (families, ids) => SNAPSHOTS.families.js({ ids, families });
-  const ids = [101, 102, 103, 104];
-  const rows = [{ user_id: 101, family_id: 1 }, { user_id: 102, family_id: 1 }, { user_id: 103, family_id: 2 }, { user_id: 900, family_id: 2 }];
-  const base = familySnapshot(rows, ids);
-  assert.equal(base, `3:${101 + 102 + 103 * 2}:4`);
-  assert.equal(familySnapshot([...rows].reverse(), ids), base, 'порядок строк не важен');
-  assert.equal(familySnapshot([...rows, { user_id: 901, family_id: 3 }], ids), base, 'семьи не-участников не влияют');
-  // 102 и 103 поменялись семьями — исключения другие, снимок тоже
-  const swapped = [{ user_id: 101, family_id: 1 }, { user_id: 102, family_id: 2 }, { user_id: 103, family_id: 1 }];
-  assert.notEqual(familySnapshot(swapped, ids), base);
-  assert.notEqual(familySnapshot(rows.filter((r) => r.user_id !== 102), ids), base, 'выход из семьи');
-  assert.equal(familySnapshot([], ids), '0:0:0');
-});
-
 // 019: «письмо пустое» считается в базе вместо `!wishlist.trim()` — для каждого символа результат должен совпасть
 test('пустота письма: BLANK_SQL в базе = !String.prototype.trim() для каждого символа (кроме суррогатов)', () => {
   const db = createMigratedD1();

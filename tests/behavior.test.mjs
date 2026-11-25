@@ -2,8 +2,7 @@
 // переименования, отклонение заявки в завершённом событии (specs/025-behavior-fixes/).
 // 031: отказ проигравшему спор закреплений — текст обычной проверки; журнал каждого ответа организатора в обращение
 // (specs/031-pins-audit-index/).
-// 034: один текст «только для чтения» в API, боте и приложении; журнал семьи — только при изменении
-// (specs/034-small-consistency/).
+// 034: один текст «только для чтения» в API, боте и приложении (specs/034-small-consistency/; журнал семьи — до 062).
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -317,41 +316,3 @@ describe('«только для чтения»: один текст в API, бо
   });
 });
 
-describe('семья: запись журнала только при настоящем изменении (034, US2)', () => {
-  let w, fam;
-  const saves = () => records(w, 'family.save', 0);
-  const members = () => w.query('SELECT user_id FROM family_members WHERE family_id = ? ORDER BY user_id', fam).map((r) => r.user_id);
-  before(async () => {
-    ({ w } = await world());
-    await w.api(adm, 'admin.family.save', { name: 'Ивановы', members: [anya.id, borya.id] });
-    fam = w.query('SELECT id FROM families')[0].id;
-  });
-
-  it('новая семья — одна запись', () => {
-    assert.equal(saves().length, 1);
-    assert.equal(saves()[0].details, '«Ивановы»: Аня, Боря');
-  });
-
-  it('то же название и состав (другой порядок, повтор, лишние пробелы) — успех без записи', async () => {
-    await w.api(adm, 'admin.family.save', { id: fam, name: 'Ивановы', members: [anya.id, borya.id] });
-    await w.api(adm, 'admin.family.save', { id: fam, name: '  Ивановы ', members: [borya.id, anya.id, anya.id, 0] });
-    assert.equal(saves().length, 1);
-    assert.deepEqual(members(), [anya.id, borya.id]);
-  });
-
-  it('новое название — одна запись; новый состав — ещё одна', async () => {
-    await w.api(adm, 'admin.family.save', { id: fam, name: 'Ивановы-Петровы', members: [anya.id, borya.id] });
-    assert.equal(saves().length, 2);
-    assert.equal(w.query('SELECT name FROM families WHERE id = ?', fam)[0].name, 'Ивановы-Петровы');
-    await w.api(boss, 'admin.family.save', { id: fam, name: 'Ивановы-Петровы', members: [anya.id, borya.id, vera.id] });
-    assert.equal(saves().length, 3);
-    assert.deepEqual([saves()[2].actor, saves()[2].details], [boss.id, '«Ивановы-Петровы»: Аня, Боря, Вера']);
-    assert.deepEqual(members(), [anya.id, borya.id, vera.id]);
-  });
-
-  it('состав той же длины, другой человек — запись', async () => {
-    await w.api(adm, 'admin.family.save', { id: fam, name: 'Ивановы-Петровы', members: [anya.id, borya.id, adm.id] });
-    assert.equal(saves().length, 4);
-    assert.deepEqual(members(), [anya.id, borya.id, adm.id].sort((a, b) => a - b));
-  });
-});

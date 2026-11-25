@@ -1,4 +1,4 @@
-// Texts of app part 03-home (060): home screen, profile, notifications, families, owner and admins
+// Texts of app part 03-home (060): home screen, profile, notifications, owner and admins
 export default {
   'app.home.unsaved': "Mektup ya da adres kaydedilmedi. Kaydetmeden çıkılsın mı?",
   'app.home.toEvents': "Etkinlik listesine dön",
@@ -30,7 +30,6 @@ export default {
   'app.home.lang.auto': "Telegram'daki gibi ({name})",
   'app.home.lang.hint': "Bot ve uygulama bu dilde olacak. «Telegram'daki gibi» — Telegram'ının dili.",
   'app.home.notify.title': "Bildirimler",
-  'app.home.notify.hint': "Alıcın mektubunu değiştirdiğinde (herhangi bir etkinlikte) bot sana haber verir — isim ve ayrıntı olmadan.",
   'app.home.notify.sound': "🔔 Sesli",
   'app.home.notify.silent': "🔕 Sessiz",
   'app.home.notify.off': "🚫 Kapalı",
@@ -38,19 +37,6 @@ export default {
   'app.home.name.hint': "İsmin tüm etkinliklerde aynıdır. Onu sahip, yöneticiler ve Noel Baba'n görür; sır açıklandığında alıcın da görür.",
   'app.home.name.empty': "İsmini yaz",
   'app.home.name.saved': "İsim kaydedildi",
-  'app.home.families.title': "Aileler",
-  'app.home.families.empty': "Henüz aile yok.",
-  'app.home.families.edit': "Aileyi düzenle",
-  'app.home.families.new': "Yeni aile",
-  'app.home.families.hint': "Aynı ailenin üyeleri hiçbir etkinlikte birbirine hediye vermez (etkinlikte «Aileleri dikkate al» açıksa). Bir kişi yalnızca bir ailede olabilir.",
-  'app.home.families.family': "Aile",
-  'app.home.families.name': "Aile adı",
-  'app.home.families.placeholder': "Örneğin: Yılmazlar",
-  'app.home.families.members': "Ailede kimler var (başka ailelerdeki kişiler burada gösterilmez):",
-  'app.home.families.saved': "Aile kaydedildi",
-  'app.home.families.delete': "🗑 Aileyi sil",
-  'app.home.families.deleteConfirm': "«{name}» ailesi silinsin mi? Önceden yapılmış çekilişler değişmez.",
-  'app.home.families.deleted': "Aile silindi",
   'app.home.admins.title': "Sahip ve yöneticiler",
   'app.home.admins.makeOwnerConfirm': "«{name}» bu odanın sahibi olsun mu? Sahibin yapabildiği her şeyi yapabilecek: yöneticiler, etkinlikleri sıfırlama ve silme, eşleşmelerin denetim görünümü. Sen bot sahibi olarak kalırsın ve odayı geri alabilirsin.",
   'app.home.admins.transferConfirm': "«{name}» yeni sahip olsun mu? Sen yönetici olarak kalırsın, ama yönetici atayıp çıkarabilen yalnızca yeni sahip olur.",

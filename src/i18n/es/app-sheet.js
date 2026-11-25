@@ -14,7 +14,6 @@ export default {
   // Santa and giftee chat
   'app.sheet.chat.placeholder': 'Mensaje…',
   'app.sheet.chat.yourSanta': 'Tu Santa secreto',
-  'app.sheet.chat.yourMasked': 'Tu {santa}',
   'app.sheet.chat.santaKnows': 'Tu Santa sabe quién eres, pero tú no sabes quién es.',
   'app.sheet.chat.youAre': 'Para tu destinatario eres «{santa}»: tu nombre no se revela.',
   'app.sheet.chat.noDraw': 'El chat no está disponible: todavía no se ha hecho el sorteo.',

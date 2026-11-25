@@ -11,10 +11,9 @@ export default {
   // Поле ответа и лента сообщений
   'app.sheet.send': 'Отправить',
   'app.sheet.noMessages': 'Сообщений нет.',
-  // Переписка Санты и подопечного (003, маска — 040)
+  // Переписка Санты и подопечного (003)
   'app.sheet.chat.placeholder': 'Сообщение…',
   'app.sheet.chat.yourSanta': 'Твой Тайный Санта',
-  'app.sheet.chat.yourMasked': 'Твой {santa}',
   'app.sheet.chat.santaKnows': 'Санта знает, кто ты, а ты его — нет.',
   'app.sheet.chat.youAre': 'Для подопечного ты — «{santa}», имя не раскрывается.',
   'app.sheet.chat.noDraw': 'Переписка недоступна: жеребьёвка ещё не проведена.',

@@ -1,9 +1,7 @@
-// Texts of src/participant.js (060): letter, delivery address, postcard, mask, gift marks
+// Texts of src/participant.js (060): letter, delivery address, postcard, gift marks
 export default {
-  // Postcard and mask: value not from the set
+  // Postcard: value not from the set
   'participant.noCard': '没有这张贺卡，请从列表中选择。',
-  'participant.noMask': '没有这个面具，请从列表中选择。',
-  'participant.maskRevealed': '谜底已经揭晓，面具不能再更换。',
   // Letter and drafts (041)
   'participant.draftsOn': '已开启草稿。请重新打开心愿信进行发布。',
   'participant.draftsOff': '已关闭草稿。请重新打开心愿信。',

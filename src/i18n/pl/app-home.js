@@ -1,4 +1,4 @@
-// Texts of app part 03-home (060): home screen, "Profile", "Notifications", families, owner and admins
+// Texts of app part 03-home (060): home screen, "Profile", "Notifications", owner and admins
 export default {
   // Leaving an event or a tab (058): asks only about what will not save by itself
   'app.home.unsaved': 'List lub adres nie zostały zapisane. Wyjść bez zapisywania?',
@@ -36,7 +36,6 @@ export default {
   'app.home.lang.auto': 'Jak w Telegramie ({name})',
   'app.home.lang.hint': 'Bot i aplikacja będą w tym języku. „Jak w Telegramie” — język Twojego Telegrama.',
   'app.home.notify.title': 'Powiadomienia',
-  'app.home.notify.hint': 'Gdy podopieczny zmieni list (w dowolnym wydarzeniu), bot Cię o tym powiadomi — bez imienia i szczegółów.',
   'app.home.notify.sound': '🔔 Dźwięk',
   'app.home.notify.silent': '🔕 Cicho',
   'app.home.notify.off': '🚫 Wył.',
@@ -45,20 +44,6 @@ export default {
   'app.home.name.hint': 'Imię jest jedno we wszystkich wydarzeniach. Widzą je właściciel, administratorzy i Twój Mikołaj, a po ujawnieniu — Twój podopieczny.',
   'app.home.name.empty': 'Wpisz imię',
   'app.home.name.saved': 'Imię zapisane',
-  // Families (008); "New family" — a button and the sheet title
-  'app.home.families.title': 'Rodziny',
-  'app.home.families.empty': 'Nie ma jeszcze rodzin.',
-  'app.home.families.edit': 'Edytuj rodzinę',
-  'app.home.families.new': 'Nowa rodzina',
-  'app.home.families.hint': 'Członkowie jednej rodziny nie obdarowują się nawzajem w żadnym wydarzeniu (jeśli w wydarzeniu włączono „Uwzględniaj rodziny”). Jedna osoba — jedna rodzina.',
-  'app.home.families.family': 'Rodzina',
-  'app.home.families.name': 'Nazwa rodziny',
-  'app.home.families.placeholder': 'Np. Kowalscy',
-  'app.home.families.members': 'Kto jest w rodzinie (osoby z innych rodzin nie są tu pokazane):',
-  'app.home.families.saved': 'Rodzina zapisana',
-  'app.home.families.delete': '🗑 Usuń rodzinę',
-  'app.home.families.deleteConfirm': 'Usunąć rodzinę „{name}”? Przeprowadzone już losowania się nie zmienią.',
-  'app.home.families.deleted': 'Rodzina usunięta',
   // Owner and admins (002, 051)
   'app.home.admins.title': 'Właściciel i administratorzy',
   'app.home.admins.makeOwnerConfirm': 'Mianować „{name}” właścicielem tego pokoju? Ta osoba będzie mogła wszystko, co właściciel: administratorzy, reset i usuwanie wydarzeń, podgląd serwisowy par. Pozostaniesz właścicielem bota i możesz odzyskać pokój.',

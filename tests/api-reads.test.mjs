@@ -27,7 +27,7 @@ const person = (id, name) => ({ id, name, username: 'u' + id });
 const inviteOf = (st) => /start=(inv_[a-z0-9]+)/.exec(st.settings.invite_link)[1];
 
 // Открытый бот: владелец бота; чужая история — компания «Чужая» с завершённым событием (пары, переписка, обращение,
-// отклонённая заявка, семья) и компания «Соседи»; своя компания «Своя» с событием — вызовы её людей проверяются
+// отклонённая заявка) и компания «Соседи»; своя компания «Своя» с событием — вызовы её людей проверяются
 async function historyWorld() {
   const w = await startWorld({ open: true });
   const boss = person(9501, 'Владелец');
@@ -54,7 +54,6 @@ async function historyWorld() {
   await signUp(x);
   const X = (await w.api(x, 'company.create', { name: 'Чужая' })).company;
   const old = await event(x, X, 'Прошлое', f.slice(0, 4));
-  await w.api(x, 'admin.family.save', { company: X, name: 'Ивановы', members: [f[0].id, f[1].id] });
   await w.api(x, 'admin.game', { event: old.id, approval: true });
   await join(f[4], old.code); // заявка
   const req = w.query('SELECT id FROM join_requests WHERE event_id = ? AND user_id = ?', old.id, f[4].id)[0].id;
@@ -92,8 +91,6 @@ test('вызовы обычных людей на базе с чужой ист�
   await api(p[1], 'wishlist.save', { event: own.id, text: 'Хочу книгу и шарф' });
   await api(p[0], 'admin.state', { event: own.id });
   await api(o, 'admin.state', { event: own.id });
-  await api(o, 'admin.families', { company: O });
-  await api(o, 'admin.family.save', { company: O, name: 'Петровы', members: [p[1].id, p[2].id] });
   await api(o, 'admin.game', { event: own.id, approval: true });
   const q = person(9560, 'Новенький');
   await run('новичок: /start inv_ (заявка)', () => w.say(q, '/start ' + own.code));
@@ -161,7 +158,6 @@ test('от противного (055): прежние запросы и база
   }
   const list = [
     ...(await statementsDuring(w, () => w.api(p[1], 'me'))),
-    ...(await statementsDuring(w, () => w.api(o, 'admin.families', { company: O }))),
     ...(await statementsDuring(w, () => w.api(o, 'admin.game', { event: own.id, approval: true }))),
     ...(await statementsDuring(w, () => w.say(person(9599, 'Ещё'), '/start ' + own.code))),
     ...(await statementsDuring(w, () => w.say(person(9599, 'Ещё'), 'Ещё'))),
@@ -170,6 +166,6 @@ test('от противного (055): прежние запросы и база
   assert.deepEqual(list.flatMap((s) => violations(sqlite, s)), [], 'с индексами — без полных просмотров');
   for (const name of INDEXES_0018) sqlite.exec(`DROP INDEX ${name}`); // база, к которой 0018 ещё не применена
   const scanned = new Set(list.flatMap((s) => violations(sqlite, s)).map((v) => v.split(':')[0]));
-  for (const table of ['support_threads', 'join_requests', 'families']) assert.ok(scanned.has(table), `без 0018: ${table}`);
+  for (const table of ['support_threads', 'join_requests']) assert.ok(scanned.has(table), `без 0018: ${table}`);
   await w.api(p[1], 'me'); // код от индексов не зависит
 });

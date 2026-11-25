@@ -9,13 +9,11 @@ export default {
   'pairs.reason.search_exhausted': 'Eine Verteilung ließ sich nicht schnell finden – versuch es noch einmal. Klappt es nicht, entferne einige Ausschlüsse oder schalte die Kreisauslosung aus.',
   'pairs.reason.fixed_block': 'Die festen Paare stehen im Weg: Mit ihnen lassen sich nicht alle nach den Regeln verteilen. {owner.nomCap} kann einige feste Paare entfernen.',
   'pairs.reason.too_strict': 'Zu viele Ausschlüsse: Alle so zu verteilen, dass sie eingehalten werden, klappt nicht. Entferne einige Ausschlüsse.',
-  // Participant without a name in the reason
-  'pairs.familiesBlock': 'Die Familien stehen im Weg: Familienmitglieder beschenken sich nicht gegenseitig, und so lassen sich nicht alle verteilen. Schalte «Familien berücksichtigen» oder die Kreisauslosung aus.',
   // Draw
   'pairs.drawn': '🎄 <b>Die Auslosung in der Runde {title} ist erfolgt!</b>\n\nÖffne die App und schau in den Tab «Wichtelkind», um zu erfahren, wen du beschenkst. Verrate es niemandem 🤫',
   'pairs.drawnButton': '🎁 Wichtelkind ansehen',
   'pairs.drawFinished': 'Die Runde ist beendet.',
-  'pairs.drawRace': 'Teilnehmer, Ausschlüsse oder Familien haben sich während der Auslosung geändert – versuch es noch einmal.',
+  'pairs.drawRace': 'Teilnehmer oder Ausschlüsse haben sich während der Auslosung geändert – versuch es noch einmal.',
   'pairs.notDrawn': 'Die Auslosung hat nicht stattgefunden.',
   // Pairs after a change of members: to the new participant and to a Santa with a new giftee
   'pairs.inserted': '🎄 <b>Du bist dabei!</b> Die Auslosung der Runde {title} ist für dich erfolgt – schau in den Tab «Wichtelkind» 🤫',
@@ -30,7 +28,6 @@ export default {
   // Giftee swap (048): rules without names (pairs.swapRule.<rule>), refusals and the message to Santa
   'pairs.swapRule.self': 'Einer der beiden beschenkt den anderen: Nach dem Tausch würde sich jemand selbst beschenken.',
   'pairs.swapRule.exclusion': 'Ausschlüsse: Einer der beiden würde jemanden beschenken, den er laut Ausschluss nicht beschenken darf.',
-  'pairs.swapRule.family': 'Familien: Einer der beiden würde ein Mitglied seiner eigenen Familie beschenken.',
   'pairs.swapRule.ring': 'Kreisauslosung: Es entstünde ein gegenseitiges Paar – zwei würden sich gegenseitig beschenken.',
   'pairs.swapRule.fixed': 'Feste Paare: Der Tausch würde ein Paar auflösen, das du festgelegt hast.',
   'pairs.swapRule.history': 'Frühere Paare: Einer der beiden würde dieselbe Person beschenken wie in der vorigen Runde.',

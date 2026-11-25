@@ -24,8 +24,6 @@ export async function adminState(ctx, ev) {
     exclusions: exclusionsQuery(db, ev.id),
     events: companyEventsQuery(db, ev.company_id),
     cancelable: cancelableQuery(db, ev),
-    famRows: db.prepare('SELECT fm.user_id, f.id, f.name FROM family_members fm JOIN families f ON f.id = fm.family_id WHERE fm.company_id = ?')
-      .bind(ev.company_id),
     requests: db.prepare(
       `SELECT r.id, r.user_id, r.created_at, u.name, u.username FROM join_requests r JOIN users u ON u.tg_id = r.user_id
         WHERE r.event_id = ? AND r.status = 'pending' ORDER BY r.id`
@@ -40,7 +38,7 @@ export async function adminState(ctx, ev) {
     fixed: isOwner && fixedPairsQuery(db, ev.id),
     users: true,
   });
-  const { members, pairs, exclusions, events, famRows, requests, removed, users } = r;
+  const { members, pairs, exclusions, events, requests, removed, users } = r;
   const cancelable = !!r.cancelable[0]?.ok;
   const fixed = isOwner ? r.fixed : null;
   const santas = new Set(pairs.map((p) => p.santa));
@@ -68,11 +66,6 @@ export async function adminState(ctx, ev) {
       // 008: только «указан ли адрес» — сам адрес админу не отдаётся
       ...(ev.delivery_on ? { has_delivery: !!u.has_delivery } : {}),
     })),
-    // 008: семьи, в которых не меньше двух участников этого эвента
-    families: Object.values(famRows.filter((r) => memberIds.has(r.user_id)).reduce((acc, r) => {
-      (acc[r.id] ||= { id: r.id, name: r.name, members: [] }).members.push(r.user_id);
-      return acc;
-    }, {})).filter((f) => f.members.length >= 2),
     requests: requests.map((r) => ({ id: r.id, user_id: r.user_id, name: r.name, username: r.username, created_at: r.created_at })),
     removed: removed.map((r) => ({ id: r.user_id, name: r.name, username: r.username, removed_at: r.removed_at })),
     // 012: обращения — без текстов; переписка — отдельным запросом admin.support.get
@@ -93,7 +86,6 @@ export async function adminState(ctx, ev) {
       reveal_auto: !!ev.reveal_auto,
       finish_auto: !!ev.finish_auto,
       draw_cancelable: cancelable,
-      families_on: !!ev.families_on,
     },
   };
 }

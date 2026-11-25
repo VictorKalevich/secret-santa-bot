@@ -75,18 +75,8 @@ export default {
   'app.event.gift.sub': 'La marca la ven el propietario y los administradores',
   'app.event.gift.done': '🎉 ¡Genial! El regalo está marcado como listo',
   'app.event.markRemoved': 'Marca quitada',
-  // Santa mask; {mask} is "🐉 Dragón", mask names come from the server
-  'app.event.mask.santa': 'Santa secreto',
-  'app.event.mask.santaMasked': 'Santa secreto · {mask}',
-  'app.event.mask.worn': 'Tu Santa lleva la máscara «{mask}».',
-  'app.event.mask.current': 'Máscara en el chat: {mask}.',
-  'app.event.mask.button': '🎭 Máscara: {mask}',
-  'app.event.mask.none': 'sin máscara',
-  'app.event.mask.noneTile': 'Sin máscara',
-  'app.event.mask.title': 'Máscara en el chat',
-  'app.event.mask.hint': 'Así te verá tu destinatario en el chat y en los mensajes del bot. Sabrá quién está detrás de la máscara cuando se revele el secreto. La máscara es distinta en cada evento.',
-  'app.event.mask.picked': 'Máscara elegida',
-  'app.event.mask.removed': 'Máscara quitada',
+  // Santa's name in chat hints
+  'app.event.santa': 'Santa secreto',
   // Giftee tab; in ward.changed, {added} and {removed} become ward.added and ward.removed with highlighting
   'app.event.ward.noDrawTitle': 'Todavía no se ha hecho el sorteo',
   'app.event.ward.noDrawText': 'Después del sorteo aquí aparecerán el nombre y la carta de tu destinatario. El bot te avisará.',

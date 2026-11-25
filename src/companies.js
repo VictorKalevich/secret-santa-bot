@@ -235,14 +235,13 @@ async function ownerChange(ctx, { next, target, actor, code = '' }) {
     `INSERT INTO company_members (company_id, user_id, is_admin, joined_at) SELECT ?, ?, 1, ? WHERE ${a.sql}
      ON CONFLICT(company_id, user_id) DO UPDATE SET is_admin = 1`
   ).bind(cid, ownerRow, now, ...a.args));
-  // Компания уходит от владельца бота: дальше он в ней гость (строки нет), а если участвует в её событиях или семьях —
-  // обычный человек компании
+  // Компания уходит от владельца бота: дальше он в ней гость (строки нет), а если участвует в её событиях — обычный
+  // человек компании
   if (!prev && next && botOwnerId) {
     a.where('UPDATE company_members SET is_admin = 0 WHERE company_id = ? AND user_id = ?', cid, botOwnerId);
     a.where(
       `DELETE FROM company_members WHERE company_id = ?1 AND user_id = ?2
-          AND NOT EXISTS (SELECT 1 FROM members m JOIN events e ON e.id = m.event_id WHERE e.company_id = ?1 AND m.user_id = ?2)
-          AND NOT EXISTS (SELECT 1 FROM family_members WHERE company_id = ?1 AND user_id = ?2)`,
+          AND NOT EXISTS (SELECT 1 FROM members m JOIN events e ON e.id = m.event_id WHERE e.company_id = ?1 AND m.user_id = ?2)`,
       cid, botOwnerId,
     );
   }

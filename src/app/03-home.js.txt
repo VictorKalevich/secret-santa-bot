@@ -16,7 +16,7 @@
     announcements: [], // 007: объявления события (вкладка «Инфо»); все поля состояния — здесь (026)
     support: null, supportAdmin: null, // 012: обращения — участнику его статус, админу — ничьи и непрочитанные
     roster: null, rosterOpen: null, // 037: участники на «Инфо»; rosterOpen — id события, где список раскрыт
-    looks: { postcards: [], masks: [] }, // наборы открыток и масок — с сервера (me)
+    looks: { postcards: [] }, // набор открыток — с сервера (me)
     companies: [], companyId: null, company: null, botOwner: false, open: false, create: null,
     lang: 'ru', textsVersion: '', // 060: язык и версия словаря приложения (ответ me)
     langs: { choice: '', auto: 'ru', list: [] }, // 061: выбор языка ('' — как в Telegram), язык по Telegram, языки бота
@@ -272,10 +272,9 @@
         openSheet(t('app.home.create.title'), [...sheet, ok]);
       });
       nodes.push(h('div', { class: 'ds-card' }, create));
-      for (const section of [renderFamiliesSection(), renderAdminsSection()]) {
-        nodes.push(section.box);
-        people.push(section.load);
-      }
+      const admins = renderAdminsSection();
+      nodes.push(admins.box);
+      people.push(admins.load);
     }
 
     // «Профиль» и «Уведомления» — на корневом экране (051, FR-5125): у человека с несколькими компаниями — на «Компаниях»
@@ -311,7 +310,7 @@
       h('span', { class: 'ds-text-muted' }, langLabel(state.langs.choice)),
       h('span', { class: 'ds-list-item__chevron' }, '›'));
     return [ui.section(t('app.home.profile.title')), ui.card(nameText, editName), h('div', { class: 'ds-card ds-card--flush' }, langRow),
-      ui.section(t('app.home.notify.title')), ui.card(ui.hint(t('app.home.notify.hint')), seg)];
+      ui.section(t('app.home.notify.title')), ui.card(seg)];
   }
 
   // Подпись языка (061): название на самом языке; '' — «Как в Telegram (<язык по Telegram>)»
@@ -352,55 +351,8 @@
     openSheet(t('app.home.name.title'), [ui.hint(t('app.home.name.hint')), clearable(input, t('app.home.name.title')), save]);
   }
 
-  // Раздел «Семьи» (008): постоянные исключения для всех эвентов. → { box, load }: повторный load заменяет содержимое по
-  // ответу, без загрузчика (039)
-  function renderFamiliesSection() {
-    const box = h('div', {}, ui.section(t('app.home.families.title')), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
-    const load = () => capi('admin.families').then((d) => {
-      const list = h('div', { class: 'ds-card ds-card--flush' });
-      if (!d.families.length) list.append(h('div', { class: 'ds-list-item ds-text-muted' }, t('app.home.families.empty')));
-      for (const f of d.families) {
-        list.append(h('div', { class: 'ds-list-item' },
-          h('div', { class: 'ds-grow' }, h('div', { class: 'ds-list-item__title' }, f.name), ui.hint(f.members.map((m) => m.name).join(', '))),
-          h('button', { class: 'ds-icon-btn', title: t('app.home.families.edit'), onclick: () => openFamily(d, f) }, '✏️')));
-      }
-      const add = ui.btn(t('app.home.families.new'), 'secondary', 'ds-btn--block');
-      add.addEventListener('click', () => openFamily(d, null));
-      box.replaceChildren(ui.section(t('app.home.families.title')), list,
-        ui.card(ui.hint(t('app.home.families.hint')), add));
-    }).catch((e) => box.replaceChildren(ui.section(t('app.home.families.title')), ui.hint('⚠️ ' + e.message, 'ds-hint--inset')));
-    function openFamily(d, f) {
-      const name = h('input', { class: 'ds-input', type: 'text', maxlength: 40, value: f ? f.name : '', placeholder: t('app.home.families.placeholder') });
-      const free = d.users.filter((u) => !u.family_id || (f && u.family_id === f.id));
-      const boxes = free.map((u) => {
-        const c = h('input', { type: 'checkbox', checked: !!f && u.family_id === f.id });
-        c.dataset.id = u.id;
-        return [c, h('div', { class: 'ds-row' }, h('label', { class: 'ds-check' }, c, u.name))];
-      });
-      const save = ui.btn(t('app.core.save'), '', 'ds-btn--block');
-      save.addEventListener('click', () => busy(save, async () => {
-        const members = boxes.filter(([c]) => c.checked).map(([c]) => +c.dataset.id);
-        await capi('admin.family.save', { id: f ? f.id : undefined, name: name.value, members });
-        closeSheet();
-        toast(t('app.home.families.saved'));
-        await load();
-      }));
-      const items = [clearable(name, t('app.home.families.name')), ui.hint(t('app.home.families.members')), ...boxes.map(([, l]) => l), save];
-      if (f) {
-        const del = ui.btn(t('app.home.families.delete'), 'danger', 'ds-btn--block');
-        del.addEventListener('click', async () => {
-          if (!(await confirmBox(t('app.home.families.deleteConfirm', { name: f.name })))) return;
-          busy(del, async () => { await capi('admin.family.delete', { id: f.id }); closeSheet(); toast(t('app.home.families.deleted')); await load(); });
-        });
-        items.push(del);
-      }
-      openSheet(t(f ? 'app.home.families.family' : 'app.home.families.new'), items);
-    }
-    load();
-    return { box, load };
-  }
-
-  // Раздел «Владелец и администраторы» (002): люди и права компании открытого экрана. → { box, load }, как у «Семей»
+  // Раздел «Владелец и администраторы» (002): люди и права компании открытого экрана. → { box, load }: повторный load
+  // заменяет содержимое по ответу, без загрузчика (039)
   function renderAdminsSection() {
     const box = h('div', {}, ui.section(t('app.home.admins.title')), h('div', { class: 'ds-loader' }, h('div', { class: 'ds-spinner' })));
     // 👑 (051): владелец компании передаёт свои права; владелец бота делает человека владельцем компании

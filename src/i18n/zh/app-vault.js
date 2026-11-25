@@ -43,9 +43,9 @@ export default {
   'app.vault.swap.impossible': '这两人无法交换，请换一对。',
   'app.vault.swap.breaksOne': '⚠️ 这次交换违反了一条抽签原则。',
   'app.vault.swap.breaksMany': '⚠️ 这次交换违反了多条抽签原则。',
-  'app.vault.swap.warning': '如果交换，已经查看过收礼人的人会收到机器人的消息，得知收礼人变了。这两组配对的礼物标记、面具和聊天记录都会重新开始。',
+  'app.vault.swap.warning': '如果交换，已经查看过收礼人的人会收到机器人的消息，得知收礼人变了。这两组配对的礼物标记和聊天记录都会重新开始。',
   'app.vault.swap.agree': '我同意，仍然交换',
-  'app.vault.swap.confirm': '交换“{a}”和“{b}”的收礼人？已经查看过收礼人的人会收到机器人的消息，得知收礼人变了。这两组配对的礼物标记、面具和聊天记录都会重新开始。',
+  'app.vault.swap.confirm': '交换“{a}”和“{b}”的收礼人？已经查看过收礼人的人会收到机器人的消息，得知收礼人变了。这两组配对的礼物标记和聊天记录都会重新开始。',
   // Activity log: event, common room log, bot log
   'app.vault.log.event': '活动日志',
   'app.vault.log.common': '公共日志',

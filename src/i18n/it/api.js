@@ -9,7 +9,6 @@ export default {
   'api.closed': "L'evento è concluso e non si può più modificare (restano visualizzazione, rivelazione ed eliminazione).",
   'api.letterClosed': "L'evento è concluso: ora la letterina è di sola lettura.",
   'api.markClosed': "L'evento è concluso: la spunta è di sola lettura.",
-  'api.maskClosed': "L'evento è concluso: la maschera non si può più cambiare.",
   // Confirmation word (confirm field): refusal without the word
   'api.confirm.delete': "Per eliminare, scrivi la parola {word}.",
   'api.confirm.leave': "Per uscire, scrivi la parola {word}.",

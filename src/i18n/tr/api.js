@@ -7,7 +7,6 @@ export default {
   'api.closed': "Etkinlik bitti — artık değiştirilemez (görüntüleme, Noel Babaları açıklama ve silme mümkün).",
   'api.letterClosed': "Etkinlik bitti: mektup artık salt okunur.",
   'api.markClosed': "Etkinlik bitti: işaret artık salt okunur.",
-  'api.maskClosed': "Etkinlik bitti: maske artık değiştirilemez.",
   'api.confirm.delete': "Silmek için {word} kelimesini yaz.",
   'api.confirm.leave': "Ayrılmak için {word} kelimesini yaz.",
   'api.confirm.cancel': "İptal etmek için {word} kelimesini yaz.",

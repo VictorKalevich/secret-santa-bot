@@ -1,13 +1,7 @@
-// Тексты src/membership.js (060): вступление, заявки, семьи, «Я участвую», выход
+// Тексты src/membership.js (060): вступление, заявки, «Я участвую», выход
 export default {
-  // Семьи (008): правила и заморозка состава при идущей жеребьёвке (009)
-  'membership.familyNameRule': 'Название семьи — от 1 до 40 символов.',
-  'membership.familySize': 'В семье должно быть от 2 до {max} человек.',
-  'membership.familyNotFound': 'Семья не найдена.',
   'membership.memberNotFound': 'Участник не найден.',
-  'membership.alreadyInFamily': '{name} уже в семье «{family}».',
-  'membership.familyFrozen': 'Состав семьи нельзя менять, пока идёт событие «{title}» с проведённой жеребьёвкой: иначе по заменам участников можно было бы вычислить пары. Изменения — после его завершения.',
-  // Журнал: семья — название и состав, «Я участвую»
+  // Журнал: семья — название и состав (записи до 062), «Я участвую»
   'membership.audit.familySave': '«{name}»: {people}',
   'membership.audit.familyDelete': '«{name}»',
   'membership.audit.isParticipant': 'участвует',

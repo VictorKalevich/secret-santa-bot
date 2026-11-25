@@ -44,9 +44,9 @@ export default {
   'app.vault.swap.impossible': 'Diese beiden lassen sich nicht tauschen – wähle ein anderes Paar.',
   'app.vault.swap.breaksOne': '⚠️ Der Tausch verletzt eine Regel der Auslosung.',
   'app.vault.swap.breaksMany': '⚠️ Der Tausch verletzt mehrere Regeln der Auslosung.',
-  'app.vault.swap.warning': 'Nach dem Tausch schreibt der Bot allen, die ihr Wichtelkind schon angesehen haben, dass es sich geändert hat. Geschenkmarkierungen, Masken und Chats dieser zwei Paare beginnen von vorn.',
+  'app.vault.swap.warning': 'Nach dem Tausch schreibt der Bot allen, die ihr Wichtelkind schon angesehen haben, dass es sich geändert hat. Geschenkmarkierungen und Chats dieser zwei Paare beginnen von vorn.',
   'app.vault.swap.agree': 'Einverstanden – trotzdem tauschen',
-  'app.vault.swap.confirm': 'Wichtelkinder von «{a}» und «{b}» tauschen? Wer sein Wichtelkind schon angesehen hat, bekommt eine Nachricht. Markierungen, Masken und Chats beider Paare starten neu.',
+  'app.vault.swap.confirm': 'Wichtelkinder von «{a}» und «{b}» tauschen? Wer sein Wichtelkind schon angesehen hat, bekommt eine Nachricht. Markierungen und Chats beider Paare starten neu.',
   // Activity log: round, shared room log, bot log
   'app.vault.log.event': 'Protokoll der Runde',
   'app.vault.log.common': 'Allgemeines Protokoll',

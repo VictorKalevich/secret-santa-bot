@@ -320,9 +320,9 @@
     if (!data.ok) throw new Error(data.error || t('app.boot.error'));
     return data;
   }
-  // Общие действия организатора (050: admin.events.create, admin.families, admin.family.save, admin.family.delete,
-  // admin.audit без события, admin.users, admin.rename, admin.transfer, admin.role.grant, admin.role.revoke,
-  // admin.owner.transfer) — только так: компания открытого экрана (051, контракт — раздел 5)
+  // Общие действия организатора (050: admin.events.create, admin.audit без события, admin.users, admin.rename,
+  // admin.transfer, admin.role.grant, admin.role.revoke, admin.owner.transfer) — только так: компания открытого экрана
+  // (051, контракт — раздел 5)
   // (шторки владельца бота на «Компаниях» передают свою company)
   const capi = (action, body) => api(action, { company: state.companyId || undefined, ...(body || {}) });
 

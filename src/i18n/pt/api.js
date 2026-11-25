@@ -9,7 +9,6 @@ export default {
   'api.closed': 'O evento foi encerrado — não dá mais para alterá-lo (dá para ver, revelar e excluir).',
   'api.letterClosed': 'O evento foi encerrado: a carta agora é só para leitura.',
   'api.markClosed': 'O evento foi encerrado: a marcação agora é só para leitura.',
-  'api.maskClosed': 'O evento foi encerrado: não dá mais para trocar a máscara.',
   // Confirmation word (field confirm): refusal without the word
   'api.confirm.delete': 'Para excluir, digite a palavra {word}.',
   'api.confirm.leave': 'Para sair, digite a palavra {word}.',

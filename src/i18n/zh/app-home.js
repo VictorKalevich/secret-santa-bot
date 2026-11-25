@@ -1,4 +1,4 @@
-// Texts of app part 03-home (060): home screen, "Profile", "Notifications", families, owner and admins
+// Texts of app part 03-home (060): home screen, "Profile", "Notifications", owner and admins
 export default {
   // Leaving an event or a tab (058): asks only about what is not saved by itself
   'app.home.unsaved': '心愿信或地址还没保存。不保存就离开吗？',
@@ -38,7 +38,6 @@ export default {
   'app.home.lang.auto': '跟随 Telegram（{name}）',
   'app.home.lang.hint': '机器人和应用将使用这种语言。“跟随 Telegram”即使用你的 Telegram 语言。',
   'app.home.notify.title': '通知',
-  'app.home.notify.hint': '收礼人修改心愿信时（任何活动），机器人会通知你，不会透露名字和具体内容。',
   'app.home.notify.sound': '🔔 有声音',
   'app.home.notify.silent': '🔕 静音',
   'app.home.notify.off': '🚫 关闭',
@@ -47,20 +46,6 @@ export default {
   'app.home.name.hint': '所有活动都用同一个名字。所有者、管理员和你的圣诞老人能看到它，揭晓时你的收礼人也会看到。',
   'app.home.name.empty': '请填写名字',
   'app.home.name.saved': '名字已保存',
-  // Families (008); "New family" is a button and the sheet title
-  'app.home.families.title': '家庭',
-  'app.home.families.empty': '还没有家庭。',
-  'app.home.families.edit': '编辑家庭',
-  'app.home.families.new': '新家庭',
-  'app.home.families.hint': '同一家庭的成员在任何活动中都不会互相送礼（如果活动开启了“考虑家庭”）。每人只能属于一个家庭。',
-  'app.home.families.family': '家庭',
-  'app.home.families.name': '家庭名称',
-  'app.home.families.placeholder': '例如：王家',
-  'app.home.families.members': '家庭成员（其他家庭的人不在此显示）：',
-  'app.home.families.saved': '家庭已保存',
-  'app.home.families.delete': '🗑 删除家庭',
-  'app.home.families.deleteConfirm': '删除家庭“{name}”？已完成的抽签不会改变。',
-  'app.home.families.deleted': '家庭已删除',
   // Owner and admins (002, 051: 👑 is the owner passing rights or the bot owner assigning an owner)
   'app.home.admins.title': '所有者和管理员',
   'app.home.admins.makeOwnerConfirm': '让“{name}”成为这个房间的所有者？对方将拥有所有者的全部权限：管理员、重置和删除活动、后台查看配对。你仍然是机器人所有者，可以把房间收回。',

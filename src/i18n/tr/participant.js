@@ -1,8 +1,6 @@
-// Texts of src/participant.js (060): letter, delivery address, postcard, mask, gift marks
+// Texts of src/participant.js (060): letter, delivery address, postcard, gift marks
 export default {
   'participant.noCard': "Böyle bir kartpostal yok — listeden seç.",
-  'participant.noMask': "Böyle bir maske yok — listeden seç.",
-  'participant.maskRevealed': "Sır zaten açıklandı — maske artık değiştirilemez.",
   'participant.draftsOn': "Taslaklar açıldı. Yayımlamak için mektubu yeniden aç.",
   'participant.draftsOff': "Taslaklar kapatıldı. Mektubu yeniden aç.",
   'participant.settingsChanged': "Etkinlik ayarları değişti. Mektubu yeniden aç.",

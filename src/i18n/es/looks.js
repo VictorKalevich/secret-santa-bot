@@ -1,4 +1,4 @@
-// Spanish: texts of src/looks.js (postcard and Santa mask names).
+// Spanish: texts of src/looks.js (postcard names).
 export default {
   // Letter postcards (looks.card.<id>)
   'looks.card.snow': 'Nevada',
@@ -16,27 +16,4 @@ export default {
   'looks.card.sparkle': 'Destellos dorados',
   'looks.card.nordic': 'Motivo nórdico',
   'looks.card.airmail': 'Correo aéreo',
-  // Santa masks (looks.mask.<id>)
-  'looks.mask.elf': 'Elfo',
-  'looks.mask.wizard': 'Mago',
-  'looks.mask.fairy': 'Hada',
-  'looks.mask.genie': 'Genio',
-  'looks.mask.dragon': 'Dragón',
-  'looks.mask.ghost': 'Fantasma',
-  'looks.mask.matryoshka': 'Matrioska',
-  'looks.mask.agent': 'Agente secreto',
-  'looks.mask.ninja': 'Ninja',
-  'looks.mask.stranger': 'Incógnito',
-  'looks.mask.superhero': 'Superhéroe',
-  'looks.mask.robot': 'Robot',
-  'looks.mask.alien': 'Extraterrestre',
-  'looks.mask.dinosaur': 'Dinosaurio',
-  'looks.mask.lion': 'León',
-  'looks.mask.frog': 'Rana',
-  'looks.mask.turtle': 'Tortuga',
-  'looks.mask.octopus': 'Pulpo',
-  'looks.mask.whale': 'Ballena',
-  'looks.mask.seal': 'Foca',
-  // Mask as text: "🐉 Dragón"
-  'looks.maskLabel': '{emoji} {title}',
 };

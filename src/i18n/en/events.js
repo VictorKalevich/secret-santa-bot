@@ -19,10 +19,9 @@ export default {
   'events.invite': '📨 <b>Invitation to {title}</b> — Secret Santa.\nTap the button to join.',
   'events.inviteButton': '🎄 Join',
   'events.inviteAgain': 'Invitations have already been sent — you can send them again in a minute.',
-  // The reveal: {mask} — Santa's mask (040), {name} — Santa's name
+  // The reveal: {name} — Santa's name
   'events.alreadyRevealed': 'The secret has already been revealed.',
   'events.revealed': '🎅 <b>The secret is out!</b>\n\nIn {title}, your Secret Santa was <b>{name}</b>. Happy holidays! 🎄',
-  'events.revealedMask': '🎅 <b>The secret is out!</b>\n\nIn {title}, your Secret Santa “{mask}” was <b>{name}</b>. Happy holidays! 🎄',
   // Reminders: empty letter (with and without a deadline) and to Santas (with and without a gift exchange date)
   'events.remindAgain': 'A reminder has already been sent — you can send it again in a minute.',
   'events.remindUnfilled': '⏰ Reminder: your letter to Santa in {title} is still empty. Fill it in so your Santa can choose a gift more easily.',

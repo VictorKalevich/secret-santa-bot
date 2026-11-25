@@ -132,7 +132,7 @@ export default {
   'app.admin.rules.mutual': 'dan sebaliknya (dua arah)',
   'app.admin.rules.pickTwo': 'Pilih dua orang',
   'app.admin.rules.different': 'Harus dua orang yang berbeda',
-  // Exclusions and families
+  // Exclusions
   'app.admin.exclusions.title': 'Pengecualian',
   'app.admin.exclusions.empty': 'Tidak ada pengecualian — siapa pun bisa memberi kado ke siapa pun.',
   'app.admin.exclusions.both': '{giver} dan {receiver} tidak saling memberi kado',
@@ -144,11 +144,6 @@ export default {
   'app.admin.exclusions.frozen': 'Setelah undian, pengecualian tidak bisa diubah: kalau tidak, pasangan bisa ditebak dari pergantian peserta. Untuk mengubahnya, batalkan undian (selama belum ada yang membuka penerima kadonya).',
   'app.admin.exclusions.afterDraw': 'Setelah undian, pengecualian berlaku untuk penggantian berikutnya (mengeluarkan dan memasukkan peserta), pasangan saat ini tidak berubah. Hanya pemilik yang bisa mengubah pengecualian setelah undian.',
   'app.admin.exclusions.hint': 'Misalnya, suami-istri atau anggota satu keluarga. Bot tidak akan membiarkan undian melanggar aturan ini.',
-  'app.admin.families.title': '👪 Perhitungkan keluarga',
-  'app.admin.families.hint': 'Anggota satu keluarga tidak saling memberi kado. Keluarga diatur di layar utama.',
-  'app.admin.families.frozen': 'Tidak bisa diubah setelah undian',
-  'app.admin.families.on': 'Keluarga diperhitungkan',
-  'app.admin.families.off': 'Keluarga tidak diperhitungkan',
   // Fixed pairs (owner only)
   'app.admin.fixed.title': 'Pasangan tetap',
   'app.admin.fixed.empty': 'Tidak ada pasangan tetap — undian akan membagi semua orang secara acak.',
@@ -160,7 +155,7 @@ export default {
   'app.admin.fixed.to': '…kepada siapa memberi',
   'app.admin.fixed.add': 'Tetapkan pasangan',
   'app.admin.fixed.added': 'Pasangan ditetapkan',
-  'app.admin.fixed.hint': 'Bot pasti akan memasangkan orang-orang ini saat undian. Pasangan tetap lebih utama daripada pengecualian dan keluarga. Bagian ini hanya untuk pemilik.{ring}',
+  'app.admin.fixed.hint': 'Bot pasti akan memasangkan orang-orang ini saat undian. Pasangan tetap lebih utama daripada pengecualian. Bagian ini hanya untuk pemilik.{ring}',
   // Addition to the hint when the ring draw is on (starts with a space)
   'app.admin.fixed.hintRing': ' Undian melingkar aktif: pasangan hanya bisa ditetapkan satu arah.',
   // {pairs} — mutual pairs joined with "; "
@@ -268,6 +263,6 @@ export default {
     'tanda «kado siap» dan «diterima»;',
     'semua obrolan Santa dan penerima kado di acara ini.',
   ],
-  'app.admin.danger.cancelKeep': 'Surat, alamat, peserta, pengecualian, dan keluarga tetap ada. Pendaftaran dibuka lagi, dan peserta akan diberi tahu.',
+  'app.admin.danger.cancelKeep': 'Surat, alamat, peserta, dan pengecualian tetap ada. Pendaftaran dibuka lagi, dan peserta akan diberi tahu.',
   'app.admin.danger.canceled': '↩️ Undian dibatalkan. Pasangan dihapus: {n}',
 };

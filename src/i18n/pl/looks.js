@@ -1,4 +1,4 @@
-// Texts of src/looks.js (060): postcard and Santa mask names
+// Texts of src/looks.js (060): postcard names
 export default {
   // Letter postcards (looks.card.<id> — one per postcard of POSTCARDS)
   'looks.card.snow': 'Płatki śniegu',
@@ -16,27 +16,4 @@ export default {
   'looks.card.sparkle': 'Złoty brokat',
   'looks.card.nordic': 'Wzór skandynawski',
   'looks.card.airmail': 'Poczta lotnicza',
-  // Santa masks (looks.mask.<id> — one per mask of MASKS)
-  'looks.mask.elf': 'Elf',
-  'looks.mask.wizard': 'Czarodziej',
-  'looks.mask.fairy': 'Wróżka',
-  'looks.mask.genie': 'Dżin',
-  'looks.mask.dragon': 'Smok',
-  'looks.mask.ghost': 'Duszek',
-  'looks.mask.matryoshka': 'Matrioszka',
-  'looks.mask.agent': 'Tajny agent',
-  'looks.mask.ninja': 'Ninja',
-  'looks.mask.stranger': 'Nieznajomy',
-  'looks.mask.superhero': 'Superbohater',
-  'looks.mask.robot': 'Robot',
-  'looks.mask.alien': 'Kosmita',
-  'looks.mask.dinosaur': 'Dinozaur',
-  'looks.mask.lion': 'Lew',
-  'looks.mask.frog': 'Żaba',
-  'looks.mask.turtle': 'Żółw',
-  'looks.mask.octopus': 'Ośmiornica',
-  'looks.mask.whale': 'Wieloryb',
-  'looks.mask.seal': 'Foka',
-  // Mask as text: "🐉 Smok"
-  'looks.maskLabel': '{emoji} {title}',
 };

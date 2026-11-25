@@ -24,7 +24,6 @@ import {
   CLOSED as THREAD_CLOSED, NOT_FOUND as THREAD_NOT_FOUND, OWN_THREAD, NO_SUPPORT_RECIPIENTS,
 } from './support.js';
 import { menuEvents } from './participant.js';
-import { maskLabel } from './looks.js';
 import { claimCompanyOwner, companyByOwnerCode, menuCompanyTitles, openBot, NEW_COMPANY_OWNER, OWNER_LINK_GONE } from './companies.js';
 
 const NAME_PROMPT = tx('bot.name.prompt');
@@ -541,11 +540,7 @@ async function onReplyButton(k, [, side, eventId]) {
   if (!chatWritable(ev)) return k.refuse(CHAT_READ_ONLY);
   // Режим ответа помнит собеседника и время нажатия (только на сервере): msg_<сторона>:<эвент>:<собеседник>:<мс>
   await k.setPending(replyPending(side, ev.id, toWard ? p.ward : p.santa));
-  // 040: маска пары — Санте как «от чьего имени», подопечному — как он знает своего Санту
-  const mask = maskLabel(p.mask, k.ctx.t);
-  const title = q(ev);
-  if (toWard) return k.prompt(mask ? tx('bot.reply.toWardMasked', { title, mask }) : tx('bot.reply.toWard', { title }));
-  return k.prompt(mask ? tx('bot.reply.toSantaMasked', { title, mask }) : tx('bot.reply.toSanta', { title }));
+  return k.prompt(tx(toWard ? 'bot.reply.toWard' : 'bot.reply.toSanta', { title: q(ev) }));
 }
 
 // ---------- обращения к организатору (012) ----------

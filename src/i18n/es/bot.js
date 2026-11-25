@@ -61,11 +61,9 @@ export default {
   'bot.reply.failed': '❌ {error}',
   'bot.reply.toWardSent': '✅ Enviado a tu destinatario de parte de «Santa secreto».',
   'bot.reply.toSantaSent': '✅ Enviado a tu Santa.',
-  // "Write a message" hint ({mask} is the Santa mask)
+  // "Write a message" hint
   'bot.reply.toWard': '✍️ Escribe un mensaje a tu destinatario ({title}): se lo pasaré de forma <b>anónima</b>, de parte de «Santa secreto».',
-  'bot.reply.toWardMasked': '✍️ Escribe un mensaje a tu destinatario ({title}): se lo pasaré de forma <b>anónima</b>, de parte de «Santa secreto · {mask}».',
   'bot.reply.toSanta': '✍️ Escribe un mensaje a tu Santa ({title}) y se lo pasaré. Tu Santa sabe quién eres, pero tú no sabes quién es.',
-  'bot.reply.toSantaMasked': '✍️ Escribe un mensaje a tu Santa «{mask}» ({title}) y se lo pasaré. Tu Santa sabe quién eres, pero tú no sabes quién es.',
   // Support requests to organizers
   'bot.support.sent': '✅ Mensaje enviado. La respuesta llegará aquí.',
   'bot.support.adminsOnly': '❌ Solo el propietario y los administradores pueden responder consultas.',

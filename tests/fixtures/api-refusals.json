@@ -14,9 +14,6 @@
   "support.send",
   "support.close",
   "admin.events.create",
-  "admin.families",
-  "admin.family.save",
-  "admin.family.delete",
   "admin.audit",
   "admin.users",
   "admin.rename",
@@ -114,18 +111,6 @@
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
   },
   "stranger admin.events.create": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "stranger admin.families": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "stranger admin.family.save": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "stranger admin.family.delete": {
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
   },
@@ -361,18 +346,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "outsider admin.families": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "outsider admin.family.save": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "outsider admin.family.delete": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "outsider admin.audit": {
    "status": 403,
    "error": "Только для администратора."
@@ -602,18 +575,6 @@
    "error": "Открытого обращения нет."
   },
   "member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "member admin.families": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "member admin.family.save": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "member admin.family.delete": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -849,18 +810,6 @@
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
   },
-  "admin admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "admin admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "admin admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
-  },
   "admin admin.audit": {
    "status": 200,
    "error": null
@@ -1092,18 +1041,6 @@
   "owner admin.events.create": {
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
-  },
-  "owner admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "owner admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "owner admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
   },
   "owner admin.audit": {
    "status": 200,
@@ -1337,18 +1274,6 @@
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
   },
-  "missing-owner admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "missing-owner admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "missing-owner admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
-  },
   "missing-owner admin.audit": {
    "status": 404,
    "error": "Событие не найдено."
@@ -1581,18 +1506,6 @@
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
   },
-  "missing-admin admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "missing-admin admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "missing-admin admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
-  },
   "missing-admin admin.audit": {
    "status": 404,
    "error": "Событие не найдено."
@@ -1822,18 +1735,6 @@
    "error": "Событие не найдено."
   },
   "missing-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "missing-member admin.families": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "missing-member admin.family.save": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "missing-member admin.family.delete": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -2069,18 +1970,6 @@
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
   },
-  "none-owner admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "none-owner admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "none-owner admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
-  },
   "none-owner admin.audit": {
    "status": 200,
    "error": null
@@ -2313,18 +2202,6 @@
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
   },
-  "none-admin admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "none-admin admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "none-admin admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
-  },
   "none-admin admin.audit": {
    "status": 200,
    "error": null
@@ -2554,18 +2431,6 @@
    "error": "Событие не найдено."
   },
   "none-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "none-member admin.families": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "none-member admin.family.save": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "none-member admin.family.delete": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -2801,18 +2666,6 @@
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
   },
-  "finished-owner admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "finished-owner admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "finished-owner admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
-  },
   "finished-owner admin.audit": {
    "status": 200,
    "error": null
@@ -3045,18 +2898,6 @@
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
   },
-  "finished-admin admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "finished-admin admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "finished-admin admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
-  },
   "finished-admin admin.audit": {
    "status": 200,
    "error": null
@@ -3286,18 +3127,6 @@
    "error": "Открытого обращения нет."
   },
   "finished-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-member admin.families": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-member admin.family.save": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-member admin.family.delete": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -3533,18 +3362,6 @@
    "status": 403,
    "error": "Только для администратора."
   },
-  "finished-delivery-member admin.families": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-delivery-member admin.family.save": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-delivery-member admin.family.delete": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "finished-delivery-member admin.audit": {
    "status": 403,
    "error": "Только для администратора."
@@ -3776,18 +3593,6 @@
   "finished-old-owner admin.events.create": {
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
-  },
-  "finished-old-owner admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "finished-old-owner admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "finished-old-owner admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
   },
   "finished-old-owner admin.audit": {
    "status": 200,
@@ -4021,18 +3826,6 @@
    "status": 400,
    "error": "Название события — от 1 до 80 символов."
   },
-  "finished-old-admin admin.families": {
-   "status": 200,
-   "error": null
-  },
-  "finished-old-admin admin.family.save": {
-   "status": 400,
-   "error": "Название семьи — от 1 до 40 символов."
-  },
-  "finished-old-admin admin.family.delete": {
-   "status": 400,
-   "error": "Семья не найдена."
-  },
   "finished-old-admin admin.audit": {
    "status": 200,
    "error": null
@@ -4262,18 +4055,6 @@
    "error": "Событие завершено больше недели назад — обращения только для чтения."
   },
   "finished-old-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-old-member admin.families": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-old-member admin.family.save": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-old-member admin.family.delete": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -4820,98 +4601,6 @@
   "038 extra card-finished": {
    "status": 400,
    "error": "Событие завершено: письмо теперь только для чтения."
-  },
-  "040 stranger mask.set": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "040 outsider mask.set": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "040 member mask.set": {
-   "status": 400,
-   "error": "Такой маски нет — выбери из списка."
-  },
-  "040 admin mask.set": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "040 owner mask.set": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "040 missing-owner mask.set": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "040 missing-admin mask.set": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "040 missing-member mask.set": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "040 none-owner mask.set": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "040 none-admin mask.set": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "040 none-member mask.set": {
-   "status": 404,
-   "error": "Событие не найдено."
-  },
-  "040 finished-owner mask.set": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "040 finished-admin mask.set": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "040 finished-member mask.set": {
-   "status": 400,
-   "error": "Событие завершено: маску больше не сменить."
-  },
-  "040 finished-delivery-member mask.set": {
-   "status": 400,
-   "error": "Событие завершено: маску больше не сменить."
-  },
-  "040 finished-old-owner mask.set": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "040 finished-old-admin mask.set": {
-   "status": 403,
-   "error": "Ты не участвуешь в этом событии."
-  },
-  "040 finished-old-member mask.set": {
-   "status": 400,
-   "error": "Событие завершено: маску больше не сменить."
-  },
-  "040 extra mask-unknown": {
-   "status": 400,
-   "error": "Такой маски нет — выбери из списка."
-  },
-  "040 extra mask-finished": {
-   "status": 400,
-   "error": "Событие завершено: маску больше не сменить."
-  },
-  "040 extra mask-no-ward": {
-   "status": 400,
-   "error": "У тебя пока нет подопечного."
-  },
-  "040 extra mask-ok": {
-   "status": 200,
-   "error": null
-  },
-  "040 extra mask-revealed": {
-   "status": 400,
-   "error": "Тайна уже раскрыта — маску больше не сменить."
   },
   "041 stranger wishlist.draft": {
    "status": 403,

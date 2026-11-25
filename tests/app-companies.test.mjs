@@ -9,7 +9,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { APP, PARTS, where, code, topBlock, ownerOf } from './support/app-source.mjs';
 
 // Общие действия организатора (050, раздел 2): без события у них есть поле company
-const COMMON = ['admin.events.create', 'admin.families', 'admin.family.save', 'admin.family.delete', 'admin.audit',
+const COMMON = ['admin.events.create', 'admin.audit',
   'admin.users', 'admin.rename', 'admin.transfer', 'admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer'];
 
 // Вызовы api('<общее действие>' — кроме журнала события (api('admin.audit', { event: … }))
