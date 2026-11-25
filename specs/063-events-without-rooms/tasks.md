@@ -329,7 +329,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 - [ ] T075 `tests/screenshots.mjs`: `checkHome` (список, «Создать» внизу на 320 точках, обе темы, длинный список),
   `checkSettings`, `checkOrganizers`, `checkOpenBot` (второй Worker); убрать `checkCompanies`; `tests/*.ui.mjs` —
   без компаний; нарушения CSP — 0
-- [ ] T076 `docs/api.md`: 69 действий, конвейер, поля `me`/`event.get`/`admin.state`, журнал (коды и журналы), бот
+- [x] T076 `docs/api.md`: 69 действий, конвейер, поля `me`/`event.get`/`admin.state`, журнал (коды и журналы), бот
   (`own_`, меню); тест `api-doc`
 - [ ] T077 Конституция `.specify/memory/constitution.md` 5.0.0 (принципы I, II, VII, «Безопасность и данные», журнал
   поправок); `CLAUDE.md` — строка 063 в таблице фич, разделы «Структура» (`creation.js`, `bot-owner.js`, `04-settings`,

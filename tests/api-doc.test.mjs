@@ -156,10 +156,10 @@ function auditProblems(docCodes, serverCodes) {
 const has = (problems, part) => problems.some((p) => p.includes(part));
 
 describe('сводный контракт API: документ ↔ таблица действий', () => {
-  it('73 действия: строка сводной таблицы и раздел у каждого, роль, событие, «в завершённом» и тексты отказов — как в коде', () => {
+  it('69 действий (063): строка сводной таблицы и раздел у каждого, роль, событие, «в завершённом» и тексты отказов — как в коде', () => {
     assert.deepEqual(actionProblems(DOC, ACTIONS), []);
     assert.equal(tableRows(chapter(DOC, 'Сводная таблица действий')).length, Object.keys(ACTIONS).length);
-    assert.equal(Object.keys(ACTIONS).length, 73);
+    assert.equal(Object.keys(ACTIONS).length, 69);
   });
 
   it('от противного: действие в коде без описания, лишний раздел и лишняя строка', () => {
@@ -191,9 +191,9 @@ describe('сводный контракт API: документ ↔ таблиц
     assert.notEqual(role, DOC);
     assert.ok(has(actionProblems(role, ACTIONS), 'admin.insert: «кто»'));
 
-    const event = DOC.replace('| `admin.audit` | админ | если передано |', '| `admin.audit` | админ | да |');
+    const event = DOC.replace('| `admin.state` | админ | да |', '| `admin.state` | админ | — |');
     assert.notEqual(event, DOC);
-    assert.ok(has(actionProblems(event, ACTIONS), 'admin.audit: «событие»'));
+    assert.ok(has(actionProblems(event, ACTIONS), 'admin.state: «событие»'));
 
     const finished = DOC.replace('| `admin.reveal` | админ | да | да |', '| `admin.reveal` | админ | да | нет |');
     assert.notEqual(finished, DOC);
@@ -235,7 +235,7 @@ describe('сводный контракт API: коды журнала', () => {
   });
 
   it('от противного: лишний код в документе, код сервера без строки, повтор', () => {
-    const extra = DOC.replace(/^(\| `event\.create` \|.*\n)/m, '$1| `draw.fake` | события | — | — |\n');
+    const extra = DOC.replace(/^(\| `event\.create` \| события .*\n)/m, '$1| `draw.fake` | события | — | — |\n');
     assert.notEqual(extra, DOC);
     assert.ok(has(auditProblems(docAuditCodes(extra), server), 'draw.fake: код в документе, а сервер его не пишет'));
 
