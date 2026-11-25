@@ -7,20 +7,21 @@
 // слов подтверждения, людей и текстов) — опасные действия получают отказ по данным, а не по правам. Админ и владелец
 // в ситуациях `admin` и `owner` вызывают каждое действие на свежем событии (как tests/rights.test.mjs).
 //
-// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 041, 042, 048, 051, 052, 061), проходят те же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не
-// сдвигаются; их ответы — новые ключи эталона «035 …», «038 …», «041 …», «042 …», «048 …», «051 …», «052 …» (052 —
-// ещё и второй мир, открытый бот: «052 open …») и «061 …». 062: действий семей и маски (040) нет — их ответы из эталона
-// удалены (tests/api-refusals.test.mjs).
+// Действия, появившиеся после эталона (035: NEW_ACTIONS, 038: NEW_ACTIONS_038, 041, 042, 048, 051, 061, 063), проходят те
+// же ситуации отдельными проходами в самом конце — номера событий и тексты прежних случаев не сдвигаются; их ответы —
+// новые ключи эталона «035 …», «038 …», «041 …», «042 …», «048 …», «051 …», «061 …» и «063 …» (063 — ещё и второй мир,
+// открытый бот: «063 open …»). 062: действий семей и маски (040) нет; 063: нет действий комнат (051, 052) и
+// admin.events.create, admin.users — их ответы из эталона удалены (tests/api-refusals.test.mjs).
 import { startWorld } from './world.mjs';
 
-// 56 действий в порядке прежних `case` в src/api.js: 13 участника, 8 общих админа, 35 — в пределах события (062: без
-// admin.families, admin.family.save, admin.family.delete)
+// 54 действия в порядке таблицы ACTIONS (src/api.js): 13 участника, 2 общих админа, 39 — в пределах события (062: без
+// admin.families, admin.family.save, admin.family.delete; 063: без admin.events.create и admin.users, admin.audit и
+// действия ролей — действия события)
 export const ACTION_LIST = [
   'me', 'notify.set', 'event.get', 'wishlist.save', 'delivery.save', 'ward.get', 'ward.gift', 'ward.received',
   'message.send', 'chat.get', 'support.get', 'support.send', 'support.close',
-  'admin.events.create', 'admin.audit', 'admin.users',
-  'admin.rename', 'admin.transfer', 'admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer',
-  'admin.state', 'admin.wishlist', 'admin.game', 'admin.ring', 'admin.registration', 'admin.invite.regen',
+  'admin.rename', 'admin.transfer',
+  'admin.state', 'admin.audit', 'admin.role.grant', 'admin.role.revoke', 'admin.owner.transfer', 'admin.wishlist', 'admin.game', 'admin.ring', 'admin.registration', 'admin.invite.regen',
   'admin.avoid_previous', 'admin.participate', 'admin.remove', 'admin.removed.allow', 'admin.insert',
   'admin.exclusion.add', 'admin.exclusion.del', 'admin.fixed.add', 'admin.fixed.del', 'admin.draw.check', 'admin.draw',
   'admin.draw.cancel', 'admin.draw.cancel.force', 'admin.support.get', 'admin.support.take', 'admin.support.send',
@@ -38,12 +39,12 @@ export const NEW_ACTIONS_042 = ['ward.shipment'];
 export const NEW_ACTIONS_041 = ['wishlist.draft', 'wishlist.publish'];
 // 048: обмен подопечных после жеребьёвки — только владелец
 export const NEW_ACTIONS_048 = ['admin.draw.swap.check', 'admin.draw.swap'];
-// 051: компании — своё название и действия владельца бота
-export const NEW_ACTIONS_051 = ['company.label.set', 'bot.company.create', 'bot.company.link', 'bot.company.delete', 'bot.owner.transfer', 'bot.audit'];
-// 052: открытый бот — своя компания
-export const NEW_ACTIONS_052 = ['company.create', 'company.delete'];
+// 051: действия владельца бота (063: без действий комнат)
+export const NEW_ACTIONS_051 = ['bot.owner.transfer', 'bot.audit'];
 // 061: выбор языка
 export const NEW_ACTIONS_061 = ['lang.set'];
+// 063: создание события и раздел «Владелец бота»
+export const NEW_ACTIONS_063 = ['event.create', 'bot.events', 'bot.people', 'bot.creator.set'];
 
 const MISSING = 999999;
 const WEEK = 7 * 24 * 3600 * 1000;
@@ -69,8 +70,7 @@ export async function runRefusals() {
   await w.say(boss, '/start ' + s.adminCode);
   await w.say(boss, boss.name);
   let n = 0;
-  // Компания 1 — явно: после 051 у владельца бота их две
-  const create = async (title) => (await w.api(boss, 'event.create', { participate: false, title, company: 1 })).event.id;
+  const create = async (title) => (await w.api(boss, 'event.create', { participate: false, title })).event.id;
   const fresh = () => create('Свежее ' + ++n);
   const join = async (ev, users) => {
     const link = (await w.api(boss, 'admin.state', { event: ev })).settings.invite_link;
@@ -83,17 +83,23 @@ export async function runRefusals() {
   };
   const O = await create('Прихожая');
   await join(O, [adm, outsider]);
-  await w.api(boss, 'admin.role.grant', { id: adm.id });
-  const E = await create('Идёт');
+  await w.api(boss, 'admin.role.grant', { event: O, id: adm.id });
+  // 063: администратор — свой у каждого события. Прежде он был администратором комнаты и не участвовал в событиях —
+  // так и здесь: строка организатора без участия (назначить через API можно только участника)
+  const withAdmin = (ev) => {
+    w.sql(`INSERT INTO event_admins (event_id, user_id, created_at) VALUES (${ev}, ${adm.id}, 1)`);
+    return ev;
+  };
+  const E = withAdmin(await create('Идёт'));
   await join(E, [member]);
-  const F = await create('Завершено');
+  const F = withAdmin(await create('Завершено'));
   await join(F, [member]);
   await w.api(boss, 'admin.event.finish', { event: F });
-  const FD = await create('Завершено с адресом');
+  const FD = withAdmin(await create('Завершено с адресом'));
   await w.api(boss, 'admin.game', { event: FD, delivery_on: true });
   await join(FD, [member]);
   await w.api(boss, 'admin.event.finish', { event: FD });
-  const FO = await create('Завершено давно');
+  const FO = withAdmin(await create('Завершено давно'));
   await join(FO, [member]);
   await w.api(boss, 'admin.event.finish', { event: FO });
   w.sql(`UPDATE events SET finished_at = finished_at - ${WEEK + 3600 * 1000} WHERE id = ${FO}`);
@@ -104,7 +110,7 @@ export async function runRefusals() {
     ['stranger', stranger, () => E],
     ['outsider', outsider, () => E],
     ['member', member, () => E],
-    ['admin', adm, fresh],
+    ['admin', adm, async () => withAdmin(await fresh())],
     ['owner', boss, fresh],
     ['missing-owner', boss, () => MISSING],
     ['missing-admin', adm, () => MISSING],
@@ -130,11 +136,11 @@ export async function runRefusals() {
     ['invite_from-finished-admin', adm, 'admin.event.invite_from', { event: F, from: E }],
     ['invite_from-same', boss, 'admin.event.invite_from', { event: E, from: E }],
     ['cancel.force-word', boss, 'admin.draw.cancel.force', async () => ({ event: await fresh(), confirm: ' отмена ' })],
-    ['cancel.force-word-admin', adm, 'admin.draw.cancel.force', async () => ({ event: await fresh(), confirm: 'ОТМЕНА' })],
+    ['cancel.force-word-admin', adm, 'admin.draw.cancel.force', async () => ({ event: withAdmin(await fresh()), confirm: 'ОТМЕНА' })],
     ['reset.full-word', boss, 'admin.reset.full', async () => ({ event: await fresh(), confirm: 'сброс' })],
     ['reset.full-word-finished', boss, 'admin.reset.full', { event: F, confirm: 'СБРОС' }],
     ['event.delete-word', boss, 'admin.event.delete', async () => ({ event: await fresh(), confirm: 'Удалить' })],
-    ['event.delete-word-admin', adm, 'admin.event.delete', async () => ({ event: await fresh(), confirm: 'УДАЛИТЬ' })],
+    ['event.delete-word-admin', adm, 'admin.event.delete', async () => ({ event: withAdmin(await fresh()), confirm: 'УДАЛИТЬ' })],
     ['rename-owner-by-admin', adm, 'admin.rename', { id: boss.id, name: 'Иной' }],
     ['rename-self-admin', adm, 'admin.rename', { id: adm.id, name: adm.name }],
     ['rename-admin-by-owner', boss, 'admin.rename', { id: adm.id, name: adm.name }],
@@ -205,7 +211,7 @@ export async function runRefusals() {
   for (const [name, user, ev] of situations) {
     for (const a of NEW_ACTIONS_048) await record(`048 ${name} ${a}`, user, a, body(await ev()));
   }
-  const S = await create('Обмен');
+  const S = withAdmin(await create('Обмен'));
   await join(S, [member, outsider, adm]);
   await w.api(boss, 'admin.draw', { event: S });
   const wardOf = (id) => w.query('SELECT ward FROM pairs WHERE event_id = ? AND santa = ?', S, id)[0].ward;
@@ -224,42 +230,16 @@ export async function runRefusals() {
   for (const [name, user, ev] of situations) {
     for (const a of NEW_ACTIONS_051) await record(`051 ${name} ${a}`, user, a, body(await ev()));
   }
-  // Участник — ещё и во второй компании: имя меняет он сам
-  const second = (await w.api(boss, 'bot.company.create', { name: 'Работа' })).company;
-  w.sql(`INSERT INTO company_members (company_id, user_id, is_admin, joined_at) VALUES (${second}, ${member.id}, 0, 1)`);
   const extra051 = [
-    ['create-repeat', boss, 'bot.company.create', { name: 'Работа' }],
-    ['label-long', member, 'company.label.set', { company: 1, label: 'я'.repeat(41) }],
-    ['label-missing', member, 'company.label.set', { company: MISSING, label: 'Своя' }],
-    ['label-not-visible', outsider, 'company.label.set', { company: second, label: 'Своя' }],
-    ['create-blank', boss, 'bot.company.create', { name: '   ' }],
-    ['create-long', boss, 'bot.company.create', { name: 'я'.repeat(41) }],
-    ['link-missing', boss, 'bot.company.link', { company: MISSING, on: true }],
-    ['delete-word', boss, 'bot.company.delete', { company: 1, confirm: 'СБРОС' }],
-    ['delete-has-events', boss, 'bot.company.delete', { company: 1, confirm: 'УДАЛИТЬ' }],
-    ['delete-missing', boss, 'bot.company.delete', { company: MISSING, confirm: 'УДАЛИТЬ' }],
-    ['owner.transfer-admin', adm, 'admin.owner.transfer', { company: 1, id: adm.id }],
-    ['owner.transfer-self', boss, 'admin.owner.transfer', { company: 1, id: boss.id }],
-    ['owner.transfer-stranger', boss, 'admin.owner.transfer', { company: 1, id: stranger.id }],
+    ['owner.transfer-admin', adm, 'admin.owner.transfer', { event: E, id: adm.id }],
+    ['owner.transfer-self', boss, 'admin.owner.transfer', { event: E, id: boss.id }],
+    ['owner.transfer-stranger', boss, 'admin.owner.transfer', { event: E, id: stranger.id }],
     ['owner.transfer-no-company', boss, 'admin.owner.transfer', { id: adm.id }],
     ['bot.owner.transfer-self', boss, 'bot.owner.transfer', { id: boss.id }],
     ['bot.owner.transfer-admin', adm, 'bot.owner.transfer', { id: adm.id }],
     ['rename-many-companies', adm, 'admin.rename', { id: member.id, name: 'Иное' }],
   ];
   for (const [name, user, action, b] of extra051) await record(`051 extra ${name}`, user, action, b);
-
-  // ---------- 052: своя компания — те же ситуации в закрытом боте, затем открытый бот ----------
-  for (const [name, user, ev] of situations) {
-    for (const a of NEW_ACTIONS_052) await record(`052 ${name} ${a}`, user, a, body(await ev()));
-  }
-  const extra052 = [
-    ['create-closed', member, 'company.create', { name: 'Своя' }],
-    ['create-bot-owner-blank', boss, 'company.create', { name: '   ' }],
-    ['delete-closed', member, 'company.delete', { company: second, confirm: 'УДАЛИТЬ' }],
-    ['delete-word', boss, 'company.delete', { company: second, confirm: 'СБРОС' }],
-    ['delete-has-events', boss, 'company.delete', { company: 1, confirm: 'УДАЛИТЬ' }],
-  ];
-  for (const [name, user, action, b] of extra052) await record(`052 extra ${name}`, user, action, b);
 
   // ---------- 061: выбор языка — те же ситуации; код не из списка, язык и «как в Telegram» ----------
   for (const [name, user, ev] of situations) {
@@ -273,40 +253,58 @@ export async function runRefusals() {
     ['auto', member, 'lang.set', { lang: '' }],
   ];
   for (const [name, user, action, b] of extra061) await record(`061 extra ${name}`, user, action, b);
+
+  // ---------- 063: создание события и «Владелец бота» — те же ситуации; разрешение, название, образец, роли ----------
+  for (const [name, user, ev] of situations) {
+    for (const a of NEW_ACTIONS_063) await record(`063 ${name} ${a}`, user, a, body(await ev()));
+  }
+  const extra063 = [
+    ['create-no-right', member, 'event.create', { title: 'Своё' }],
+    ['create-blank', boss, 'event.create', { title: '   ' }],
+    ['create-long', boss, 'event.create', { title: 'я'.repeat(81) }],
+    ['create-template-missing', boss, 'event.create', { title: 'По образцу', from: MISSING }],
+    ['grant-not-member', boss, 'admin.role.grant', { event: E, id: outsider.id }],
+    ['grant-again', boss, 'admin.role.grant', { event: E, id: adm.id }],
+    ['grant-by-admin', adm, 'admin.role.grant', { event: E, id: member.id }],
+    ['revoke-owner', boss, 'admin.role.revoke', { event: E, id: boss.id }],
+    ['revoke-not-admin', boss, 'admin.role.revoke', { event: E, id: member.id }],
+    ['owner-not-member', boss, 'admin.owner.transfer', { event: E, id: outsider.id }],
+    ['rename-by-owner-only', adm, 'admin.rename', { id: member.id, name: 'Иное' }],
+    ['creator-not-registered', boss, 'bot.creator.set', { id: stranger.id, on: true }],
+    ['creator-off-already', boss, 'bot.creator.set', { id: member.id, on: false }],
+    ['audit-no-event', adm, 'admin.audit', {}],
+  ];
+  for (const [name, user, action, b] of extra063) await record(`063 extra ${name}`, user, action, b);
+  // Создатель без разрешения после разрешения — может; образец чужого события — «Образец не найден.»
+  await w.api(boss, 'bot.creator.set', { id: member.id, on: true });
+  await record('063 extra create-template-foreign', member, 'event.create', { title: 'Чужой образец', from: E });
+  await record('063 extra creator-on-already', boss, 'bot.creator.set', { id: member.id, on: true });
   await openRefusals(cases);
   return { actions: ACTION_LIST, cases };
 }
 
-// 052: открытый бот — люди без ссылки, свои компании: название, повтор, лимит, удаление (слово, чужая, не владелец, есть
-// события), общее название
+// 063: открытый бот — люди без ссылки создают события: название, лимит, разрешений нет
 async function openRefusals(cases) {
   const o = await startWorld({ open: true });
   const record = async (key, user, action, b) => {
     const r = await o.api(user, action, b, true);
-    cases[`052 open ${key}`] = { status: r.status, error: r.data.ok ? null : r.data.error };
+    cases[`063 open ${key}`] = { status: r.status, error: r.data.ok ? null : r.data.error };
     return r.data;
   };
-  await o.setup();
+  const s = await o.setup();
+  await o.say(boss, '/start ' + s.adminCode);
+  await o.say(boss, boss.name);
   const anya = { id: 9201, name: 'Аня', username: 'anya' };
   const borya = { id: 9202, name: 'Боря', username: 'borya' };
   for (const u of [anya, borya]) {
     await o.say(u, '/start');
     await o.say(u, u.name);
   }
-  await record('create-blank', anya, 'company.create', { name: '   ' });
-  await record('create-long', anya, 'company.create', { name: 'я'.repeat(41) });
-  const X = (await record('create-first', anya, 'company.create', { name: 'Своя' })).company;
-  await record('create-repeat', anya, 'company.create', { name: 'Своя' });
-  const Y = (await record('create-second', anya, 'company.create', { name: 'Вторая' })).company;
-  await record('create-limit', anya, 'company.create', { name: 'Третья' });
-  await record('label-blank', anya, 'company.label.set', { company: X, label: '  ' });
-  await record('delete-word', anya, 'company.delete', { company: Y, confirm: 'СБРОС' });
-  await record('delete-missing', anya, 'company.delete', { company: MISSING, confirm: 'УДАЛИТЬ' });
-  await record('delete-not-visible', borya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
-  o.sql(`INSERT INTO company_members (company_id, user_id, is_admin, joined_at) VALUES (${X}, ${borya.id}, 1, 1)`);
-  await record('delete-not-owner', borya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
-  await o.api(anya, 'event.create', { participate: false, company: X, title: 'Ёлка' });
-  await record('delete-has-events', anya, 'company.delete', { company: X, confirm: 'УДАЛИТЬ' });
-  await record('delete-own', anya, 'company.delete', { company: Y, confirm: 'УДАЛИТЬ' });
-  await record('create-after-delete', anya, 'company.create', { name: 'Третья' });
+  await record('create-blank', anya, 'event.create', { title: '   ' });
+  for (let i = 1; i <= 10; i++) await record('create-' + i, anya, 'event.create', { title: 'Событие ' + i });
+  // Дата в тексте лимита зависит от дня прогона — в эталоне только начало текста
+  const limit = await o.api(anya, 'event.create', { title: 'Одиннадцатое' }, true);
+  cases['063 open create-limit'] = { status: limit.status, error: limit.data.error.replace(/ — с .*$/, ' — с …') };
+  await record('creator-set-open', boss, 'bot.creator.set', { id: borya.id, on: true });
+  await record('people-not-bot-owner', borya, 'bot.people', {});
 }

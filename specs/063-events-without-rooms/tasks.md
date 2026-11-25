@@ -299,7 +299,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 
 ## Phase 11: Тексты на 11 языках
 
-- [ ] T065 Сверка `ru`: `node tests/support/i18n-check.mjs` по изменённым файлам; список новых, изменённых и удалённых
+- [x] T065 Сверка `ru`: `node tests/support/i18n-check.mjs` по изменённым файлам; список новых, изменённых и удалённых
   ключей (для переводчиков) — в `C:\Users\victo\AppData\Local\Temp\…\scratchpad` (не в репозиторий)
 - [ ] T066 [P] Перевод en, es, pt, fr, de (по языку — свой каталог `src/i18n/<язык>/`, глоссарий
   `specs/061-i18n-languages/contracts/glossary/`, «комната» нигде, «администратор» — как в языке), проверка `node
@@ -310,18 +310,18 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
 
 ## Phase 12: Polish & сквозные проверки
 
-- [ ] T069 `tests/api-refusals.test.mjs` + `tests/fixtures/api-refusals.json`: ответы удалённых действий убраны; изменённые
+- [x] T069 `tests/api-refusals.test.mjs` + `tests/fixtures/api-refusals.json`: ответы удалённых действий убраны; изменённые
   ответы — списком в заголовке теста; новые действия — проход `063 …` (`NEW_ACTIONS_063` в
   `tests/support/refusals-scenario.mjs`); `NEW_ACTIONS_051`/`052` — без удалённых действий
-- [ ] T070 `tests/api-table.test.mjs`, `tests/server-shape.test.mjs` (колонка `events.owner_id` — служебная `EVENT_SERVICE`),
+- [x] T070 `tests/api-table.test.mjs`, `tests/server-shape.test.mjs` (колонка `events.owner_id` — служебная `EVENT_SERVICE`),
   `tests/data-registry.test.mjs` (новые таблицы, перенос и удаление события — строки `event_admins` уходят,
   `event_creations` остаются), `tests/claims.test.mjs`, `tests/snapshots.test.mjs`, `tests/swap.test.mjs`,
   `tests/masks-families.test.mjs` — без компаний
-- [ ] T071 `tests/queries.test.mjs`: `me`, `event.get`, `admin.state`, действия организатора — запросов не больше 062;
+- [x] T071 `tests/queries.test.mjs`: `me`, `event.get`, `admin.state`, действия организатора — запросов не больше 062;
   `event.create` — по контракту; базовые числа — только вниз
-- [ ] T072 `tests/api-reads.test.mjs`, `tests/cron-reads.test.mjs`: планы всех операторов — без полного просмотра (кроме
+- [x] T072 `tests/api-reads.test.mjs`, `tests/cron-reads.test.mjs`: планы всех операторов — без полного просмотра (кроме
   разрешённых `settings`, `outbox` и `bot.events`/`bot.people` владельца бота); «от противного» — база без индексов `0024`
-- [ ] T073 `tests/auto-finish.test.mjs`: правило Г — организаторы события; предупреждение — организаторам события;
+- [x] T073 `tests/auto-finish.test.mjs`: правило Г — организаторы события; предупреждение — организаторам события;
   `tests/roster.test.mjs` — роли по событию; `tests/self-service.test.mjs` — выход владельца-участника оставляет
   владение; `tests/i18n-languages.test.mjs` — без компаний
 - [ ] T074 `tests/e2e.test.mjs`: сценарий без компаний (создание события в приложении, назначение организатора, передача

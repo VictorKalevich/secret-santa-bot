@@ -38,12 +38,29 @@
 //   admin.family.delete и mask.set больше нет — из «actions» удалены три действия семей (прежних — 56), из ответов —
 //   все ключи «<ситуация> <действие семей>» и «040 …»; остальные ответы те же (номера событий сценария сдвинулись, тексты
 //   отказов их не содержат).
+//   063 (specs/063-events-without-rooms/contracts/events-without-rooms.md): комнат нет — из «actions» удалены
+//   admin.events.create и admin.users (прежних — 54, порядок — как в ACTIONS: admin.audit и действия ролей стоят среди
+//   действий события), из ответов — все ключи действий комнат (company.label.set,
+//   company.create, company.delete, bot.company.*), admin.events.create, admin.users, «051 extra» комнат и «052 …»
+//   (173 ответа, теперь 1364); администратор — свой у каждого события (в сценарии — строкой event_admins без участия, как прежний
+//   администратор комнаты). Изменены 61 ответ: события сценария теперь у владельца (создатель), поэтому «… только
+//   владелец бота» → «… только владелец» у admin.role.grant, admin.role.revoke, admin.insert, admin.fixed.*,
+//   admin.draw.cancel.force, admin.event.delete, admin.vault.*, admin.reset.full, admin.draw.swap*;
+//   admin.owner.transfer — «Передать владение событием может только владелец.» и «Передать владение можно только
+//   участнику или администратору события.»; admin.role.grant — «Назначить можно только участника события.»;
+//   admin.role.grant/revoke/owner.transfer без события или с несуществующим — 404 «Событие не найдено.» (действия
+//   события); admin.audit без события или с event 0 — 404 (журнал бота — bot.audit); admin.rename не владельцу бота —
+//   403 «Переименовать человека может только владелец бота.» (решение владельца 5). Новые ключи «063 <ситуация>
+//   <действие>» (event.create, bot.events, bot.people, bot.creator.set), «063 extra …» (разрешение, название, образец,
+//   назначение и снятие администратора, передача владения, переименование, разрешения владельца бота, журнал без
+//   события) и «063 open …» (открытый бот: название, десять созданий, лимит — дата в тексте заменена на «…»,
+//   разрешение в открытом боте, bot.people не владельцу бота).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   runRefusals, NEW_ACTIONS, NEW_ACTIONS_038, NEW_ACTIONS_041, NEW_ACTIONS_042, NEW_ACTIONS_048, NEW_ACTIONS_051,
-  NEW_ACTIONS_052, NEW_ACTIONS_061,
+  NEW_ACTIONS_061, NEW_ACTIONS_063,
 } from './support/refusals-scenario.mjs';
 import { restoreFetch } from './support/world.mjs';
 import { ACTIONS } from '../src/api.js';
@@ -58,10 +75,10 @@ test('отказы API: каждый код и текст — как в этал
   const names = Object.keys(ACTIONS);
   const later = [
     ...NEW_ACTIONS, ...NEW_ACTIONS_038, ...NEW_ACTIONS_041, ...NEW_ACTIONS_042, ...NEW_ACTIONS_048, ...NEW_ACTIONS_051,
-    ...NEW_ACTIONS_052, ...NEW_ACTIONS_061,
+    ...NEW_ACTIONS_061, ...NEW_ACTIONS_063,
   ];
-  assert.deepEqual(names.filter((a) => !later.includes(a)), golden.actions, 'таблица действий — прежние 56 действий в прежнем порядке');
-  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038, 041, 042, 048, 051, 052, 061) — в таблице');
+  assert.deepEqual(names.filter((a) => !later.includes(a)), golden.actions, 'таблица действий — прежние 54 действия в прежнем порядке');
+  assert.deepEqual(names.filter((a) => later.includes(a)).sort(), [...later].sort(), 'новые действия (035, 038, 041, 042, 048, 051, 061, 063) — в таблице');
   const diff = [];
   for (const key of new Set([...Object.keys(golden.cases), ...Object.keys(now.cases)])) {
     const a = JSON.stringify(golden.cases[key]);

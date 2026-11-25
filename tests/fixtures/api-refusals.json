@@ -13,15 +13,13 @@
   "support.get",
   "support.send",
   "support.close",
-  "admin.events.create",
-  "admin.audit",
-  "admin.users",
   "admin.rename",
   "admin.transfer",
+  "admin.state",
+  "admin.audit",
   "admin.role.grant",
   "admin.role.revoke",
   "admin.owner.transfer",
-  "admin.state",
   "admin.wishlist",
   "admin.game",
   "admin.ring",
@@ -110,15 +108,7 @@
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
   },
-  "stranger admin.events.create": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
   "stranger admin.audit": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "stranger admin.users": {
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
   },
@@ -342,15 +332,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "outsider admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "outsider admin.audit": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "outsider admin.users": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -574,15 +556,7 @@
    "status": 400,
    "error": "Открытого обращения нет."
   },
-  "member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "member admin.audit": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "member admin.users": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -806,21 +780,13 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "admin admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "admin admin.audit": {
    "status": 200,
    "error": null
   },
-  "admin admin.users": {
-   "status": 200,
-   "error": null
-  },
   "admin admin.rename": {
-   "status": 400,
-   "error": "Имя должно быть от 1 до 40 символов"
+   "status": 403,
+   "error": "Переименовать человека может только владелец бота."
   },
   "admin admin.transfer": {
    "status": 403,
@@ -828,15 +794,15 @@
   },
   "admin admin.role.grant": {
    "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "error": "Назначать и снимать администраторов может только владелец."
   },
   "admin admin.role.revoke": {
    "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "error": "Назначать и снимать администраторов может только владелец."
   },
   "admin admin.owner.transfer": {
    "status": 403,
-   "error": "Передать права владельца может только владелец бота."
+   "error": "Передать владение событием может только владелец."
   },
   "admin admin.state": {
    "status": 200,
@@ -880,7 +846,7 @@
   },
   "admin admin.insert": {
    "status": 403,
-   "error": "Вписывать в жеребьёвку после неё может только владелец бота."
+   "error": "Вписывать в жеребьёвку после неё может только владелец."
   },
   "admin admin.exclusion.add": {
    "status": 400,
@@ -892,11 +858,11 @@
   },
   "admin admin.fixed.add": {
    "status": 403,
-   "error": "Закреплять пары может только владелец бота."
+   "error": "Закреплять пары может только владелец."
   },
   "admin admin.fixed.del": {
    "status": 403,
-   "error": "Закреплять пары может только владелец бота."
+   "error": "Закреплять пары может только владелец."
   },
   "admin admin.draw.check": {
    "status": 200,
@@ -912,7 +878,7 @@
   },
   "admin admin.draw.cancel.force": {
    "status": 403,
-   "error": "Принудительно отменить жеребьёвку может только владелец бота."
+   "error": "Принудительно отменить жеребьёвку может только владелец."
   },
   "admin admin.support.get": {
    "status": 404,
@@ -964,19 +930,19 @@
   },
   "admin admin.event.delete": {
    "status": 403,
-   "error": "Удалить событие может только владелец бота."
+   "error": "Удалить событие может только владелец."
   },
   "admin admin.vault.person": {
    "status": 403,
-   "error": "Служебный просмотр доступен только владельцу бота."
+   "error": "Служебный просмотр доступен только владельцу."
   },
   "admin admin.vault.pairs": {
    "status": 403,
-   "error": "Служебный просмотр доступен только владельцу бота."
+   "error": "Служебный просмотр доступен только владельцу."
   },
   "admin admin.reset.full": {
    "status": 403,
-   "error": "Полный сброс может только владелец бота."
+   "error": "Полный сброс может только владелец."
   },
   "admin admin.nope": {
    "status": 404,
@@ -1038,15 +1004,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "owner admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "owner admin.audit": {
-   "status": 200,
-   "error": null
-  },
-  "owner admin.users": {
    "status": 200,
    "error": null
   },
@@ -1060,7 +1018,7 @@
   },
   "owner admin.role.grant": {
    "status": 400,
-   "error": "Назначить можно только зарегистрированного человека."
+   "error": "Назначить можно только участника события."
   },
   "owner admin.role.revoke": {
    "status": 400,
@@ -1068,7 +1026,7 @@
   },
   "owner admin.owner.transfer": {
    "status": 400,
-   "error": "Передать права владельца можно только зарегистрированному человеку."
+   "error": "Передать владение можно только участнику или администратору события."
   },
   "owner admin.state": {
    "status": 200,
@@ -1270,17 +1228,9 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-owner admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "missing-owner admin.audit": {
    "status": 404,
    "error": "Событие не найдено."
-  },
-  "missing-owner admin.users": {
-   "status": 200,
-   "error": null
   },
   "missing-owner admin.rename": {
    "status": 400,
@@ -1291,16 +1241,16 @@
    "error": "Выбери две разные записи."
   },
   "missing-owner admin.role.grant": {
-   "status": 400,
-   "error": "Назначить можно только зарегистрированного человека."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "missing-owner admin.role.revoke": {
-   "status": 400,
-   "error": "Он(а) не администратор."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "missing-owner admin.owner.transfer": {
-   "status": 400,
-   "error": "Передать права владельца можно только зарегистрированному человеку."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "missing-owner admin.state": {
    "status": 404,
@@ -1502,37 +1452,29 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-admin admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "missing-admin admin.audit": {
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-admin admin.users": {
-   "status": 200,
-   "error": null
-  },
   "missing-admin admin.rename": {
-   "status": 400,
-   "error": "Имя должно быть от 1 до 40 символов"
+   "status": 403,
+   "error": "Переименовать человека может только владелец бота."
   },
   "missing-admin admin.transfer": {
    "status": 403,
    "error": "Переносить участие на новый аккаунт может только владелец бота."
   },
   "missing-admin admin.role.grant": {
-   "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "missing-admin admin.role.revoke": {
-   "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "missing-admin admin.owner.transfer": {
-   "status": 403,
-   "error": "Передать права владельца может только владелец бота."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "missing-admin admin.state": {
    "status": 404,
@@ -1734,15 +1676,7 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "missing-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "missing-member admin.audit": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "missing-member admin.users": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -1966,17 +1900,9 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "none-owner admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "none-owner admin.audit": {
-   "status": 200,
-   "error": null
-  },
-  "none-owner admin.users": {
-   "status": 200,
-   "error": null
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "none-owner admin.rename": {
    "status": 400,
@@ -1987,16 +1913,16 @@
    "error": "Выбери две разные записи."
   },
   "none-owner admin.role.grant": {
-   "status": 400,
-   "error": "Назначить можно только зарегистрированного человека."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "none-owner admin.role.revoke": {
-   "status": 400,
-   "error": "Он(а) не администратор."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "none-owner admin.owner.transfer": {
-   "status": 400,
-   "error": "Передать права владельца можно только зарегистрированному человеку."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "none-owner admin.state": {
    "status": 404,
@@ -2198,37 +2124,29 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "none-admin admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "none-admin admin.audit": {
-   "status": 200,
-   "error": null
-  },
-  "none-admin admin.users": {
-   "status": 200,
-   "error": null
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "none-admin admin.rename": {
-   "status": 400,
-   "error": "Имя должно быть от 1 до 40 символов"
+   "status": 403,
+   "error": "Переименовать человека может только владелец бота."
   },
   "none-admin admin.transfer": {
    "status": 403,
    "error": "Переносить участие на новый аккаунт может только владелец бота."
   },
   "none-admin admin.role.grant": {
-   "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "none-admin admin.role.revoke": {
-   "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "none-admin admin.owner.transfer": {
-   "status": 403,
-   "error": "Передать права владельца может только владелец бота."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "none-admin admin.state": {
    "status": 404,
@@ -2430,15 +2348,7 @@
    "status": 404,
    "error": "Событие не найдено."
   },
-  "none-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "none-member admin.audit": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "none-member admin.users": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -2662,15 +2572,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "finished-owner admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "finished-owner admin.audit": {
-   "status": 200,
-   "error": null
-  },
-  "finished-owner admin.users": {
    "status": 200,
    "error": null
   },
@@ -2684,7 +2586,7 @@
   },
   "finished-owner admin.role.grant": {
    "status": 400,
-   "error": "Назначить можно только зарегистрированного человека."
+   "error": "Назначить можно только участника события."
   },
   "finished-owner admin.role.revoke": {
    "status": 400,
@@ -2692,7 +2594,7 @@
   },
   "finished-owner admin.owner.transfer": {
    "status": 400,
-   "error": "Передать права владельца можно только зарегистрированному человеку."
+   "error": "Передать владение можно только участнику или администратору события."
   },
   "finished-owner admin.state": {
    "status": 200,
@@ -2894,21 +2796,13 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "finished-admin admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "finished-admin admin.audit": {
    "status": 200,
    "error": null
   },
-  "finished-admin admin.users": {
-   "status": 200,
-   "error": null
-  },
   "finished-admin admin.rename": {
-   "status": 400,
-   "error": "Имя должно быть от 1 до 40 символов"
+   "status": 403,
+   "error": "Переименовать человека может только владелец бота."
   },
   "finished-admin admin.transfer": {
    "status": 403,
@@ -2916,15 +2810,15 @@
   },
   "finished-admin admin.role.grant": {
    "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "error": "Назначать и снимать администраторов может только владелец."
   },
   "finished-admin admin.role.revoke": {
    "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "error": "Назначать и снимать администраторов может только владелец."
   },
   "finished-admin admin.owner.transfer": {
    "status": 403,
-   "error": "Передать права владельца может только владелец бота."
+   "error": "Передать владение событием может только владелец."
   },
   "finished-admin admin.state": {
    "status": 200,
@@ -3052,15 +2946,15 @@
   },
   "finished-admin admin.event.delete": {
    "status": 403,
-   "error": "Удалить событие может только владелец бота."
+   "error": "Удалить событие может только владелец."
   },
   "finished-admin admin.vault.person": {
    "status": 403,
-   "error": "Служебный просмотр доступен только владельцу бота."
+   "error": "Служебный просмотр доступен только владельцу."
   },
   "finished-admin admin.vault.pairs": {
    "status": 403,
-   "error": "Служебный просмотр доступен только владельцу бота."
+   "error": "Служебный просмотр доступен только владельцу."
   },
   "finished-admin admin.reset.full": {
    "status": 400,
@@ -3126,15 +3020,7 @@
    "status": 400,
    "error": "Открытого обращения нет."
   },
-  "finished-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "finished-member admin.audit": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-member admin.users": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -3358,15 +3244,7 @@
    "status": 400,
    "error": "Открытого обращения нет."
   },
-  "finished-delivery-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "finished-delivery-member admin.audit": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-delivery-member admin.users": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -3590,15 +3468,7 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "finished-old-owner admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "finished-old-owner admin.audit": {
-   "status": 200,
-   "error": null
-  },
-  "finished-old-owner admin.users": {
    "status": 200,
    "error": null
   },
@@ -3612,7 +3482,7 @@
   },
   "finished-old-owner admin.role.grant": {
    "status": 400,
-   "error": "Назначить можно только зарегистрированного человека."
+   "error": "Назначить можно только участника события."
   },
   "finished-old-owner admin.role.revoke": {
    "status": 400,
@@ -3620,7 +3490,7 @@
   },
   "finished-old-owner admin.owner.transfer": {
    "status": 400,
-   "error": "Передать права владельца можно только зарегистрированному человеку."
+   "error": "Передать владение можно только участнику или администратору события."
   },
   "finished-old-owner admin.state": {
    "status": 200,
@@ -3822,21 +3692,13 @@
    "status": 403,
    "error": "Ты не участвуешь в этом событии."
   },
-  "finished-old-admin admin.events.create": {
-   "status": 400,
-   "error": "Название события — от 1 до 80 символов."
-  },
   "finished-old-admin admin.audit": {
    "status": 200,
    "error": null
   },
-  "finished-old-admin admin.users": {
-   "status": 200,
-   "error": null
-  },
   "finished-old-admin admin.rename": {
-   "status": 400,
-   "error": "Имя должно быть от 1 до 40 символов"
+   "status": 403,
+   "error": "Переименовать человека может только владелец бота."
   },
   "finished-old-admin admin.transfer": {
    "status": 403,
@@ -3844,15 +3706,15 @@
   },
   "finished-old-admin admin.role.grant": {
    "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "error": "Назначать и снимать администраторов может только владелец."
   },
   "finished-old-admin admin.role.revoke": {
    "status": 403,
-   "error": "Назначать и снимать администраторов может только владелец бота."
+   "error": "Назначать и снимать администраторов может только владелец."
   },
   "finished-old-admin admin.owner.transfer": {
    "status": 403,
-   "error": "Передать права владельца может только владелец бота."
+   "error": "Передать владение событием может только владелец."
   },
   "finished-old-admin admin.state": {
    "status": 200,
@@ -3980,15 +3842,15 @@
   },
   "finished-old-admin admin.event.delete": {
    "status": 403,
-   "error": "Удалить событие может только владелец бота."
+   "error": "Удалить событие может только владелец."
   },
   "finished-old-admin admin.vault.person": {
    "status": 403,
-   "error": "Служебный просмотр доступен только владельцу бота."
+   "error": "Служебный просмотр доступен только владельцу."
   },
   "finished-old-admin admin.vault.pairs": {
    "status": 403,
-   "error": "Служебный просмотр доступен только владельцу бота."
+   "error": "Служебный просмотр доступен только владельцу."
   },
   "finished-old-admin admin.reset.full": {
    "status": 400,
@@ -4054,15 +3916,7 @@
    "status": 400,
    "error": "Событие завершено больше недели назад — обращения только для чтения."
   },
-  "finished-old-member admin.events.create": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
   "finished-old-member admin.audit": {
-   "status": 403,
-   "error": "Только для администратора."
-  },
-  "finished-old-member admin.users": {
    "status": 403,
    "error": "Только для администратора."
   },
@@ -4252,7 +4106,7 @@
   },
   "extra cancel.force-word-admin": {
    "status": 403,
-   "error": "Принудительно отменить жеребьёвку может только владелец бота."
+   "error": "Принудительно отменить жеребьёвку может только владелец."
   },
   "extra reset.full-word": {
    "status": 200,
@@ -4268,15 +4122,15 @@
   },
   "extra event.delete-word-admin": {
    "status": 403,
-   "error": "Удалить событие может только владелец бота."
+   "error": "Удалить событие может только владелец."
   },
   "extra rename-owner-by-admin": {
    "status": 403,
-   "error": "Переименовать администратора может только владелец бота."
+   "error": "Переименовать человека может только владелец бота."
   },
   "extra rename-self-admin": {
-   "status": 200,
-   "error": null
+   "status": 403,
+   "error": "Переименовать человека может только владелец бота."
   },
   "extra rename-admin-by-owner": {
    "status": 200,
@@ -4303,8 +4157,8 @@
    "error": "Переносить участие на аккаунт владельца или администратора нельзя."
   },
   "extra audit-event-zero": {
-   "status": 200,
-   "error": null
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "extra audit-event-finished": {
    "status": 200,
@@ -4344,7 +4198,7 @@
   },
   "extra vault.pairs-word-admin": {
    "status": 403,
-   "error": "Служебный просмотр доступен только владельцу бота."
+   "error": "Служебный просмотр доступен только владельцу."
   },
   "extra request.decide-approve-finished": {
    "status": 400,
@@ -4844,11 +4698,11 @@
   },
   "048 admin admin.draw.swap.check": {
    "status": 403,
-   "error": "Менять подопечных после жеребьёвки может только владелец бота."
+   "error": "Менять подопечных после жеребьёвки может только владелец."
   },
   "048 admin admin.draw.swap": {
    "status": 403,
-   "error": "Менять подопечных после жеребьёвки может только владелец бота."
+   "error": "Менять подопечных после жеребьёвки может только владелец."
   },
   "048 owner admin.draw.swap.check": {
    "status": 400,
@@ -4984,23 +4838,7 @@
   },
   "048 extra swap.check-admin": {
    "status": 403,
-   "error": "Менять подопечных после жеребьёвки может только владелец бота."
-  },
-  "051 stranger company.label.set": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "051 stranger bot.company.create": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "051 stranger bot.company.link": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "051 stranger bot.company.delete": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+   "error": "Менять подопечных после жеребьёвки может только владелец."
   },
   "051 stranger bot.owner.transfer": {
    "status": 403,
@@ -5010,43 +4848,11 @@
    "status": 403,
    "error": "Сначала зарегистрируйся по пригласительной ссылке."
   },
-  "051 outsider company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 outsider bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 outsider bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 outsider bot.company.delete": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
   "051 outsider bot.owner.transfer": {
    "status": 403,
    "error": "Только для владельца бота."
   },
   "051 outsider bot.audit": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 member company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 member bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 member bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 member bot.company.delete": {
    "status": 403,
    "error": "Только для владельца бота."
   },
@@ -5058,22 +4864,6 @@
    "status": 403,
    "error": "Только для владельца бота."
   },
-  "051 admin company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 admin bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 admin bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 admin bot.company.delete": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
   "051 admin bot.owner.transfer": {
    "status": 403,
    "error": "Только для владельца бота."
@@ -5081,22 +4871,6 @@
   "051 admin bot.audit": {
    "status": 403,
    "error": "Только для владельца бота."
-  },
-  "051 owner company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 owner bot.company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "051 owner bot.company.link": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 owner bot.company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
   },
   "051 owner bot.owner.transfer": {
    "status": 400,
@@ -5106,22 +4880,6 @@
    "status": 200,
    "error": null
   },
-  "051 missing-owner company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 missing-owner bot.company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "051 missing-owner bot.company.link": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 missing-owner bot.company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
   "051 missing-owner bot.owner.transfer": {
    "status": 400,
    "error": "Передать права владельца можно только зарегистрированному человеку."
@@ -5130,43 +4888,11 @@
    "status": 200,
    "error": null
   },
-  "051 missing-admin company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 missing-admin bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 missing-admin bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 missing-admin bot.company.delete": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
   "051 missing-admin bot.owner.transfer": {
    "status": 403,
    "error": "Только для владельца бота."
   },
   "051 missing-admin bot.audit": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 missing-member company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 missing-member bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 missing-member bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 missing-member bot.company.delete": {
    "status": 403,
    "error": "Только для владельца бота."
   },
@@ -5178,22 +4904,6 @@
    "status": 403,
    "error": "Только для владельца бота."
   },
-  "051 none-owner company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 none-owner bot.company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "051 none-owner bot.company.link": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 none-owner bot.company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
   "051 none-owner bot.owner.transfer": {
    "status": 400,
    "error": "Передать права владельца можно только зарегистрированному человеку."
@@ -5202,43 +4912,11 @@
    "status": 200,
    "error": null
   },
-  "051 none-admin company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 none-admin bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 none-admin bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 none-admin bot.company.delete": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
   "051 none-admin bot.owner.transfer": {
    "status": 403,
    "error": "Только для владельца бота."
   },
   "051 none-admin bot.audit": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 none-member company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 none-member bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 none-member bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 none-member bot.company.delete": {
    "status": 403,
    "error": "Только для владельца бота."
   },
@@ -5250,22 +4928,6 @@
    "status": 403,
    "error": "Только для владельца бота."
   },
-  "051 finished-owner company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-owner bot.company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "051 finished-owner bot.company.link": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-owner bot.company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
   "051 finished-owner bot.owner.transfer": {
    "status": 400,
    "error": "Передать права владельца можно только зарегистрированному человеку."
@@ -5274,43 +4936,11 @@
    "status": 200,
    "error": null
   },
-  "051 finished-admin company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-admin bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-admin bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-admin bot.company.delete": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
   "051 finished-admin bot.owner.transfer": {
    "status": 403,
    "error": "Только для владельца бота."
   },
   "051 finished-admin bot.audit": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-member company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-member bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-member bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-member bot.company.delete": {
    "status": 403,
    "error": "Только для владельца бота."
   },
@@ -5322,22 +4952,6 @@
    "status": 403,
    "error": "Только для владельца бота."
   },
-  "051 finished-delivery-member company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-delivery-member bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-delivery-member bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-delivery-member bot.company.delete": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
   "051 finished-delivery-member bot.owner.transfer": {
    "status": 403,
    "error": "Только для владельца бота."
@@ -5345,22 +4959,6 @@
   "051 finished-delivery-member bot.audit": {
    "status": 403,
    "error": "Только для владельца бота."
-  },
-  "051 finished-old-owner company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-old-owner bot.company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "051 finished-old-owner bot.company.link": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-old-owner bot.company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
   },
   "051 finished-old-owner bot.owner.transfer": {
    "status": 400,
@@ -5370,43 +4968,11 @@
    "status": 200,
    "error": null
   },
-  "051 finished-old-admin company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-old-admin bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-old-admin bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-old-admin bot.company.delete": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
   "051 finished-old-admin bot.owner.transfer": {
    "status": 403,
    "error": "Только для владельца бота."
   },
   "051 finished-old-admin bot.audit": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-old-member company.label.set": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 finished-old-member bot.company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-old-member bot.company.link": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "051 finished-old-member bot.company.delete": {
    "status": 403,
    "error": "Только для владельца бота."
   },
@@ -5418,49 +4984,9 @@
    "status": 403,
    "error": "Только для владельца бота."
   },
-  "051 extra create-repeat": {
-   "status": 400,
-   "error": "Комната с таким названием только что создана."
-  },
-  "051 extra label-long": {
-   "status": 400,
-   "error": "Название — до 40 символов."
-  },
-  "051 extra label-missing": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 extra label-not-visible": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 extra create-blank": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "051 extra create-long": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "051 extra link-missing": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "051 extra delete-word": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "051 extra delete-has-events": {
-   "status": 400,
-   "error": "В комнате есть события — сначала удали их."
-  },
-  "051 extra delete-missing": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
   "051 extra owner.transfer-admin": {
    "status": 403,
-   "error": "Передать права владельца может только владелец бота."
+   "error": "Передать владение событием может только владелец."
   },
   "051 extra owner.transfer-self": {
    "status": 400,
@@ -5468,11 +4994,11 @@
   },
   "051 extra owner.transfer-stranger": {
    "status": 400,
-   "error": "Передать права владельца можно только зарегистрированному человеку."
+   "error": "Передать владение можно только участнику или администратору события."
   },
   "051 extra owner.transfer-no-company": {
-   "status": 400,
-   "error": "Выбери комнату."
+   "status": 404,
+   "error": "Событие не найдено."
   },
   "051 extra bot.owner.transfer-self": {
    "status": 400,
@@ -5483,228 +5009,8 @@
    "error": "Только для владельца бота."
   },
   "051 extra rename-many-companies": {
-   "status": 400,
-   "error": "Имя этого человека меняет он сам: «Профиль» → «✏️ Изменить имя»."
-  },
-  "052 stranger company.create": {
    "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "052 stranger company.delete": {
-   "status": 403,
-   "error": "Сначала зарегистрируйся по пригласительной ссылке."
-  },
-  "052 outsider company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 outsider company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 member company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 member company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 admin company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 admin company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 owner company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 owner company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 missing-owner company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 missing-owner company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 missing-admin company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 missing-admin company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 missing-member company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 missing-member company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 none-owner company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 none-owner company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 none-admin company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 none-admin company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 none-member company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 none-member company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 finished-owner company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 finished-owner company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 finished-admin company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 finished-admin company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 finished-member company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 finished-member company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 finished-delivery-member company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 finished-delivery-member company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 finished-old-owner company.create": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 finished-old-owner company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 finished-old-admin company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 finished-old-admin company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 finished-old-member company.create": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 finished-old-member company.delete": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 extra create-closed": {
-   "status": 403,
-   "error": "Только для владельца бота."
-  },
-  "052 extra create-bot-owner-blank": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 extra delete-closed": {
-   "status": 403,
-   "error": "Удалить комнату может только владелец бота."
-  },
-  "052 extra delete-word": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 extra delete-has-events": {
-   "status": 400,
-   "error": "В комнате есть события — сначала удали их."
-  },
-  "052 open create-blank": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 open create-long": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 open create-first": {
-   "status": 200,
-   "error": null
-  },
-  "052 open create-repeat": {
-   "status": 400,
-   "error": "Комната с таким названием только что создана."
-  },
-  "052 open create-second": {
-   "status": 200,
-   "error": null
-  },
-  "052 open create-limit": {
-   "status": 400,
-   "error": "Вести можно не больше двух своих комнат — передай или удали одну из них."
-  },
-  "052 open label-blank": {
-   "status": 400,
-   "error": "Название комнаты — от 1 до 40 символов."
-  },
-  "052 open delete-word": {
-   "status": 400,
-   "error": "Для удаления введи слово УДАЛИТЬ."
-  },
-  "052 open delete-missing": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "052 open delete-not-visible": {
-   "status": 404,
-   "error": "Комната не найдена."
-  },
-  "052 open delete-not-owner": {
-   "status": 403,
-   "error": "Удалить комнату может только её владелец."
-  },
-  "052 open delete-has-events": {
-   "status": 400,
-   "error": "В комнате есть события — сначала удали их."
-  },
-  "052 open delete-own": {
-   "status": 200,
-   "error": null
-  },
-  "052 open create-after-delete": {
-   "status": 200,
-   "error": null
+   "error": "Переименовать человека может только владелец бота."
   },
   "061 stranger lang.set": {
    "status": 403,
@@ -5797,6 +5103,414 @@
   "061 extra auto": {
    "status": 200,
    "error": null
+  },
+  "063 stranger event.create": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "063 stranger bot.events": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "063 stranger bot.people": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "063 stranger bot.creator.set": {
+   "status": 403,
+   "error": "Сначала зарегистрируйся по пригласительной ссылке."
+  },
+  "063 outsider event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 outsider bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 outsider bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 outsider bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 member event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 member bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 member bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 member bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 admin event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 admin bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 admin bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 admin bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 owner event.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "063 owner bot.events": {
+   "status": 200,
+   "error": null
+  },
+  "063 owner bot.people": {
+   "status": 200,
+   "error": null
+  },
+  "063 owner bot.creator.set": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "063 missing-owner event.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "063 missing-owner bot.events": {
+   "status": 200,
+   "error": null
+  },
+  "063 missing-owner bot.people": {
+   "status": 200,
+   "error": null
+  },
+  "063 missing-owner bot.creator.set": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "063 missing-admin event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 missing-admin bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 missing-admin bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 missing-admin bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 missing-member event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 missing-member bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 missing-member bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 missing-member bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 none-owner event.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "063 none-owner bot.events": {
+   "status": 200,
+   "error": null
+  },
+  "063 none-owner bot.people": {
+   "status": 200,
+   "error": null
+  },
+  "063 none-owner bot.creator.set": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "063 none-admin event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 none-admin bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 none-admin bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 none-admin bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 none-member event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 none-member bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 none-member bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 none-member bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-owner event.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "063 finished-owner bot.events": {
+   "status": 200,
+   "error": null
+  },
+  "063 finished-owner bot.people": {
+   "status": 200,
+   "error": null
+  },
+  "063 finished-owner bot.creator.set": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "063 finished-admin event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 finished-admin bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-admin bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-admin bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-member event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 finished-member bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-member bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-member bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-delivery-member event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 finished-delivery-member bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-delivery-member bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-delivery-member bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-old-owner event.create": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "063 finished-old-owner bot.events": {
+   "status": 200,
+   "error": null
+  },
+  "063 finished-old-owner bot.people": {
+   "status": 200,
+   "error": null
+  },
+  "063 finished-old-owner bot.creator.set": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "063 finished-old-admin event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 finished-old-admin bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-old-admin bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-old-admin bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-old-member event.create": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 finished-old-member bot.events": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-old-member bot.people": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 finished-old-member bot.creator.set": {
+   "status": 403,
+   "error": "Только для владельца бота."
+  },
+  "063 extra create-no-right": {
+   "status": 403,
+   "error": "Создавать события в этом боте может владелец бота и те, кому он разрешил."
+  },
+  "063 extra create-blank": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "063 extra create-long": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "063 extra create-template-missing": {
+   "status": 400,
+   "error": "Образец не найден."
+  },
+  "063 extra grant-not-member": {
+   "status": 400,
+   "error": "Назначить можно только участника события."
+  },
+  "063 extra grant-again": {
+   "status": 400,
+   "error": "Он(а) уже администратор."
+  },
+  "063 extra grant-by-admin": {
+   "status": 403,
+   "error": "Назначать и снимать администраторов может только владелец."
+  },
+  "063 extra revoke-owner": {
+   "status": 400,
+   "error": "Нельзя снять права владельца. Сначала передай владение событием."
+  },
+  "063 extra revoke-not-admin": {
+   "status": 400,
+   "error": "Он(а) не администратор."
+  },
+  "063 extra owner-not-member": {
+   "status": 400,
+   "error": "Передать владение можно только участнику или администратору события."
+  },
+  "063 extra rename-by-owner-only": {
+   "status": 403,
+   "error": "Переименовать человека может только владелец бота."
+  },
+  "063 extra creator-not-registered": {
+   "status": 400,
+   "error": "Назначить можно только зарегистрированного человека."
+  },
+  "063 extra creator-off-already": {
+   "status": 400,
+   "error": "Уже не разрешено."
+  },
+  "063 extra audit-no-event": {
+   "status": 404,
+   "error": "Событие не найдено."
+  },
+  "063 extra create-template-foreign": {
+   "status": 400,
+   "error": "Образец не найден."
+  },
+  "063 extra creator-on-already": {
+   "status": 400,
+   "error": "Уже разрешено."
+  },
+  "063 open create-blank": {
+   "status": 400,
+   "error": "Название события — от 1 до 80 символов."
+  },
+  "063 open create-1": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-2": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-3": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-4": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-5": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-6": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-7": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-8": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-9": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-10": {
+   "status": 200,
+   "error": null
+  },
+  "063 open create-limit": {
+   "status": 400,
+   "error": "За 12 месяцев можно создать не больше 10 событий. Следующее — с …"
+  },
+  "063 open creator-set-open": {
+   "status": 400,
+   "error": "В открытом боте создавать события может любой."
+  },
+  "063 open people-not-bot-owner": {
+   "status": 403,
+   "error": "Только для владельца бота."
   }
  }
 }

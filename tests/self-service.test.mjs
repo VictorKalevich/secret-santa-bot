@@ -130,7 +130,20 @@ describe('выход из события до жеребьёвки (035, US1)', 
     assert.equal(z.notes(boss).length, before + 1);
     assert.equal(z.notes(adm).length, 1, 'админу — только прежнее сообщение о выходе Ани');
     assert.equal(z.w.query('SELECT is_admin FROM users WHERE tg_id = ?', adm.id)[0].is_admin, 1);
+    assert.ok(z.w.query('SELECT user_id FROM event_admins WHERE event_id = ?', z.E).some((r) => r.user_id === adm.id), '063: администратор события');
     assert.ok(!z.member(adm));
+  });
+
+  it('063: владелец-участник выходит — участие удалено, владение и панель остаются, сообщение — администратору', async () => {
+    await z.w.api(boss, 'admin.participate', { event: z.E, on: true });
+    const before = z.notes(adm).length;
+    const r = await z.leave(boss);
+    assert.equal(r.status, 200);
+    assert.ok(!z.member(boss));
+    assert.equal(z.w.query('SELECT owner_id FROM events WHERE id = ?', z.E)[0].owner_id, boss.id);
+    assert.equal((await z.w.api(boss, 'event.get', { event: z.E })).event.role, 'owner');
+    assert.ok((await z.w.api(boss, 'admin.state', { event: z.E })).settings, 'панель владельца');
+    assert.equal(z.notes(adm).length, before + 1);
   });
 });
 
