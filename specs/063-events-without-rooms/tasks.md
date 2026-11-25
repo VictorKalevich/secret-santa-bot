@@ -295,7 +295,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
   `company.*` — с пометкой «история» (видит только владелец бота); `AUDIT_HISTORY` — при необходимости
 - [X] T063 [US8] `tests/event-owners.test.mjs` — журналы: назначение, снятие, передача — в журнале события; удаление
   события — журнал бота с названием и числом участников; `name.set` — без записей; `admin.audit` без события — 404
-- [ ] T064 [US8] `tests/api-doc.test.mjs` проходит: коды журнала документа = коды `src/*.js`
+- [x] T064 [US8] `tests/api-doc.test.mjs` проходит: коды журнала документа = коды `src/*.js`
 
 ## Phase 11: Тексты на 11 языках
 
@@ -338,7 +338,7 @@ en, es, pt, fr, de, zh, it, tr, id, pl). Во время работы над с�
   — разрешения, «Настройки», выкат с миграцией `0024` и сверкой `tools/rooms-reconcile.sql`
 - [x] T079 `docs/todo.md`: «Удалить мои данные», часовой пояс события, поиск во «Всех событиях», удаление таблиц комнат
   (`companies`, `company_members`, `events.company_id`, `audit.company_id`) после того, как откат на 062 не нужен
-- [ ] T080 `npm run test:all` зелёный, в журнале нет `budget exceeded`; `npm run screenshots` — просмотр снимков
+- [x] T080 `npm run test:all` зелёный, в журнале нет `budget exceeded`; `npm run screenshots` — просмотр снимков
 
 ## Dependencies & Execution Order
 
