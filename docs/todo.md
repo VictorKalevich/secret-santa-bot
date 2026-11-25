@@ -71,6 +71,13 @@ Cloudflare, Workers → Metrics.
   её событие: вступивший в компанию видит её события с открытой регистрацией и вступает сам или нужна ссылка события;
   заявка в компанию — новая сущность рядом с `join_requests` (и в `REGISTRY`); защита от наплыва (лимит заявок);
   снять видимость — компания пропадает из вкладки, люди остаются.
+- **Удалить следы масок и семей** (062, 2026-11-25). После 062 таблицы `families`, `family_members` пусты, колонки
+  `events.families_on` и `pairs.mask` код не читает и не пишет — они оставлены, чтобы откат кода на 061 работал. Когда
+  откат на 061 больше не нужен (062 выкачен в оба бота и проверен): миграция с `DROP TABLE family_members`, `DROP TABLE
+  families`, `ALTER TABLE events DROP COLUMN families_on`, `ALTER TABLE pairs DROP COLUMN mask` и подъёмом версии схемы;
+  убрать их из `REGISTRY` (`src/db.js`), `EVENT_RETIRED` (`src/event-params.js`), сверку `tools/masks-families-reconcile.sql`
+  и проверки, которые на них опираются (`tests/support/companies.mjs` — инварианты семей, `tests/masks-families.test.mjs`).
+  Ключи `membership.audit.family*` и `app.vault.audit.family.*` оставить: прежние записи журнала по ним показываются.
 
 ## Решено: не делаем
 
