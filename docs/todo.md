@@ -77,6 +77,15 @@ Cloudflare, Workers → Metrics.
   с подъёмом версии схемы; убрать их из `REGISTRY` (`src/db.js`), сверки `tools/rooms-reconcile.sql` и
   `tools/companies-reconcile.sql`, а также проверки, которые на них опираются (`tests/migrations.test.mjs` — 0015–0024).
   Ключи `app.vault.audit.company.*` оставить: прежние записи журнала бота по ним показываются.
+- **Удалить следы адреса, отметок подарка и посылки** (064, 2026-11-25). После 064 код не читает и не пишет
+  `members.delivery`, `members.delivery_updated_at`, `pairs.gift_sent`, `sent_date`, `carrier`, `tracking`,
+  `shipment_version`, `pairs.gift_received`, `gift_received_at` и параметры `events.delivery_on`, `contacts_on`,
+  `finish_auto` (они в `EVENT_RETIRED`); `pairs.gift_ready` читает только `insertRank` (прежние отметки «готов» при
+  вписывании). Всё оставлено, чтобы откат кода на 063 работал. Когда откат больше не нужен (064 выкачен в оба бота и
+  проверен): миграция с `ALTER TABLE … DROP COLUMN` для каждой колонки и подъёмом версии схемы; убрать их из `REGISTRY`
+  (`src/db.js`), `EVENT_RETIRED` (`src/event-params.js`), ранг «подарок готов» из `insertRank` (`src/pairs.js`) и
+  проверки, которые на них опираются (`tests/texts-cleanup.test.mjs` — «данные прежнего кода», `tests/secrecy.test.mjs`,
+  `tests/data-registry.test.mjs`, e2e).
 - **«Удалить мои данные»** (предложено в обсуждении 063, 2026-11-25). Человек сам удаляет себя из бота: участие в
   событиях до жеребьёвки — как выход (035), после жеребьёвки — решить (отказ с подсказкой или удаление с перестройкой
   пар владельцем); свои события — передать или удалить заранее; строка `users` — имя и `@username` стираются,
