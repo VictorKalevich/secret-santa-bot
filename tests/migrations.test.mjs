@@ -537,3 +537,130 @@ test('база с данными «до 0022»: новые колонки пус
   for (const t of Object.keys(before).filter((t) => !['users', 'audit', 'settings'].includes(t))) assert.deepEqual(after[t], before[t], t);
   assert.throws(() => w.sql(SQL22), /duplicate column name: tg_lang/);
 });
+
+// 063: миграция 0024 — события без комнат. База «как у 062» (миграции до 0023) с комнатой владельца бота, комнатой с
+// назначенным владельцем, администраторами, завершёнными событиями, событием без создателя и человеком вне комнат. После
+// 0024: владелец события — назначенный владелец комнаты или владелец бота, организаторы — администраторы комнаты и
+// владелец, факты создания — по created_by, разрешение создавать — администраторам и владельцам комнат; прочие строки
+// прежние. Роль каждого человека в каждом событии — та же, что у 062; «не повторять пары» берёт те же прошлые пары.
+// Сверка tools/rooms-reconcile.sql переносит событие, созданное прежним кодом после миграции, и повтором ничего не меняет.
+const BEFORE_24 = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql') && f < '0024').sort()
+  .map((f) => readFileSync(new URL(f, MIGRATIONS_DIR), 'utf8'));
+const SQL24 = readFileSync(new URL('0024_events_without_rooms.sql', MIGRATIONS_DIR), 'utf8');
+const RECONCILE24 = readFileSync(new URL('../tools/rooms-reconcile.sql', import.meta.url), 'utf8');
+
+// Люди: 100 — владелец бота, 101 — назначенный владелец комнаты 2, 102 — администратор комнаты 1, 103 — администратор
+// комнаты 2, 104–106 — участники, 107 — человек без комнат
+function base062() {
+  const db = createD1();
+  for (const sql of BEFORE_24) db.sqlite.exec(sql);
+  db.sqlite.exec(`
+    INSERT INTO settings (key, value) VALUES ('owner_id', '100');
+    INSERT INTO users (tg_id, name, registered, is_admin, created_at) VALUES
+      (100, 'Владелец', 1, 1, 1), (101, 'Олег', 1, 1, 2), (102, 'Аня', 1, 1, 3), (103, 'Боря', 1, 1, 4),
+      (104, 'Вера', 1, 0, 5), (105, 'Гена', 1, 0, 6), (106, 'Даша', 1, 0, 7), (107, 'Женя', 1, 0, 8);
+    INSERT INTO companies (id, name, owner_id, created_by, created_at) VALUES (2, 'Работа', 101, 100, 20);
+    INSERT INTO company_members (company_id, user_id, is_admin, joined_at) VALUES
+      (1, 100, 1, 11), (1, 102, 1, 12), (1, 104, 0, 13), (1, 105, 0, 14), (1, 106, 0, 15),
+      (2, 101, 1, 21), (2, 103, 1, 22), (2, 104, 0, 23), (2, 105, 0, 24), (2, 106, 0, 25);
+    INSERT INTO events (id, title, invite_code, company_id, created_by, created_at, status, avoid_previous) VALUES
+      (1, 'Семья 2024', 'a1', 1, 100, 100, 'finished', 0), (2, 'Семья 2025', 'a2', 1, 102, 200, 'active', 1),
+      (3, 'Работа 2024', 'b1', 2, 0, 110, 'finished', 0), (4, 'Работа 2025', 'b2', 2, 103, 210, 'active', 1);
+    INSERT INTO members (event_id, user_id) VALUES
+      (1, 104), (1, 105), (1, 106), (2, 102), (2, 104), (2, 105), (2, 106),
+      (3, 101), (3, 104), (3, 105), (3, 106), (4, 104), (4, 105), (4, 106);
+    INSERT INTO pairs (event_id, santa, ward) VALUES
+      (1, 104, 105), (1, 105, 106), (1, 106, 104), (3, 104, 106), (3, 106, 105), (3, 105, 104), (3, 101, 101);
+    INSERT INTO audit (event_id, company_id, actor, action, details, created_at) VALUES
+      (1, 1, 100, 'draw', '', 101), (0, 2, 100, 'company.owner', '→ Олег', 21), (0, 0, 100, 'owner.link', 'Владелец', 1);
+  `);
+  return db.sqlite;
+}
+
+// Роль человека в событии: 062 — по комнате (владелец комнаты или, без него, владелец бота; администратор комнаты;
+// участник), 063 — по событию. [событие, человек, роль], по порядку
+const roles062 = (s) => rowsOf(s, `
+  SELECT e.id AS event, u.tg_id AS user,
+         CASE WHEN u.tg_id = COALESCE(NULLIF(c.owner_id, 0), (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'owner_id')) THEN 'owner'
+              WHEN EXISTS (SELECT 1 FROM company_members cm WHERE cm.company_id = e.company_id AND cm.user_id = u.tg_id AND cm.is_admin = 1) THEN 'admin'
+              WHEN EXISTS (SELECT 1 FROM members m WHERE m.event_id = e.id AND m.user_id = u.tg_id) THEN 'member' END AS role
+    FROM events e JOIN companies c ON c.id = e.company_id CROSS JOIN users u
+   WHERE role IS NOT NULL ORDER BY e.id, u.tg_id`);
+const roles063 = (s) => rowsOf(s, `
+  SELECT e.id AS event, u.tg_id AS user,
+         CASE WHEN u.tg_id = e.owner_id THEN 'owner'
+              WHEN EXISTS (SELECT 1 FROM event_admins a WHERE a.event_id = e.id AND a.user_id = u.tg_id) THEN 'admin'
+              WHEN EXISTS (SELECT 1 FROM members m WHERE m.event_id = e.id AND m.user_id = u.tg_id) THEN 'member' END AS role
+    FROM events e CROSS JOIN users u
+   WHERE role IS NOT NULL ORDER BY e.id, u.tg_id`);
+// «Не повторять пары»: прошлые пары события — 062 по комнате, 063 по владельцу (src/pairs.js, previousPairsQuery)
+const previous = (s, by) => rowsOf(s, `SELECT id, ${by} AS k, created_at FROM events ORDER BY id`).map((ev) => [ev.id,
+  rowsOf(s, `SELECT p.event_id, p.santa, p.ward FROM pairs p JOIN events e ON e.id = p.event_id
+              WHERE e.${by} = ? AND p.event_id != ? AND e.created_at <= ? ORDER BY e.created_at DESC, e.id DESC, p.santa`,
+  ev.k, ev.id, ev.created_at)]);
+
+test('0024: база «как у 062» — владельцы, организаторы, факты создания и разрешения по правилу; прочие строки прежние; версия 24', () => {
+  const s = base062();
+  const tables = tablesOf(s);
+  const before = Object.fromEntries(tables.map((t) => [t, dump(s, t)]));
+  const roles = roles062(s);
+  const prev = previous(s, 'company_id');
+  s.exec(SQL24);
+
+  assert.deepEqual(rowsOf(s, 'SELECT id, owner_id FROM events ORDER BY id'),
+    [{ id: 1, owner_id: 100 }, { id: 2, owner_id: 100 }, { id: 3, owner_id: 101 }, { id: 4, owner_id: 101 }]);
+  assert.deepEqual(rowsOf(s, 'SELECT event_id, user_id FROM event_admins ORDER BY event_id, user_id').map((r) => [r.event_id, r.user_id]),
+    [[1, 100], [1, 102], [2, 100], [2, 102], [3, 101], [3, 103], [4, 101], [4, 103]]);
+  assert.deepEqual(rowsOf(s, 'SELECT event_id, user_id, created_at FROM event_creations ORDER BY event_id').map((r) => [r.event_id, r.user_id, r.created_at]),
+    [[1, 100, 100], [2, 102, 200], [4, 103, 210]], 'у события без создателя факта нет');
+  assert.deepEqual(rowsOf(s, 'SELECT tg_id FROM users WHERE can_create = 1 ORDER BY tg_id').map((r) => r.tg_id), [100, 101, 102, 103]);
+  assert.equal(rowsOf(s, "SELECT value FROM settings WHERE key = 'schema'")[0].value, '24');
+  // Роли и прошлые пары — те же, что у 062
+  assert.deepEqual(roles063(s), roles);
+  assert.deepEqual(previous(s, 'owner_id'), prev);
+  // Прочие строки прежние: у событий и людей — новые колонки, остальное то же
+  const without = (rows, col) => rows.map((r) => { const o = JSON.parse(r); delete o[col]; return JSON.stringify(o); }).sort();
+  assert.deepEqual(without(dump(s, 'events'), 'owner_id'), before.events);
+  assert.deepEqual(without(dump(s, 'users'), 'can_create'), before.users);
+  for (const t of tables.filter((t) => !['events', 'users', 'settings'].includes(t))) assert.deepEqual(dump(s, t), before[t], t);
+  const indexes = rowsOf(s, "SELECT name FROM sqlite_master WHERE type = 'index'").map((r) => r.name);
+  for (const i of ['event_admins_user', 'event_creations_user', 'events_owner']) assert.ok(indexes.includes(i), i);
+  assert.throws(() => s.exec(SQL24), /duplicate column name: owner_id/);
+});
+
+test('0024 на пустой базе: версия 24, строк нет', () => {
+  const db = createD1();
+  for (const sql of BEFORE_24) db.sqlite.exec(sql);
+  db.sqlite.exec(SQL24);
+  assert.equal(rowsOf(db.sqlite, "SELECT value FROM settings WHERE key = 'schema'")[0].value, '24');
+  for (const t of ['event_admins', 'event_creations']) assert.equal(rowsOf(db.sqlite, `SELECT COUNT(*) AS n FROM ${t}`)[0].n, 0, t);
+});
+
+test('сверка 063: событие прежнего кода после миграции переносится, снятые организаторы не возвращаются, повтор ничего не меняет', () => {
+  const s = base062();
+  s.exec(SQL24);
+  // Владелец снял организатора события 4 (063); прежний код между миграцией и выкатом создал событие в комнате 2
+  s.exec('DELETE FROM event_admins WHERE event_id = 4 AND user_id = 103');
+  s.exec("INSERT INTO events (id, title, invite_code, company_id, created_by, created_at) VALUES (5, 'Новое', 'b3', 2, 103, 300)");
+  s.exec(RECONCILE24);
+  assert.equal(rowsOf(s, 'SELECT owner_id FROM events WHERE id = 5')[0].owner_id, 101);
+  assert.deepEqual(rowsOf(s, 'SELECT user_id FROM event_admins WHERE event_id = 5 ORDER BY user_id').map((r) => r.user_id), [101, 103]);
+  assert.deepEqual(rowsOf(s, 'SELECT user_id FROM event_admins WHERE event_id = 4').map((r) => r.user_id), [101], 'снятый не вернулся');
+  assert.deepEqual(rowsOf(s, 'SELECT user_id FROM event_creations WHERE event_id = 5').map((r) => r.user_id), [103]);
+  const once = Object.fromEntries(tablesOf(s).map((t) => [t, dump(s, t)]));
+  s.exec(RECONCILE24);
+  for (const t of Object.keys(once)) assert.deepEqual(dump(s, t), once[t], t);
+});
+
+test('от противного (063): миграция без организаторов из комнаты меняет роли; прошлые пары по владельцу бота — по всем его комнатам', () => {
+  const s = base062();
+  const roles = roles062(s);
+  s.exec(SQL24.replace(/INSERT OR IGNORE INTO event_admins \(event_id, user_id, created_at\)\nSELECT e\.id, cm\.user_id[\s\S]*?;\n/, ''));
+  assert.notDeepEqual(roles063(s), roles);
+  // Вторая комната без назначенного владельца: её события тоже у владельца бота — прошлые пары по владельцу их объединяют
+  const t = base062();
+  t.exec('UPDATE companies SET owner_id = 0 WHERE id = 2');
+  const prev = previous(t, 'company_id');
+  t.exec(SQL24);
+  assert.notDeepEqual(previous(t, 'owner_id'), prev);
+});
